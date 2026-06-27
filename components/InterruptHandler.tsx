@@ -8,9 +8,17 @@ import { useSRSStore } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { validateLicense } from "@/lib/entitlement";
+import { getFeatureFlags } from "@/lib/featureFlags";
 
-/** Mounted in the root layout. Listens for interrupt events from the Rust thread. */
+/** Mounted in the root layout. Returns null immediately when the interrupt engine flag is off. */
 export function InterruptHandler() {
+  const flags = getFeatureFlags();
+  if (!flags.interruptEngine) return null;
+  return <InterruptHandlerCore />;
+}
+
+/** Inner component — only mounts when interruptEngine flag is on. */
+function InterruptHandlerCore() {
   const router = useRouter();
   const { units } = useLangPack();
   const pathname = usePathname();

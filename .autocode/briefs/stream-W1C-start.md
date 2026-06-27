@@ -1,179 +1,141 @@
-# Charles — Stream W1C — Wave 1 — 2026-06-27
+# Charles — Stream W1C — Wave 1 — 2026-06-26
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Charles | W1C | #018 #019 #021
+— Charles | W1C | #027
 
 You are Charles, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #018  — Add component test for StudyCard.tsx (Rule 14)
-2. /task #019  — Add component tests for EntitlementValidator and InterruptHandler (Rule 14)
-3. /task #021  — Add seam test — parseBackup → setState → getDueCards
+1. /task #027  — Extract checkAnswer + levenshtein to lib/answerCheck.ts
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
+STATUS BOARD RULE — MANDATORY: After completing your task, print your status board:
 
 Charles — W1C
-[✓] #018 — StudyCard.test.tsx                         ← done
-[→] #019 — EntitlementValidator + InterruptHandler     ← starting now
-[ ] #021 — seam_importRestore.test.ts
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+[✓] #027 — Extract checkAnswer + levenshtein to lib/answerCheck.ts   ← done
 
 ## Files You Own (edit ONLY these)
-components/StudyCard.test.tsx            (CREATE)
-components/EntitlementValidator.test.tsx (ALREADY EXISTS — audit + augment only)
-components/InterruptHandler.test.tsx     (CREATE)
-tests/seam_importRestore.test.ts         (CREATE)
+lib/srs.ts
+lib/answerCheck.ts              ← new file to create
+lib/language.ts
+components/StudyCard.tsx
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-tests/language.test.ts           (Adam — W1A)
-tests/grading.test.ts            (Adam — W1A)
-lib/language.ts                  (Adam — W1A)
-tests/storage.test.ts            (Barry — W1B)
-tests/srs.test.ts                (Barry — W1B)
-tests/srsStore.test.ts           (Barry — W1B)
-tests/seam_studyLoop.test.ts     (Derek — W1D)
-
-## CRITICAL — Pre-existing files you own
-
-### components/EntitlementValidator.test.tsx (220 lines) — ALREADY EXISTS
-This file was created during Batch 1 Task #001 WorldClass. DO NOT overwrite it.
-Your job for task #019 is to:
-1. Read the existing test file.
-2. Check if it covers these 4 specific cases:
-   (a) Does NOT call validateLicense when needsValidation() returns false
-   (b) Calls validateLicense when needsValidation() returns true and licenseKey/instanceId are set
-   (c) Calls markValidated when validation succeeds
-   (d) Does NOT call console.warn on validation failure (regression guard for #009)
-3. Add any missing cases.
-4. Create components/InterruptHandler.test.tsx (this does NOT exist yet).
-
-### tests/study_loop.test.ts (109 lines) — NOT your file, just context
-This file covers FSRS state transitions (rateCard, not-due checks). It is NOT the same
-as tests/seam_studyLoop.test.ts (Derek's W1D task). Do not confuse them.
+app/learn/page.tsx              ← W1A owns this
+app/study/page.tsx              ← W1A owns this
+store/srsStore.ts               ← W1A owns this
+components/UnitRow.tsx          ← W1A owns this
+lib/cardLabels.ts               ← W1A owns this
+components/Stat.tsx             ← W1A owns this
+app/settings/page.tsx           ← W1B owns this
+lib/exportBackup.ts             ← W1B owns this
+components/settings/Section.tsx ← W1B owns this
+components/settings/Toggle.tsx  ← W1B owns this
+hooks/useExportImport.ts        ← W1B owns this
+hooks/useLicenseActivation.ts   ← W1B owns this
+lib/featureFlags.ts             ← W1D owns this
+next.config.ts                  ← W1D owns this
+components/InterruptHandler.tsx ← W1D owns this
 
 ## Task Definitions
 
-### Task #018 | Add component test for StudyCard.tsx (Rule 14)
-**Severity:** 6 | **File(s):** `components/StudyCard.tsx` (no co-located test)
+### Task #027 | Extract checkAnswer + levenshtein to lib/answerCheck.ts
+**Severity:** 4 | **File(s):** `lib/srs.ts` (290 lines — growing beyond 250-line service limit)
 **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, no package boundary, test-only creation
+**Complexity:** 🔧 Full — "extract" keyword, 4 files (lib/srs.ts, lib/answerCheck.ts, lib/language.ts, components/StudyCard.tsx)
 
-Rule 14: every user-facing React component has a co-located `.test.tsx`. `StudyCard.tsx` has zero tests. It is the primary interactive component — a regression here breaks the core loop.
+`checkAnswer` and `levenshtein` are answer-evaluation utilities. They have grown (NFC normalization, diacritic tolerance, article stripping from prior batch work) and belong in their own focused module. `lib/srs.ts` should contain only FSRS scheduling logic.
 
 **Changes required:**
-Create `components/StudyCard.test.tsx` with:
-1. Renders without crashing given a `produce` card.
-2. Text input accepts typed answers.
-3. Submitting a correct answer calls `onRate` with a non-`"again"` grade.
-4. Submitting a wrong answer calls `onRate` with `"again"` (after 3 attempts — check StudyCard.tsx: showAnswer appears after 2 failed attempts at line 91, and giveUp() calls onRate("again")).
-5. The card shows the prompt text.
-6. After a correct answer, the correct feedback string is visible.
 
-**Vitest + React testing setup:** Use `@testing-library/react` (renderHook, render, screen, fireEvent).
-StudyCard is a "use client" component. In the Vitest/jsdom environment, useEffect runs synchronously.
-The auto-advance timer (FLASH_MS = 1400ms) should be mocked with `vi.useFakeTimers()`.
-Mock `@/lib/srs` if needed to control checkAnswer return values.
+1. READ lib/srs.ts IN FULL FIRST. It was heavily modified in prior batches:
+   - FSRS stability clamped to [0.001, 36500]
+   - `scheduleCard`, `rateCard`, `checkAnswer` all updated
+   - `rateCardAndSaveSession` is now in store/srsStore.ts (not in lib/srs.ts) — do not confuse them
 
-**Done condition:** `components/StudyCard.test.tsx` exists. `npm test -- components/StudyCard.test.tsx` passes all 6 cases. Verification gate green.
+2. Create `lib/answerCheck.ts` — move these from lib/srs.ts:
+   - `levenshtein(a: string, b: string): number` — Levenshtein distance utility
+   - `stripArticle(word: string, articles: string[]): string` — strip leading article
+   - `ITALIAN_ARTICLES: string[]` — constant
+   - `SPANISH_ARTICLES: string[]` — constant
+   - `checkAnswer(userAnswer: string, correct: string, config: LanguageConfig): AnswerResult` — the main function
 
----
+3. Add re-exports from lib/srs.ts for backwards compatibility (11 importers!):
+   ```ts
+   // Re-exports for backwards compatibility — prefer importing from lib/answerCheck directly
+   export { checkAnswer, levenshtein, stripArticle, ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck";
+   ```
+   This preserves all existing imports unchanged.
 
-### Task #019 | Add component tests for EntitlementValidator and InterruptHandler (Rule 14)
-**Severity:** 5 | **File(s):** `components/EntitlementValidator.tsx`, `components/InterruptHandler.tsx`
-**DoD Tier:** 2
-**Complexity:** ⚡ Direct — 2 files, no package boundary, test-only creation
+4. Update direct import sites (the ones that should use the new path):
+   - `lib/language.ts` — if it imports ITALIAN_ARTICLES or SPANISH_ARTICLES from lib/srs.ts, update to @/lib/answerCheck
+   - `components/StudyCard.tsx` — if it imports checkAnswer from lib/srs.ts, update to @/lib/answerCheck
 
-Both components have zero tests (Rule 14 violation).
+5. `tests/answerCheck.test.ts` (NEW FILE) — pin the module boundary:
+   ```ts
+   import { checkAnswer, levenshtein, ITALIAN_ARTICLES } from "@/lib/answerCheck";
+   // Mirror the key checkAnswer tests that exist in tests/srs.test.ts but import from the new location
+   ```
 
-**IMPORTANT:** components/EntitlementValidator.test.tsx already exists (220 lines, created
-during Batch 1 Task #001 WorldClass). Read it first. Check if these 4 cases are covered:
-1. Does not call validateLicense when needsValidation() returns false.
-2. Calls validateLicense when needsValidation() returns true and licenseKey/instanceId are set.
-3. Calls markValidated when validation succeeds.
-4. Does NOT call console.warn on validation failure (regression guard for Task #009).
-If all 4 are covered: no changes needed to EntitlementValidator.test.tsx.
-If any are missing: add the missing tests — do not overwrite existing tests.
+**Test required (write first):**
+- `tests/answerCheck.test.ts` — import directly from `@/lib/answerCheck` (not lib/srs.ts):
+  - `levenshtein("casa", "caso") === 1`
+  - `levenshtein("", "a") === 1`
+  - `checkAnswer("ciao", "ciao", italianConfig)` returns `{ result: "correct" }`
+  - `checkAnswer("ciao", "buongiorno", italianConfig)` returns `{ result: "wrong" }`
+  - NFC normalization: `checkAnswer("café", "café", config)` should be correct (if NFC was added)
 
-**Create components/InterruptHandler.test.tsx:**
-1. Does not register the `interrupt:fire` listener when `isTauri` is false.
-2. Does not navigate to `/study` when `isInDnd` is true.
-3. Calls `updateInterruptConfig` when `interruptEnabled` changes.
+**Done condition:** `lib/answerCheck.ts` exists. `lib/srs.ts` re-exports from it (existing test suite still passes via re-exports). `tests/answerCheck.test.ts` passes. `wc -l lib/srs.ts` ≤ 250. Verification gate green.
 
-**Done condition:** Both test files exist and all tests pass. Verification gate green.
+## Prior Wave Changes — Read Before Starting
+These files were modified in Batch 2 Wave 1. Read current state before writing.
 
----
+**lib/srs.ts** (modified by Batch 2 W1B — #022 FSRS invariants):
+- FSRS stability now clamped: `stability = Math.max(0.001, Math.min(36500, rawStability))`
+- `scheduleCard` and `rateCard` updated with clamped stability
+- `checkAnswer` was updated in W1C (#019) with NFC normalization and diacritic tolerance
+- Current line count: 290 (spec estimated 266 — now higher due to these additions)
+- Read the full file before extracting — the exact line ranges for checkAnswer have shifted
 
-### Task #021 | Add seam test — parseBackup → setState → getDueCards
-**Severity:** 6 | **File(s):** `tests/` (new file), spanning `lib/importBackup.ts`, `store/srsStore.ts`
-**DoD Tier:** 2
-**Complexity:** ⚡ Direct — 2 files, no package boundary, seam test creation
+**lib/language.ts** (modified by Batch 2 W1A — #014 — and W1C — #019/#021):
+- fr/de/pt language stubs REMOVED — only ITALIAN and SPANISH remain in LANGUAGE_MAP
+- `diacriticTolerant: true` added to both ITALIAN and SPANISH configs
+- Poka-yoke comment added: "Keep this map in sync with LANGUAGE_REGISTRY in lib/langRegistry.ts"
+- Read before touching — the structure has changed from the original
 
-No integration test covers the backup restore path. A corrupted `parseBackup` output that passes its own validation but produces bad store state (e.g. wrong `dueDate` types) would silently break `getDueCards`.
-
-**Changes required:**
-Create `tests/seam_importRestore.test.ts`:
-1. Construct a minimal valid backup JSON with 2 card progress entries (one due, one not).
-2. Call `parseBackup(json)` — assert `result.ok === true`.
-3. Apply `useSRSStore.setState({ ...result.srs })`.
-4. Call `getDueCards(mockCards)` where `mockCards` matches the card IDs from the backup.
-5. Assert the due card is returned and the non-due card is not.
-6. Assert `getDueCards` does not throw when given card IDs not present in the backup (graceful degradation).
-
-**Done condition:** `tests/seam_importRestore.test.ts` exists and passes. Verification gate green.
-
----
+**components/StudyCard.tsx** (modified by Batch 2 W1C — #018 and #021):
+- NFC normalization applied at answer submission
+- diacriticTolerant config passed to checkAnswer
+- Read before touching — import sites may already be updated
 
 ## Agent Memories
 
-### QA Agent Memory (relevant entries for your domain)
+### Architecture Agent Memory
 
-```
-Test framework: Vitest 4 with vi.mock, vi.fn, vi.spyOn. Config in vitest.config.ts.
-Component tests: co-located .test.tsx in components/ (Rule 14).
-Stack: Next.js 16.2.9, React 19, Zustand 5, Tauri 2, FSRS v4 scheduler.
-Current test count (Batch 1 complete): 397 it() calls passing.
+---
+agent: architect
+last-updated: 2026-06-26
+---
 
-Component testing pattern:
-- Use @testing-library/react (render, screen, fireEvent, renderHook).
-- "use client" components work in Vitest/jsdom environment.
-- vi.useFakeTimers() for timer-dependent components (StudyCard FLASH_MS=1400ms).
-- Mock vi.mock("@/lib/srs") to control checkAnswer return values in StudyCard tests.
-- For Tauri-dependent components (InterruptHandler), mock "@/lib/tauri" — vi.mock("@/lib/tauri")
-  and set isTauri = false for non-Tauri test paths.
+**Stack:** Next.js 16.2.9, React 19, Zustand 5, Tauri 2.
 
-Seam test pattern (tests/ directory):
-- Import real functions from lib/. Only mock platform boundaries (Tauri IPC, fetch).
-- Store resets: useSRSStore.setState({cards:{}, ...}) in beforeEach.
-- backup JSON structure: see lib/importBackup.ts for schema.
+**Blast-radius ranking:**
+1. `lib/srs.ts` — 11 importers (HIGHEST RISK — you are touching this file)
+   The re-export pattern is mandatory. Every importer of lib/srs.ts must continue to work.
+   Run `grep -r "from.*lib/srs" --include="*.ts" --include="*.tsx" . | grep -v node_modules`
+   to see all 11 importers BEFORE making any changes.
 
-Verification gate:
-  npx tsc --noEmit    # zero TypeScript errors
-  npm test            # all tests pass + coverage thresholds
-  npm run lint        # zero lint errors
-```
+**Layer rule:** lib/answerCheck.ts should import from lib/language.ts (for LanguageConfig type)
+but should NOT import from store/ or hooks/. Direction: lib/ → content/ only, never upward.
 
-## Prior Wave Changes — Read Before Starting
+**Rule 6 — Extract Ready:** Each module should be independently publishable.
+lib/answerCheck.ts should have no dependencies outside lib/ and content/types.ts.
+Check: does checkAnswer use anything from store/ ? If so, the dependency must be passed as a parameter, not imported.
 
-**components/StudyCard.tsx** was modified by Batch 1 Task #011 (orchestrating session):
-- Updated the checkAnswer() call to pass `{ articles: lang.articles, diacriticTolerant: lang.diacriticTolerant }`.
-- Read the current StudyCard.tsx before writing tests — the diacriticTolerant option is now always passed.
-
-**components/EntitlementValidator.test.tsx** was CREATED during Batch 1 Task #001 WorldClass:
-- 220 lines, 8 behavioral tests for `runEntitlementValidation`.
-- Tests cover the ok:false paths, touchValidated, throw/catch, and seam tests.
-- Do NOT overwrite. Audit for the 4 specific cases in task #019 and add only if missing.
-
-**components/InterruptHandler.tsx** was modified in Batch 1 Wave 1B (Barry):
-- Error handling improved. Read the current file before writing tests.
-
-**lib/importBackup.ts** was modified in Batch 1 (Wave 1C + Wave 2A):
-- parseBackup validates backup schema. The current schema expects _version, srs entries.
-- Read lib/importBackup.ts before writing the seam test to understand the backup structure.
+**Silent catch audit for your files:**
+- lib/srs.ts: check for any catch blocks introduced in prior batches. All must log with ERR- ref.
+- lib/answerCheck.ts (new): any error paths in levenshtein or checkAnswer? They should throw explicitly, not return silently wrong values.
 
 ## When You Finish
 Write your completion summary to .autocode/stream-W1C/completion.md:
@@ -184,4 +146,4 @@ Write your completion summary to .autocode/stream-W1C/completion.md:
 
 Then tell Max in this window: "Charles is done." (or describe what's incomplete).
 
-— Charles | W1C | #018 #019 #021
+— Charles | W1C | #027

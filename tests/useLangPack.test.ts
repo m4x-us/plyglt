@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { getLanguageConfig } from "@/lib/language";
+import { ALL_PACK_CODES } from "@/lib/langRegistry";
 
 const hookSrc = readFileSync(
   path.resolve(__dirname, "../hooks/useLangPack.ts"),
@@ -22,20 +23,16 @@ describe("getLanguageConfig — referential stability", () => {
     expect(getLanguageConfig("it")).toBe(getLanguageConfig("it"));
   });
 
-  it("returns the same reference for all five pack codes", () => {
-    const codes = ["it", "es", "fr", "de", "pt"] as const;
-    for (const code of codes) {
+  it("returns the same reference for all registered pack codes", () => {
+    for (const code of ALL_PACK_CODES) {
       expect(getLanguageConfig(code)).toBe(getLanguageConfig(code));
     }
   });
 
-  it("returns a defined LanguageConfig for every known pack code", () => {
-    const codes = ["it", "es", "fr", "de", "pt"] as const;
-    for (const code of codes) {
+  it("returns a LanguageConfig with matching code for every registered pack code", () => {
+    for (const code of ALL_PACK_CODES) {
       const cfg = getLanguageConfig(code);
-      expect(cfg).toBeDefined();
-      expect(typeof cfg.code).toBe("string");
-      expect(cfg.code.length).toBeGreaterThan(0);
+      expect(cfg.code).toBe(code);
     }
   });
 });

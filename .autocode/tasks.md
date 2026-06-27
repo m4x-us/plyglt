@@ -867,7 +867,7 @@ Task #002 WorldClass accepted gap (-1 pt). The Rule 2 header in `lib/constants.t
 
 ---
 
-## Batch 2 — Test Foundation [CURRENT SPRINT]
+## Batch 2 — Test Foundation [COMPLETE]
 Dependency: Batch 1 complete.
 Theme: Component tests, seam tests, property-based invariants. Fix known false-green test bugs.
 
@@ -1089,7 +1089,7 @@ Add to `tests/srsStore.test.ts`:
 
 ---
 
-## Batch 3 — Architecture Cleanup [BACKLOG]
+## Batch 3 — Architecture Cleanup [COMPLETE]
 Dependency: Batch 1 complete, Batch 2 in progress (Batch 3 can start when Batch 2 is 50% done).
 Theme: File size violations, extraction of pure functions, inline computation, UI primitives.
 
@@ -1113,6 +1113,7 @@ Two computations violate Rule 15 (pure classification) and bloat the route beyon
 - `components/UnitRow.test.tsx` — basic render test (Rule 14): renders unit name, shows due badge when `stats.due > 0`, shows locked state when `unlocked === false`.
 
 **Done condition:** `app/learn/page.tsx` ≤ 150 lines. `components/UnitRow.tsx` exists. `levelMasteryPct` and `currentStudyLevel` are in `store/srsStore.ts` and tested. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1136,6 +1137,7 @@ Two computations violate Rule 15 (pure classification) and bloat the route beyon
 - `components/Stat.test.tsx` — renders `value` and `label`, applies highlight class when `highlight === true`.
 
 **Done condition:** `app/study/page.tsx` ≤ 150 lines. `TIER_LABELS` is a named constant. `components/Stat.tsx` exists. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1162,6 +1164,7 @@ Two computations violate Rule 15 (pure classification) and bloat the route beyon
 - `hooks/useExportImport.test.ts` — `handleExport` creates a download link (mock `document.createElement`). `handleImportFile` calls `parseBackup` on the file content.
 
 **Done condition:** `app/settings/page.tsx` ≤ 150 lines. All extracted files exist. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1179,6 +1182,7 @@ Two computations violate Rule 15 (pure classification) and bloat the route beyon
 **Test required:** Tests already exist in `tests/srs.test.ts` for `checkAnswer`. Add `tests/answerCheck.test.ts` that imports directly from `lib/answerCheck` to pin the module boundary.
 
 **Done condition:** `lib/answerCheck.ts` exists. `lib/srs.ts` imports `checkAnswer` from `lib/answerCheck`. `wc -l lib/srs.ts` ≤ 250 (Rule 2 for services). Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1197,6 +1201,7 @@ The export logic (`handleExport` function) is currently embedded in the settings
 - `tests/exportBackup.test.ts` — `exportBackup(srsState, entitlementState, "en-it")` returns a parseable JSON string containing `_version: 2`, `langPair: "en-it"`, and `srs.cards`.
 
 **Done condition:** `lib/exportBackup.ts` exists. `tests/exportBackup.test.ts` passes. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1223,6 +1228,7 @@ No feature flag system exists. Rule 4: every new feature must be toggleable off.
 - `tests/featureFlags.test.ts` — `getFeatureFlags()` returns all flags as booleans. When `NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE` is `"false"`, `interruptEngine` is `false`. When absent, defaults to `true` (feature on by default).
 
 **Done condition:** `lib/featureFlags.ts` exists. `tests/featureFlags.test.ts` passes. `components/InterruptHandler.tsx` reads the flag. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 

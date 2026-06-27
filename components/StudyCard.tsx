@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { Card } from "@/content/types";
-import { checkAnswer, autoRate, type Grade } from "@/lib/srs";
+import { checkAnswer } from "@/lib/answerCheck";
+import { autoRate, type Grade } from "@/lib/srs";
 import { ACTIVE_LANGUAGE, SOURCE_LANG_CODE, getPrompt, getAccepted } from "@/lib/language";
 
 interface StudyCardProps {

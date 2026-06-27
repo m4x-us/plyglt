@@ -223,15 +223,18 @@ describe("handleImportFile error handling (Task #007)", () => {
     expect(source).not.toMatch(/catch\s*\{/);
   });
 
-  it("structural: app/settings/page.tsx defines reader.onerror", () => {
-    const source = readFileSync(resolve(process.cwd(), "app/settings/page.tsx"), "utf-8");
+  it("structural: hooks/useExportImport.ts defines reader.onerror", () => {
+    // FileReader error handling was extracted from app/settings/page.tsx to
+    // hooks/useExportImport.ts as part of Task #026 (settings page split).
+    const source = readFileSync(resolve(process.cwd(), "hooks/useExportImport.ts"), "utf-8");
     expect(source).toContain("reader.onerror");
   });
 
   it("structural: FileReader.onerror reads DOMException from event.target.error (Task #007)", () => {
     // The ProgressEvent itself is opaque — the actual failure reason is the DOMException
     // on FileReader.error. Logging only the ProgressEvent discards the real error detail.
-    const source = readFileSync(resolve(process.cwd(), "app/settings/page.tsx"), "utf-8");
+    // (Moved to hooks/useExportImport.ts as part of Task #026.)
+    const source = readFileSync(resolve(process.cwd(), "hooks/useExportImport.ts"), "utf-8");
     expect(source).toContain("(event.target as FileReader).error");
   });
 });

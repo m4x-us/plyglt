@@ -14,7 +14,7 @@ beforeEach(() => {
   useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
 });
 
-describe("seam: pack load → buildQueue → rateCard → saveActiveSession", () => {
+describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession", () => {
   it("buildQueue returns a non-empty queue from real cards with a fresh store state", () => {
     const { getDueCards, getNewCards } = useSRSStore.getState();
     const queue = buildQueue(SAMPLE_CARDS, getDueCards, getNewCards, false);

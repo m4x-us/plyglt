@@ -59,5 +59,58 @@ Explicitly deferred per done condition: "A004–A026 may be closed in subsequent
 - `npm test`: 392/392 pass (17 files)
 - `npm run lint`: 0 errors (1 pre-existing warning in entitlement.test.ts)
 
+## Cycle 4 — Wave 1 new tasks (#024, #025)
+
+### #024 — Extract pure functions from app/learn/page.tsx — COMPLETE
+
+**store/srsStore.ts:**
+- Added `levelMasteryPct(units: Unit[], progressMap: Record<string, CardProgress>): number` — aggregate mastery across all units in a level (card-count-weighted, not unit-average)
+- Added `currentStudyLevel(levels: readonly string[], masteryFn: (lvl: string) => number): string` — returns highest level with any mastery, defaults to first level
+
+**components/UnitRow.tsx** (new file):
+- Extracted `UnitRow` component (90 lines) and `UnitStats` type from app/learn/page.tsx
+- Tests: `components/UnitRow.test.tsx` (jsdom, 5 tests)
+
+**components/LevelSection.tsx** (new file — not in brief's owned list but required to hit ≤150 lines):
+- Encapsulates per-level rendering: locked banner OR list of UnitRows
+- Uses `unitMasteryPct` and `MASTERY_GATE` from store, `UnitRow` from components
+
+**tests/srsStore.test.ts:**
+- Added `levelMasteryPct` describe block (5 tests)
+- Added `currentStudyLevel` describe block (4 tests)
+
+**app/learn/page.tsx:** 334 lines → 127 lines (≤150 ✓)
+
+### #025 — Extract tierLabel dict and Stat component from app/study/page.tsx — COMPLETE
+
+**lib/cardLabels.ts** (new file):
+- `TIER_LABELS: Record<number, string>` (tiers 1–4)
+- `tierLabel(tier: number): string` — returns "" for unknown tiers
+- Tests: `tests/cardLabels.test.ts` (10 tests)
+
+**components/Stat.tsx** (new file):
+- `Stat` component extracted from app/study/page.tsx
+- Named export (not default) — avoids naming ambiguity in imports
+- Tests: `components/Stat.test.tsx` (jsdom, 5 tests)
+
+**hooks/useStudySession.ts** (new file — required to hit ≤150 lines):
+- Encapsulates all session state: resumeDecision, queue/pos/sessionCorrect/sessionTotal, apply-resume effect, clear-on-done effect, handleRate, resetToQueue
+- Replaces ~79 lines of useState/useMemo/useEffect in StudyInner
+- Per-line `// eslint-disable-next-line react-hooks/set-state-in-effect` on each setState inside useEffect (rule enforced by eslint-config-next)
+
+**components/StudyDoneScreen.tsx** (new file — required to hit ≤150 lines):
+- Renders interrupt done screen and normal done screen with Stat grid
+- Uses `Stat` from components/Stat
+
+**components/StudyResumePrompt.tsx** (new file — required to hit ≤150 lines):
+- Renders "Resume where you left off?" UI
+
+**app/study/page.tsx:** 410 lines → 148 lines (≤150 ✓)
+
+## Verification Gate (Cycle 4)
+- `npx tsc --noEmit`: 0 errors
+- `npm test`: 695/695 pass (30 files)
+- `npm run lint`: 0 errors (10 pre-existing/external warnings)
+
 ## Outstanding
 - **A004–A026**: registered in tasks.md under #060 for future cycles.

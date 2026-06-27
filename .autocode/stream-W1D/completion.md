@@ -1,22 +1,20 @@
 # Stream W1D — Completion Summary
 **Completed:** 2026-06-27
-**Tasks:** #020 COMPLETE | #073 BLOCKED
+**Tasks:** #029 COMPLETE
 
 ## Tasks Closed
-- **#020** — Add seam test: pack load → buildQueue → rateCard → saveActiveSession ← COMPLETE
-  - Created `tests/seam_studyLoop.test.ts` (70 lines, 4 tests)
-  - Real card data from `content/index.ts` — no intermediate mocks
-  - Atomicity pin: `useSRSStore.subscribe` verifies no partial-write snapshot
-  - 4/4 tests pass; tsc: PASS; lint: 0 errors; WorldClass ~97/100
+- **#029** — Add feature flag system (Rule 4) ← COMPLETE
+  - Created `lib/featureFlags.ts` — `FeatureFlags` interface + `getFeatureFlags()` reading NEXT_PUBLIC_FLAGS_* env vars; default true (feature on)
+  - Created `tests/featureFlags.test.ts` — 7 tests (3 required + 4 additional covering all three flags)
+  - Updated `next.config.ts` — comment block documenting the 3 flag env vars
+  - Updated `components/InterruptHandler.tsx` — wrapper pattern: exported `InterruptHandler` reads flag, returns null or `<InterruptHandlerCore />`; inner `InterruptHandlerCore` holds all hooks (avoids rules-of-hooks lint error)
+  - 7/7 tests pass; tsc: PASS; lint: 0 errors
 
 ## Tasks NOT Completed
-- **#073** — Ratchet coverage thresholds: thresholds are set correctly in `vitest.config.ts` (lines=84, functions=79, branches=79, statements=82) but `npm test` exits 1 due to W1A `langRegistry.test.ts` failures; vitest suppresses coverage report on any test failure; done-when cannot be verified until W1A lands.
+None.
 
 ## Debt Entries Logged
-0
+1 — `components/InterruptHandler.tsx` sev-4: validateLicense .then() has no .catch() (out of scope for #029)
 
 ## Carry-Forward Tasks Generated
 0
-
-## Agent Memory Updates
-- `qa.md`: Task #020 and atomicity-pin findings marked RESOLVED; coverage map updated with `seam_studyLoop.test.ts`

@@ -128,7 +128,8 @@ export async function checkForUpdates(): Promise<void> {
       // The update dialog is handled by the plugin; just download and install.
       await update.downloadAndInstall();
     }
-  } catch {
-    // Non-fatal — network may be offline
+  } catch (err) {
+    // Non-fatal — network may be offline. Log so manifest parse failures leave a trace.
+    console.error(`[ERR-UPDATER-${Date.now()}] checkForUpdates failed:`, err);
   }
 }

@@ -213,3 +213,22 @@ export function unitMasteryPct(unit: Unit, progressMap: Record<string, CardProgr
   const mastered = unit.cards.filter((c) => isMastered(progressMap[c.id])).length;
   return Math.round((mastered / unit.cards.length) * 100);
 }
+
+// Aggregate mastery across all units in a level (sum of all cards, not average of unit %s)
+export function levelMasteryPct(units: Unit[], progressMap: Record<string, CardProgress>): number {
+  if (units.length === 0) return 0;
+  const total = units.reduce((s, u) => s + u.cards.length, 0);
+  const mastered = units.reduce(
+    (s, u) => s + u.cards.filter((c) => isMastered(progressMap[c.id])).length,
+    0
+  );
+  return total === 0 ? 0 : Math.round((mastered / total) * 100);
+}
+
+// Returns the highest level string that has any mastery (masteryFn > 0), defaulting to levels[0].
+export function currentStudyLevel(levels: readonly string[], masteryFn: (lvl: string) => number): string {
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (masteryFn(levels[i]!) > 0) return levels[i]!;
+  }
+  return levels[0] ?? "";
+}

@@ -1,5 +1,5 @@
 import type { Card } from "@/content/types";
-import { ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/srs";
+import { ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck";
 
 export interface LanguageConfig {
   code: string;       // ISO 639-1: "it", "de", "es"

@@ -1,72 +1,43 @@
 # Stream W1B Task State
 
-### Task #017 | Add unit tests for lib/storage.ts
-**Severity:** 6 | **File(s):** `lib/storage.ts` (no test file exists)
+### Task #028 | Extract exportBackup logic to lib/exportBackup.ts
+**Severity:** 4 | **File(s):** `app/settings/page.tsx:114-145` (inline in page)
 **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, no package boundary, test-only creation
+**Complexity:** 🔧 Full — "extract" keyword, 3 files (app/settings/page.tsx, lib/exportBackup.ts, tests/exportBackup.test.ts)
 
-`createPlatformStorage` and `useIsHydrated` have zero tests. `createPlatformStorage` is the persistence foundation for every Zustand store — a regression here silently corrupts all user data.
+The export logic (`handleExport` function) is currently embedded in the settings page. It directly reads store state and constructs a JSON blob. This is a service-layer concern, not a route concern. Extracting it allows independent testing and future reuse (e.g. auto-backup on schedule).
 
 **Changes required:**
-Create `tests/storage.test.ts` with:
-1. `createPlatformStorage` — in the web (non-Tauri) path, `setItem`/`getItem`/`removeItem` round-trip correctly through a mocked `localStorage`.
-2. `createPlatformStorage` — `getItem` on a missing key returns `null` (not `undefined`).
-3. `createPlatformStorage` — when `localStorage` throws (mocked to throw), `getItem` propagates the error rather than swallowing it.
-4. `useIsHydrated` — renders `false` before hydration, then `true` after `onFinishHydration` fires (use `renderHook` from `@testing-library/react`).
+1. Create `lib/exportBackup.ts` — move the export payload construction logic into `exportBackup(srsState, entitlementState, langPair: string): string` that returns the JSON string. The DOM manipulation (create `<a>`, click, revoke) stays in the settings page or hook.
+2. `app/settings/page.tsx` / `hooks/useExportImport.ts` (from #026) — call `exportBackup()` from `lib/exportBackup.ts`.
 
-**Done condition:** `tests/storage.test.ts` exists with ≥4 passing tests covering the above. Verification gate green.
+**Test required (write first):**
+- `tests/exportBackup.test.ts` — `exportBackup(srsState, entitlementState, "en-it")` returns a parseable JSON string containing `_version: 2`, `langPair: "en-it"`, and `srs.cards`.
 
----
-
-### Task #076 | tests | severity 4
-**What:** Add `lib/storage.ts` test coverage — no test file exists; 42.42% statement coverage
-**Why:** `lib/storage.ts` has 7 importers and zero dedicated tests. QA agent found 42.42% statement coverage with uncovered paths at lines 54, 72-73, 99-107. Rule 5: every new behaviour has a test. This is existing behaviour with no tests. Note: Task #017 in this batch covers the same file — these tasks should be merged at execution time; the DoD is the union of both task specs.
-**File:** `lib/storage.ts`
-**Severity:** 4 | **DoD Tier:** 1
-**Complexity:** ⚡ Direct — 1 file, no package boundary, test-only creation
-**Blocked by:** Nothing | **Blocks:** Nothing
-**Risk:** Low — test-only task.
-**Test required (write first):** Create `tests/storage.test.ts` covering: (a) `getItem` returns `null` when key doesn't exist; (b) `setItem` + `getItem` round-trip; (c) `removeItem` clears the key; (d) SSR guard (`window` undefined) does not throw; (e) error path when `localStorage` throws.
-**Done condition:** `npm test -- tests/storage.test.ts` passes. `grep -n "from.*storage" tests/storage.test.ts` returns a hit. Verification gate green.
-**Owner:** QA Agent
+**Done condition:** `lib/exportBackup.ts` exists. `tests/exportBackup.test.ts` passes. Verification gate green.
 
 ---
 
-### Task #022 | Add property-based FSRS invariant tests
-**Severity:** 6 | **File(s):** `tests/srs.test.ts`
+### Task #026 | Extract Section, Toggle, and schedule DnD UI from app/settings/page.tsx (Rule 1)
+**Severity:** 5 | **File(s):** `app/settings/page.tsx` (516 lines — 3.4× the 150-line route limit)
 **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, no package boundary, parameterized test addition
+**Complexity:** 🔧 Full — "extract" keyword, 5 files (app/settings/page.tsx, components/settings/Section.tsx, components/settings/Toggle.tsx, hooks/useExportImport.ts, hooks/useLicenseActivation.ts)
 
-No property-based tests verify FSRS mathematical invariants. These catch edge cases (extreme inputs, adversarial grades) that unit tests with fixed inputs miss.
+`app/settings/page.tsx` is 516 lines — the worst file-size violation in the codebase. It contains at least four extractable concerns:
+- `Section` and `Toggle` UI primitives (search for their inline definitions)
+- Export/import logic (`handleExport`, `handleImportFile`, related state)
+- License activation/deactivation/validation logic (already in `lib/entitlement.ts` — the page has 90 lines of UI state machine for this)
+- DnD schedule UI
 
 **Changes required:**
-Add to `tests/srs.test.ts`:
-1. **Difficulty invariant:** For any `CardProgress` and any `Grade`, `scheduleCard(prev, grade).difficulty` is always in `[1, 10]`. Test with: all four grades × states `new/learning/review/relearning` × difficulty values `1, 5, 10`.
-2. **Stability lower bound:** `scheduleCard(prev, grade).stability >= 0.001` for all inputs.
-3. **Stability upper bound:** `scheduleCard(prev, grade).stability <= 36500` for all inputs (guards #012).
-4. **dueDate monotonicity:** For non-`"again"` grades in `review` state, `scheduleCard(prev, grade).dueDate > prev.dueDate`.
-5. **Reps always increments:** `scheduleCard(prev, grade).reps === prev.reps + 1` for all inputs.
-These can be parameterized tests using `it.each` — no property-testing library required.
+1. `components/settings/Section.tsx` — extract the `Section` UI primitive.
+2. `components/settings/Toggle.tsx` — extract the `Toggle` UI primitive.
+3. `hooks/useExportImport.ts` — extract `handleExport`, `handleImportFile`, and the `dataStatus` state into a hook. Call `exportBackup()` from `lib/exportBackup.ts` (created in #028).
+4. `hooks/useLicenseActivation.ts` — extract `handleActivate`, `handleValidate`, `handleDeactivate`, `licenseInput`, `licenseStatus` state into a hook. All Tauri IPC calls (invoke) MUST be wrapped in try/catch with ERR-ref logging.
+5. `app/settings/page.tsx` — consume the extracted hooks and components. Target: ≤ 150 lines.
 
-**Done condition:** 5 parameterized invariant tests added and passing. Verification gate green.
+**Test required (write first):**
+- `components/settings/Toggle.test.tsx` — renders label, fires `onChange` when clicked.
+- `hooks/useExportImport.test.ts` — `handleExport` creates a download link (mock `document.createElement`). `handleImportFile` calls `parseBackup` on the file content.
 
----
-
-### Task #023 | Add getNewCards prerequisite logic tests
-**Severity:** 5 | **File(s):** `tests/srsStore.test.ts`
-**DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, no package boundary, test augmentation
-
-`getNewCards` in `store/srsStore.ts:126-133` has prerequisite logic (`prerequisitesMet` at line 80-83) that is completely untested. A bug here could surface cards whose prerequisites are not met (level gating failure).
-
-**Changes required:**
-Add to `tests/srsStore.test.ts`:
-1. A card with no prerequisites is returned by `getNewCards`.
-2. A card whose prerequisite card is in state `"new"` (not yet reviewed) is NOT returned.
-3. A card whose prerequisite card is in state `"review"` IS returned.
-4. `getNewCards` respects the `limit` parameter — never returns more than `limit` cards.
-5. `getNewCards` returns cards sorted by tier (tier 1 before tier 2).
-
-**Done condition:** 5 tests added and passing. Verification gate green.
-
----
+**Done condition:** `app/settings/page.tsx` ≤ 150 lines. All extracted files exist. Verification gate green.

@@ -1,3 +1,26 @@
+# Stream W1C — Session 3 Completion (Task #027)
+**Date:** 2026-06-27
+**Stream:** W1C — extract checkAnswer + levenshtein to lib/answerCheck.ts
+**Status:** COMPLETE
+**Verification gate at close:** tsc=PASS (owned files) · 658 tests pass · lint=0 errors
+**Pre-existing failures (off-limits):** 2 test files (Toggle.test.tsx, useExportImport.test.ts) — W1B files without implementations yet
+
+## Tasks Completed — Session 3
+
+### Task #027 — Extract checkAnswer + levenshtein to lib/answerCheck.ts ✓
+- Created `lib/answerCheck.ts` with: `ITALIAN_ARTICLES`, `SPANISH_ARTICLES`, `levenshtein`, `stripArticle`, `checkAnswer` (all exported)
+- Trimmed `lib/srs.ts` from 290 → 206 lines (under 250-line limit) — removed the 85-line answer-checking section
+- Added backwards-compatible re-export in `lib/srs.ts`: `export { checkAnswer, levenshtein, stripArticle, ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck"`
+- Updated `lib/language.ts`: import ITALIAN/SPANISH_ARTICLES from `@/lib/answerCheck`
+- Updated `components/StudyCard.tsx`: split import — `checkAnswer` from `@/lib/answerCheck`, `autoRate + Grade` from `@/lib/srs`
+- Created `tests/answerCheck.test.ts`: 18 tests pinning the module boundary (levenshtein × 4, stripArticle × 3, checkAnswer × 11)
+- Test-first (SCTS Kaizen): test written before module existed, confirmed red, then green after creation
+
+## Debt entries logged: 0
+## Carry-forward tasks generated: 0
+
+---
+
 # Stream W1C — Session 2 Completion (Tasks #018 #019 #021)
 **Date:** 2026-06-27
 **Stream:** W1C — component tests + seam test

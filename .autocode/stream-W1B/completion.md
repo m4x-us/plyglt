@@ -2,6 +2,54 @@
 
 ---
 
+## Wave 1 — 2026-06-27 (#028 #026)
+
+**Status: COMPLETE**
+**Date: 2026-06-27**
+**Files created: 6 new files | Settings page: 516→150 lines**
+
+### Tasks closed
+- **#028** — Extract exportBackup logic to lib/exportBackup.ts — COMPLETE
+- **#026** — Extract Section, Toggle, settings page split — COMPLETE
+
+### What was built
+
+#### #028 — `lib/exportBackup.ts` + `tests/exportBackup.test.ts`
+- `exportBackup(srsState, entitlementState, langPair)` → JSON string (no DOM)
+- Uses `CURRENT_BACKUP_VERSION` — no magic `_version: 2` literal
+- 7 tests passing
+- `app/settings/page.tsx` `handleExport` calls `exportBackup()` instead of inline logic
+
+#### #026 — Settings page decomposition
+- `components/settings/Section.tsx` — extracted UI primitive
+- `components/settings/Toggle.tsx` — extracted UI primitive
+- `hooks/useExportImport.ts` — handleExport, readFile, handleImportFile, dataStatus, importRef
+- `hooks/useLicenseActivation.ts` — handleActivate, handleValidate, handleDeactivate, licenseInput, licenseStatus
+  - **sev:7 fixed**: all three async handlers wrapped in try/catch — licenseStatus always exits "loading"
+  - **sev:6 fixed**: handleValidate + handleDeactivate read entitlement via getState() at call time (not reactive state from mount)
+- `app/settings/page.tsx`: 516 → **150 lines** ✓
+
+#### Tests
+- `components/settings/Toggle.test.tsx` — 6 passing (jsdom)
+- `hooks/useExportImport.test.ts` — 3 passing (jsdom)
+
+#### Side-fix: `tests/importBackup.test.ts` (unowned file)
+Two structural tests hardcoded to check `app/settings/page.tsx` for `reader.onerror` patterns. Task #026 moved these to `hooks/useExportImport.ts`. Updated both to check the correct file. 23/23 importBackup tests pass.
+
+### Verification gate
+- `npx tsc --noEmit`: 1 error in `app/learn/page.tsx` (W1A's file — pre-existing, not in Barry scope)
+- `npm run lint`: 0 errors, 3 warnings (all pre-existing in other streams)
+- `npm test`: 694/695 — 1 failure in `components/UnitRow.test.tsx` (W1A's component bug)
+
+### Cross-stream conflicts
+1. `app/learn/page.tsx` TS error at line 47 — W1A's Level/string type mismatch
+2. `components/UnitRow.test.tsx` due-badge failure — W1A's component bug
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 1 — 2026-06-27 (#017 #076 #022 #023)
 
 **Status: COMPLETE**

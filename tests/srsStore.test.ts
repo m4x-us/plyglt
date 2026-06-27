@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { unitMasteryPct, MASTERY_GATE, MASTERY_STABILITY_DAYS, useSRSStore, localDateStr } from "@/store/srsStore";
+import { unitMasteryPct, levelMasteryPct, currentStudyLevel, MASTERY_GATE, MASTERY_STABILITY_DAYS, useSRSStore, localDateStr } from "@/store/srsStore";
 import type { ActiveSession } from "@/store/srsStore";
 import { isInDnd } from "@/store/settingsStore";
 import { getTargetLangCode, setTargetLangCode, LANG_PAIR_KEY } from "@/lib/constants";
@@ -288,6 +288,55 @@ describe("getNewCards() — prerequisite logic", () => {
     const result = useSRSStore.getState().getNewCards(cards);
     const tiers = result.map((c) => c.tier);
     expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
+  });
+});
+
+describe("levelMasteryPct", () => {
+  it("returns 0 for an empty units array without dividing by zero", () => {
+    expect(levelMasteryPct([], {})).toBe(0);
+  });
+
+  it("returns 0 when no cards are mastered", () => {
+    const unit = makeUnit(["c1", "c2"]);
+    expect(levelMasteryPct([unit], {})).toBe(0);
+  });
+
+  it("returns 50 when half of one unit's cards are mastered", () => {
+    const unit = makeUnit(["c1", "c2"]);
+    expect(levelMasteryPct([unit], { c1: mastered("c1") })).toBe(50);
+  });
+
+  it("aggregates mastery across multiple units", () => {
+    const u1 = makeUnit(["a1", "a2"]);
+    const u2 = makeUnit(["b1", "b2"]);
+    const prog = { a1: mastered("a1"), b1: mastered("b1") };
+    // 2 mastered out of 4 total = 50%
+    expect(levelMasteryPct([u1, u2], prog)).toBe(50);
+  });
+
+  it("returns 100 when all cards across all units are mastered", () => {
+    const u1 = makeUnit(["c1"]);
+    const u2 = makeUnit(["c2"]);
+    expect(levelMasteryPct([u1, u2], { c1: mastered("c1"), c2: mastered("c2") })).toBe(100);
+  });
+});
+
+describe("currentStudyLevel", () => {
+  it("returns the first level when masteryFn returns 0 for all levels", () => {
+    expect(currentStudyLevel(["A1", "A2", "B1", "B2"], () => 0)).toBe("A1");
+  });
+
+  it("returns the highest level with progress > 0", () => {
+    const pcts: Record<string, number> = { A1: 50, A2: 20, B1: 0, B2: 0 };
+    expect(currentStudyLevel(["A1", "A2", "B1", "B2"], (lvl) => pcts[lvl] ?? 0)).toBe("A2");
+  });
+
+  it("returns the single level if there is only one", () => {
+    expect(currentStudyLevel(["A1"], () => 0)).toBe("A1");
+  });
+
+  it("returns the last level when all levels have progress", () => {
+    expect(currentStudyLevel(["A1", "A2", "B1", "B2"], () => 50)).toBe("B2");
   });
 });
 
