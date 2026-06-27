@@ -1,1 +1,3 @@
+@BRAND.md
+@CURRICULUM.md
 @AGENTS.md

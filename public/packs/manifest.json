@@ -1,0 +1,22 @@
+{
+  "_version": 1,
+  "generatedAt": "2026-06-24T00:41:17.416Z",
+  "packs": {
+    "it": {
+      "name": "Italian",
+      "nativeName": "Italiano",
+      "flag": "🇮🇹",
+      "version": "1.0.0",
+      "size": 456954,
+      "sha256": "da518bff5efc412bb7118641a704e1ae37cfcfa99ca8c6389a97806de35aa1b0"
+    },
+    "es": {
+      "name": "Spanish",
+      "nativeName": "Español",
+      "flag": "🇪🇸",
+      "version": "0.9.0",
+      "size": 245050,
+      "sha256": "08a695355fefcf2e22c0fed36faae1ae46fae4f0eacda3523182dff5541f9344"
+    }
+  }
+}

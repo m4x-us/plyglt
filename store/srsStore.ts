@@ -1,0 +1,215 @@
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade } from "@/lib/srs";
+import type { Card, Unit } from "@/content/types";
+import { createPlatformStorage } from "@/lib/storage";
+import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
+import { LANG_PAIR_KEY } from "@/lib/constants";
+
+export function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Read lang pair at module initialization so the store is scoped to the
+// language pair the user selected. A full page reload is required when
+// switching languages (see app/page.tsx handleSelect).
+const _activeLangPair: string =
+  typeof window !== "undefined"
+    ? (window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it")
+    : "en-it";
+
+// A card is mastered only when it has been reviewed across multiple sessions at meaningful distance.
+// FSRS assigns ~1–4 days stability on first graduation — that is single-session learning, not retention.
+// 7 days requires at least one successful review after initial graduation.
+export const MASTERY_STABILITY_DAYS = 7;
+
+export const MASTERY_GATE = 80; // % of cards that must be mastered to unlock the next unit/level
+
+export function isMastered(progress: CardProgress | undefined): boolean {
+  return (
+    progress?.state === "review" &&
+    (progress?.stability ?? 0) >= MASTERY_STABILITY_DAYS
+  );
+}
+
+// Persisted snapshot of an in-progress study session.
+// Written on every card advance so a crash or forced interruption never loses position.
+export interface ActiveSession {
+  unitId: string | "global";
+  queueIds: string[];     // ordered card IDs for this session
+  position: number;       // next card index (cards 0..position-1 are already rated)
+  sessionCorrect: number;
+  sessionTotal: number;
+  startedAt: number;      // unix ms — sessions expire after 24 hours
+}
+
+const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+interface SRSState {
+  cards: Record<string, CardProgress>; // cardId → progress
+  streak: number;
+  lastStudiedDate: string | null;
+  activeSession: ActiveSession | null;
+
+  getProgress: (cardId: string) => CardProgress;
+  rateCard: (cardId: string, grade: Grade) => void;
+  saveActiveSession: (session: ActiveSession) => void;
+  rateCardAndSaveSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
+  // Atomic alternative to touchStreak() + rateCardAndSaveSession(): all three
+  // state mutations happen in a single set() call, eliminating the crash window
+  // between card rating and streak/session persistence.
+  commitSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
+  clearActiveSession: () => void;
+  getResumableSession: () => ActiveSession | null;
+
+  // Returns IDs of cards in the unit that are due for review
+  getDueCards: (unitCards: Card[]) => string[];
+
+  // Returns Card objects that are new and whose prerequisites are met (tier-ordered)
+  getNewCards: (unitCards: Card[], limit?: number) => Card[];
+
+  getStats: (unitCards: Card[]) => {
+    due: number;
+    learning: number;
+    mastered: number;
+    total: number;
+    masteryPct: number; // 0–100, for unit unlock gates (≥ 80 unlocks next unit)
+  };
+
+  touchStreak: () => void;
+}
+
+function prerequisitesMet(card: Card, progressMap: Record<string, CardProgress>): boolean {
+  if (!card.prerequisites?.length) return true;
+  return card.prerequisites.every((id) => progressMap[id]?.state === "review");
+}
+
+export const useSRSStore = create<SRSState>()(
+  persist(
+    (set, get) => ({
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      activeSession: null,
+
+      getProgress: (cardId) => get().cards[cardId] ?? defaultProgress(cardId),
+
+      rateCard: (cardId, grade) => {
+        const prev = get().getProgress(cardId);
+        const next = scheduleCard(prev, grade);
+        set((s) => ({ cards: { ...s.cards, [cardId]: next } }));
+      },
+
+      saveActiveSession: (session) => set({ activeSession: session }),
+
+      rateCardAndSaveSession: (cardId, grade, session) => {
+        const prev = get().getProgress(cardId);
+        const next = scheduleCard(prev, grade);
+        set((s) => ({ cards: { ...s.cards, [cardId]: next }, activeSession: session }));
+      },
+
+      commitSession: (cardId, grade, session) => {
+        const prev = get().getProgress(cardId);
+        const next = scheduleCard(prev, grade);
+        const today = localDateStr();
+        const { lastStudiedDate, streak } = get();
+        const yd = new Date();
+        yd.setDate(yd.getDate() - 1);
+        const yesterday = localDateStr(yd);
+        const streakPatch =
+          lastStudiedDate === today
+            ? undefined
+            : { streak: lastStudiedDate === yesterday ? streak + 1 : 1, lastStudiedDate: today };
+        set((s) => ({
+          cards: { ...s.cards, [cardId]: next },
+          activeSession: session,
+          ...streakPatch,
+        }));
+      },
+
+      clearActiveSession: () => set({ activeSession: null }),
+
+      getResumableSession: () => {
+        const session = get().activeSession;
+        if (!session) return null;
+        if (Date.now() - session.startedAt > SESSION_EXPIRY_MS) {
+          set({ activeSession: null });
+          return null;
+        }
+        return session;
+      },
+
+      getDueCards: (unitCards) => {
+        const now = Date.now();
+        const progressMap = get().cards;
+        return unitCards
+          .filter((card) => {
+            const p = progressMap[card.id];
+            return p && p.reps > 0 && isDue(p, now);
+          })
+          .map((c) => c.id);
+      },
+
+      getNewCards: (unitCards, limit = 20) => {
+        const progressMap = get().cards;
+        return unitCards
+          .filter((card) => !progressMap[card.id])
+          .filter((card) => prerequisitesMet(card, progressMap))
+          .sort((a, b) => a.tier - b.tier)
+          .slice(0, limit);
+      },
+
+      getStats: (unitCards) => {
+        const progressMap = get().cards;
+        const now = Date.now();
+        const ids = unitCards.map((c) => c.id);
+
+        const due = ids.filter((id) => {
+          const p = progressMap[id];
+          return p && p.reps > 0 && isDue(p, now);
+        }).length;
+
+        const learning = ids.filter((id) => {
+          const p = progressMap[id];
+          return p && (p.state === "learning" || p.state === "relearning");
+        }).length;
+
+        const mastered = ids.filter((id) => isMastered(progressMap[id])).length;
+
+        return {
+          due,
+          learning,
+          mastered,
+          total: ids.length,
+          masteryPct: ids.length === 0 ? 0 : Math.round((mastered / ids.length) * 100),
+        };
+      },
+
+      touchStreak: () => {
+        const today = localDateStr();
+        const { lastStudiedDate, streak } = get();
+        if (lastStudiedDate === today) return;
+        const yd = new Date();
+        yd.setDate(yd.getDate() - 1);
+        const yesterday = localDateStr(yd);
+        set({ streak: lastStudiedDate === yesterday ? streak + 1 : 1, lastStudiedDate: today });
+      },
+    }),
+    {
+      name: `srs-${_activeLangPair}`,
+      version: SRS_VERSION,
+      migrate: migrateSrsStore,
+      storage: createJSONStorage(() => createPlatformStorage(`srs-${_activeLangPair}`)),
+    }
+  )
+);
+
+// Derive per-unit mastery for the unlock gate (≥ 80% → next unit unlocks)
+export function unitMasteryPct(unit: Unit, progressMap: Record<string, CardProgress>): number {
+  if (unit.cards.length === 0) return 0;
+  const mastered = unit.cards.filter((c) => isMastered(progressMap[c.id])).length;
+  return Math.round((mastered / unit.cards.length) * 100);
+}

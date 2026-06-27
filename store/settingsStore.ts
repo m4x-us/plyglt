@@ -1,0 +1,71 @@
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createPlatformStorage } from "@/lib/storage";
+import { SETTINGS_VERSION, migrateSettingsStore } from "@/store/migrations";
+
+export const INTERVAL_OPTIONS = [2, 3, 4, 6] as const;
+export const SNOOZE_OPTIONS = [15, 30, 60] as const;
+
+export type IntervalHours = (typeof INTERVAL_OPTIONS)[number];
+export type SnoozeMinutes = (typeof SNOOZE_OPTIONS)[number];
+
+interface SettingsState {
+  launchAtLogin: boolean;
+  interruptEnabled: boolean;
+  intervalHours: IntervalHours;
+  mandatory: boolean;
+  dndStart: string; // "HH:MM" 24-hour, e.g. "22:00"
+  dndEnd: string;   // "HH:MM" 24-hour, e.g. "08:00"
+  snoozeMinutes: SnoozeMinutes;
+
+  setLaunchAtLogin: (v: boolean) => void;
+  setInterruptEnabled: (v: boolean) => void;
+  setIntervalHours: (v: IntervalHours) => void;
+  setMandatory: (v: boolean) => void;
+  setDndStart: (v: string) => void;
+  setDndEnd: (v: string) => void;
+  setSnoozeMinutes: (v: SnoozeMinutes) => void;
+}
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      launchAtLogin: false,
+      interruptEnabled: false,
+      intervalHours: 3,
+      mandatory: false,
+      dndStart: "22:00",
+      dndEnd: "08:00",
+      snoozeMinutes: 30,
+
+      setLaunchAtLogin: (v) => set({ launchAtLogin: v }),
+      setInterruptEnabled: (v) => set({ interruptEnabled: v }),
+      setIntervalHours: (v) => set({ intervalHours: v }),
+      setMandatory: (v) => set({ mandatory: v }),
+      setDndStart: (v) => set({ dndStart: v }),
+      setDndEnd: (v) => set({ dndEnd: v }),
+      setSnoozeMinutes: (v) => set({ snoozeMinutes: v }),
+    }),
+    {
+      name: "settings-v1",
+      version: SETTINGS_VERSION,
+      migrate: migrateSettingsStore,
+      storage: createJSONStorage(() => createPlatformStorage("settings-v1")),
+    }
+  )
+);
+
+/** Returns true if local time falls within the DND window. Handles overnight ranges. */
+export function isInDnd(dndStart: string, dndEnd: string, now = new Date()): boolean {
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+  const [sh, sm] = dndStart.split(":").map(Number);
+  const [eh, em] = dndEnd.split(":").map(Number);
+  const startMins = (sh ?? 0) * 60 + (sm ?? 0);
+  const endMins = (eh ?? 0) * 60 + (em ?? 0);
+
+  if (startMins <= endMins) {
+    return currentMins >= startMins && currentMins < endMins;
+  }
+  // Overnight: e.g. 22:00–08:00
+  return currentMins >= startMins || currentMins < endMins;
+}

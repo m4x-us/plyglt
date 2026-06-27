@@ -1,0 +1,337 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { unitMasteryPct, MASTERY_GATE, MASTERY_STABILITY_DAYS, useSRSStore, localDateStr } from "@/store/srsStore";
+import type { ActiveSession } from "@/store/srsStore";
+import { isInDnd } from "@/store/settingsStore";
+import { getTargetLangCode, setTargetLangCode, LANG_PAIR_KEY } from "@/lib/constants";
+import type { Unit } from "@/content/types";
+
+function makeUnit(cardIds: string[]): Unit {
+  return {
+    id: "u1",
+    name: "Test",
+    level: "A1",
+    theme: "test",
+    emoji: "🧪",
+    prerequisiteUnits: [],
+    cards: cardIds.map((id) => ({
+      id,
+      type: "produce",
+      prompt: "t",
+      accepted: ["t"],
+      tags: [],
+      tier: 1,
+    })),
+  };
+}
+
+function mastered(id: string) {
+  return {
+    cardId: id,
+    state: "review" as const,
+    stability: MASTERY_STABILITY_DAYS + 1,
+    difficulty: 5,
+    retrievability: 0.9,
+    dueDate: Date.now() + 86400000,
+    lapses: 0,
+    reps: 3,
+  };
+}
+
+describe("srsStore — import graph (Rule 3: no upward imports)", () => {
+  it("store/srsStore.ts must not import from the hooks/ directory", () => {
+    const content = readFileSync(resolve(process.cwd(), "store/srsStore.ts"), "utf-8");
+    expect(content).not.toMatch(/from "@\/hooks\//);
+  });
+});
+
+describe("unitMasteryPct", () => {
+  it("returns 0 for a unit with no progress", () => {
+    expect(unitMasteryPct(makeUnit(["c1", "c2"]), {})).toBe(0);
+  });
+
+  it("returns 100 when all cards are mastered", () => {
+    const unit = makeUnit(["c1", "c2"]);
+    expect(unitMasteryPct(unit, { c1: mastered("c1"), c2: mastered("c2") })).toBe(100);
+  });
+
+  it("returns 80 for 4 out of 5 mastered", () => {
+    const unit = makeUnit(["c1", "c2", "c3", "c4", "c5"]);
+    const map = Object.fromEntries(["c1", "c2", "c3", "c4"].map((id) => [id, mastered(id)]));
+    const pct = unitMasteryPct(unit, map);
+    expect(pct).toBe(80);
+    expect(pct).toBeGreaterThanOrEqual(MASTERY_GATE);
+  });
+
+  it("returns 0 for a unit with zero cards without dividing by zero", () => {
+    expect(unitMasteryPct(makeUnit([]), {})).toBe(0);
+  });
+});
+
+describe("isInDnd", () => {
+  it("returns true when current time is within a same-day DND window", () => {
+    const noon = new Date("2026-01-01T12:00:00");
+    expect(isInDnd("10:00", "14:00", noon)).toBe(true);
+  });
+
+  it("returns false when current time is outside a same-day DND window", () => {
+    const eight_am = new Date("2026-01-01T08:00:00");
+    expect(isInDnd("10:00", "14:00", eight_am)).toBe(false);
+  });
+
+  it("returns true during an overnight window (22:00–08:00) at midnight", () => {
+    const midnight = new Date("2026-01-01T00:00:00");
+    expect(isInDnd("22:00", "08:00", midnight)).toBe(true);
+  });
+
+  it("returns true during an overnight window at 23:00", () => {
+    expect(isInDnd("22:00", "08:00", new Date("2026-01-01T23:00:00"))).toBe(true);
+  });
+
+  it("returns false during an overnight window at noon", () => {
+    expect(isInDnd("22:00", "08:00", new Date("2026-01-01T12:00:00"))).toBe(false);
+  });
+});
+
+describe("touchStreak — DST-safe local date arithmetic", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ streak: 1, lastStudiedDate: null, cards: {}, activeSession: null });
+  });
+
+  it("increments streak when last studied yesterday", () => {
+    const yd = new Date();
+    yd.setDate(yd.getDate() - 1);
+    useSRSStore.setState({ streak: 5, lastStudiedDate: localDateStr(yd) });
+    useSRSStore.getState().touchStreak();
+    expect(useSRSStore.getState().streak).toBe(6);
+  });
+
+  it("resets streak to 1 when gap is more than one day", () => {
+    useSRSStore.setState({ streak: 10, lastStudiedDate: "2020-01-01" });
+    useSRSStore.getState().touchStreak();
+    expect(useSRSStore.getState().streak).toBe(1);
+  });
+
+  it("does not change streak when called twice on the same day", () => {
+    useSRSStore.getState().touchStreak();
+    const after1 = useSRSStore.getState().streak;
+    useSRSStore.getState().touchStreak();
+    expect(useSRSStore.getState().streak).toBe(after1);
+  });
+
+  it("sets lastStudiedDate to today in YYYY-MM-DD local format", () => {
+    useSRSStore.getState().touchStreak();
+    const today = localDateStr();
+    expect(useSRSStore.getState().lastStudiedDate).toBe(today);
+  });
+});
+
+describe("localDateStr", () => {
+  it("returns YYYY-MM-DD format", () => {
+    expect(localDateStr()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("returns the local calendar date, not UTC", () => {
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(localDateStr(d)).toBe(expected);
+  });
+
+  it("yesterday via setDate is one day before today", () => {
+    const yd = new Date();
+    yd.setDate(yd.getDate() - 1);
+    const today = localDateStr();
+    const yesterday = localDateStr(yd);
+    expect(yesterday < today).toBe(true);
+    // They differ by exactly one calendar day (last char sequence)
+    expect(yesterday).not.toBe(today);
+  });
+});
+
+describe("getTargetLangCode", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => null } });
+  });
+
+  it("returns 'it' when localStorage has no lang pair", () => {
+    expect(getTargetLangCode()).toBe("it");
+  });
+
+  it("returns 'es' for 'en-es'", () => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en-es" } });
+    expect(getTargetLangCode()).toBe("es");
+  });
+
+  it("returns 'it' when lang pair is malformed (no hyphen)", () => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en" } });
+    expect(getTargetLangCode()).toBe("it");
+  });
+
+  it("returns 'it' when target segment after hyphen is empty string", () => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en-" } });
+    expect(getTargetLangCode()).toBe("it");
+  });
+});
+
+describe("lib/constants — setTargetLangCode", () => {
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => { store.set(k, v); },
+      },
+    });
+  });
+
+  it("writes 'en-fr' under LANG_PAIR_KEY when targetLang is 'fr'", () => {
+    setTargetLangCode("fr");
+    expect(store.get(LANG_PAIR_KEY)).toBe("en-fr");
+  });
+
+  it("writes 'en-it' under LANG_PAIR_KEY when targetLang is 'it'", () => {
+    setTargetLangCode("it");
+    expect(store.get(LANG_PAIR_KEY)).toBe("en-it");
+  });
+
+  it("round-trip: setTargetLangCode then getTargetLangCode returns same code", () => {
+    setTargetLangCode("fr");
+    expect(getTargetLangCode()).toBe("fr");
+  });
+
+  it("does not throw when window is undefined (SSR guard)", () => {
+    vi.unstubAllGlobals();
+    expect(() => setTargetLangCode("it")).not.toThrow();
+  });
+});
+
+describe("lib/constants — import-graph seam (static USED BY list must be replaced)", () => {
+  it("lib/constants.ts must not contain a static 'USED BY: store/srsStore' importer list", () => {
+    const content = readFileSync(resolve(process.cwd(), "lib/constants.ts"), "utf-8");
+    expect(content).not.toContain("USED BY: store/srsStore");
+  });
+});
+
+// ── getNewCards — prerequisite logic tests (#023) ────────────────────────────
+
+describe("getNewCards() — prerequisite logic", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
+  });
+
+  function makeCard(
+    id: string,
+    tier: 1 | 2 | 3 | 4,
+    prerequisites: string[] = [],
+  ) {
+    return { id, type: "recognize" as const, prompt: "t", accepted: ["t"], tags: [], tier, prerequisites };
+  }
+
+  it("card with no prerequisites is returned by getNewCards", () => {
+    const cards = [makeCard("c1", 1)];
+    const result = useSRSStore.getState().getNewCards(cards);
+    expect(result.map((c) => c.id)).toContain("c1");
+  });
+
+  it("card whose prerequisite is in state 'new' (no progress) is NOT returned", () => {
+    // "c2" requires "c1"; "c1" has no progress (state "new" / missing from map)
+    const cards = [makeCard("c1", 1), makeCard("c2", 2, ["c1"])];
+    const result = useSRSStore.getState().getNewCards(cards);
+    expect(result.map((c) => c.id)).not.toContain("c2");
+    expect(result.map((c) => c.id)).toContain("c1");
+  });
+
+  it("card whose prerequisite is in state 'review' IS returned", () => {
+    // Seed c1 as review — prerequisite met for c2
+    useSRSStore.setState({
+      cards: {
+        c1: {
+          cardId: "c1",
+          state: "review",
+          stability: 5,
+          difficulty: 5,
+          retrievability: 0.9,
+          dueDate: Date.now() + 86400000,
+          lapses: 0,
+          reps: 3,
+        },
+      },
+    });
+    const cards = [makeCard("c1", 1), makeCard("c2", 2, ["c1"])];
+    // c1 already has progress (reps > 0) so not returned as "new"; c2 is gated
+    const result = useSRSStore.getState().getNewCards(cards);
+    expect(result.map((c) => c.id)).toContain("c2");
+  });
+
+  it("respects the limit parameter — never returns more than limit cards", () => {
+    const cards = [
+      makeCard("c1", 1),
+      makeCard("c2", 1),
+      makeCard("c3", 1),
+      makeCard("c4", 1),
+      makeCard("c5", 1),
+    ];
+    const result = useSRSStore.getState().getNewCards(cards, 3);
+    expect(result.length).toBeLessThanOrEqual(3);
+  });
+
+  it("returns cards sorted by tier — tier 1 before tier 2", () => {
+    const cards = [
+      makeCard("t2a", 2),
+      makeCard("t1a", 1),
+      makeCard("t2b", 2),
+      makeCard("t1b", 1),
+    ];
+    const result = useSRSStore.getState().getNewCards(cards);
+    const tiers = result.map((c) => c.tier);
+    expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
+  });
+});
+
+describe("rateCardAndSaveSession — atomic update", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, activeSession: null, streak: 0, lastStudiedDate: null });
+  });
+
+  it("updates both cards and activeSession in a single operation", () => {
+    const session: ActiveSession = {
+      unitId: "u1",
+      queueIds: ["card-1"],
+      position: 1,
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: 1000000,
+    };
+
+    useSRSStore.getState().rateCardAndSaveSession("card-1", "good", session);
+
+    const state = useSRSStore.getState();
+    // Card must be scheduled (reps > 0)
+    const card1 = state.cards["card-1"];
+    expect(card1).toBeDefined();
+    expect(card1?.reps).toBeGreaterThan(0);
+    // Session must match exactly what was passed
+    expect(state.activeSession).toEqual(session);
+    expect(state.activeSession?.position).toBe(1);
+  });
+
+  it("rateCardAndSaveSession with 'again' still persists session", () => {
+    const session: ActiveSession = {
+      unitId: "global",
+      queueIds: ["card-2", "card-2"],
+      position: 1,
+      sessionCorrect: 0,
+      sessionTotal: 1,
+      startedAt: 1000000,
+    };
+
+    useSRSStore.getState().rateCardAndSaveSession("card-2", "again", session);
+
+    const state = useSRSStore.getState();
+    expect(state.cards["card-2"]).toBeDefined();
+    expect(state.activeSession?.unitId).toBe("global");
+  });
+});

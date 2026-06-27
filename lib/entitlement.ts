@@ -1,0 +1,219 @@
+// ===========================================
+// LEMON SQUEEZY LICENSE MANAGEMENT
+// ===========================================
+// Handles license activation, validation, and deactivation against the
+// Lemon Squeezy API via Tauri IPC commands. Parses variant names into
+// entitlement data (licenseType, unlockedPacks, validUntil).
+// ===========================================
+// DEPENDS ON: @/lib/tauri (invoke), @/lib/licenseTypes (LicenseType),
+//             @/lib/langRegistry (ALL_PACK_CODES, FREE_PACK_CODES)
+// USED BY: app/settings/page.tsx, components/EntitlementValidator.tsx
+// ===========================================
+
+import { invoke } from "@/lib/tauri";
+import type { LicenseType } from "@/lib/licenseTypes";
+import { ALL_PACK_CODES, FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
+
+// ── Network error messages ────────────────────────────────────────────────────
+// Named constants prevent silent divergence between call sites.
+export const ERR_ACTIVATE_NETWORK = "Activation request failed — check your connection." as const;
+export const ERR_DEACTIVATE_NETWORK = "Deactivation failed — check your connection." as const;
+export const ERR_ACTIVATION_FAILED = "Activation failed." as const;
+export const ERR_ACTIVATE_NO_INSTANCE = "Activation returned no instance." as const;
+export const ERR_LICENSE_NOT_ACTIVE = "License is not active." as const;
+export const ERR_DEACTIVATE_DECLINED = "Deactivation was declined by the server." as const;
+
+// ── Lemon Squeezy URLs ────────────────────────────────────────────────────────
+// Update LS_STORE_SLUG once when your Lemon Squeezy store is created.
+const LS_STORE_SLUG = "plyglt";
+export const CHECKOUT_URLS = {
+  monthly: `https://${LS_STORE_SLUG}.lemonsqueezy.com/buy/monthly`,
+  annual:  `https://${LS_STORE_SLUG}.lemonsqueezy.com/buy/annual`,
+} as const;
+
+// Customer portal where users can manage / cancel their subscription.
+export const CUSTOMER_PORTAL_URL = "https://app.lemonsqueezy.com/my-orders";
+
+export const PRICING = {
+  monthly: "$4.99/mo",
+  annual:  "$34.99/yr",
+} as const;
+
+// Lemon Squeezy variant name substrings used in resolveVariantEntitlement.
+// Update here if LS variant names change — one place, not buried in logic.
+const VARIANT_MONTHLY       = "monthly";
+const VARIANT_ANNUAL        = "annual";
+// "all languages" matches "All Languages Pack", "All Languages Lifetime", etc.
+// Matching legacy "lifetime" variant names is intentional backward-compat: users
+// who previously held a lifetime key can re-enter it and receive a subscription
+// grant rather than an activation error. No "lifetime" entitlement survives —
+// resolveVariantEntitlement always returns licenseType:"subscription".
+const VARIANT_ALL_LANGUAGES = "all languages";
+
+// ── LS response shapes ────────────────────────────────────────────────────────
+
+interface LsKey {
+  status: "active" | "inactive" | "expired" | "disabled";
+  key: string;
+  expires_at: string | null;
+}
+
+interface LsMeta {
+  variant_name: string;
+}
+
+// Activation response — returned by ls_activate_license
+interface LsActivateBody {
+  activated?: boolean;
+  error: string | null;
+  license_key: LsKey | null | undefined; // LS API omits on error responses
+  instance: { id: string } | null;
+  meta?: LsMeta; // optional — LS API omits meta on error responses
+}
+
+// Validation response — returned by ls_validate_license (distinct shape from activation)
+interface LsValidateBody {
+  valid?: boolean;
+  error: string | null;
+  license_key: LsKey | null | undefined;
+}
+
+// Deactivation response — returned by ls_deactivate_license
+interface LsDeactivateBody {
+  deactivated?: boolean;
+  error: string | null;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/** Parses a Lemon Squeezy expires_at string to a Unix ms timestamp, or null if absent/invalid. */
+function parseExpiry(expiresAt: string | null): number | null {
+  if (expiresAt == null) return null;
+  const t = new Date(expiresAt).getTime();
+  return isFinite(t) ? t : null;
+}
+
+// ── Variant → entitlement parsing ─────────────────────────────────────────────
+
+/**
+ * Maps a Lemon Squeezy variant name to entitlement data.
+ *
+ * Variant name substrings that unlock all languages:
+ *   "monthly"       — matches "Monthly Plan", "Monthly Subscription", etc.
+ *   "annual"        — matches "Annual Plan", "Annual Subscription", "semiannual"
+ *                     ("semiannual".includes("annual") === true — intentional,
+ *                     since semiannual is a paid plan and should unlock all packs).
+ *   "all languages" — matches "All Languages Pack", "All Languages Lifetime", etc.
+ *
+ * Any variant name that does not match the above unlocks only the free packs.
+ * Unknown variant names are treated conservatively — they do not escalate access.
+ *
+ * @internal — exported for testing and called by activateLicense; not part of the public API
+ */
+export function resolveVariantEntitlement(
+  variantName: string,
+  expiresAt: string | null
+): { licenseType: LicenseType; unlockedPacks: PackCode[]; validUntil: number | null } {
+  const n = variantName.toLowerCase();
+  // Always "subscription" — plyglt has no lifetime plans (BRAND.md).
+  const licenseType: LicenseType = "subscription";
+  const unlocksAll = n.includes(VARIANT_MONTHLY) || n.includes(VARIANT_ANNUAL) || n.includes(VARIANT_ALL_LANGUAGES);
+  if (!unlocksAll) {
+    console.warn(`[ENTITLEMENT_VARIANT_UNKNOWN-${Date.now()}]`, { variantName });
+  }
+  const unlockedPacks = unlocksAll ? [...ALL_PACK_CODES] : [...FREE_PACK_CODES];
+  const validUntil = parseExpiry(expiresAt);
+  return { licenseType, unlockedPacks, validUntil };
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export type ActivateResult =
+  | { ok: true; licenseKey: string; instanceId: string; licenseType: LicenseType; unlockedPacks: PackCode[]; validUntil: number | null }
+  | { ok: false; error: string };
+
+export async function activateLicense(key: string): Promise<ActivateResult> {
+  let raw: unknown;
+  try {
+    raw = await invoke<unknown>("ls_activate_license", { licenseKey: key.trim() });
+  } catch (e) {
+    console.error(`[ENTITLEMENT_ACTIVATE_FAIL-${Date.now()}]`, e);
+    return { ok: false, error: ERR_ACTIVATE_NETWORK };
+  }
+  if (raw == null) {
+    console.error(`[ENTITLEMENT_ACTIVATE_EMPTY-${Date.now()}]`, { raw });
+    return { ok: false, error: ERR_ACTIVATE_NETWORK };
+  }
+
+  const res = raw as LsActivateBody;
+  if (!res.activated || res.error) return { ok: false, error: res.error ?? ERR_ACTIVATION_FAILED };
+  if (!res.instance) {
+    console.error(`[ENTITLEMENT_ACTIVATE_NO_INSTANCE-${Date.now()}]`, { activated: res.activated });
+    return { ok: false, error: ERR_ACTIVATE_NO_INSTANCE };
+  }
+  if (!res.license_key || res.license_key.status !== "active")
+    return { ok: false, error: ERR_LICENSE_NOT_ACTIVE };
+  if (!res.meta?.variant_name) {
+    console.error(`[ENTITLEMENT_ACTIVATE_NO_VARIANT-${Date.now()}]`, { status: res.license_key.status });
+    return { ok: false, error: "Activation response missing variant data." };
+  }
+  if (!res.license_key.key) {
+    console.error(`[ENTITLEMENT_ACTIVATE_BAD_KEY-${Date.now()}]`, { keyType: typeof res.license_key.key });
+    return { ok: false, error: "Activation response missing license key." };
+  }
+
+  const { licenseType, unlockedPacks, validUntil } = resolveVariantEntitlement(
+    res.meta.variant_name,
+    res.license_key.expires_at
+  );
+  return { ok: true, licenseKey: res.license_key.key, instanceId: res.instance.id, licenseType, unlockedPacks, validUntil };
+}
+
+export type ValidateResult =
+  | { ok: true; validUntil: number | null }
+  | { ok: false; error: string };
+
+export async function validateLicense(key: string, instanceId: string): Promise<ValidateResult> {
+  let raw: unknown;
+  try {
+    raw = await invoke<unknown>("ls_validate_license", { licenseKey: key, instanceId });
+  } catch (e) {
+    console.error(`[ENTITLEMENT_VALIDATE_FAIL-${Date.now()}]`, e);
+    return { ok: false, error: "Validation failed — check your connection." };
+  }
+  if (raw == null) {
+    console.error(`[ENTITLEMENT_VALIDATE_EMPTY-${Date.now()}]`, { raw });
+    return { ok: false, error: "Validation request failed." };
+  }
+
+  const res = raw as LsValidateBody;
+  if (!res.valid || res.error) return { ok: false, error: res.error ?? "License is no longer valid." };
+  if (!res.license_key || res.license_key.status !== "active") {
+    console.error(`[ENTITLEMENT_VALIDATE_STRUCT-${Date.now()}]`, { valid: res.valid, status: res.license_key?.status });
+    return { ok: false, error: ERR_LICENSE_NOT_ACTIVE };
+  }
+
+  return { ok: true, validUntil: parseExpiry(res.license_key.expires_at) };
+}
+
+export type DeactivateResult = { ok: true } | { ok: false; error: string };
+
+export async function deactivateLicense(key: string, instanceId: string): Promise<DeactivateResult> {
+  let raw: unknown;
+  try {
+    raw = await invoke<unknown>("ls_deactivate_license", { licenseKey: key, instanceId });
+  } catch (e) {
+    console.error(`[ENTITLEMENT_DEACTIVATE_FAIL-${Date.now()}]`, { licenseKey: key.slice(0, 8) + "...", error: String(e) });
+    return { ok: false, error: ERR_DEACTIVATE_NETWORK };
+  }
+  if (raw == null) {
+    console.error(`[ENTITLEMENT_DEACTIVATE_EMPTY-${Date.now()}]`, { raw });
+    return { ok: false, error: ERR_DEACTIVATE_NETWORK };
+  }
+  const res = raw as LsDeactivateBody;
+  if (!res.deactivated) {
+    console.error(`[ENTITLEMENT_DEACTIVATE_DECLINED-${Date.now()}]`, { error: res.error });
+    return { ok: false, error: ERR_DEACTIVATE_DECLINED };
+  }
+  return { ok: true };
+}
