@@ -1,3 +1,6 @@
+// ============================================================
+// settingsStore.ts — Zustand store: user preferences persisted to platform storage
+// ============================================================
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";

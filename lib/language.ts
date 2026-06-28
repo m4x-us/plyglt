@@ -1,3 +1,6 @@
+// ============================================================
+// language.ts — Language configurations and UI strings for all supported languages
+// ============================================================
 import type { Card } from "@/content/types";
 import { ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck";
 
@@ -59,7 +62,7 @@ export const ITALIAN: LanguageConfig = {
   uiStrings: {
     appTitle: APP_NAME,
     appSubtitle: APP_SUBTITLE,
-    correctFeedback: "Corretto!",
+    correctFeedback: "Corretto.",
     closeFeedback: "Quasi! Close enough.",
     cardLabels: {
       produce: "Type in Italian",
@@ -82,7 +85,7 @@ export const SPANISH: LanguageConfig = {
   uiStrings: {
     appTitle: APP_NAME,
     appSubtitle: APP_SUBTITLE,
-    correctFeedback: "¡Correcto!",
+    correctFeedback: "Correcto.",
     closeFeedback: "¡Casi! Close enough.",
     cardLabels: {
       produce:       "Type in Spanish",

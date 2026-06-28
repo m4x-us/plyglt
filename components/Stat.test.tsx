@@ -1,3 +1,6 @@
+// ============================================================
+// Stat.test.tsx — Tests for Stat display component
+// ============================================================
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";

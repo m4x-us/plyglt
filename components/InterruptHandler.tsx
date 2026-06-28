@@ -1,3 +1,6 @@
+// ============================================================
+// InterruptHandler.tsx — Root-layout component: subscribes to Tauri interrupt and tray events
+// ============================================================
 "use client";
 
 import { useEffect } from "react";
@@ -90,7 +93,7 @@ function InterruptHandlerCore() {
       }
     }).then((fn) => {
       unlisten = fn;
-    });
+    }).catch((err) => console.error(`[ERR-LISTEN-INTERRUPT-${Date.now()}] Failed to subscribe to interrupt:fire:`, err));
 
     return () => unlisten?.();
   }, [interruptEnabled, dndStart, dndEnd, pathname, router, units]);
@@ -101,7 +104,7 @@ function InterruptHandlerCore() {
     let unlisten: (() => void) | undefined;
     listen<null>("tray:study", () => {
       router.push("/study?mode=global");
-    }).then(fn => { unlisten = fn; });
+    }).then(fn => { unlisten = fn; }).catch((err) => console.error(`[ERR-LISTEN-TRAY-${Date.now()}] Failed to subscribe to tray:study:`, err));
     return () => unlisten?.();
   }, [router]);
 

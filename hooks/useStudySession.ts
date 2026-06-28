@@ -1,3 +1,6 @@
+// ============================================================
+// useStudySession.ts — Hook: manages the study queue, position, ratings, and session commit
+// ============================================================
 "use client";
 
 import { useState, useRef, useMemo, useEffect } from "react";

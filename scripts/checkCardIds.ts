@@ -1,4 +1,7 @@
 #!/usr/bin/env tsx
+// ============================================================
+// checkCardIds.ts — CI guard: detects card ID changes that would corrupt user progress
+// ============================================================
 /**
  * scripts/checkCardIds.ts — CI guard for card ID stability.
  *

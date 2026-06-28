@@ -1,3 +1,6 @@
+// ============================================================
+// srs.ts — FSRS v4 scheduler: memory model, card scheduling, and answer evaluation
+// ============================================================
 // FSRS v4 — Free Spaced Repetition Scheduler
 // https://github.com/open-spaced-repetition/fsrs4anki
 // Replaces SM-2. Models memory as Stability (S) × Difficulty (D).

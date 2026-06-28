@@ -1,7 +1,7 @@
 ---
 agent: security
-last-updated: 2026-06-26
-runs: 2
+last-updated: 2026-06-27
+runs: 3
 ---
 # Security Agent Memory — plyglt
 
@@ -9,11 +9,17 @@ runs: 2
 
 **Auth / entitlement model:** Client-only. No server-side purchase verification. Entitlement state lives in Zustand (`store/entitlementStore.ts`) and is mutable via DevTools. Owner decision: intentional for offline-first architecture. The Lemon Squeezy integration (`lib/entitlement.ts`) calls the LS API for activation/deactivation but there is no re-verification path on startup or on backup import.
 
-**Data flow:** Language packs are fetched over HTTPS from `/packs/${lang}.json` and cached in localStorage. SHA-256 hash verification of cached packs is present (`lib/packLoader.ts:184-192`). The lang parameter is now validated against `ALL_PACK_CODES` allowlist at the entry of both `loadPack()` and `evictPack()` before any I/O (Task #003, 2026-06-25).
+**Data flow:** Language packs are fetched over HTTPS from `/packs/${lang}.json` and cached in localStorage. SHA-256 hash verification of cached packs is present (`lib/packLoader.ts:184-192`). The lang parameter is validated against `ALL_PACK_CODES` allowlist at the entry of both `loadPack()` and `evictPack()` before any I/O (Task #003, 2026-06-25).
 
-**Backup/restore:** `lib/importBackup.ts` handles full state import. Validation is thorough — regex, allowlist, `isFinite()` checks before any state mutation. Backup can restore paid entitlement without server re-verification (accepted risk).
+**Backup/restore:** `lib/importBackup.ts` handles full state import. Validation is thorough — regex, allowlist, `isFinite()` checks before any state mutation. Backup can restore paid entitlement without server re-verification (accepted risk). Default fallback for unknown licenseType is "free" here (asymmetric with migrations — see open findings).
 
-**Tauri IPC layer:** Desktop-specific commands wrapped in `lib/tauri.ts`. IPC calls include `update_interrupt_config` and `snooze_interrupt`. Error handling on these calls is currently missing (bare `.catch(() => {})`), which can cause silent divergence between UI state and the Rust scheduler.
+**Tauri IPC layer:** Desktop-specific commands wrapped in `lib/tauri.ts`. IPC calls include `update_interrupt_config` (lines 59-65) and `snooze_interrupt` (lines 71-77), both now have proper try/catch with logging and re-throw. `checkForUpdates` (lines 131-134) logs `[ERR-UPDATER-...]`. Major IPC error handling is resolved as of Batch 3. Remaining: `listen()` promise chains in `components/InterruptHandler.tsx` (lines 91, 104) and `enterMandatoryMode()` (line 70) still lack error handling.
+
+**Feature flags:** `lib/featureFlags.ts` reads `NEXT_PUBLIC_FLAGS_*` env vars. Flags default to true when env var is absent. `components/InterruptHandler.tsx` reads the feature flag and returns null or `<InterruptHandlerCore/>` accordingly.
+
+**License hooks:** `hooks/useLicenseActivation.ts` — all three async IPC handlers (activate, validate, deactivate) have try/catch per sev:7 requirement (Batch 3).
+
+**Backup export:** `lib/exportBackup.ts` uses `CURRENT_BACKUP_VERSION` constant — no magic version literals.
 
 **Trust boundaries:**
 - Web: browser localStorage is user-controlled; URL parameters and stored values must be validated
@@ -23,28 +29,35 @@ runs: 2
 **Key files:**
 - `lib/packLoader.ts` — pack fetching, caching, hash verification
 - `lib/importBackup.ts` — backup import with validation
+- `lib/exportBackup.ts` — backup export with versioned constant
 - `lib/tauri.ts` — Tauri IPC wrapper
+- `lib/featureFlags.ts` — feature flag reads from env vars, default-true
 - `store/entitlementStore.ts` — entitlement state
+- `store/migrations.ts` — Zustand migration chain
 - `lib/entitlement.ts` — Lemon Squeezy activation/deactivation
-- `components/InterruptHandler.tsx` — interrupt UI, notification plugin calls
+- `hooks/useLicenseActivation.ts` — license IPC hook
+- `hooks/useExportImport.ts` — export/import hook
+- `components/InterruptHandler.tsx` — interrupt UI, notification plugin calls, feature flag gate
 - `components/EntitlementValidator.tsx` — entitlement check on load
 - `app/settings/page.tsx` — settings UI including backup import
+- `src-tauri/src/license.rs` — Rust license open_url handler
 
 ## Recurring Patterns
 
-- **Bare `.catch(() => {})` on Tauri IPC calls.** Found on `update_interrupt_config` and `snooze_interrupt`. Pattern likely to recur as new IPC commands are added. Every IPC call must propagate errors to UI state or logs — silent catches are a stop-the-line violation per SCTS.
-- **Unvalidated localStorage values used in URL/path construction.** ~~The lang param from localStorage is interpolated into a fetch URL before allowlist validation.~~ FIXED (Task #003). Pattern still applies: any new feature reading from localStorage and using the value in a URL, file path, or command must validate against `ALL_PACK_CODES` or equivalent allowlist first.
-- **Console statements left in production components.** `console.warn` in `EntitlementValidator.tsx` leaks raw third-party API error text. Review any new component touching external APIs for console leakage before shipping.
+- **Bare `.catch(() => {})` on Tauri IPC calls.** LARGELY FIXED in Batch 3. All major IPC calls (`update_interrupt_config`, `snooze_interrupt`, `checkForUpdates`, pack cache reads) now have structured error logging. Still present: `listen()` chains (InterruptHandler.tsx:91,104 — Task #058) and `enterMandatoryMode()` (InterruptHandler.tsx:70). Pattern likely to recur as new IPC commands are added. Every IPC call must propagate errors to UI state or logs — silent catches are a stop-the-line violation per SCTS.
+- **Unvalidated localStorage values used in URL/path construction.** FIXED (Task #003). Pattern still applies: any new feature reading from localStorage and using the value in a URL, file path, or command must validate against `ALL_PACK_CODES` or equivalent allowlist first.
+- **Console statements left in production components.** `console.warn` leaking raw third-party API error text is now FIXED (EntitlementValidator, deactivateLicense). Review any new component touching external APIs for console leakage before shipping.
 
 ## Accepted Risk Register
 
-These risks were reviewed and accepted by the owner on 2026-06-24. Do NOT re-raise as new findings.
+These risks were reviewed and accepted by the owner. Do NOT re-raise as new findings.
 
 | Risk | Decision |
 |------|----------|
 | Client-only entitlement — mutable via DevTools, no HMAC | Intentional. Offline-first architecture. No server-side verification planned. |
 | Backup import can restore paid entitlement without Lemon Squeezy re-verification | Intentional. Honor-system model. Document only. |
 | No server-side purchase verification on app startup | Same decision as above. |
+| Zustand forged JSON bypass — storedVersion matching ENTITLEMENT_VERSION loads raw JSON without re-running migrations | Accepted. Client-only model. More specific than prior entry: attacker must also set unlockedPacks consistently. |
 
 ## Known Blind Spots
 
@@ -54,25 +67,26 @@ These risks were reviewed and accepted by the owner on 2026-06-24. Do NOT re-rai
 
 | Task | Location | Severity | Description |
 |------|----------|----------|-------------|
-| Task #004 | `lib/tauri.ts:58` | HIGH | `update_interrupt_config` `.catch(() => {})` — IPC failure is silently swallowed. User disables interrupts in UI but Rust scheduler continues firing. |
-| Task #005 | `lib/tauri.ts:64` | HIGH | `snooze_interrupt` `.catch(() => {})` — IPC failure silently discarded. User presses Snooze but interrupts continue. |
-| Task #006 | `components/InterruptHandler.tsx:73` | MEDIUM | Bare `catch {}` on notification plugin call. Notification failures are invisible to the user. |
-| Task #006b | `components/InterruptHandler.tsx:29` | MEDIUM | `validateLicense` `.then()` has no `.catch()` — unhandled rejection on Tauri IPC error. The symmetric fix was applied to `app/settings/page.tsx:46` in Task #001 but this sibling call was not updated. |
-| Batch 1 | `lib/tauri.ts:118` | MEDIUM | `checkForUpdates` bare `catch {}` discards all error context including non-network errors. |
-| Task #007 | `lib/packLoader.ts:91,101` | LOW | Storage-read catch blocks return `null` with no logging. Silent failures on cache reads. |
-| Task D | `lib/entitlement.ts:207` | MEDIUM | `deactivateLicense` returns `res.error` (raw Lemon Squeezy error string) directly to the UI caller. Exposes internal LS error format to user-visible surfaces. Should be mapped to a sanitized message before returning. |
-| — | `store/migrations.ts:ENTITLEMENT_MIGRATIONS[2]:70` | LOW | Migration v2 coerces any unknown licenseType to "subscription" (not just the intended legacy "lifetime"). Asymmetric with `lib/importBackup.ts:93` which uses "free" as fallback. On a client-only desktop app this is low-risk (user editing their own localStorage) but the policy inconsistency is undocumented. |
-| — (Standalone Audit 3) | `src-tauri/src/license.rs:open_url:52` | LOW | `open_url` lacks domain allowlisting beyond the `https://` prefix guard. All callers currently use compile-time constants (zero attack surface today). Defense-in-depth: restrict to known LS domains to prevent future misuse if any user-editable URL is ever routed through `openExternalUrl`. |
-| — (Standalone Audit 3) | `store/migrations.ts + Zustand persist` | LOW | Forged JSON with storedVersion matching ENTITLEMENT_VERSION (e.g. `{"state":{"licenseType":"subscription","unlockedPacks":["es"]},"version":2}`) bypasses all migrations. Zustand persist loads raw JSON into state without re-running migrations when storedVersion = current version. Requires also setting unlockedPacks consistently. Accepted risk (client-only model) but more specific than prior register entry. |
-| Task #059 (partial) | `lib/langRegistry.ts:ALL_PACK_CODES:37` | MEDIUM (escalated) | `ALL_PACK_CODES` mutation vector: **PARTIALLY RESOLVED 2026-06-26** — `readonly` + `Object.freeze()` applied to `ALL_PACK_CODES`. Remaining: `as PackCode[]` cast on line 42 still resolves `PackCode` to `string` instead of the expected `"it" \| "es" \| ...` union. Fix: derive `PackCode` from `typeof LANGUAGE_REGISTRY[number]["code"]` instead. |
-| Task #003 standalone re-audit | `lib/langRegistry.ts:PackCode:42` | MEDIUM | `PackCode` resolves to `string` because `ALL_PACK_CODES` is cast to `string[]` (line 37 — now `readonly string[]` but cast still widens). `(typeof ALL_PACK_CODES)[number]` is therefore `string`, not the expected `"it" \| "es" \| "fr" \| "de" \| "pt"` union. Any function typed to accept `PackCode` accepts arbitrary strings at compile time. Fix: derive `PackCode` from `typeof LANGUAGE_REGISTRY[number]["code"]` instead. |
+| Task #058 | `components/InterruptHandler.tsx:91,104` | MEDIUM | `listen()` promises have no `.catch()`. If Tauri IPC throws during subscription setup, all interrupt and tray events are silently lost — the interrupt system fails open with no user feedback. |
+| — | `components/InterruptHandler.tsx:70` | LOW | `enterMandatoryMode()` not in try/catch. Error propagates as unhandled rejection from async callback; mandatory window lock may silently fail. |
+| — | `store/migrations.ts:70` | LOW | Migration v2 coerces any unknown `licenseType` to `"subscription"` (not just the intended legacy `"lifetime"`). Asymmetric with `lib/importBackup.ts` which uses `"free"` as fallback. Policy inconsistency is undocumented. Intentional for offline-first but should be documented in code comment. |
+| — | `src-tauri/src/license.rs:open_url:52` | LOW | `open_url` lacks domain allowlisting beyond the `https://` prefix guard. All callers currently use compile-time constants (zero attack surface today). Defense-in-depth: restrict to known LS domains to prevent future misuse if any user-editable URL is ever routed through `openExternalUrl`. |
+| — | `lib/featureFlags.ts:17-21` | INFO | Default-true flag evaluation silently accepts `"0"`, `"off"`, `"False"` as enabled (only exact string `"false"` disables). Configuration footgun: an operator expecting `FLAG=0` to disable will be surprised. No injection risk. |
 | Known CVEs | `postcss` (via `next`) | MODERATE | 2 moderate CVEs in `postcss` dependency pulled in by Next.js. Not runtime-critical (build tooling only). Fix requires a major Next.js version bump. Accepted for now; track at next Next.js upgrade. |
 
 ## Past Findings — Resolved
 
 | Task | Location | Severity | Description |
 |------|----------|----------|-------------|
-| Task #001 | `lib/entitlement.ts:9-10` | CRITICAL | Lifetime checkout URLs (`italian_lifetime`, `all_languages_lifetime`) removed. All lifetime entitlement code deleted. Resolved Cycle 2 — 2026-06-24. |
-| Task #001 | `app/settings/page.tsx:178` | LOW | Unbound catch on `FileReader` callback in backup import flow. Fixed in Cycle 2: `catch (e)` bound + `console.error`. |
-| Task #003 | `lib/packLoader.ts:loadPack + evictPack` | HIGH | `lang` param from localStorage not validated before URL interpolation. Fixed 2026-06-25: `ALL_PACK_CODES.includes(lang)` guard added to both `loadPack()` and `evictPack()` before any I/O. WorldClass 98/100. |
-| Task #009 | `components/EntitlementValidator.tsx:22` | LOW | `console.warn` leaked raw Lemon Squeezy API error text to DevTools in production builds. RESOLVED 2026-06-26 — raw LS error no longer propagated. |
+| Task #001 | `lib/entitlement.ts:9-10` | CRITICAL | Lifetime checkout URLs (`italian_lifetime`, `all_languages_lifetime`) removed. All lifetime entitlement code deleted. Resolved 2026-06-24. |
+| Task #001 | `app/settings/page.tsx:178` | LOW | Unbound catch on `FileReader` callback in backup import flow. Fixed: `catch (e)` bound + `console.error`. |
+| Task #003 | `lib/packLoader.ts:loadPack + evictPack` | HIGH | `lang` param from localStorage not validated before URL interpolation. Fixed 2026-06-25: `ALL_PACK_CODES.includes(lang)` guard added to both `loadPack()` and `evictPack()` before any I/O. |
+| Task #004 | `lib/tauri.ts:58` | HIGH | `update_interrupt_config` `.catch(() => {})` — IPC failure silently swallowed. CLOSED Batch 3 (2026-06-27): lines 59-65 now have proper try/catch + logging + re-throw. |
+| Task #005 | `lib/tauri.ts:64` | HIGH | `snooze_interrupt` `.catch(() => {})` — IPC failure silently discarded. CLOSED Batch 3 (2026-06-27): lines 71-77 now have proper try/catch + logging + re-throw. |
+| Task #006 | `components/InterruptHandler.tsx:73` | MEDIUM | Bare `catch {}` on notification plugin call. CLOSED Batch 3 (2026-06-27): lines 87-89 now log `[ERR-NOTIF-...]`. |
+| Task #006b | `components/InterruptHandler.tsx:29` | MEDIUM | `validateLicense` `.then()` has no `.catch()`. CLOSED Batch 3 (2026-06-27): lines 43-45 have catch handler. |
+| Batch 1 | `lib/tauri.ts:118` | MEDIUM | `checkForUpdates` bare `catch {}` discards all error context. CLOSED Batch 3 (2026-06-27): lines 131-134 log `[ERR-UPDATER-...]`. |
+| Task #007 | `lib/packLoader.ts:91,101` | LOW | Storage-read catch blocks return `null` with no logging. CLOSED Batch 3 (2026-06-27): lines 99,112 both log `[ERR-CACHE-...]`. |
+| Task D | `lib/entitlement.ts:207` | MEDIUM | `deactivateLicense` returned `res.error` (raw Lemon Squeezy error string) to caller. CLOSED Batch 3 (2026-06-27): now returns `ERR_DEACTIVATE_NETWORK` constant. |
+| Task #009 | `components/EntitlementValidator.tsx:22` | LOW | `console.warn` leaked raw Lemon Squeezy API error text to DevTools in production builds. CLOSED 2026-06-26. |
+| Task #059 (partial) | `lib/langRegistry.ts:ALL_PACK_CODES` | MEDIUM | `ALL_PACK_CODES` mutation vector + `PackCode` resolving to `string`. `readonly` + `Object.freeze()` applied. `PackCode` type derivation from `typeof LANGUAGE_REGISTRY[number]["code"]` remains to be verified fully resolved. |

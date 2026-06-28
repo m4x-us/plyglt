@@ -1,34 +1,17 @@
+// ============================================================
+// page.tsx — Stats page: FSRS difficulty, at-risk cards, and retention by level
+// ============================================================
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useLangPack } from "@/hooks/useLangPack";
-import { useSRSStore, isMastered } from "@/store/srsStore";
-import type { CardProgress } from "@/lib/srs";
-import type { Card } from "@/content/types";
-
-// ── Data helpers ─────────────────────────────────────────────────────────────
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  // Non-null: mid is within bounds (length > 0 checked above)
-  return sorted.length % 2 !== 0
-    ? sorted[mid]!
-    : (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
-// ── Stats page ────────────────────────────────────────────────────────────────
+import { useStatsData } from "@/hooks/useStatsData";
+import DifficultyBar, { stabilityColorClass } from "@/components/DifficultyBar";
 
 export default function StatsPage() {
-  const { units, loading: packLoading } = useLangPack();
-  const { cards } = useSRSStore();
-  // Captured once at mount — lazy initializer avoids calling Date.now() during render
-  // (react-hooks/purity) while still providing a stable timestamp for the session.
-  const [now] = useState<number>(Date.now);
+  const { loading, seen, totalCards, now, hardest, weakestTags, levelStability, atRisk } =
+    useStatsData();
 
-  if (packLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">
         Loading…
@@ -36,62 +19,9 @@ export default function StatsPage() {
     );
   }
 
-  const allCards: { card: Card; progress: CardProgress }[] = [];
-  for (const unit of units) {
-    for (const card of unit.cards) {
-      const progress = cards[card.id];
-      if (progress) allCards.push({ card, progress });
-    }
-  }
-
-  const seen = allCards.length;
-  const totalCards = units.reduce((s, u) => s + u.cards.length, 0);
-
-  // Section 1: Hardest cards (highest difficulty)
-  const hardest = [...allCards]
-    .sort((a, b) => b.progress.difficulty - a.progress.difficulty)
-    .slice(0, 10);
-
-  // Section 2: Weakest tags (highest avg difficulty)
-  const tagDifficulty: Record<string, number[]> = {};
-  for (const { card, progress } of allCards) {
-    for (const tag of card.tags) {
-      if (!tagDifficulty[tag]) tagDifficulty[tag] = [];
-      tagDifficulty[tag].push(progress.difficulty);
-    }
-  }
-  const weakestTags = Object.entries(tagDifficulty)
-    .filter(([, vals]) => vals.length >= 3)
-    .map(([tag, vals]) => ({
-      tag,
-      avgDifficulty: vals.reduce((s, v) => s + v, 0) / vals.length,
-      count: vals.length,
-    }))
-    .sort((a, b) => b.avgDifficulty - a.avgDifficulty)
-    .slice(0, 8);
-
-  // Section 3: Median stability by level
-  const levels = ["A1", "A2", "B1", "B2"] as const;
-  const levelStability = levels.map((level) => {
-    const stabilities = units.filter((u) => u.level === level)
-      .flatMap((u) => u.cards)
-      .map((c) => cards[c.id])
-      .filter((p): p is CardProgress => p?.state === "review")
-      .map((p) => p.stability);
-    return { level, median: median(stabilities), count: stabilities.length };
-  });
-
-  // Section 4: At-risk cards (overdue by > 7 days and in review state)
-  const OVERDUE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
-  const atRisk = allCards.filter(
-    ({ progress }) =>
-      isMastered(progress) && now - progress.dueDate > OVERDUE_THRESHOLD_MS
-  );
-
   return (
     <div className="min-h-screen bg-gray-950 text-white px-4 py-12">
       <div className="max-w-xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-2xl font-bold">Learning Stats</h1>
@@ -99,10 +29,7 @@ export default function StatsPage() {
               {seen} of {totalCards} cards seen
             </p>
           </div>
-          <Link
-            href="/"
-            className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
-          >
+          <Link href="/" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">
             ← Home
           </Link>
         </div>
@@ -114,11 +41,10 @@ export default function StatsPage() {
           </div>
         ) : (
           <div className="space-y-10">
-            {/* Section 4: At-risk (shown prominently when non-empty) */}
             {atRisk.length > 0 && (
               <section>
                 <h2 className="text-xs text-gray-500 uppercase tracking-widest mb-3">
-                  Retention at risk — overdue &gt;7 days
+                  At risk — ready &gt;7 days
                 </h2>
                 <div className="space-y-2">
                   {atRisk.slice(0, 5).map(({ card, progress }) => (
@@ -128,7 +54,7 @@ export default function StatsPage() {
                     >
                       <span className="text-white text-sm truncate mr-4">{card.prompt}</span>
                       <span className="text-red-400 text-xs flex-shrink-0">
-                        {Math.floor((now - progress.dueDate) / 86400000)}d overdue
+                        {Math.floor((now - progress.dueDate) / 86400000)}d ago
                       </span>
                     </div>
                   ))}
@@ -141,7 +67,6 @@ export default function StatsPage() {
               </section>
             )}
 
-            {/* Section 1: Hardest cards */}
             <section>
               <h2 className="text-xs text-gray-500 uppercase tracking-widest mb-3">
                 Hardest cards (by FSRS difficulty)
@@ -163,7 +88,6 @@ export default function StatsPage() {
               )}
             </section>
 
-            {/* Section 2: Weakest tags */}
             {weakestTags.length > 0 && (
               <section>
                 <h2 className="text-xs text-gray-500 uppercase tracking-widest mb-3">
@@ -186,7 +110,6 @@ export default function StatsPage() {
               </section>
             )}
 
-            {/* Section 3: Stability by level */}
             <section>
               <h2 className="text-xs text-gray-500 uppercase tracking-widest mb-3">
                 Retention strength by level (median stability)
@@ -204,13 +127,7 @@ export default function StatsPage() {
                     </div>
                     <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${
-                          med >= 21
-                            ? "bg-green-500"
-                            : med >= 7
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
+                        className={`h-full rounded-full transition-all ${stabilityColorClass(med)}`}
                         style={{ width: `${Math.min(100, (med / 60) * 100)}%` }}
                       />
                     </div>
@@ -224,20 +141,6 @@ export default function StatsPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function DifficultyBar({ value }: { value: number }) {
-  const pct = ((value - 1) / 9) * 100;
-  const color =
-    pct > 66 ? "bg-red-500" : pct > 33 ? "bg-yellow-500" : "bg-green-500";
-  return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-gray-600 text-xs w-6 text-right">{value.toFixed(1)}</span>
     </div>
   );
 }

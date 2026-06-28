@@ -1,8 +1,11 @@
+// ============================================================
+// page.tsx — Study page: spaced repetition review queue for a unit or global session
+// ============================================================
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useMemo } from "react";
-import { useSRSStore, unitMasteryPct, MASTERY_GATE } from "@/store/srsStore";
+import { useSRSStore, unitMasteryPct, MASTERY_GATE, localDateStr } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useIsHydrated } from "@/lib/storage";
@@ -24,7 +27,7 @@ function StudyInner() {
   const isGlobal = mode === "global";
   const isInterrupt = mode === "interrupt";
 
-  const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession } = useSRSStore();
+  const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds } = useSRSStore();
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, loading: packLoading } = useLangPack();
 
@@ -45,7 +48,7 @@ function StudyInner() {
 
   const initialQueue = useMemo(() => {
     if (!prereqsMet) return [];
-    const full = buildQueue(allCards, getDueCards, getNewCards, isGlobal || isInterrupt);
+    const full = buildQueue(allCards, getDueCards, getNewCards, isGlobal || isInterrupt, getIntroductionDueCardIds);
     return isInterrupt ? full.slice(0, INTERRUPT_CARD_LIMIT) : full;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, isGlobal, isInterrupt, prereqsMet]);
@@ -64,9 +67,8 @@ function StudyInner() {
 
   if (initialQueue.length === 0) return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
-      <div className="text-5xl mb-4">✓</div>
-      <h1 className="text-2xl font-bold text-green-400 mb-2">All caught up!</h1>
-      <p className="text-gray-500 mb-8">No cards due right now.</p>
+      <h1 className="text-2xl font-bold text-green-400 mb-2">Nothing ready.</h1>
+      <p className="text-gray-500 mb-8">Check back later.</p>
       <button
         onClick={async () => { if (isInterrupt) await exitMandatoryMode(); router.push("/learn"); }}
         className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
@@ -107,7 +109,7 @@ function StudyInner() {
   }
 
   const unitName = isGlobal || isInterrupt ? findUnitName(currentCard.id, ALL_UNITS) : unit!.name;
-  const headerTitle = isInterrupt ? "⏰ Quick Review" : isGlobal ? "Global Review" : `${unit!.emoji} ${unit!.name}`;
+  const headerTitle = isInterrupt ? "Quick review" : isGlobal ? "Global Review" : `${unit!.emoji} ${unit!.name}`;
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col px-4 py-8">
@@ -137,7 +139,7 @@ function StudyInner() {
         </div>
       </div>
       <div className="flex-1 flex items-center justify-center">
-        <StudyCard key={`${currentCard.id}-${pos}`} card={currentCard} cardNumber={pos + 1} totalCards={queue.length} onRate={handleRate} />
+        <StudyCard key={`${currentCard.id}-${pos}`} card={currentCard} cardNumber={pos + 1} totalCards={queue.length} onRate={(g) => { handleRate(g); const r = introductions[currentCard.id]; if (r && !r.graduated) recordIntroductionResult(currentCard.id, g !== "again", localDateStr()); }} />
       </div>
     </div>
   );

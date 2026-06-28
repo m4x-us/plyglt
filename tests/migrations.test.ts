@@ -23,8 +23,8 @@ import {
 
 // S011: exact value assertions (not just "positive integer")
 describe("version constants", () => {
-  it("SRS_VERSION is 1", () => {
-    expect(SRS_VERSION).toBe(1);
+  it("SRS_VERSION is 2", () => {
+    expect(SRS_VERSION).toBe(2);
   });
   it("ENTITLEMENT_VERSION is 2", () => {
     expect(ENTITLEMENT_VERSION).toBe(2);
@@ -85,6 +85,27 @@ describe("migrateSrsStore()", () => {
     const result = migrateSrsStore({ cards, streak: 2 }, SRS_VERSION) as Record<string, unknown>;
     expect((result.cards as typeof cards)?.["a1-01"]?.reps).toBe(7);
     expect(result.streak).toBe(2);
+  });
+
+  it("v1 → v2: adds introductions: {} and preserves all existing fields", () => {
+    const result = migrateSrsStore(
+      { cards: {}, streak: 0, lastStudiedDate: null, activeSession: null },
+      1,
+    ) as Record<string, unknown>;
+    expect(result.introductions).toEqual({});
+    expect(result.cards).toEqual({});
+    expect(result.streak).toBe(0);
+    expect(result.lastStudiedDate).toBeNull();
+    expect(result.activeSession).toBeNull();
+  });
+
+  it("v1 → v2: preserves existing introductions when already populated (does not reset to {})", () => {
+    const existingIntros = { "it-a1u01-001": { cardId: "it-a1u01-001", graduated: false } };
+    const result = migrateSrsStore(
+      { cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: existingIntros },
+      1,
+    ) as Record<string, unknown>;
+    expect(result.introductions).toEqual(existingIntros);
   });
 });
 

@@ -77,6 +77,75 @@ describe("buildQueue", () => {
   });
 });
 
+describe("buildQueue — introduction cards", () => {
+  // Forward-typed cast for the optional 5th parameter added in Task #048.
+  // Becomes redundant (not erroneous) once lib/queue.ts accepts the real signature.
+  const buildQueueExt = buildQueue as unknown as (
+    cards: Card[],
+    getDueCards: (cards: Card[]) => string[],
+    getNewCards: (cards: Card[], limit?: number) => Card[],
+    globalMode?: boolean,
+    getIntroductionDueCardIds?: (today: string) => string[],
+  ) => Card[];
+
+  it("includes introduction-phase cards even when they have no FSRS reps", () => {
+    const intro = card("intro-1");
+    const result = buildQueueExt(
+      [intro],
+      () => [],           // no FSRS due cards
+      () => [],           // no new cards
+      false,
+      () => ["intro-1"],  // introduction engine says intro-1 is due today
+    );
+    expect(result.map((c) => c.id)).toContain("intro-1");
+  });
+
+  it("places introduction cards after due FSRS cards but before new cards", () => {
+    const due = card("due-1");
+    const intro = card("intro-1");
+    const newCard = card("new-1");
+    const result = buildQueueExt(
+      [due, intro, newCard],
+      () => ["due-1"],
+      () => [newCard],
+      false,
+      () => ["intro-1"],
+    );
+    const ids = result.map((c) => c.id);
+    expect(ids.indexOf("due-1")).toBeLessThan(ids.indexOf("intro-1"));
+    expect(ids.indexOf("intro-1")).toBeLessThan(ids.indexOf("new-1"));
+  });
+
+  it("a card excluded from getIntroductionDueCardIds still appears if it is FSRS-due; intro-only cards also appear", () => {
+    const fsrsDue = card("fsrs-1");
+    const introCard = card("intro-1");
+    const result = buildQueueExt(
+      [fsrsDue, introCard],
+      () => ["fsrs-1"],    // fsrs-1 is due via FSRS
+      () => [],
+      false,
+      () => ["intro-1"],   // intro-1 is due via introduction engine only
+    );
+    const ids = result.map((c) => c.id);
+    expect(ids).toContain("fsrs-1");    // via FSRS
+    expect(ids).toContain("intro-1");   // via introduction engine
+  });
+
+  it("globalMode includes introduction cards while still excluding new cards", () => {
+    const newSpy = vi.fn().mockReturnValue([]);
+    const intro = card("intro-1");
+    const result = buildQueueExt(
+      [intro, card("new-1")],
+      () => [],
+      newSpy,
+      true,               // globalMode
+      () => ["intro-1"],
+    );
+    expect(newSpy).not.toHaveBeenCalled();
+    expect(result.map((c) => c.id)).toContain("intro-1");
+  });
+});
+
 describe("findUnitName", () => {
   it("returns the unit name for a card that exists in a unit", () => {
     const units = [unit("Greetings", ["c1", "c2"])];

@@ -1,3 +1,6 @@
+// ============================================================
+// UnitRow.test.tsx — Tests for UnitRow unit list row component
+// ============================================================
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -26,14 +29,20 @@ describe("UnitRow", () => {
     expect(screen.getByText("Food & Drinks")).toBeDefined();
   });
 
-  it("shows the due badge when stats.due > 0", () => {
+  it("shows the ready badge when stats.due > 0", () => {
     render(<UnitRow unit={makeUnit()} stats={{ ...baseStats, due: 3 }} masteryPct={0} unlocked isComplete={false} />);
-    expect(screen.getByText("3 due")).toBeDefined();
+    expect(screen.getByText("3 ready")).toBeDefined();
   });
 
-  it("does not show due badge when stats.due === 0", () => {
-    render(<UnitRow unit={makeUnit()} stats={baseStats} masteryPct={0} unlocked isComplete={false} />);
+  it("badge renders 'ready' not 'due'", () => {
+    render(<UnitRow unit={makeUnit()} stats={{ ...baseStats, due: 7 }} masteryPct={0} unlocked isComplete={false} />);
+    expect(screen.getByText("7 ready")).toBeDefined();
     expect(screen.queryByText(/\d+ due/)).toBeNull();
+  });
+
+  it("does not show ready badge when stats.due === 0", () => {
+    render(<UnitRow unit={makeUnit()} stats={baseStats} masteryPct={0} unlocked isComplete={false} />);
+    expect(screen.queryByText(/\d+ ready/)).toBeNull();
   });
 
   it("renders locked state (lock emoji) when unlocked is false", () => {

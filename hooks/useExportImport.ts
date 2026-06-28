@@ -1,3 +1,6 @@
+// ============================================================
+// useExportImport.ts — Hook: export and import SRS/entitlement state as a JSON backup file
+// ============================================================
 "use client";
 
 import { useRef, useState } from "react";

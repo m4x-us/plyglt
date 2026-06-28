@@ -2,6 +2,51 @@
 
 ---
 
+## Wave 1 — 2026-06-27 (#031 #032 #079)
+
+**Status: COMPLETE**
+**Date: 2026-06-27**
+**Files changed: CLAUDE.md (architecture section added), STATUS.md (created), BRAND.md (session timer removed)**
+
+### Tasks closed
+- **#031** — Write CLAUDE.md architecture section — COMPLETE
+- **#032** — Create STATUS.md — COMPLETE
+- **#079** — Remove session timer spec from BRAND.md — COMPLETE
+
+### What was built
+
+#### #031 — CLAUDE.md Architecture section (745 words, 6 subsections)
+- Layer map: app/ → components/ → hooks/ → lib/ / store/ with import direction rules
+- Tauri graceful-degradation pattern: `lib/tauri.ts` gateway, never import `@tauri-apps/api` directly
+- Platform storage abstraction: `createPlatformStorage` factory, Tauri Store vs localStorage routing
+- Migration convention: `store/migrations.ts`, version increment + migration fn + test
+- Entitlement model: client-only, honour system, intentional (owner decision 2026-06-24)
+- Pack format: `public/packs/{lang}.json`, sha256 verification on every load
+
+#### #032 — STATUS.md (5 sections)
+- Shipped: SRS core, 57 curriculum units, interrupt engine, entitlement, backup/restore, feature flags, etc.
+- Planned: pointer to `.autocode/tasks.md`
+- Known issues: client-only entitlement (intentional), 68 unbuilt curriculum units, fr/de/pt stubs
+- Curriculum status: table showing 57/125 units, no code work required for gap
+- Card ID format: Italian format (`{level}u{unit:02d}-t{tier}-{seq:03d}`) and non-Italian (`{lang}-...`), noting CONTRIBUTING_LANGUAGE.md updated this sprint
+
+#### #079 — BRAND.md session timer removed
+- Removed `### The session timer` section (60-second elapsed progress bar — no longer planned)
+- Updated two remaining "60 seconds" references to "under a minute" / "short" to clear all grep hits
+- `grep -n "60 seconds\|elapsed time\|session timer\|The session timer\|progress bar" BRAND.md` → zero hits
+
+### Verification gate
+- `npx tsc --noEmit`: PASS (zero errors)
+- `npm run lint`: PASS (zero errors; 10 pre-existing warnings)
+- `npm test`: PASS (707/707 — 32 test files)
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+---
+
 ## Wave 1 — 2026-06-27 (#028 #026)
 
 **Status: COMPLETE**

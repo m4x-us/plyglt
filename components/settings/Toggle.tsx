@@ -1,3 +1,6 @@
+// ============================================================
+// Toggle.tsx — Labelled toggle switch for boolean settings
+// ============================================================
 export function Toggle({
   label,
   description,

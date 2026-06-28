@@ -1,16 +1,25 @@
 # Stream W1C Task State
+Exec order: #033 (solo stream, expedited per owner)
 
-### Task #027 | Extract checkAnswer + levenshtein to lib/answerCheck.ts
-**Severity:** 4 | **File(s):** `lib/srs.ts:218-266`
-**DoD Tier:** 2
-**Complexity:** 🔧 Full — "extract" keyword, 4 files (lib/srs.ts, lib/answerCheck.ts, lib/language.ts, components/StudyCard.tsx)
+### Task #033 | Update CONTRIBUTING_LANGUAGE.md — NFC, diacritic tolerance, close threshold, card ID format, Batch 3 issues
+**Severity:** 5 | **File(s):** `CONTRIBUTING_LANGUAGE.md`
+**DoD Tier:** 4
+**Complexity:** ⚡ Direct — 1 file, no package boundary, documentation-only changes
+**⚡ FIRST in Batch 4 (expedited per owner 2026-06-27)**
 
-`checkAnswer` and `levenshtein` are answer-evaluation utilities that have grown in complexity (NFC normalization, diacritic tolerance from #010-#011, article stripping). They belong in their own focused module (`lib/answerCheck.ts`) per Rule 6 (Extract Ready — every module can become its own SaaS product). `lib/srs.ts` should only contain FSRS scheduling logic.
+`CONTRIBUTING_LANGUAGE.md` has 9 outstanding issues:
 
-**Changes required:**
-1. Create `lib/answerCheck.ts` — move `checkAnswer`, `levenshtein`, `stripArticle`, `ITALIAN_ARTICLES`, `SPANISH_ARTICLES` from `lib/srs.ts`. Keep exports from `lib/srs.ts` as re-exports for backwards compatibility (`export { checkAnswer, ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck"`).
-2. Update all import sites of `checkAnswer`, `ITALIAN_ARTICLES`, `SPANISH_ARTICLES` to import from `@/lib/answerCheck`. Callers: `lib/language.ts:2`, `components/StudyCard.tsx` (wherever it calls checkAnswer).
+**Original scope (#010, #011 changes — already shipped):**
+1. **NFC normalization behaviour:** all card text normalized to NFC on export (`scripts/exportPack.ts`). Authors write in composed form; tooling handles normalization.
+2. **Diacritic tolerance:** `diacriticTolerant: true` means accent-only diff is `"close"` not `"wrong"`. Do NOT add duplicate answers — engine handles it.
+3. **"close" Levenshtein threshold:** `"close"` only when `a.length > 4 AND distance === 1`. Shorter words are wrong-only.
+4. **Card ID format:** Italian cards have no `{lang}-` prefix. Document both formats; note non-Italian cards should use full `{lang}-{level}u{unit:02d}-t{tier}-{seq:03d}`.
 
-**Test required:** Tests already exist in `tests/srs.test.ts` for `checkAnswer`. Add `tests/answerCheck.test.ts` that imports directly from `lib/answerCheck` to pin the module boundary.
+**New issues found /meet 2026-06-27:**
+5. **Step 2 TypeScript compile error:** Example code includes `pricing: { lifetime: "$9.99" }` — `LanguageEntry` has no `pricing` field. Remove.
+6. **Step 5 `french_lifetime` checkout key:** References a `lifetime` checkout type forbidden in `lib/entitlement.ts:118`. Remove; use a subscription key example.
+7. **French as worked example:** `fr` was removed from `langRegistry.ts` 2026-06-27. Replace `fr` throughout with generic `{lang}` placeholder.
+8. **Step 1 wrong file:** References `lib/srs.ts` for `ITALIAN_ARTICLES`, `checkAnswer` — these live in `lib/answerCheck.ts` after Task #027. Correct the file reference.
+9. **lib/langRegistry.ts stub pattern:** Note that `ready: false` keeps a new language out of production until `public/packs/{lang}.json` exists.
 
-**Done condition:** `lib/answerCheck.ts` exists. `lib/srs.ts` imports `checkAnswer` from `lib/answerCheck`. `wc -l lib/srs.ts` ≤ 250 (Rule 2 for services). Verification gate green.
+**Done condition:** All 9 items addressed. Step 2 TypeScript example compiles without error. `grep -n "french_lifetime\|pricing.*lifetime\|lib/srs.ts" CONTRIBUTING_LANGUAGE.md` returns zero hits. Verification gate green.

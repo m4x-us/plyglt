@@ -1,3 +1,6 @@
+// ============================================================
+// StudyResumePrompt.tsx — Prompt asking the user to resume or discard a saved session
+// ============================================================
 export default function StudyResumePrompt({
   resumePos,
   resumeTotal,

@@ -1,3 +1,6 @@
+// ============================================================
+// useExportImport.test.ts — Tests for useExportImport backup hook
+// ============================================================
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";

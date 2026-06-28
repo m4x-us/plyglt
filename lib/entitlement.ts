@@ -14,14 +14,20 @@ import { invoke } from "@/lib/tauri";
 import type { LicenseType } from "@/lib/licenseTypes";
 import { ALL_PACK_CODES, FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
 
-// ── Network error messages ────────────────────────────────────────────────────
+// ── Error message constants ───────────────────────────────────────────────────
 // Named constants prevent silent divergence between call sites.
-export const ERR_ACTIVATE_NETWORK = "Activation request failed — check your connection." as const;
-export const ERR_DEACTIVATE_NETWORK = "Deactivation failed — check your connection." as const;
-export const ERR_ACTIVATION_FAILED = "Activation failed." as const;
+// Import these in callers — never repeat the string literal inline.
+export const ERR_ACTIVATE_NETWORK     = "Activation request failed — check your connection." as const;
+export const ERR_DEACTIVATE_NETWORK   = "Deactivation failed — check your connection." as const;
+export const ERR_ACTIVATION_FAILED    = "Activation failed." as const;
 export const ERR_ACTIVATE_NO_INSTANCE = "Activation returned no instance." as const;
-export const ERR_LICENSE_NOT_ACTIVE = "License is not active." as const;
-export const ERR_DEACTIVATE_DECLINED = "Deactivation was declined by the server." as const;
+export const ERR_ACTIVATE_NO_VARIANT  = "Activation response missing variant data." as const;
+export const ERR_ACTIVATE_NO_KEY      = "Activation response missing license key." as const;
+export const ERR_LICENSE_NOT_ACTIVE   = "License is not active." as const;
+export const ERR_VALIDATE_NETWORK     = "Validation failed — check your connection." as const;
+export const ERR_VALIDATE_NULL        = "Validation request failed." as const;
+export const ERR_VALIDATE_INACTIVE    = "License is no longer valid." as const;
+export const ERR_DEACTIVATE_DECLINED  = "Deactivation declined." as const;
 
 // ── Lemon Squeezy URLs ────────────────────────────────────────────────────────
 // Update LS_STORE_SLUG once when your Lemon Squeezy store is created.
@@ -155,11 +161,11 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
     return { ok: false, error: ERR_LICENSE_NOT_ACTIVE };
   if (!res.meta?.variant_name) {
     console.error(`[ENTITLEMENT_ACTIVATE_NO_VARIANT-${Date.now()}]`, { status: res.license_key.status });
-    return { ok: false, error: "Activation response missing variant data." };
+    return { ok: false, error: ERR_ACTIVATE_NO_VARIANT };
   }
   if (!res.license_key.key) {
     console.error(`[ENTITLEMENT_ACTIVATE_BAD_KEY-${Date.now()}]`, { keyType: typeof res.license_key.key });
-    return { ok: false, error: "Activation response missing license key." };
+    return { ok: false, error: ERR_ACTIVATE_NO_KEY };
   }
 
   const { licenseType, unlockedPacks, validUntil } = resolveVariantEntitlement(
@@ -179,15 +185,15 @@ export async function validateLicense(key: string, instanceId: string): Promise<
     raw = await invoke<unknown>("ls_validate_license", { licenseKey: key, instanceId });
   } catch (e) {
     console.error(`[ENTITLEMENT_VALIDATE_FAIL-${Date.now()}]`, e);
-    return { ok: false, error: "Validation failed — check your connection." };
+    return { ok: false, error: ERR_VALIDATE_NETWORK };
   }
   if (raw == null) {
     console.error(`[ENTITLEMENT_VALIDATE_EMPTY-${Date.now()}]`, { raw });
-    return { ok: false, error: "Validation request failed." };
+    return { ok: false, error: ERR_VALIDATE_NULL };
   }
 
   const res = raw as LsValidateBody;
-  if (!res.valid || res.error) return { ok: false, error: res.error ?? "License is no longer valid." };
+  if (!res.valid || res.error) return { ok: false, error: res.error ?? ERR_VALIDATE_INACTIVE };
   if (!res.license_key || res.license_key.status !== "active") {
     console.error(`[ENTITLEMENT_VALIDATE_STRUCT-${Date.now()}]`, { valid: res.valid, status: res.license_key?.status });
     return { ok: false, error: ERR_LICENSE_NOT_ACTIVE };

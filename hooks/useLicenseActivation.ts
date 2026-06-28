@@ -1,3 +1,6 @@
+// ============================================================
+// useLicenseActivation.ts — Hook: activate, deactivate, and validate Lemon Squeezy licenses
+// ============================================================
 "use client";
 
 import { useState } from "react";

@@ -1,3 +1,35 @@
+# Stream W1C — Wave 1 Completion (Task #033)
+**Date:** 2026-06-27
+**Agent:** Charles
+**Status:** COMPLETE
+**Verification gate at close:** tsc=PASS · 707/707 tests pass · lint=0 errors
+
+## Tasks closed
+- #033 — CONTRIBUTING_LANGUAGE.md: all 9 issues resolved
+
+## What was done in #033
+
+All 9 issues addressed in CONTRIBUTING_LANGUAGE.md:
+
+1. **NFC normalization** — Added "Answer matching" preamble section: exportPack.ts NFC-normalizes on export; authors must not list both composed/decomposed forms.
+2. **Diacritic tolerance** — Preamble: diacriticTolerant:true means accent-only diff = "close"; do not add duplicate accepted answers.
+3. **"close" threshold** — Preamble: Levenshtein "close" only fires when accepted.length > 4 AND distance === 1; short words are strict.
+4. **Card ID format** — Step 3: documents both formats — Italian (no lang prefix) and all other languages ({lang}- prefix required), with explanation.
+5. **Step 2 TypeScript compile error** — Removed `pricing: { lifetime: "$9.99" }` from all LanguageEntry examples; added note that LanguageEntry has no pricing field.
+6. **Step 5 french_lifetime** — Replaced with `{lang}_monthly` subscription key; added note that plyglt has no lifetime plans.
+7. **French as worked example** — Replaced all fr/French references with generic {lang}/{LANG} placeholders (German used as concrete example to avoid confusion with removed fr).
+8. **Step 1 wrong file** — `lib/srs.ts` → `lib/answerCheck.ts` for ITALIAN_ARTICLES and checkAnswer.
+9. **ready:false stub** — Step 2 now explicitly documents ready:false behavior and clarifies LanguageEntry has no pricing field.
+
+## Done-condition
+- `grep -n "french_lifetime\|pricing.*lifetime\|lib/srs.ts" CONTRIBUTING_LANGUAGE.md` → zero hits ✓
+- tsc=PASS · 707 tests pass · lint=0 errors ✓
+
+## Debt entries logged: 0
+## Carry-forward tasks generated: 0
+
+---
+
 # Stream W1C — Session 3 Completion (Task #027)
 **Date:** 2026-06-27
 **Stream:** W1C — extract checkAnswer + levenshtein to lib/answerCheck.ts

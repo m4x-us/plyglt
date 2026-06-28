@@ -119,7 +119,7 @@ Streaks exist as a light continuity indicator. They are not weaponized: no strea
 
 ## The Proactive Interruption Model
 
-Most apps wait for you to open them. plyglt interrupts your workday with a short review session — a tray notification, a mandatory overlay, 3–5 cards. Each session lasts 30–60 seconds.
+Most apps wait for you to open them. plyglt interrupts your workday with a short review session — a tray notification, a mandatory overlay, 3–5 cards. Each session lasts under a minute.
 
 On desktop (Mac, Windows, Linux) via Tauri, plyglt can interrupt on a schedule, on computer unlock, or when idle time is detected. On mobile, push notifications serve the same function. Pro feature on all platforms.
 
@@ -166,11 +166,7 @@ Once introduced, new content enters an ultra-intensive repetition phase before g
 | Wrong 3× in a row | Resets to Day 1 — appears in every interrupt again |
 | Wrong across multiple days | New card introductions pause until this one stabilizes |
 
-**One new card introduced per day maximum.** On any given day, several cards are at different intensive stages — one at Day 1 appearing 8 times, one at Day 6 appearing twice, one at Day 15 appearing once — plus FSRS reviews. Sessions stay at 60 seconds because the daily new card load is hard-capped.
-
-### The session timer
-
-Every interrupt session displays a thin progress bar — elapsed time, not a countdown. It fills left to right over 60 seconds. No number. No alarm. Just a visible confirmation that this is, genuinely, only a minute. If the learner is mid-answer when 60 seconds elapses, the session completes that card before closing.
+**One new card introduced per day maximum.** On any given day, several cards are at different intensive stages — one at Day 1 appearing 8 times, one at Day 6 appearing twice, one at Day 15 appearing once — plus FSRS reviews. Sessions stay short because the daily new card load is hard-capped.
 
 ---
 

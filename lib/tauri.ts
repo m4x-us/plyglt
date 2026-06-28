@@ -1,3 +1,6 @@
+// ============================================================
+// tauri.ts — Runtime helpers and graceful degradation wrappers for the Tauri desktop API
+// ============================================================
 /**
  * lib/tauri.ts — Runtime helpers for the Tauri desktop environment.
  *

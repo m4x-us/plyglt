@@ -1,3 +1,6 @@
+// ============================================================
+// Section.tsx — Settings section container with titled group box styling
+// ============================================================
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>

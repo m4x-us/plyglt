@@ -1,3 +1,6 @@
+// ============================================================
+// queue.ts — Builds the study queue from due and new cards respecting session limits
+// ============================================================
 import type { Card, Unit } from "@/content/types";
 
 const SESSION_NEW_LIMIT = 15;
@@ -6,13 +9,26 @@ export function buildQueue(
   cards: Card[],
   getDueCards: (cards: Card[]) => string[],
   getNewCards: (cards: Card[], limit?: number) => Card[],
-  globalMode = false
+  globalMode = false,
+  getIntroductionDueCardIds?: (today: string) => string[],
 ): Card[] {
   const cardMap = Object.fromEntries(cards.map((c) => [c.id, c]));
   const dueIds = getDueCards(cards);
   const newCards = globalMode ? [] : getNewCards(cards, SESSION_NEW_LIMIT);
 
   const dueCards = dueIds.map((id) => cardMap[id]).filter((c): c is Card => !!c);
+
+  // Introduction cards sit after all FSRS due reviews but before remaining new cards.
+  // Deduplication below handles the case where a card appears in both lists.
+  const introCards: Card[] = [];
+  if (getIntroductionDueCardIds) {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    for (const id of getIntroductionDueCardIds(today)) {
+      const c = cardMap[id];
+      if (c) introCards.push(c);
+    }
+  }
 
   // Interleave new cards among due reviews
   const result: Card[] = [];
@@ -23,6 +39,7 @@ export function buildQueue(
       result.push(newCards[newIdx++]!);
     }
   }
+  result.push(...introCards);
   while (newIdx < newCards.length) {
     result.push(newCards[newIdx++]!);
   }

@@ -20,7 +20,7 @@ import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
-export const SRS_VERSION = 1;
+export const SRS_VERSION = 2;
 
 const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v0 → v1: initial shape. Fills missing fields for data written before versioning.
@@ -32,6 +32,12 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       lastStudiedDate: typeof d.lastStudiedDate === "string" ? d.lastStudiedDate : null,
       activeSession:   d.activeSession ?? null,
     };
+  },
+  // v1 → v2: adds introductions map for the intensive introduction engine.
+  // Uses ?? {} so any data already written by a pre-release build is preserved.
+  2: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    return { ...d, introductions: d.introductions ?? {} };
   },
 };
 

@@ -1,3 +1,6 @@
+// ============================================================
+// exportPack.ts — Build script: compiles TypeScript card content into a deployable JSON pack
+// ============================================================
 /**
  * exportPack.ts — Compiles TypeScript content into a JSON pack file.
  *

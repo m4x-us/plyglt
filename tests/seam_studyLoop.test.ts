@@ -11,7 +11,7 @@ const UNIT = ALL_UNITS[0]!;
 const SAMPLE_CARDS = UNIT.cards.slice(0, 3);
 
 beforeEach(() => {
-  useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
+  useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
 });
 
 describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession", () => {
@@ -51,6 +51,15 @@ describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession
     };
     useSRSStore.getState().rateCardAndSaveSession(firstCard.id, "good", session);
     expect(useSRSStore.getState().activeSession?.position).toBe(1);
+  });
+
+  it("recordIntroductionResult increments totalEncounters to 1 after the first result", () => {
+    const { introduceCard, recordIntroductionResult } = useSRSStore.getState();
+    const cardId = SAMPLE_CARDS[0]!.id;
+    const today = "2026-06-28";
+    introduceCard(cardId, today);
+    recordIntroductionResult(cardId, true, today);
+    expect(useSRSStore.getState().introductions[cardId]!.totalEncounters).toBe(1);
   });
 
   it("rateCardAndSaveSession is atomic — reps and session.position update in the same store tick", () => {

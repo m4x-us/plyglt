@@ -1,25 +1,41 @@
 # Stream W1D Task State
+Exec order: #081 → #082
 
-### Task #029 | Add feature flag system (Rule 4)
-**Severity:** 5 | **File(s):** `lib/` (new file), `next.config.ts`
-**DoD Tier:** 2
-**Complexity:** 🔧 Full — "new feature" keyword, 4 files (lib/featureFlags.ts, next.config.ts, components/InterruptHandler.tsx, tests/featureFlags.test.ts)
+### Task #081 | Tests — hooks/useStudySession.ts | severity 7
+**File(s):** `hooks/useStudySession.test.ts` (new, co-located)
+**DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test-writing task
+**Blocked by:** Nothing
 
-No feature flag system exists. Rule 4: every new feature must be toggleable off. This blocks shipping the proactive interruption engine, vacation mode, analytics, and any Pro feature safely behind a flag.
+`hooks/useStudySession.ts` is the most complex untested hook in the codebase — session branching, queue management, wasClose tracking, session commit. Zero test coverage.
 
-**Changes required:**
-1. Create `lib/featureFlags.ts` — define a `FeatureFlags` interface and a `getFeatureFlags(): FeatureFlags` function. Flags read from `process.env.NEXT_PUBLIC_FLAGS_*` at build time (Next.js static replacement). Initial flags:
-   ```ts
-   export interface FeatureFlags {
-     interruptEngine: boolean;  // NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE
-     vacationMode: boolean;     // NEXT_PUBLIC_FLAGS_VACATION_MODE
-     analytics: boolean;        // NEXT_PUBLIC_FLAGS_ANALYTICS
-   }
-   ```
-2. `next.config.ts` — document the flag env vars in a comment.
-3. `components/InterruptHandler.tsx` — gate the interrupt listener registration behind `getFeatureFlags().interruptEngine`. If the flag is off, the component returns null immediately.
+**Test required (write first — these ARE the task):**
+1. Happy path: `buildQueue` called on mount, first card set as current card.
+2. Resume path: existing `activeSession` in store → resume prompt shown, resuming loads from saved position.
+3. Correct answer: `wasClose` stays false, answer state clears, position advances.
+4. Close answer: `wasClose` set true, card UI reflects close state.
+5. Session commit: when final card rated, `rateCardAndSaveSession` called with correct session object (unitId, position, sessionTotal ≥ 1).
 
-**Test required (write first):**
-- `tests/featureFlags.test.ts` — `getFeatureFlags()` returns all flags as booleans. When `NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE` is `"false"`, `interruptEngine` is `false`. When absent, defaults to `true` (feature on by default).
+Use `vi.mock("@/lib/queue")` for `buildQueue` and `vi.mock("@/store/srsStore")` for store actions. Assert behavioral outcomes (state values, function call counts), not implementation details.
 
-**Done condition:** `lib/featureFlags.ts` exists. `tests/featureFlags.test.ts` passes. `components/InterruptHandler.tsx` reads the flag. Verification gate green.
+**Done condition:** `hooks/useStudySession.test.ts` exists with ≥5 behavioral tests, all green. `npm test -- hooks/useStudySession.test.ts` passes. Verification gate green.
+
+---
+
+### Task #082 | Tests — hooks/useLicenseActivation.ts | severity 6
+**File(s):** `hooks/useLicenseActivation.test.ts` (new, co-located)
+**DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test-writing task
+**Blocked by:** Nothing
+
+`hooks/useLicenseActivation.ts` has three async IPC flows (activate, validate, deactivate) with status transitions. No tests exist.
+
+**Test required (write first — these ARE the task):**
+1. `handleActivate` ok path: `licenseStatus` transitions idle→loading→`{type:"success"}`. `useEntitlementStore` updated with correct `licenseType` and `unlockedPacks`.
+2. `handleActivate` error path: mock `activateLicense` returning `ok:false` → `licenseStatus.type === "error"` with non-empty `message`.
+3. `handleValidate`: valid license → `licenseStatus.type === "success"`.
+4. `handleDeactivate`: mock `deactivateLicense` returning `ok:true` → store cleared (`licenseType === "free"`).
+
+Use `vi.mock("@/lib/entitlement")` for IPC calls. Verify store mutations via `useEntitlementStore.getState()` after each handler.
+
+**Done condition:** `hooks/useLicenseActivation.test.ts` exists with ≥4 behavioral tests, all green. Verification gate green.

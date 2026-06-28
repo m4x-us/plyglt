@@ -1,3 +1,6 @@
+// ============================================================
+// LevelSection.tsx — Collapsible level section wrapping unit rows on the learn page
+// ============================================================
 import { unitMasteryPct, MASTERY_GATE } from "@/store/srsStore";
 import type { CardProgress } from "@/lib/srs";
 import type { Unit } from "@/content/types";

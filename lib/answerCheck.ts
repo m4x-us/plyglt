@@ -1,3 +1,6 @@
+// ============================================================
+// answerCheck.ts — Answer evaluation: fuzzy matching, diacritics, and article stripping
+// ============================================================
 // Answer evaluation utilities extracted from lib/srs.ts.
 // Contains only checking / matching logic — no FSRS scheduling code.
 // lib/srs.ts re-exports everything here for backwards compatibility.

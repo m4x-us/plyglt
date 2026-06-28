@@ -1,3 +1,6 @@
+// ============================================================
+// useLangPack.ts — Hook: loads and caches the active language pack from static JSON
+// ============================================================
 "use client";
 
 import { useState, useEffect, useMemo } from "react";

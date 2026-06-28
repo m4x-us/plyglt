@@ -1,3 +1,6 @@
+// ============================================================
+// storage.ts — Platform-aware persistent storage factory for Zustand stores
+// ============================================================
 /**
  * lib/storage.ts — Platform-aware persistent storage for Zustand.
  *

@@ -1,3 +1,6 @@
+// ============================================================
+// UnitRow.tsx — Single row in the unit list showing progress and ready count
+// ============================================================
 import Link from "next/link";
 import type { Unit } from "@/content/types";
 
@@ -79,7 +82,7 @@ export default function UnitRow({
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         {unlocked && hasDue && (
           <span className="text-xs bg-red-900 text-red-300 rounded-full px-2 py-0.5 font-semibold">
-            {stats.due} due
+            {stats.due} ready
           </span>
         )}
         {unlocked && !hasDue && isNew && (

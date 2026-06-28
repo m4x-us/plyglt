@@ -1,3 +1,6 @@
+// ============================================================
+// page.tsx — Root page: initialises language and routes to /learn
+// ============================================================
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";

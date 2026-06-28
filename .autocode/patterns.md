@@ -1,5 +1,8 @@
 # AutoCode Patterns Log
 
+## 2026-06-28 | Task: #053 — WorldClass cycle 2
+- tests tests/entitlement.test.ts validateLicense license-key-absent path asserted ok:false only — ERR_LICENSE_NOT_ACTIVE path unpinned; pattern: every error-returning branch of a function covered by a Task-N constant extraction must have a .toBe(ERR_*) assertion, not just an ok:false check — severity 5 | WORLDCLASS
+
 ## 2026-06-26 | Task: #060 /audit — 7-agent parallel review
 - type-safety lib/packLoader.ts dead discriminant "not_cached" — declared in LoadPackResult union with zero return sites; pattern: every union variant must have at least one reachable return site; after changing a guard's return value, audit the full type and remove orphaned members — severity 6 | AUDIT
 - tests tests/useLangPack.test.ts Rule 13 seam test missing — task adds discriminant crossing module boundary (packLoader→useLangPack→page) but zero behavioral tests trace data through the seam; pattern: when a new error discriminant is introduced, the test file for every intermediate consumer must exercise the new code path end-to-end — severity 6 | AUDIT
@@ -84,3 +87,8 @@
 - tests components/EntitlementValidator.tsx:runEntitlementValidation co-located test not in scoring scope — severity 6 | worldclass: -4 pts | WORLDCLASS
 - code-quality lib/entitlement.ts:parseVariant licenseType hardcoded "subscription" but described as "parses" — severity 3 | worldclass: -2 pts | WORLDCLASS
 - code-quality store/entitlementStore.ts:VALIDATION_TTL_MS comment only documents grace-period use, not needsValidation use — severity 3 | worldclass: -2 pts | WORLDCLASS
+
+## 2026-06-28 | Task: #053 /audit standalone — 5-agent review
+- tests tests/entitlement.test.ts ERR_LICENSE_NOT_ACTIVE imported but unasserted — constant exported and imported in test file but all three pinning call sites tested with toContain("not active") substring; pattern: every constant extracted as a Poka-Yoke measure must have at least one toBe(CONSTANT) assertion in the test suite — severity 6 | AUDIT
+- tests tests/entitlement.test.ts four pre-existing substring assertions covering same code paths as new pinning tests, left in place — old stringContaining tests not upgraded or removed after stronger toBe tests added; pattern: when adding an exact-value assertion for a code path, either upgrade or remove any pre-existing substring assertions for the same path — severity 5 | AUDIT
+- done-condition tasks.md grep pattern unsatisfiable — done condition grep matched the constant definition lines themselves, not just inline call-site usage; pattern: grep-based done conditions for extracted constants must exclude the definition line (e.g. use `return.*"string"` not just `"string"`) — severity 3 | AUDIT

@@ -1,3 +1,6 @@
+// ============================================================
+// Stat.tsx — Single stat box showing a label and numeric or string value
+// ============================================================
 export function Stat({
   label,
   value,

@@ -637,6 +637,7 @@ The `normalize()` closure inside `checkAnswer` (lines 225-229) uses `.normalize(
 **Severity:** 3 — Low | **File(s):** `lib/entitlement.ts`
 **DoD Tier:** 1
 **Complexity: Direct**
+**Status: COMPLETE — 2026-06-28** | WorldClass: 96/100 (2 cycles)
 
 SCTS Poka-Yoke: `"Activation request failed — check your connection."` appears twice in `activateLicense` — once in the catch block and once in the null-body guard. `"Deactivation failed — check your connection."` appears twice in `deactivateLicense` — same pattern. Four string literals, two unique strings, zero named constants. A typo fix requires four edits instead of one.
 
@@ -651,7 +652,7 @@ SCTS Poka-Yoke: `"Activation request failed — check your connection."` appears
 **Test required (write first):**
 - `tests/entitlement.test.ts` — add four assertions pinning each call site to the constant value: (1) when `invoke` throws in `activateLicense`, the returned `error` equals `ERR_ACTIVATE_NETWORK`; (2) when the null-body guard fires in `activateLicense`, same; (3) when `invoke` throws in `deactivateLicense`, the returned `error` equals `ERR_DEACTIVATE_NETWORK`; (4) when the null-body guard fires in `deactivateLicense`, same. Import the constants from `lib/entitlement.ts` — do not hardcode the string in the test.
 
-**Done condition:** `grep -n '"Activation request failed\|"Deactivation failed' lib/entitlement.ts` returns zero hits. `grep -n "ERR_ACTIVATE_NETWORK\|ERR_DEACTIVATE_NETWORK" lib/entitlement.ts` returns hits on constants and all four usage sites. Verification gate green.
+**Done condition:** `grep -n 'return.*"Activation request failed\|return.*"Deactivation failed' lib/entitlement.ts` returns zero hits (pattern excludes constant definitions, matches only inline return-site usages). `grep -n "ERR_ACTIVATE_NETWORK\|ERR_DEACTIVATE_NETWORK" lib/entitlement.ts` returns hits on constants and all four usage sites. Verification gate green.
 
 **Status: COMPLETE — 2026-06-26**
 ---
@@ -867,7 +868,7 @@ Task #002 WorldClass accepted gap (-1 pt). The Rule 2 header in `lib/constants.t
 
 ---
 
-## Batch 2 — Test Foundation [COMPLETE]
+## Batch 2 — Test Foundation [ACTIVE]
 Dependency: Batch 1 complete.
 Theme: Component tests, seam tests, property-based invariants. Fix known false-green test bugs.
 
@@ -1232,19 +1233,22 @@ No feature flag system exists. Rule 4: every new feature must be toggleable off.
 
 ---
 
-## Batch 4 — Documentation [BACKLOG]
-Dependency: Batch 1 complete. Batches 2-3 can be in progress simultaneously.
-Theme: CLAUDE.md architecture content, STATUS.md, undocumented patterns.
+## Batch 4 — Documentation + Cleanup [COMPLETE]
+Dependency: Batch 1 complete. Batches 2-3 complete.
+**Execution order: #033 first (expedited per /meet 2026-06-27 — CONTRIBUTING_LANGUAGE.md has 5 new issues). Then #030, #031, #032, #078, #079, #080, #081, #082, #083 in parallel where file sets permit.**
+Theme: CLAUDE.md architecture content, STATUS.md, undocumented patterns, BRAND compliance, remaining Rule 1/2 gaps.
 
-### Task #030 | Add file headers to all 26 files missing them (Rule 2)
-**Severity:** 3 | **File(s):** 26 files listed below
+### Task #030 | Add file headers to all 39 files missing them (Rule 2)
+**Severity:** 3 | **File(s):** 39 files listed below
 **DoD Tier:** 1
-**Complexity:** 🔧 Full — 26 files
+**Complexity:** ⚡ Direct — 39 files, mechanical header-only addition, no logic changes
 
-Rule 2: every file starts with `// ========================================` human header. 26 files are missing this.
+Rule 2: every file starts with `// ========================================` human header. 39 files are missing this (26 original + 13 added by Batch 3 per /meet 2026-06-27; note `lib/featureFlags.ts` already compliant).
 
 Files to update (add header to each):
-`lib/language.ts`, `lib/storage.ts`, `lib/packLoader.ts`, `lib/tauri.ts`, `lib/importBackup.ts`, `lib/langRegistry.ts`, `lib/srs.ts`, `lib/entitlement.ts`, `lib/queue.ts`, `store/settingsStore.ts`, `store/migrations.ts`, `store/srsStore.ts`, `store/entitlementStore.ts`, `scripts/exportPack.ts`, `scripts/checkCardIds.ts`, `scripts/validatePack.ts`, `app/layout.tsx`, `app/page.tsx`, `components/StudyCard.tsx`, `components/InterruptHandler.tsx`, `components/EntitlementValidator.tsx`, `hooks/useLangPack.ts`, `app/settings/page.tsx`, `app/study/page.tsx`, `app/learn/page.tsx`, `app/stats/page.tsx`
+**Original 26:** `lib/language.ts`, `lib/storage.ts`, `lib/packLoader.ts`, `lib/tauri.ts`, `lib/importBackup.ts`, `lib/langRegistry.ts`, `lib/srs.ts`, `lib/entitlement.ts`, `lib/queue.ts`, `store/settingsStore.ts`, `store/migrations.ts`, `store/srsStore.ts`, `store/entitlementStore.ts`, `scripts/exportPack.ts`, `scripts/checkCardIds.ts`, `scripts/validatePack.ts`, `app/layout.tsx`, `app/page.tsx`, `components/StudyCard.tsx`, `components/InterruptHandler.tsx`, `components/EntitlementValidator.tsx`, `hooks/useLangPack.ts`, `app/settings/page.tsx`, `app/study/page.tsx`, `app/learn/page.tsx`, `app/stats/page.tsx`
+
+**Batch 3 additions (13 new):** `lib/answerCheck.ts`, `lib/cardLabels.ts`, `lib/exportBackup.ts`, `hooks/useStudySession.ts`, `hooks/useExportImport.ts`, `hooks/useLicenseActivation.ts`, `components/UnitRow.tsx`, `components/LevelSection.tsx`, `components/Stat.tsx`, `components/StudyDoneScreen.tsx`, `components/StudyResumePrompt.tsx`, `components/settings/Section.tsx`, `components/settings/Toggle.tsx`
 
 Header format:
 ```ts
@@ -1254,6 +1258,7 @@ Header format:
 ```
 
 **Done condition:** `grep -rL "=====" lib/ store/ components/ hooks/ scripts/ app/ --include="*.ts" --include="*.tsx"` returns zero files. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1274,6 +1279,7 @@ Add an `## Architecture` section to `CLAUDE.md` covering:
 6. **Pack format:** `public/packs/{lang}.json` — shape defined in `lib/packLoader.ts:Pack`. Verify sha256 against manifest on every load. Never serve without manifest verification when manifest is available.
 
 **Done condition:** `CLAUDE.md` contains a `## Architecture` section with all 6 subsections. Section is at least 400 words. Verification gate green (lint, no TS changes).
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1293,34 +1299,162 @@ Create `/Users/maximilian/Projects/italian_app/STATUS.md` with:
 5. **Card ID format:** Current format differs from `CONTRIBUTING_LANGUAGE.md` template (no `{lang}-` prefix). Document the actual format used in shipped cards and note that `CONTRIBUTING_LANGUAGE.md` needs updating.
 
 **Done condition:** `STATUS.md` exists at the repo root. Contains all 5 sections. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
-### Task #033 | Update CONTRIBUTING_LANGUAGE.md — NFC, diacritic tolerance, close threshold, card ID format
-**Severity:** 4 | **File(s):** `CONTRIBUTING_LANGUAGE.md`
+### Task #033 | Update CONTRIBUTING_LANGUAGE.md — NFC, diacritic tolerance, close threshold, card ID format, Batch 3 issues
+**Severity:** 5 | **File(s):** `CONTRIBUTING_LANGUAGE.md`
 **DoD Tier:** 4
-**Complexity:** ⚡ Direct — 1 file, no package boundary, documentation update
+**Complexity:** ⚡ Direct — 1 file, no package boundary, documentation-only changes
+**⚡ FIRST in Batch 4 (expedited per owner 2026-06-27)**
 
-Depends on: #010, #011 (NFC and diacriticTolerant changes must be in place before documenting them).
+`CONTRIBUTING_LANGUAGE.md` has 9 outstanding issues:
 
-`CONTRIBUTING_LANGUAGE.md` is missing documentation for:
-1. **NFC normalization behaviour** (added in #010): all card text is normalized to NFC on export (`scripts/exportPack.ts`). Authors should write in composed form; the tooling handles normalization.
-2. **Diacritic tolerance** (added in #011): `diacriticTolerant: true` means omitting an accent is `"close"` not `"wrong"`. Authoring implication: do NOT add duplicate accepted answers with and without accents — the engine handles it.
-3. **"close" Levenshtein threshold:** A typed answer is `"close"` if Levenshtein distance is exactly 1 AND the answer length is > 4 characters. Shorter words require exact match. Document this so authors understand why short words are strict.
-4. **Card ID format:** Actual format used in shipped Italian cards (without `{lang}-` prefix) documented alongside the `CONTRIBUTING_LANGUAGE.md` template. Note that new cards for non-Italian languages should use the full `{lang}-{level}u{unit:02d}-t{tier}-{seq:03d}` format to support future multi-language pack validation.
+**Original scope (#010, #011 changes — already shipped):**
+1. **NFC normalization behaviour:** all card text normalized to NFC on export (`scripts/exportPack.ts`). Authors write in composed form; tooling handles normalization.
+2. **Diacritic tolerance:** `diacriticTolerant: true` means accent-only diff is `"close"` not `"wrong"`. Do NOT add duplicate answers — engine handles it.
+3. **"close" Levenshtein threshold:** `"close"` only when `a.length > 4 AND distance === 1`. Shorter words are wrong-only.
+4. **Card ID format:** Italian cards have no `{lang}-` prefix. Document both formats; note non-Italian cards should use full `{lang}-{level}u{unit:02d}-t{tier}-{seq:03d}`.
 
-**Done condition:** `CONTRIBUTING_LANGUAGE.md` contains sections covering all 4 items. Verification gate green.
+**New issues found /meet 2026-06-27:**
+5. **Step 2 TypeScript compile error:** Example code includes `pricing: { lifetime: "$9.99" }` — `LanguageEntry` has no `pricing` field. Remove.
+6. **Step 5 `french_lifetime` checkout key:** References a `lifetime` checkout type forbidden in `lib/entitlement.ts:118`. Remove; use a subscription key example.
+7. **French as worked example:** `fr` was removed from `langRegistry.ts` 2026-06-27. Replace `fr` throughout with generic `{lang}` placeholder.
+8. **Step 1 wrong file:** References `lib/srs.ts` for `ITALIAN_ARTICLES`, `checkAnswer` — these live in `lib/answerCheck.ts` after Task #027. Correct the file reference.
+9. **lib/langRegistry.ts stub pattern:** Note that `ready: false` keeps a new language out of production until `public/packs/{lang}.json` exists.
+
+**Done condition:** All 9 items addressed. Step 2 TypeScript example compiles without error. `grep -n "french_lifetime\|pricing.*lifetime\|lib/srs.ts" CONTRIBUTING_LANGUAGE.md` returns zero hits. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
-## Batch 5 — M1: Introduction Engine Foundation [BACKLOG]
+### Task #078 | BRAND compliance — voice violations in UI copy | severity 7
+**File(s):** `components/StudyDoneScreen.tsx`, `app/study/page.tsx`, `app/stats/page.tsx`, `lib/language.ts`, `components/UnitRow.tsx`
+**DoD Tier:** 1
+**Complexity:** 🔧 Full — 5 files, voice compliance changes
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+BRAND.md violations found /meet 2026-06-27. Fix all:
+
+1. **`components/StudyDoneScreen.tsx`:** Remove 🎉 emoji. `"Quick Review Done!"` → `"Review complete."`. `"All Due Reviews Done!"` → `"Session complete."`. `"Session Complete!"` → `"Session complete."`
+2. **`app/study/page.tsx`:** `"All caught up!"` → `"Nothing ready."`. Remove ✓ emoji. `"⏰ Quick Review"` → `"Quick review"` (no emoji, no exclamation).
+3. **`app/stats/page.tsx`:** `"Retention at risk — overdue >7 days"` → `"At risk — ready >7 days"`. `"{n}d overdue"` → `"{n}d ago"`.
+4. **`lib/language.ts`:** `correctFeedback: "Corretto!"` → `"Corretto."`. `correctFeedback: "¡Correcto!"` → `"Correcto."`.
+5. **`components/UnitRow.tsx`:** `{stats.due} due` → `{stats.due} ready`.
+
+**Test required (write first):** Add to `components/UnitRow.test.tsx`: badge renders "ready" not "due". Add to `components/StudyDoneScreen.test.tsx` (create if absent): renders "Session complete." with no exclamation mark and no emoji.
+
+**Done condition:** `grep -rn "overdue\|Overdue" app/stats/page.tsx` returns zero user-visible string hits. `grep -n "🎉\|All caught up\|Corretto!\|Correcto!" components/StudyDoneScreen.tsx app/study/page.tsx lib/language.ts` returns zero hits. `grep -n " due\"" components/UnitRow.tsx` returns zero hits. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+### Task #079 | Remove session timer spec from BRAND.md | severity 3
+**File(s):** `BRAND.md`
+**DoD Tier:** 4
+**Complexity:** ⚡ Direct — 1 file, documentation update, no code changes
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+Owner confirmed 2026-06-27: card position display (N/total) is the intended final design for study sessions. The "### The session timer" section in BRAND.md describes a 60-second elapsed progress bar that is no longer planned. Remove that section. Tasks #050, #051, #052 already cancelled.
+
+**Done condition:** `grep -n "60 seconds\|elapsed time\|session timer\|The session timer\|progress bar" BRAND.md` returns zero hits. Verification gate green (no TS or test impact).
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+### Task #080 | Rule 1 — extract app/stats/page.tsx (243 lines → ≤150) | severity 6
+**File(s):** `app/stats/page.tsx`, `components/DifficultyBar.tsx` (new), `hooks/useStatsData.ts` (new)
+**DoD Tier:** 1
+**Complexity:** 🔧 Full — 3 files, extract keyword
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+`app/stats/page.tsx` is 243 lines — 93 over the Rule 1 limit. Rule 15 violations also present (inline color mappings).
+
+**Extraction plan:**
+1. Extract `DifficultyBar` inline function (lines ~231-243) → `components/DifficultyBar.tsx` with co-located `DifficultyBar.test.tsx` (≥3 tests: correct color at 0%, 50%, 90%).
+2. Move stability→color class mapping (inline ternary) → named `stabilityColorClass(value: number): string` at module scope.
+3. Extract data aggregation (hardest cards, weakest tags, stability buckets, at-risk cards) → `hooks/useStatsData.ts`. Return typed result object.
+4. `app/stats/page.tsx` becomes: import + call `useStatsData()` + render with extracted components.
+
+**Done condition:** `wc -l app/stats/page.tsx` returns ≤150. `grep -n "stabilityColorClass\|DifficultyBar" app/stats/page.tsx` shows imports, not definitions. `grep -rn "pct > 66\|pct > 33" app/stats/page.tsx` returns zero hits (color logic extracted). Verification gate green.
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+### Task #081 | Tests — hooks/useStudySession.ts | severity 7
+**File(s):** `hooks/useStudySession.test.ts` (new, co-located)
+**DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test-writing task
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+`hooks/useStudySession.ts` is the most complex untested hook in the codebase — session branching, queue management, wasClose tracking, session commit. Zero test coverage.
+
+**Test required (write first — these ARE the task):**
+1. Happy path: `buildQueue` called on mount, first card set as current card.
+2. Resume path: existing `activeSession` in store → resume prompt shown, resuming loads from saved position.
+3. Correct answer: `wasClose` stays false, answer state clears, position advances.
+4. Close answer: `wasClose` set true, card UI reflects close state.
+5. Session commit: when final card rated, `rateCardAndSaveSession` called with correct session object (unitId, position, sessionTotal ≥ 1).
+
+Use `vi.mock("@/lib/queue")` for `buildQueue` and `vi.mock("@/store/srsStore")` for store actions. Assert behavioral outcomes (state values, function call counts), not implementation details.
+
+**Done condition:** `hooks/useStudySession.test.ts` exists with ≥5 behavioral tests, all green. `npm test -- hooks/useStudySession.test.ts` passes. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+### Task #082 | Tests — hooks/useLicenseActivation.ts | severity 6
+**File(s):** `hooks/useLicenseActivation.test.ts` (new, co-located)
+**DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test-writing task
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+`hooks/useLicenseActivation.ts` has three async IPC flows (activate, validate, deactivate) with status transitions. No tests exist.
+
+**Test required (write first — these ARE the task):**
+1. `handleActivate` ok path: `licenseStatus` transitions idle→loading→`{type:"success"}`. `useEntitlementStore` updated with correct `licenseType` and `unlockedPacks`.
+2. `handleActivate` error path: mock `activateLicense` returning `ok:false` → `licenseStatus.type === "error"` with non-empty `message`.
+3. `handleValidate`: valid license → `licenseStatus.type === "success"`.
+4. `handleDeactivate`: mock `deactivateLicense` returning `ok:true` → store cleared (`licenseType === "free"`).
+
+Use `vi.mock("@/lib/entitlement")` for IPC calls. Verify store mutations via `useEntitlementStore.getState()` after each handler.
+
+**Done condition:** `hooks/useLicenseActivation.test.ts` exists with ≥4 behavioral tests, all green. Verification gate green.
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+### Task #083 | Security — InterruptHandler.tsx listen() missing .catch() | severity 5
+**File(s):** `components/InterruptHandler.tsx`
+**DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, 2 catch additions
+**Blocked by:** Nothing
+**Blocks:** Nothing
+
+`components/InterruptHandler.tsx:91` and `:104` both call `listen(...)` with `.then()` and no `.catch()`. If Tauri IPC transport throws during subscription (plugin registration failure at startup), the rejection is unhandled and all interrupt + tray events are silently lost with no trace.
+
+**Fix:** Add `.catch((err) => console.error('[ERR-LISTEN-INTERRUPT-...]', err))` and `.catch((err) => console.error('[ERR-LISTEN-TRAY-...]', err))` to the two listen chains respectively.
+
+**Done condition:** `grep -n "listen.*catch\|ERR-LISTEN" components/InterruptHandler.tsx` returns hits on both lines. `npm test` passes (existing InterruptHandler tests must stay green). Verification gate green.
+**Status: COMPLETE — 2026-06-27**
+
+---
+
+## Batch 5 — M1: Introduction Engine Foundation [COMPLETE]
 Dependency: Batch 1 complete.
 Theme: Pure-function layer for the intensive introduction engine. No store or UI changes in this batch.
 
 ### Task #034 | types | severity 7
 **What:** Add `IntroductionRecord` interface to `content/types.ts` and create `lib/introduction.ts` with `MAX_APPEARANCES_BY_PHASE_DAY` constant
 **Why:** The intensive introduction phase (BRAND.md canonical cadence table) needs a typed record to track per-card introduction state. Types-only task — no logic yet. Without a shared type, downstream store and pure-function tasks cannot be written consistently.
-**Complexity:** ⚡ Direct — 2 files (content/types.ts + lib/introduction.ts), no package boundary, types-only addition
+**Complexity:** 🔧 Full — 2 files (content/types.ts + lib/introduction.ts) + test file; re-classified from Direct by pre-build scope check
+**Status: COMPLETE — 2026-06-27**
 **Blocked by:** Nothing
 **Blocks:** Task #035
 **Test required (write first):** `tests/introduction.test.ts` — import `IntroductionRecord` from `content/types.ts`; assert it has fields `cardId`, `introducedDate`, `dayOfPhase`, `consecutiveCorrect`, `totalEncounters`, `lastSeenDate`, `appearancesToday`, `consecutiveWrongToday`, `lastSeenType`, `graduated`. Import `MAX_APPEARANCES_BY_PHASE_DAY` from `lib/introduction.ts`; assert it is a record with numeric keys; assert `MAX_APPEARANCES_BY_PHASE_DAY[1]` is `Infinity`; assert `MAX_APPEARANCES_BY_PHASE_DAY[11]` is `0.5`.
@@ -1332,6 +1466,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 **What:** Write failing tests for `getDayOfPhase` pure function in `tests/introduction.test.ts`
 **Why:** TDD — tests must be written and failing before the implementation. `getDayOfPhase(introducedDate: string, today: string): number` computes calendar days since introduction + 1, clamped to max 22.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
+**Status: COMPLETE — 2026-06-27**
 **Blocked by:** Task #034
 **Blocks:** Task #036
 **Test required (write first):** This task IS the tests. Assert: introduced today → day 1. Introduced yesterday → day 2. Introduced 21 days ago → day 22. Introduced 25 days ago → day 22 (clamp). A 3-day gap in study still advances the phase by calendar days (day of phase does not pause).
@@ -1343,6 +1478,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 **What:** Implement `getDayOfPhase` in `lib/introduction.ts`
 **Why:** Root-cause implementation for the phase-day calculation needed by all downstream introduction logic. Pure function: parse dates with `new Date(dateStr)`, compute calendar day diff via millisecond subtraction, return `diff + 1`, clamp max at 22.
 **Complexity:** 🔧 Full — "implement" keyword, 1 file (lib/introduction.ts)
+**Status: COMPLETE — 2026-06-27**
 **Blocked by:** Task #035
 **Blocks:** Task #037
 **Test required (write first):** Tests written in #035. Run `npm test -- tests/introduction.test.ts` — all `getDayOfPhase` tests must now pass.
@@ -1351,6 +1487,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #037 | tests | severity 7
+**Status: COMPLETE — 2026-06-27**
 **What:** Write failing tests for `maxAppearancesToday` and `shouldAppearToday` in `tests/introduction.test.ts`
 **Why:** TDD. `maxAppearancesToday(dayOfPhase: number): number` returns the appearances cap for that phase day (Infinity for day 1, 5 for day 2, 2 for days 3–5, 1 for days 6–10, 0.5 for days 11–21, 0 for day 22+). `shouldAppearToday(record: IntroductionRecord, today: string): boolean` gates whether a card appears in today's sessions.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1362,6 +1499,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #038 | implementation | severity 7
+**Status: COMPLETE — 2026-06-27**
 **What:** Implement `maxAppearancesToday` and `shouldAppearToday` in `lib/introduction.ts`
 **Why:** Root-cause implementation of the appearance-gating logic from BRAND.md. `shouldAppearToday` checks: graduated → false; day 22+ → false; even dayOfPhase in days 11–21 → false (every-other-day); appearancesToday >= maxAppearancesToday → false; otherwise true.
 **Complexity:** 🔧 Full — "implement" keyword, 1 file (lib/introduction.ts)
@@ -1373,6 +1511,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #039 | tests | severity 7
+**Status: COMPLETE — 2026-06-27**
 **What:** Write failing tests for `recordResult` and `shouldGraduate` pure functions in `tests/introduction.test.ts`
 **Why:** TDD. `recordResult(record: IntroductionRecord, correct: boolean, today: string): IntroductionRecord` returns an updated record (immutable). `shouldGraduate(record: IntroductionRecord): boolean` returns true if `consecutiveCorrect >= 15`.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1384,6 +1523,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #040 | implementation | severity 7
+**Status: COMPLETE — 2026-06-27**
 **What:** Implement `recordResult` and `shouldGraduate` in `lib/introduction.ts`
 **Why:** Root-cause implementation of the wrong-answer rules from BRAND.md: wrong once resets consecutive counter (Day 2 intensity); wrong 3× in a row resets to Day 1. Immutable: use object spread, return new record.
 **Complexity:** 🔧 Full — "implement" keyword, 1 file (lib/introduction.ts)
@@ -1395,6 +1535,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #041 | tests | severity 7
+**Status: COMPLETE — 2026-06-27**
 **What:** Write failing tests for `getNextCardType` variety function in `tests/introduction.test.ts`
 **Why:** TDD. `getNextCardType(lastSeenType: CardType | null, available: CardType[]): CardType` picks a different type than lastSeenType when possible, supporting the variety rule (BRAND.md: each encounter uses a different retrieval angle).
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1406,6 +1547,7 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 ---
 
 ### Task #042 | implementation | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Implement `getNextCardType` in `lib/introduction.ts`
 **Why:** Root-cause implementation of the variety rule. Pure function: filter `available` to exclude `lastSeenType`; if filtered list is empty, use all `available`; return first element of filtered list.
 **Complexity:** 🔧 Full — "implement" keyword, 1 file (lib/introduction.ts)
@@ -1416,11 +1558,12 @@ Theme: Pure-function layer for the intensive introduction engine. No store or UI
 
 ---
 
-## Batch 6 — M1: Introduction Engine Integration [BACKLOG]
+## Batch 6 — M1: Introduction Engine Integration [COMPLETE]
 Dependency: Batch 5 complete. Batch 1 must also be complete (srsStore actions from #013 required).
 Theme: Wire the pure introduction functions into the store, queue, and study UI. Add session timer.
 
 ### Task #043 | tests | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Write a failing migration test in `tests/migrations.test.ts` — SRS store v1 → v2 adds `introductions: {}`
 **Why:** TDD. Every store shape change requires a migration test written first (AGENTS.md Kaizen). The migration must fill `introductions: {}` for all existing users who have no such field.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1432,6 +1575,7 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #044 | implementation | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Bump `SRS_VERSION` to 2 and add `introductions` migration in `store/migrations.ts`
 **Why:** Root-cause fix — any existing user's persisted store lacks `introductions`. The migration must set it to `{}`. Follow the exact pattern in `store/migrations.ts`: bump the `SRS_VERSION` constant, add entry `2: (data) => ({ ...(data as any), introductions: (data as any).introductions ?? {} })` to `SRS_MIGRATIONS`. Never remove existing entries.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, migration entry addition
@@ -1443,6 +1587,7 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #045 | tests | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Write failing tests for introduction store actions in `tests/srsStore.test.ts`
 **Why:** TDD. Before adding actions to the store, write tests that specify exact behaviour: `introduceCard`, `recordIntroductionResult`, `getIntroductionDueCardIds`, `canIntroduceNewCard`.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1454,6 +1599,7 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #046 | implementation | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Add `introductions` field and four actions to `store/srsStore.ts`
 **Why:** Root-cause implementation — the store is the single source of truth for introduction state. Adds to `SRSState` interface: `introductions: Record<string, IntroductionRecord>`; `introduceCard(cardId: string, today: string): void`; `recordIntroductionResult(cardId: string, correct: boolean, today: string): void`; `getIntroductionDueCardIds(today: string): string[]`; `canIntroduceNewCard(today: string): boolean`. `introduceCard` is idempotent (guard: if record exists and is not graduated, return without resetting). `recordIntroductionResult` calls `recordResult()` from `lib/introduction.ts` and writes back. Initialize `introductions: {}` in default store state.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, store field + action additions
@@ -1465,6 +1611,7 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #047 | tests | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Write failing tests for updated `buildQueue` with introduction cards in `tests/queue.test.ts`
 **Why:** TDD. `buildQueue` must include introduction-phase cards that are not yet in FSRS. Tests specify ordering (introduction cards after due review cards, before new cards) and deduplication behaviour.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
@@ -1476,6 +1623,7 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #048 | implementation | severity 7
+**Status: COMPLETE — 2026-06-28**
 **What:** Update `buildQueue` in `lib/queue.ts` to accept and include introduction cards
 **Why:** Root-cause — without this change, introduction-phase cards never surface in sessions. New optional parameter: `getIntroductionDueCardIds?: (today: string) => string[]`. When provided, call it with today's date, map IDs to cards, insert into queue after due FSRS cards but before new cards. Deduplication already exists — cards appearing in both FSRS due list and introduction list won't duplicate. Signature: `buildQueue(cards, getDueCards, getNewCards, globalMode?, getIntroductionDueCardIds?)`.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, optional parameter addition
@@ -1487,9 +1635,10 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #049 | implementation | severity 6
+**Status: COMPLETE — 2026-06-28**
 **What:** Update `handleRate` in `app/study/page.tsx` to record introduction results and pass `getIntroductionDueCardIds` to `buildQueue`
 **Why:** Without wiring the store actions into the study loop, introduction results are never persisted — the engine tracks nothing. After `rateCardAndSaveSession` (from #013), call `recordIntroductionResult(currentCard.id, wasCorrect, localDateStr())` IF the card is in the introduction phase (`introductions[currentCard.id] && !introductions[currentCard.id].graduated`). Pass `getIntroductionDueCardIds` to the `buildQueue` call in the `initialQueue` useMemo.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, store action wiring
+**Complexity:** 🔧 Full — "integrate" keyword, 1 file (app/study/page.tsx); re-classified from Direct
 **Blocked by:** Task #048
 **Blocks:** Task #050
 **Test required (write first):** Add to `tests/seam_studyLoop.test.ts` (from #020): after rating a card that is in introduction phase, `useSRSStore.getState().introductions[cardId].totalEncounters === 1`.
@@ -1498,35 +1647,33 @@ Theme: Wire the pure introduction functions into the store, queue, and study UI.
 ---
 
 ### Task #050 | tests | severity 6
-**What:** Write failing tests for `useSessionTimer` hook in `tests/sessionTimer.test.ts`
-**Why:** TDD. `useSessionTimer(durationMs)` returns `{ progress: number, isExpired: boolean }`. Tests use `vi.useFakeTimers()` to advance time without real waits.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
-**Blocked by:** Task #049
-**Blocks:** Task #051
-**Test required (write first):** This task IS the tests. Create `tests/sessionTimer.test.ts`: (1) `progress` starts at 0 on mount. (2) After advancing fake timers to 50% of `durationMs`, `progress` is approximately 0.5. (3) After advancing to `durationMs`, `progress` is 1.0 and `isExpired` is true. (4) `durationMs = 0` immediately returns `isExpired: true`. (5) Hook cleans up on unmount — no interval fires after unmount (assert via `vi.spyOn` on the interval).
-**Done condition:** 5 tests exist in `tests/sessionTimer.test.ts` and all fail. Verification gate: `npm test -- tests/sessionTimer.test.ts` shows exactly these 5 failures.
+**Status: CANCELLED — 2026-06-27**
+**Reason:** Session timer spec removed from BRAND.md per owner decision 2026-06-27. Card position display (N/total) is the intended final design. `useSessionTimer` hook is not being built.
 
 ---
 
 ### Task #051 | implementation | severity 6
-**What:** Implement `useSessionTimer` hook in `hooks/useSessionTimer.ts`
-**Why:** Root-cause implementation of the 60-second session timer (BRAND.md: thin progress bar fills left-to-right over 60 seconds). Uses a `setInterval` at 100ms tick to update elapsed time. Returns `{ progress: Math.min(1, elapsed / durationMs), isExpired: progress >= 1 }`. Clears interval on unmount. Does NOT close the session — that decision belongs to the study page.
-**Complexity:** 🔧 Full — "implement" keyword, new hook (hooks/useSessionTimer.ts)
-**Blocked by:** Task #050
-**Blocks:** Task #052
-**Test required (write first):** Tests written in #050. Run `npm test -- tests/sessionTimer.test.ts` — all 5 tests must pass.
-**Done condition:** `hooks/useSessionTimer.ts` exists. All 5 timer tests pass. `grep -n "clearInterval\|useEffect" hooks/useSessionTimer.ts` returns hits (cleanup verified). Verification gate green.
+**Status: CANCELLED — 2026-06-27**
+**Reason:** Session timer spec removed from BRAND.md per owner decision 2026-06-27. `useSessionTimer` hook is not being built.
 
 ---
 
 ### Task #052 | implementation | severity 6
-**What:** Add session timer progress bar to `components/StudyCard.tsx` and wire timer expiry in `app/study/page.tsx`
-**Why:** Root-cause UI implementation. BRAND.md: "a thin progress bar — elapsed time, not a countdown. It fills left to right over 60 seconds. No number. No alarm." The bar is 2px height, absolute-positioned at the top of the card, width `${progress * 100}%`, no color change. Expiry logic: when `isExpired` becomes true in `app/study/page.tsx` and the current card is not mid-answer (answer already submitted), advance to next card. If mid-answer when timer expires, complete the current card first. Timer only applies in interrupt mode (`isInterrupt === true`) — no timer in unit or global mode.
-**Complexity:** ⚡ Direct — 2 files (components/StudyCard.tsx, app/study/page.tsx), no package boundary, UI wiring
-**Blocked by:** Task #051
+**Status: CANCELLED — 2026-06-27**
+**Reason:** Session timer spec removed from BRAND.md per owner decision 2026-06-27. Timer bar UI is not being built; card position display is the intended design.
+
+---
+
+### Task #053 | tests | severity 3
+**Status: COMPLETE — 2026-06-28**
+**What:** Fix StudyCard test quality: remove redundant `toBeDefined` at line 104 and add one behavioral test for the `wasClose=true` render path
+**Why:** `toBeDefined` after `getByText` is cargo-cult — `getByText` throws on miss, so the assertion adds no signal. The `wasClose=true` → yellow border + `closeFeedback` string render path has zero test coverage.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test cleanup + 1 new behavioral test
+**Blocked by:** Nothing
 **Blocks:** Nothing
-**Test required (write first):** Add to `components/StudyCard.test.tsx` (from #018): (1) When `progress = 0`, the timer bar has `width: "0%"`. (2) When `progress = 0.5`, the timer bar has `width: "50%"`. (3) When `progress` prop is not passed (non-interrupt mode), no timer bar is rendered. Add to `tests/seam_studyLoop.test.ts`: when `isExpired` becomes true after a card is answered, the session position advances.
-**Done condition:** `grep -n "useSessionTimer" app/study/page.tsx` returns a hit. Timer bar element exists in `StudyCard.tsx`. All new tests pass. Verification gate green.
+**Owner:** QA Agent
+**Spawned from:** Debt register 2026-06-27 — added to Batch 6 per owner decision
+**Done when:** `grep -n "toBeDefined" components/StudyCard.test.tsx` returns 0 hits. A test for `wasClose=true` exists and passes. Verification gate green.
 
 ---
 

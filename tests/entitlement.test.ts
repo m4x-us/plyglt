@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation } from "@/store/entitlementStore";
-import { resolveVariantEntitlement, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_LICENSE_NOT_ACTIVE, ERR_DEACTIVATE_DECLINED } from "@/lib/entitlement";
+import { resolveVariantEntitlement, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE, ERR_DEACTIVATE_DECLINED } from "@/lib/entitlement";
 import { ALL_PACK_CODES, FREE_PACK_CODES } from "@/lib/langRegistry";
 
 vi.mock("@/lib/tauri", async (importOriginal) => {
@@ -254,7 +254,7 @@ describe("activateLicense — null safety", () => {
     const r = await activateLicense("KEY");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toContain("not active");
+    expect(r.error).toBe(ERR_LICENSE_NOT_ACTIVE);
   });
 
   it("returns error when license_key.status is 'inactive'", async () => {
@@ -266,13 +266,15 @@ describe("activateLicense — null safety", () => {
     const r = await activateLicense("INACTIVE");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toContain("not active");
+    expect(r.error).toBe(ERR_LICENSE_NOT_ACTIVE);
   });
 
-  it("returns error when invoke returns null — regression guard for existing null check", async () => {
+  it("returns ERR_ACTIVATE_NETWORK when invoke returns null", async () => {
     mockInvoke.mockResolvedValueOnce(null);
     const r = await activateLicense("KEY");
     expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_ACTIVATE_NETWORK);
   });
 
   it("returns ok:false when invoke throws (network/IPC failure)", async () => {
@@ -280,7 +282,7 @@ describe("activateLicense — null safety", () => {
     const r = await activateLicense("KEY");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toEqual(expect.stringContaining("Activation request failed"));
+    expect(r.error).toBe(ERR_ACTIVATE_NETWORK);
   });
 
   it("returns ok:false with fallback message when activated is false and res.error is null", async () => {
@@ -353,7 +355,7 @@ describe("activateLicense — null safety", () => {
     const result = await activateLicense("KEY-ABC");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
-    expect(result.error).toContain("variant");
+    expect(result.error).toBe(ERR_ACTIVATE_NO_VARIANT);
   });
 
   it("returns error when license_key.key is empty — prevents persisting an unusable key", async () => {
@@ -367,7 +369,7 @@ describe("activateLicense — null safety", () => {
     const result = await activateLicense("KEY-ABC");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
-    expect(result.error).toContain("license key");
+    expect(result.error).toBe(ERR_ACTIVATE_NO_KEY);
   });
 });
 
@@ -376,10 +378,12 @@ describe("activateLicense — null safety", () => {
 describe("validateLicense — null safety", () => {
   beforeEach(() => mockInvoke.mockReset());
 
-  it("returns error when license_key is absent from validate response", async () => {
+  it("returns ERR_LICENSE_NOT_ACTIVE when license_key is absent from validate response", async () => {
     mockInvoke.mockResolvedValueOnce({ valid: true, error: null }); // no license_key
     const r = await validateLicense("KEY", "INST");
     expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_LICENSE_NOT_ACTIVE);
   });
 
   it("returns the API error message on non-ok response", async () => {
@@ -393,10 +397,23 @@ describe("validateLicense — null safety", () => {
     expect(r.error).toBe("License has been refunded.");
   });
 
+  it("returns ERR_VALIDATE_INACTIVE when LS returns valid:false with no error string", async () => {
+    mockInvoke.mockResolvedValueOnce({
+      valid: false, error: null,
+      license_key: { status: "inactive", key: "K", expires_at: null },
+    });
+    const r = await validateLicense("KEY", "INST");
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_VALIDATE_INACTIVE);
+  });
+
   it("returns error when invoke returns null — regression guard for existing null check", async () => {
     mockInvoke.mockResolvedValueOnce(null);
     const r = await validateLicense("KEY", "INST");
     expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_VALIDATE_NULL);
   });
 
   it("returns ok:false when LS returns valid:true but license_key.status is not 'active'", async () => {
@@ -408,7 +425,7 @@ describe("validateLicense — null safety", () => {
     const r = await validateLicense("KEY-ABC", "inst-1");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toContain("not active");
+    expect(r.error).toBe(ERR_LICENSE_NOT_ACTIVE);
   });
 
   it("returns ok:false when invoke throws (network/IPC failure)", async () => {
@@ -416,7 +433,7 @@ describe("validateLicense — null safety", () => {
     const r = await validateLicense("KEY", "INST");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toEqual(expect.stringContaining("Validation failed"));
+    expect(r.error).toBe(ERR_VALIDATE_NETWORK);
   });
 
   // S002: validateLicense ok:true path
@@ -447,43 +464,6 @@ describe("validateLicense — null safety", () => {
   });
 });
 
-// Task #053 — pin error message constants (prevents silent divergence between call sites)
-describe("error message constants — ERR_ACTIVATE_NETWORK and ERR_DEACTIVATE_NETWORK", () => {
-  beforeEach(() => mockInvoke.mockReset());
-
-  it("activateLicense catch path returns ERR_ACTIVATE_NETWORK", async () => {
-    mockInvoke.mockRejectedValueOnce(new Error("network down"));
-    const r = await activateLicense("KEY");
-    expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe(ERR_ACTIVATE_NETWORK);
-  });
-
-  it("activateLicense null-response path returns ERR_ACTIVATE_NETWORK", async () => {
-    mockInvoke.mockResolvedValueOnce(null);
-    const r = await activateLicense("KEY");
-    expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe(ERR_ACTIVATE_NETWORK);
-  });
-
-  it("deactivateLicense catch path returns ERR_DEACTIVATE_NETWORK", async () => {
-    mockInvoke.mockRejectedValueOnce(new Error("network down"));
-    const r = await deactivateLicense("KEY", "inst-1");
-    expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe(ERR_DEACTIVATE_NETWORK);
-  });
-
-  it("deactivateLicense null-response path returns ERR_DEACTIVATE_NETWORK", async () => {
-    mockInvoke.mockResolvedValueOnce(null);
-    const r = await deactivateLicense("KEY", "inst-1");
-    expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe(ERR_DEACTIVATE_NETWORK);
-  });
-});
-
 // ── deactivateLicense ─────────────────────────────────────────────────────────
 
 // S003: deactivateLicense tests
@@ -498,7 +478,7 @@ describe("deactivateLicense()", () => {
     // deactivateLicense returns a generic message (not String(e)) to avoid
     // exposing Tauri command internals in the UI. The raw error is logged via
     // console.error with a ref ID in lib/entitlement.ts:deactivateLicense.
-    expect(result.error).toEqual(expect.stringContaining("Deactivation failed"));
+    expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
   it("returns ok:false when invoke resolves to null (empty body guard)", async () => {
@@ -506,7 +486,7 @@ describe("deactivateLicense()", () => {
     const result = await deactivateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
-    expect(result.error).toEqual(expect.stringContaining("Deactivation failed"));
+    expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
   it("returns safe fallback — never leaks raw LS error containing key or instance info (Task #074)", async () => {

@@ -384,3 +384,62 @@ describe("rateCardAndSaveSession — atomic update", () => {
     expect(state.activeSession?.unitId).toBe("global");
   });
 });
+
+describe("srsStore — introduction engine actions", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+  });
+
+  it("introduceCard creates a record with dayOfPhase 1, consecutiveCorrect 0, graduated false", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    const intro = useSRSStore.getState().introductions["card-1"];
+    expect(intro?.dayOfPhase).toBe(1);
+    expect(intro?.consecutiveCorrect).toBe(0);
+    expect(intro?.graduated).toBe(false);
+  });
+
+  it("introduceCard is idempotent — second call does not reset an in-progress record", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24"); // second call — must not reset
+    expect(useSRSStore.getState().introductions["card-1"]?.consecutiveCorrect).toBe(1);
+  });
+
+  it("recordIntroductionResult increments consecutiveCorrect on a correct answer", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    expect(useSRSStore.getState().introductions["card-1"]?.consecutiveCorrect).toBe(1);
+  });
+
+  it("15 consecutive correct answers graduate the card", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    for (let i = 0; i < 15; i++) {
+      useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    }
+    expect(useSRSStore.getState().introductions["card-1"]?.graduated).toBe(true);
+  });
+
+  it("getIntroductionDueCardIds returns IDs of cards due today (shouldAppearToday === true)", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-24");
+    expect(due).toContain("card-1");
+  });
+
+  it("canIntroduceNewCard returns false when a card was already introduced today", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24")).toBe(false);
+  });
+
+  it("canIntroduceNewCard returns true when no card was introduced today", () => {
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24")).toBe(true);
+  });
+
+  it("getIntroductionDueCardIds excludes graduated cards", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    for (let i = 0; i < 15; i++) {
+      useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    }
+    const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-24");
+    expect(due).not.toContain("card-1");
+  });
+});

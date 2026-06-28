@@ -1,3 +1,6 @@
+// ============================================================
+// page.tsx — Home/learn page: lists language units and global study entry
+// ============================================================
 "use client";
 
 import Link from "next/link";

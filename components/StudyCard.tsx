@@ -1,3 +1,6 @@
+// ============================================================
+// StudyCard.tsx — Interactive study card with typed-answer input and FSRS grading
+// ============================================================
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";

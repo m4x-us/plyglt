@@ -1,3 +1,6 @@
+// ============================================================
+// validatePack.ts — CI validator: schema-checks compiled pack JSON before deployment
+// ============================================================
 /**
  * validatePack.ts — CI schema validator for compiled pack JSON files.
  *

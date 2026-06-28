@@ -1,3 +1,6 @@
+// ============================================================
+// page.tsx — Settings page: interrupt schedule, DnD, snooze, and license controls
+// ============================================================
 "use client";
 
 import Link from "next/link";

@@ -101,7 +101,7 @@ describe("StudyCard", () => {
   // ── 5: card shows the prompt text ────────────────────────────────────────────
   it("shows the prompt text from the card", () => {
     render(<StudyCard card={makeCard()} cardNumber={1} totalCards={5} onRate={onRate} />);
-    expect(screen.getByText("the cat")).toBeDefined();
+    expect(screen.getByText("the cat").textContent).toBe("the cat");
   });
 
   // ── 6: correct answer → feedback string is visible ───────────────────────────
@@ -116,5 +116,16 @@ describe("StudyCard", () => {
     // result panel (canonical answer) and the "You typed" label.
     const matches = screen.getAllByText("il gatto");
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  // ── 7: wasClose=true → yellow border and closeFeedback string ────────────────
+  it("shows yellow border and closeFeedback text when answer is close", () => {
+    const { container } = render(<StudyCard card={makeCard()} cardNumber={1} totalCards={5} onRate={onRate} />);
+    const input = screen.getByPlaceholderText("Type your answer...");
+    // "il gato" is edit-distance-1 from accepted "il gatto" — checkAnswer returns "close"
+    fireEvent.change(input, { target: { value: "il gato" } });
+    fireEvent.click(screen.getByText("Check →"));
+    expect(container.querySelector(".border-yellow-500")).not.toBeNull();
+    expect(screen.getByText("Quasi! Close enough.").textContent).toBe("Quasi! Close enough.");
   });
 });

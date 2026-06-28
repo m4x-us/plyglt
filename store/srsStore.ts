@@ -1,7 +1,11 @@
+// ============================================================
+// srsStore.ts — Zustand store: FSRS card progress, session state, and scheduling
+// ============================================================
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade } from "@/lib/srs";
-import type { Card, Unit } from "@/content/types";
+import type { Card, IntroductionRecord, Unit } from "@/content/types";
+import { getDayOfPhase, recordResult, shouldAppearToday } from "@/lib/introduction";
 import { createPlatformStorage } from "@/lib/storage";
 import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
 import { LANG_PAIR_KEY } from "@/lib/constants";
@@ -53,6 +57,7 @@ interface SRSState {
   streak: number;
   lastStudiedDate: string | null;
   activeSession: ActiveSession | null;
+  introductions: Record<string, IntroductionRecord>;
 
   getProgress: (cardId: string) => CardProgress;
   rateCard: (cardId: string, grade: Grade) => void;
@@ -80,6 +85,12 @@ interface SRSState {
   };
 
   touchStreak: () => void;
+
+  // Introduction engine — intensive repetition cadence before FSRS graduation
+  introduceCard: (cardId: string, today: string) => void;
+  recordIntroductionResult: (cardId: string, correct: boolean, today: string) => void;
+  getIntroductionDueCardIds: (today: string) => string[];
+  canIntroduceNewCard: (today: string) => boolean;
 }
 
 function prerequisitesMet(card: Card, progressMap: Record<string, CardProgress>): boolean {
@@ -94,6 +105,7 @@ export const useSRSStore = create<SRSState>()(
       streak: 0,
       lastStudiedDate: null,
       activeSession: null,
+      introductions: {},
 
       getProgress: (cardId) => get().cards[cardId] ?? defaultProgress(cardId),
 
@@ -196,6 +208,47 @@ export const useSRSStore = create<SRSState>()(
         yd.setDate(yd.getDate() - 1);
         const yesterday = localDateStr(yd);
         set({ streak: lastStudiedDate === yesterday ? streak + 1 : 1, lastStudiedDate: today });
+      },
+
+      introduceCard: (cardId, today) => {
+        const existing = get().introductions[cardId];
+        if (existing && !existing.graduated) return;
+        const record: IntroductionRecord = {
+          cardId,
+          introducedDate: today,
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 0,
+          lastSeenDate: today,
+          appearancesToday: 0,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        };
+        set((s) => ({ introductions: { ...s.introductions, [cardId]: record } }));
+      },
+
+      recordIntroductionResult: (cardId, correct, today) => {
+        const record = get().introductions[cardId];
+        if (!record) return;
+        const dayOfPhase = getDayOfPhase(record.introducedDate, today);
+        const updated = recordResult({ ...record, dayOfPhase }, correct, today);
+        set((s) => ({ introductions: { ...s.introductions, [cardId]: updated } }));
+      },
+
+      getIntroductionDueCardIds: (today) => {
+        const { introductions } = get();
+        return Object.entries(introductions)
+          .filter(([, record]) => {
+            const dayOfPhase = getDayOfPhase(record.introducedDate, today);
+            return shouldAppearToday({ ...record, dayOfPhase }, today);
+          })
+          .map(([cardId]) => cardId);
+      },
+
+      canIntroduceNewCard: (today) => {
+        const { introductions } = get();
+        return !Object.values(introductions).some((r) => r.introducedDate === today);
       },
     }),
     {

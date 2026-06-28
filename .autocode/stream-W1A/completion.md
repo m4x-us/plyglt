@@ -114,3 +114,27 @@ Explicitly deferred per done condition: "A004–A026 may be closed in subsequent
 
 ## Outstanding
 - **A004–A026**: registered in tasks.md under #060 for future cycles.
+
+---
+
+## Wave 1 — Adam — 2026-06-27 (#078 #080 #083 #030)
+
+### Tasks closed
+- **#078** — BRAND compliance voice fixes (5 files + 2 test files)
+- **#080** — extract stats/page.tsx (243 lines → 143 lines); created DifficultyBar.tsx, DifficultyBar.test.tsx, useStatsData.ts
+- **#083** — InterruptHandler.tsx listen() .catch() on both subscribe calls
+- **#030** — file headers added to 38 files in Adam's lane (all that could be touched)
+
+### Tasks NOT completed
+- None
+
+### Partial done-condition note (#030)
+`hooks/useStudySession.test.ts` and `hooks/useLicenseActivation.test.ts` remain without headers — both owned by Derek (W1D), off-limits.
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+### Verification Gate (Wave 1)
+- `npx tsc --noEmit`: 0 errors
+- `npm test`: 717/717 pass (34 files, +17 new tests)
+- `npm run lint`: 0 errors (10 pre-existing warnings unchanged)

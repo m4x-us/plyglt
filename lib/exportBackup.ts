@@ -1,3 +1,6 @@
+// ============================================================
+// exportBackup.ts — Serialises SRS progress and entitlement state to a versioned JSON backup
+// ============================================================
 import { CURRENT_BACKUP_VERSION } from "@/lib/importBackup";
 import type { BackupSrs, BackupEntitlement } from "@/lib/importBackup";
 

@@ -1,3 +1,7 @@
+// ============================================================
+// content/types.ts — type definitions for language pack content
+// ============================================================
+
 // "recognize": show target-language word, user types translation in their own language
 // "produce":   show word in user's language, user types the target-language word
 // "conjugate" / "fill_blank" / "passage_cloze": target language only — no source language involved
@@ -37,4 +41,19 @@ export interface Unit {
   // Unit IDs that must reach ≥ 80% mastery before this unit unlocks
   prerequisiteUnits: string[];
   cards: Card[];
+}
+
+// Tracks a single card's state during the intensive introduction phase (BRAND.md cadence table).
+// The introduction engine uses this before handing off to FSRS at graduation.
+export interface IntroductionRecord {
+  cardId: string;
+  introducedDate: string;          // ISO date YYYY-MM-DD of first exposure
+  dayOfPhase: number;              // calendar days since introduction + 1; max 22
+  consecutiveCorrect: number;      // resets to 0 on any wrong answer
+  totalEncounters: number;         // total times shown across all sessions
+  lastSeenDate: string;            // ISO date YYYY-MM-DD of most recent session
+  appearancesToday: number;        // appearances so far today (resets each calendar day)
+  consecutiveWrongToday: number;   // wrong streak today; triggers Day 1 reset at 3
+  lastSeenType: CardType | null;   // card type shown in the most recent encounter (variety rule)
+  graduated: boolean;              // true once handed off to FSRS (15 consecutive correct)
 }

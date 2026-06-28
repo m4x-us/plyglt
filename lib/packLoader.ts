@@ -1,3 +1,6 @@
+// ============================================================
+// packLoader.ts — Fetches, verifies, and caches language pack JSON files with sha256 integrity
+// ============================================================
 /**
  * packLoader.ts — Fetches, verifies, and caches language pack JSON files.
  *
