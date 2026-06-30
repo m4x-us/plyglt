@@ -1,12 +1,12 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-06-26
+Last updated: 2026-06-29
 
 ## Summary
-76 tasks across 6 batches
-Critical (severity 8-9): 7 | High (6-7): 31 | Medium (4-5): 22 | Low (1-3): 15
-Current Sprint: Batch 1 — 36 tasks
+125 tasks across 10 batches (Batches 1–9 COMPLETE)
+Critical (severity 8-9): 13 | High (6-7): 33 | Medium (4-5): 27 | Low (1-3): 17
+Current Sprint: Batch 10 — 6 tasks (M2 macOS Shipping Infrastructure)
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -868,7 +868,7 @@ Task #002 WorldClass accepted gap (-1 pt). The Rule 2 header in `lib/constants.t
 
 ---
 
-## Batch 2 — Test Foundation [ACTIVE]
+## Batch 2 — Test Foundation [COMPLETE]
 Dependency: Batch 1 complete.
 Theme: Component tests, seam tests, property-based invariants. Fix known false-green test bugs.
 
@@ -894,6 +894,8 @@ The poka-yoke guard at lines 206-211 asserts `cfg.code !== "it"` but `LANGUAGE_M
 
 **Done condition:** `npm test -- tests/language.test.ts` passes. `getLanguageConfig("fr").code === "fr"`. Verification gate green.
 
+**Status: COMPLETE — 2026-06-27**
+
 ---
 
 ### Task #015 | Delete dead test file — tests/grading.test.ts
@@ -909,6 +911,8 @@ The poka-yoke guard at lines 206-211 asserts `cfg.code !== "it"` but `LANGUAGE_M
 
 **Done condition:** `ls tests/grading.test.ts` returns "No such file". `npm test` passes without it. Verification gate green.
 
+**Status: COMPLETE — 2026-06-27**
+
 ---
 
 ### Task #016 | Fix vacuous assertion in language.test.ts
@@ -922,6 +926,8 @@ Line 196 uses `toBeTruthy()` on a card label string. Any non-empty string passes
 1. `tests/language.test.ts:196` — replace `toBeTruthy()` with a specific assertion. For card labels, use `expect(label).toMatch(/\S/)` (non-whitespace) AND `expect(label).not.toBe("undefined")` AND `expect(label.length).toBeGreaterThan(2)` (labels must be at least 3 chars to be meaningful — "OK" would fail this correctly).
 
 **Done condition:** `grep -n "toBeTruthy" tests/language.test.ts` returns zero hits. Verification gate green.
+
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -940,6 +946,8 @@ Create `tests/storage.test.ts` with:
 4. `useIsHydrated` — renders `false` before hydration, then `true` after `onFinishHydration` fires (use `renderHook` from `@testing-library/react`).
 
 **Done condition:** `tests/storage.test.ts` exists with ≥4 passing tests covering the above. Verification gate green.
+
+**Status: COMPLETE — 2026-06-27** (DoD partially met — Task #090 completes localStorage coverage)
 
 ---
 
@@ -960,6 +968,8 @@ Create `components/StudyCard.test.tsx` with:
 6. After a correct answer, the correct feedback string is visible.
 
 **Done condition:** `components/StudyCard.test.tsx` exists. `npm test -- components/StudyCard.test.tsx` passes all 6 cases. Verification gate green.
+
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -984,6 +994,8 @@ Create `components/InterruptHandler.test.tsx`:
 
 **Done condition:** Both test files exist and all tests pass. Verification gate green.
 
+**Status: COMPLETE — 2026-06-27**
+
 ---
 
 ### Task #020 | Add seam test — pack load → buildQueue → rateCard → saveActiveSession
@@ -1003,6 +1015,8 @@ Create `tests/seam_studyLoop.test.ts`:
 6. Assert both changes happened in the same store tick (no intermediate state where only one was updated) — verify by checking that between steps 2 and 4 there was only one `set()` call (use `vi.spyOn` on the store's `setState`).
 
 **Done condition:** `tests/seam_studyLoop.test.ts` exists and passes. `npm test -- tests/seam_studyLoop.test.ts` green. Verification gate green.
+
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1024,6 +1038,8 @@ Create `tests/seam_importRestore.test.ts`:
 
 **Done condition:** `tests/seam_importRestore.test.ts` exists and passes. Verification gate green.
 
+**Status: COMPLETE — 2026-06-27**
+
 ---
 
 ### Task #022 | Add property-based FSRS invariant tests
@@ -1044,6 +1060,8 @@ These can be parameterized tests using `it.each` — no property-testing library
 
 **Done condition:** 5 parameterized invariant tests added and passing. Verification gate green.
 
+**Status: COMPLETE — 2026-06-27**
+
 ---
 
 ### Task #023 | Add getNewCards prerequisite logic tests
@@ -1062,6 +1080,8 @@ Add to `tests/srsStore.test.ts`:
 5. `getNewCards` returns cards sorted by tier (tier 1 before tier 2).
 
 **Done condition:** 5 tests added and passing. Verification gate green.
+
+**Status: COMPLETE — 2026-06-27**
 
 ---
 
@@ -1695,6 +1715,456 @@ The sync data model must be chosen before analytics and custom cards are designe
 
 ---
 
+## Batch 7 — Foundation Stabilization [COMPLETE]
+Dependency: Batches 1–6 complete.
+Theme: Introduction engine activation, coverage floor, Rule 1 fix for app/page.tsx, brand violations, docs currency, security debt.
+Execution order: #084 → #085 (TDD pair, sequential). All other tasks are independent and can run in parallel.
+
+### Task #084 | tests | severity 8
+**What:** Write a failing seam test for session-start introduction auto-selection in `tests/seam_studyLoop.test.ts`
+**Why:** TDD — test must fail before implementation (#085). The test specifies the observable contract: after a study session initialises when no card has been introduced today, `useSRSStore.getState().introductions` must contain at least one entry. This is the entry point that activates the entire introduction engine.
+**File:** `tests/seam_studyLoop.test.ts`
+**Severity:** 8 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, no package boundary, TDD test-writing
+**Blocked by:** Nothing | **Blocks:** Task #085
+**Risk:** Low — test-only task.
+**Test required (write first):** This task IS the test. Add to `tests/seam_studyLoop.test.ts`: mock `useStudySession` hook initialisation with a pack of at least 2 cards, empty `srsStore.cards`, empty `srsStore.introductions`, and `canIntroduceNewCard` returning true. After init, assert `Object.keys(useSRSStore.getState().introductions).length >= 1`.
+**Done condition:** New test exists and FAILS (implementation not yet done). Prior seam tests still pass. `npm test -- tests/seam_studyLoop.test.ts` shows exactly the new test failing.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #085 | implementation | severity 8
+**What:** Implement session-start introduction auto-selection in `hooks/useStudySession.ts`
+**Why:** Root-cause activation of the introduction engine. Nothing currently calls `introduceCard()` — the entire intensive 22-phase introduction cadence from BRAND.md is dead code. On session init, check `canIntroduceNewCard(localDateStr())`. If true, find the first card from the loaded pack that has no entry in `srsStore.introductions` AND no entry in `srsStore.cards`, sorted by tier ascending (tier 1 before tier 2 per BRAND.md), and call `introduceCard(cardId, localDateStr())`. This makes the card appear in the queue via the existing `getIntroductionDueCardIds` call in `app/study/page.tsx:51`.
+**File:** `hooks/useStudySession.ts`
+**Severity:** 8 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — implement keyword, integration with srsStore + packLoader + session init
+**Blocked by:** Task #084 | **Blocks:** Nothing
+**Risk:** Medium — this triggers the first call to `introduceCard()` in production. The store action is idempotent (guarded against re-introduction), but the selection logic must be correct to pick the right card.
+**Test required (write first):** Test written in #084. Run `npm test -- tests/seam_studyLoop.test.ts` — the new test must pass.
+**Done condition:** `grep -n "introduceCard\|canIntroduceNewCard" hooks/useStudySession.ts` returns hits. After session init with at least one unintroduced card, `Object.keys(useSRSStore.getState().introductions).length >= 1`. Seam test passes. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #086 | tests | severity 7
+**What:** Write behavioral tests for `hooks/useLangPack.ts` hook body (lines 51–87), then ratchet branches threshold
+**Why:** `hooks/useLangPack.ts` is at 0% branch coverage — the primary cause of the branch floor crisis (79.2% actual vs 79% threshold, only 0.2pp headroom). The existing test file only tests constants and deprecated re-exports; it never exercises the hook body. After the hook tests land, the branches threshold must be ratcheted from 79 → 81.
+**File:** `hooks/useLangPack.test.ts`, `vitest.config.ts`
+**Severity:** 7 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no impl keywords
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only task plus threshold number bump.
+**Test required (write first):** This task IS the tests. Add to `hooks/useLangPack.test.ts` using `renderHook` from `@testing-library/react` and `vi.mock("@/lib/packLoader")`: (1) On mount with a valid lang code, `loadPack` is called and state transitions from loading → loaded with the returned pack. (2) On mount with a failing `loadPack`, state transitions from loading → error. (3) Changing the target lang triggers a new `loadPack` call. (4) The `pack` returned matches the mock data (not undefined). After tests pass: update `vitest.config.ts` branches threshold from 79 → 81.
+**Done condition:** `hooks/useLangPack.test.ts` has ≥4 behavioral tests all green. `grep -n "branches.*81" vitest.config.ts` returns a hit. `npm test` branches coverage ≥ 81%. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #087 | implementation | severity 6
+**What:** Extract BuyModal and language-selector from `app/page.tsx` (253 lines → ≤ 150)
+**Why:** `app/page.tsx` is 253 lines — 69% over the 150-line route ceiling (Rule 1). A new Rule 1 violation discovered in /meet run 4. The page contains inline BuyModal UI and language-selector logic that each belong in their own component.
+**File:** `app/page.tsx`, `components/BuyModal.tsx`, `components/BuyModal.test.tsx`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — extract keyword, 3 files
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Medium — the buy/Pro modal is the primary conversion surface. Test before and after to verify nothing is lost.
+**Test required (write first):** Create `components/BuyModal.test.tsx` (Rule 14): renders Pro feature list, fires onClose when close button clicked, fires onActivate when activate button clicked. Add to co-located test: verify no occurrence of "lifetime" in rendered output (regression guard against Task #001).
+**Done condition:** `wc -l app/page.tsx` returns ≤ 150. `components/BuyModal.tsx` exists. `grep -n "BuyModal" app/page.tsx` shows import, not definition. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #088 | implementation | severity 5
+**What:** Fix two BRAND violations — learn page "due" terminology and stats page "Nd ago" guilt counters
+**Why:** Task #078 (Batch 4) fixed study/stats/settings/language/UnitRow but missed `app/learn/page.tsx`. Two violations remain: hero stat "cards due" and CTA "Review all {N} due cards →". Also: `app/stats/page.tsx` "at risk" section shows per-card staleness as `"{N}d ago"` — implies overdue debt, contradicts BRAND.md stress-free principle. Owner decision: reframe as `"last seen {N}d ago"` (neutral information, not guilt).
+**File:** `app/learn/page.tsx`, `app/stats/page.tsx`
+**Severity:** 5 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 2 files, cosmetic string changes only
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — string-only changes.
+**Test required (write first):** Add to learn page test (or create): `grep -n "cards due\|due cards" app/learn/page.tsx` returns zero hits after fix. Add to stats test: rendered "at risk" counters match `"last seen \d+d ago"` pattern (not bare `"\d+d ago"`).
+**Done condition:** `grep -n '".*due\b' app/learn/page.tsx` returns zero user-visible string hits. `grep -n '"[0-9]d ago"' app/stats/page.tsx` returns zero hits (replaced by "last seen" prefix). Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #089 | security | severity 5
+**What:** Harden `activateLicense` and `validateLicense` in `lib/entitlement.ts` — sanitize raw Lemon Squeezy errors before returning to caller
+**Why:** `lib/entitlement.ts:155` (activateLicense) and `:196` (validateLicense) return `res.error` directly to the caller, which propagates to the UI. Raw LS error strings may contain internal API details, rate-limit headers, or request context. `deactivateLicense` was hardened in Task #074 (Batch 3) — the same fix was not applied to the other two functions. Debt register F7, severity 5.
+**File:** `lib/entitlement.ts`, `tests/entitlement.test.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no impl keyword match
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Medium — any change to error message strings may affect UI error display. Verify the UI renders the sanitized message correctly.
+**Test required (write first):** Add to `tests/entitlement.test.ts`: when `activateLicense` mock returns `{ ok: false, error: "internal LS API error with request details" }`, the returned `error` field from the hook does NOT contain "internal LS API error with request details" — it is replaced with a user-safe string. Same for `validateLicense`.
+**Done condition:** `grep -n "res\.error" lib/entitlement.ts` returns zero hits on activateLicense (line 155) and validateLicense (line 196). Both now return a named constant or sanitized string. Tests pass. Verification gate green.
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #090 | tests | severity 4
+**What:** Add `lib/storage.ts` localStorage path coverage — complete Task #017 DoD
+**Why:** Task #017 created `tests/storage.test.ts` but only covered SSR-guard paths (`window` undefined). The actual localStorage get/set/remove paths at lines 48, 66–67, 75–76, 102–110 remain at 42.42% statement coverage. The DoD for #017 required "setItem + getItem round-trip" and "removeItem clears the key" — neither was actually covered.
+**File:** `tests/storage.test.ts`
+**Severity:** 4 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test augmentation
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only task.
+**Test required (write first):** Add to `tests/storage.test.ts` using `vi.stubGlobal('localStorage', createLocalStorageMock())`: (a) `setItem` + `getItem` round-trip returns the stored value. (b) `removeItem` after `setItem` makes `getItem` return null. (c) `getItem` on missing key returns null (not undefined). (d) `setItem` when `localStorage.setItem` throws propagates the error. Cover lines 48, 66–67, 75–76 explicitly.
+**Done condition:** `npm test -- tests/storage.test.ts` passes with ≥ 4 new tests. `lib/storage.ts` statement coverage ≥ 80%. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #091 | tests | severity 4
+**What:** Add branch coverage for `lib/introduction.ts` lines 49, 60–79, 120
+**Why:** `lib/introduction.ts` is at 81.81% branch coverage. Three uncovered areas: (a) `maxAppearancesToday` day > 22 fallback (`?? 0`, line 49); (b) `shouldAppearToday` compound branch logic (lines 60–79) not all paths exercised; (c) `recordResult` date-reset path at line 120 (`lastSeenDate !== today` resets `appearancesToday` to 1 rather than incrementing).
+**File:** `tests/introduction.test.ts`
+**Severity:** 4 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, test augmentation
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only task.
+**Test required (write first):** Add to `tests/introduction.test.ts`: (a) `maxAppearancesToday(25) === 0` (out-of-bounds phase day). (b) `shouldAppearToday` with a record where `lastSeenDate === today` AND `appearancesToday >= maxAppearancesToday(dayOfPhase)` → false. (c) `recordResult` called with `correct=true` on a record where `lastSeenDate !== today` → returned record has `appearancesToday === 1` (reset, not increment). (d) At least one additional `shouldAppearToday` path exercising a branch not covered by existing tests.
+**Done condition:** `npm test -- tests/introduction.test.ts` passes. `lib/introduction.ts` branch coverage ≥ 88%. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #092 | tests | severity 3
+**What:** Complete Rule 14 for remaining untested components and hooks
+**Why:** Four components and two hooks still lack co-located tests. Rule 14: every user-facing React component has a co-located `.test.tsx`. The missing hook tests also leave important business logic (stats data aggregation, import error path) uncovered.
+**File:** `components/LevelSection.test.tsx`, `components/StudyResumePrompt.test.tsx`, `components/settings/Section.test.tsx`, `hooks/useStatsData.test.ts`, `hooks/useExportImport.test.ts`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** 🔧 Full — 5 files
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only task.
+**Test required (write first):** (1) `components/LevelSection.test.tsx`: renders unit names, shows locked badge when `unlocked === false`, shows progress when cards exist. (2) `components/StudyResumePrompt.test.tsx`: renders "Resume" prompt text, calls `onResume` when Resume clicked, calls `onDiscard` when Discard clicked. (3) `components/settings/Section.test.tsx`: renders title prop, renders children. (4) `hooks/useStatsData.test.ts`: `hardestCards` returns cards with lowest retention rate; `atRiskCards` returns only cards with `dueDate` more than 7 days ago. (5) `hooks/useExportImport.test.ts` augmentation: `handleImportFile` when `parseBackup` returns `ok:false` → `dataStatus.type === "error"` (currently only `ok:true` branch is tested).
+**Done condition:** All 5 files exist. `npm test` passes. `grep -rL "test" components/LevelSection.tsx components/StudyResumePrompt.tsx components/settings/Section.tsx` returns zero hits (all have tests). Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #093 | docs | severity 4
+**What:** Fix stale CLAUDE.md and STATUS.md content; add introduction engine architecture documentation
+**Why:** Three stale claims and two missing sections discovered in /meet run 4. (1) CLAUDE.md §6 last line and STATUS.md §3 both claim fr/de/pt stubs exist in `lib/langRegistry.ts` — they were removed in Batch 3. A new agent will search for non-existent code. (2) `lib/introduction.ts` is a substantial subsystem with invariants agents must not violate — entirely absent from CLAUDE.md. (3) Coverage thresholds absent from AGENTS.md verification gate.
+**File:** `CLAUDE.md`, `STATUS.md`, `AGENTS.md`
+**Severity:** 4 | **DoD Tier:** 4
+**Complexity:** 🔧 Full — 3 files
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — docs only.
+**Changes required:**
+1. `CLAUDE.md §6`: Remove sentence "Stubs for `fr`, `de`, and `pt` exist in the registry but are not user-visible." — stale.
+2. `STATUS.md §3`: Remove "Placeholder language configurations for fr, de, pt" from Known Issues. Add note that stubs were removed 2026-06-27.
+3. `CLAUDE.md`: Add `### 7. Introduction Engine` section — `lib/introduction.ts` is a pure-function module (no React, no Zustand) implementing the 22-phase intensive introduction cadence from BRAND.md. Integrates with `store/srsStore.ts` via four actions: `introduceCard`, `recordIntroductionResult`, `getIntroductionDueCardIds`, `canIntroduceNewCard`. Key invariant: lib/ module must remain pure. Card graduation requires 15 consecutive correct retrievals. One new card per day maximum enforced by `canIntroduceNewCard`.
+4. `STATUS.md §1 (Shipped)`: Add "Introduction engine (`lib/introduction.ts` + srsStore integration) — M1 complete."
+5. `AGENTS.md` verification gate: add current thresholds after "all coverage thresholds met" — `lines=84, funcs=79, branches=79, stmts=82`. Note: thresholds only ever increase.
+**Done condition:** `grep -n "fr.*stub\|stub.*fr\|fr.*de.*pt" CLAUDE.md STATUS.md` returns zero hits. `grep -n "Introduction Engine\|lib/introduction" CLAUDE.md` returns a hit. `grep -n "lines=84\|funcs=79" AGENTS.md` returns hits. Verification gate green.
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #094 | housekeeping | severity 2
+**What:** Mark tasks #014–#023 as COMPLETE in `.autocode/tasks.md`
+**Why:** All ten Batch 2 tasks were implemented in the "Build Batch 1+2" and "Build Batch 3" commits but their tasks.md entries were never updated with COMPLETE status. This creates a false impression that Batch 2 is still active. Only Task #076 was correctly marked COMPLETE.
+**File:** `.autocode/tasks.md`
+**Severity:** 2 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, mechanical status additions
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — documentation only.
+**Changes required:** For each of tasks #014, #015, #016, #017, #018, #019, #020, #021, #022, #023: verify the done-when condition is met (run the grep or ls command from the task), then add `**Status: COMPLETE — 2026-06-27**` below the `**Owner:**` line. Note: Task #017 DoD is only partially met (localStorage paths uncovered — Task #090 completes it). Mark #017 as COMPLETE for the parts done; Task #090 is the follow-on.
+**Done condition:** `grep -c "Status: COMPLETE" .autocode/tasks.md` increases by 10. `grep -n "#014\|#015\|#016\|#017\|#018\|#019\|#020\|#021\|#022\|#023" .autocode/tasks.md` shows all 10 with COMPLETE status. Verification gate green (no code changes).
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+## Batch 8 — Quality & Architecture Hardening | 16 tasks | [COMPLETE]
+
+### Task #095 | security | severity 9
+**What:** Fix deactivation-always-failure bug — `ls_deactivate_license` returns `Result<(), String>`, which Tauri serialises as JSON `null`; TypeScript null-guard at `lib/entitlement.ts:215` fires, returns `{ ok: false, error: ERR_DEACTIVATE_NETWORK }`, and `clearEntitlement()` is never called. The license is consumed at Lemon Squeezy but the local store stays active. STOP-THE-LINE: this silently corrupts paid user data on every deactivation attempt.
+**Why:** Every paid user who deactivates (e.g., to transfer to a new device) permanently loses an activation slot at LS with no path to recover it without contacting LS support. The root cause is a Rust/TypeScript serialisation mismatch: `Ok(())` → JSON `null` → TypeScript null-guard treats null as network failure.
+**File:** `src-tauri/src/license.rs`, `lib/entitlement.ts`
+**Severity:** 9 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, Rust + TypeScript changes
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** High — any error in the Rust return-type change will break the deactivation IPC call entirely. Write the test first.
+**Test required (write first):** In `tests/entitlement.test.ts`: add a test that mocks `invoke` to return `null` and verifies `deactivateLicense()` returns `{ ok: true }` (not `{ ok: false, error: ERR_DEACTIVATE_NETWORK }`). This test will fail before the fix and pass after.
+**What to change:**
+1. `src-tauri/src/license.rs`: Change `ls_deactivate_license` return type from `Result<(), String>` to `Result<bool, String>`. Return `Ok(true)` on success (after HTTP 200 check), `Err(message)` on failure. Tauri will serialise `Ok(true)` as JSON `true`, not `null`.
+2. `lib/entitlement.ts`: In `deactivateLicense()`, change the null-guard at line ~215 from `if (raw == null)` to `if (raw !== true)` — i.e., only treat non-true values as failure. A `true` response means LS deactivation succeeded.
+**Done condition:** `npm test -- tests/entitlement.test.ts` passes with the new deactivation test green. Verification gate green.
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #096 | security | severity 6
+**What:** Add user-facing confirmation gate before `downloadAndInstall()` in `lib/tauri.ts:checkForUpdates()`. Currently `update.downloadAndInstall()` fires immediately on `update.available` with no user consent.
+**Why:** A compromised or misconfigured update endpoint would auto-install a binary without user action. The user must confirm "Restart to update" before installation begins. This is a supply-chain risk guard.
+**File:** `lib/tauri.ts`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, single function change
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — single function modification.
+**Test required (write first):** In `tests/tauri.test.ts` (or co-located test): add a test that mocks `tauri-plugin-updater` to return an available update and verifies `checkForUpdates()` calls a `onUpdateAvailable` callback (or equivalent) before calling `downloadAndInstall()`. The test should confirm that without the callback being invoked (or returning true), `downloadAndInstall()` is not called.
+**What to change:** Add an `onUpdateAvailable?: (version: string) => Promise<boolean>` optional param to `checkForUpdates()`. If provided and returns `false`, skip install. If not provided, prompt via the existing `invoke("show_update_dialog")` Tauri command or return `{ available: true, version }` to the caller so the UI can gate it. Simplest approach: return `{ available: true, version: update.version }` from `checkForUpdates()` without auto-installing, and let the UI call `downloadAndInstall` explicitly.
+**Done condition:** `checkForUpdates()` never calls `update.downloadAndInstall()` unconditionally. Caller receives update availability and controls install timing. Test passes. Verification gate green.
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #097 | security | severity 5
+**What:** Fix two silent-failure paths in `components/InterruptHandler.tsx`: (1) `await enterMandatoryMode()` at line ~73 has no try/catch — IPC failure silently drops; (2) background license validation at lines ~43–50 calls `validateLicense()` but on `r.ok === false` never calls `touchValidated()` — causes LS API to be hammered on every mount during network outage.
+**Why:** For (1): if Tauri IPC fails, the interrupt route opens but the window lock never activates — user can dismiss the study session without studying. For (2): `needsValidation()` returns true again immediately after a failed validation, so every subsequent InterruptHandler mount triggers another LS API call until the network recovers — potentially hundreds of calls in a session.
+**File:** `components/InterruptHandler.tsx`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, two targeted fixes
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — two independent fixes in the same component.
+**Test required (write first):** In `components/InterruptHandler.test.tsx`: (1) Test that when `enterMandatoryMode` rejects, the error is caught and logged (not propagated). (2) Test that when `validateLicense` returns `{ ok: false }`, `touchValidated` is still called.
+**What to change:**
+1. Wrap `await enterMandatoryMode()` in try/catch with explicit error logging: `try { await enterMandatoryMode(); } catch (e) { console.error("[IH-001] enterMandatoryMode failed:", e); }`.
+2. In the background validation `.then()` handler: add `else { touchValidated(); }` after the `if (r.ok)` block (call `touchValidated()` on both success and soft failure to reset the TTL; the store action already handles both cases correctly).
+**Done condition:** Both changes present. Tests pass. `grep -n "enterMandatoryMode" components/InterruptHandler.tsx` shows a try/catch wrapping it. `grep -n "touchValidated" components/InterruptHandler.tsx` shows it's called in both branches. Verification gate green.
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #098 | security | severity 3
+**What:** Add license key format and length validation before forwarding to IPC in `hooks/useLicenseActivation.ts`. Currently only `.trim()` is applied — any-length string is sent to LS API unchanged.
+**Why:** Defense-in-depth: a megabyte-scale input would forward to LS unchanged. LS will reject it, but only after a network round-trip. A length cap and character allowlist provides an immediate, local rejection with a user-visible error.
+**File:** `hooks/useLicenseActivation.ts`
+**Severity:** 3 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, validation at input boundary
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — additive validation only.
+**Test required (write first):** In `hooks/useLicenseActivation.test.ts`: test that submitting a string of 300 characters sets an error state and does NOT call the activate function.
+**What to change:** After `.trim()`, add: `if (key.length > 200 || !/^[A-Za-z0-9\-]+$/.test(key)) { setActivationError("Invalid license key format."); return; }`. Lemon Squeezy license keys are alphanumeric + hyphens, max ~64 chars — 200 is a generous cap.
+**Done condition:** Test passes. `grep -n "key.length" hooks/useLicenseActivation.ts` returns a hit. Verification gate green.
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #099 | architecture | severity 2
+**What:** Fix `lib/featureFlags.ts` false-string recognition — only `"false"` currently disables a flag; `"0"`, `"off"`, and `"False"` all leave flags enabled.
+**Why:** Any developer setting `NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE=0` or `=off` will be confused when the flag remains active. Standard env-var convention expects `"false"`, `"0"`, `"off"`, `"no"` all to disable.
+**File:** `lib/featureFlags.ts`
+**Severity:** 2 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, single utility function change
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — internal deployment flags, no user-visible behaviour change.
+**Test required (write first):** In a new or existing featureFlags test: verify that `"0"`, `"off"`, `"false"`, `"False"`, `"no"`, `"NO"` all produce `false` for the flag value.
+**What to change:** Change the flag parser from `v !== "false"` to `!["false", "0", "off", "no"].includes(v?.toLowerCase() ?? "")`.
+**Done condition:** Test passes. `grep -n "toLowerCase" lib/featureFlags.ts` returns a hit. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #100 | architecture | severity 4
+**What:** Add `isProEnabled(flagValue: boolean, licenseType: LicenseType): boolean` combinator to `lib/featureFlags.ts` and export it.
+**Why:** M2 will add ~5 call sites that need "flag AND subscription" checks (interrupt toggle, vacation mode, analytics, forecast, custom cards). Without a named combinator, each call site invents inline logic. Poka-yoke: the right thing must be automatic.
+**File:** `lib/featureFlags.ts`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, single function addition
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — additive export.
+**Test required (write first):** In a featureFlags test: verify `isProEnabled(true, "subscription")` returns `true`; `isProEnabled(true, "free")` returns `false`; `isProEnabled(false, "subscription")` returns `false`.
+**What to change:** Add to `lib/featureFlags.ts`: `export function isProEnabled(flagValue: boolean, licenseType: LicenseType): boolean { return flagValue && licenseType === "subscription"; }`. Import `LicenseType` from `@/lib/licenseTypes`.
+**Done condition:** Test passes. `grep -n "isProEnabled" lib/featureFlags.ts` returns a hit. `import { LicenseType }` is present. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #101 | architecture | severity 3
+**What:** Extract checkout URL constants and pricing from `lib/entitlement.ts` into a new `lib/checkout.ts`. `lib/entitlement.ts` mixes API-call logic with presentation constants (checkout URLs, pricing display strings, portal URL). These belong in a dedicated module.
+**Why:** `lib/entitlement.ts` will grow further in M2. Checkout constants are referenced by `components/BuyModal.tsx` and will be referenced by future marketing components. Separation keeps entitlement.ts focused on LS API calls and validation logic.
+**File:** `lib/entitlement.ts` (modify), `lib/checkout.ts` (new)
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** 🔧 Full — 2 files, extraction with re-exports
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Medium — entitlement.ts has several importers. Re-export from entitlement.ts to maintain backwards compatibility.
+**What to change:**
+1. Create `lib/checkout.ts`: move `LS_STORE_SLUG`, `CHECKOUT_URLS`, `PRICING`, `CUSTOMER_PORTAL_URL` constants from `lib/entitlement.ts` into this file. Export them.
+2. In `lib/entitlement.ts`: add `export { LS_STORE_SLUG, CHECKOUT_URLS, PRICING, CUSTOMER_PORTAL_URL } from "@/lib/checkout"` re-exports. All existing callers continue to work without changes.
+3. Check all importers of `lib/entitlement.ts` — if any import CHECKOUT_URLS or PRICING directly, they continue working via the re-export.
+**Done condition:** `grep -n "LS_STORE_SLUG\|CHECKOUT_URLS\|PRICING\|CUSTOMER_PORTAL" lib/checkout.ts` returns 4 hits. `grep -n "from.*checkout" lib/entitlement.ts` returns a re-export hit. `npm test` passes. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #102 | architecture | severity 5
+**What:** Create `components/UpdateChecker.tsx` — an invisible component that calls `checkForUpdates()` from `lib/tauri.ts` on mount (Tauri environment only), then mounts it inside `components/EntitlementValidator.tsx` alongside the existing validation logic.
+**Why:** `lib/tauri.ts:checkForUpdates()` has zero call sites — it is dead code. The natural home for a background check is `EntitlementValidator`, which is already an invisible Tauri-aware component mounted in `app/layout.tsx`. Adding update-checking here avoids bloating any visible page component and re-uses the existing isTauri guard pattern.
+**File:** `components/UpdateChecker.tsx` (new), `components/EntitlementValidator.tsx` (modify)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, new component + wiring
+**Blocked by:** #096 (checkForUpdates() must return availability info, not auto-install, before it can be safely called from a component) | **Blocks:** Nothing
+**Risk:** Medium — mounts in layout, runs on every page. Must be a no-op in web/test environments.
+**Test required (write first):** In `components/UpdateChecker.test.tsx`: test that in a non-Tauri environment (isTauri = false), `checkForUpdates()` is NOT called on mount.
+**What to change:**
+1. Create `components/UpdateChecker.tsx`: `useEffect(() => { if (!isTauri) return; checkForUpdates().then(result => { if (result?.available) { /* log or surface to UI */ } }); }, [])`. Import `isTauri` from `@/lib/tauri` and `checkForUpdates` from `@/lib/tauri`.
+2. In `components/EntitlementValidator.tsx`: import `UpdateChecker` and render `<UpdateChecker />` in the null-returning JSX.
+**Done condition:** `components/UpdateChecker.tsx` exists. `components/UpdateChecker.test.tsx` exists. `grep -n "UpdateChecker" components/EntitlementValidator.tsx` returns a hit. `grep -n "checkForUpdates" lib/tauri.ts` has at least one caller now. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #103 | architecture | severity 2
+**What:** Trim `app/settings/page.tsx` from 153 lines to ≤150 lines (Rule 1: routes ≤150 lines).
+**Why:** The page is 3 lines over the route limit. Any M2 addition (Pro gate for interrupt toggle, vacation mode toggle) will push it further over. Fix the limit breach before adding M2 UI.
+**File:** `app/settings/page.tsx`
+**Severity:** 2 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no logic change
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — refactor only, no logic change. Do NOT change any behaviour.
+**What to change:** Remove or condense at least 3 lines without changing behaviour. Options: (a) collapse multi-line JSX attributes to single lines where idiomatic; (b) remove redundant blank lines; (c) inline a single-use constant that adds a line without value. No logic changes, no handler moves, no import changes.
+**Done condition:** `wc -l app/settings/page.tsx` prints ≤150. `npm test` passes. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #104 | tests | severity 5
+**What:** Write `components/LanguageGrid.test.tsx` — Rule 14 violation. `LanguageGrid.tsx` is a 94-line component implementing the Pro feature gating UI (locked/unlocked language display, upgrade CTA). It has zero tests.
+**Why:** This is the only `components/*.tsx` file missing a test. It is the primary M2 surface for Pro gating — the component that renders "Free" vs "Unlock" vs "In development" states. Zero coverage on a Pro-gating component is a Rule 14 stop-the-line.
+**File:** `components/LanguageGrid.test.tsx` (new)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 1 file (new test), requires reading LanguageGrid.tsx to understand props
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only task.
+**What to change:** Create `components/LanguageGrid.test.tsx`. Test all three render states:
+1. Italian (always free): renders with "Free" badge, calls `onSelect("it")` when clicked.
+2. Unlocked paid pack (`isPackUnlocked("es") === true && entry.ready`): renders selectable, calls `onSelect("es")` when clicked.
+3. Locked paid pack: renders upgrade CTA (pricing string), calls `onUpgradeClick` when clicked.
+4. Locked NOT-ready pack: renders "In development" or similar, no click handler.
+Each test must assert specific rendered text/class or callback invocation — not just `.toBeDefined()`.
+**Done condition:** `components/LanguageGrid.test.tsx` exists. `npm test -- components/LanguageGrid.test.tsx` passes with ≥4 tests. `grep -c "expect(" components/LanguageGrid.test.tsx` ≥ 6 (real assertions, not pseudocode). Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #105 | tests | severity 3
+**What:** Strengthen blob assertions in `hooks/useExportImport.test.ts` — currently `expect(URL.createObjectURL).toHaveBeenCalled()` without argument inspection.
+**Why:** The current assertions verify `createObjectURL` was called but not WHAT blob was passed. A silent data corruption in the serialisation path (wrong store data in the export blob) would pass the current tests. Per Rule 16 (Enumerate Before You Assert), assert the specific value.
+**File:** `hooks/useExportImport.test.ts`
+**Severity:** 3 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, assertion augmentation
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test-only, additive assertions.
+**What to change:** After `expect(URL.createObjectURL).toHaveBeenCalled()`: add `expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))`. Also verify the anchor href was set to the object URL: extract the return value of `createObjectURL` mock and assert it appears in the anchor element's `href` attribute. Use `vi.mocked(URL.createObjectURL).mock.results[0].value` to get the mock return value.
+**Done condition:** `grep -n "toHaveBeenCalledWith\|mock.results" hooks/useExportImport.test.ts` returns hits. `npm test -- hooks/useExportImport.test.ts` passes. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #106 | tests | severity 4
+**What:** Write at least 3 behavioural tests for `app/settings/page.tsx` covering: (1) `handleLaunchAtLogin` toggle calls `enableAutostart`/`disableAutostart` via Tauri; (2) license key entry and activation wiring; (3) interrupt engine toggle wiring.
+**Why:** `app/settings/page.tsx` is the highest-risk page for M2 — it contains Tauri side-effect handlers, license activation, and (soon) interrupt engine Pro gating. It currently has zero tests. Rule 14 applies to user-facing pages.
+**File:** `app/settings/page.tsx.test.tsx` → `app/settings/page.test.tsx` (co-located)
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 1 file (new test), requires mocking Tauri + store
+**Blocked by:** #103 (trim page first so test baseline is stable) | **Blocks:** Nothing
+**Risk:** Low — test-only task.
+**Test required:** Write `app/settings/page.test.tsx`. Three it() blocks minimum:
+1. `handleLaunchAtLogin toggle → enableAutostart called` (mock `@tauri-apps/plugin-autostart`, render settings, check the toggle, verify `enableAutostart` was called).
+2. `license activation → activateLicense called with trimmed key` (render, type in license key input, click Activate, verify hook called).
+3. `interrupt engine toggle → interruptEnabled changes in store` (render, check the toggle, verify store action called).
+Each must assert specific values — not just that a function was called.
+**Done condition:** `app/settings/page.test.tsx` exists. `npm test -- app/settings/page.test.tsx` passes with ≥3 tests. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #107 | docs | severity 2
+**What:** Update `AGENTS.md` coverage threshold in the verification gate: change `branches=79` to `branches=81`.
+**Why:** Task #086 ratcheted branches from 79 → 81. AGENTS.md still shows the old threshold. A new session reading AGENTS.md would set a failing CI threshold on its first ratchet check.
+**File:** `AGENTS.md`
+**Severity:** 2 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, single number change
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** None — docs only.
+**What to change:** Find the coverage thresholds line in AGENTS.md verification gate. Change `branches=79` to `branches=81`.
+**Done condition:** `grep -n "branches=81" AGENTS.md` returns a hit. `grep -n "branches=79" AGENTS.md` returns zero hits. Verification gate green.
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #108 | docs | severity 3
+**What:** Update `CLAUDE.md` to document four modules missing from the architecture description: `lib/utils.ts`, `hooks/useStudySession.ts`, `components/BuyModal.tsx`, `components/LanguageGrid.tsx`.
+**Why:** A new agent session starting with only CLAUDE.md would not know where the canonical date helper lives (might duplicate `localDateStr`), would not understand the session management contract (`useStudySession` has a 12-param interface), and would not understand the role of BuyModal or LanguageGrid in the conversion funnel.
+**File:** `CLAUDE.md`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, additive documentation
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** None — docs only.
+**What to change:** Add to the appropriate sections in CLAUDE.md:
+1. In §1 Layer Map (lib/ entry): add `utils.ts` — pure utility functions; currently exports `localDateStr(d?)` for local-time ISO date strings. Used by `useStudySession`, `lib/queue.ts`.
+2. In §1 Layer Map (hooks/ entry, or a new line): add `useStudySession.ts` — session management hook. 12-param contract: manages queue, position, ratings, active session commit, and session-start introduction auto-selection. Do not add business logic here.
+3. In §1 Layer Map (components/ entry, or a note): add `BuyModal.tsx` — primary conversion surface. Renders pricing and opens checkout URLs via `openExternalUrl`. Receives `onActivate` callback for key entry flow. `LanguageGrid.tsx` — language picker rendered on `app/page.tsx`; implements Free/Unlock/In-development display states.
+**Done condition:** `grep -n "utils.ts\|useStudySession\|BuyModal\|LanguageGrid" CLAUDE.md` returns ≥4 hits. Verification gate green.
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #109 | docs | severity 2
+**What:** Update `STATUS.md`: (1) add M2 milestone description under §2; (2) update introduction engine entry from "M1 complete" to "fully live (session-start activation wired in hooks/useStudySession.ts)".
+**Why:** A new session has no idea what M2 means without opening tasks.md. STATUS.md should be the authoritative at-a-glance view of where the project stands. The intro engine entry is ambiguous — "M1 complete" doesn't communicate that `introduceCard()` is now called in production.
+**File:** `STATUS.md`
+**Severity:** 2 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, additive text
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** None — docs only.
+**What to change:**
+1. Add under §2 (or create §2 if missing): "M2 — Desktop shipping: Pro feature gating, Lemon Squeezy payment flow end-to-end, auto-updater with real signing keys, macOS packaging (signed + notarised). Windows/Linux packaging deferred to Batch 9."
+2. Change intro engine STATUS.md entry from "M1 complete" to "fully live — lib/introduction.ts + srsStore integration + session-start activation (hooks/useStudySession.ts, 2026-06-29)".
+**Done condition:** `grep -n "M2\|Desktop shipping" STATUS.md` returns a hit. `grep -n "fully live\|session-start activation" STATUS.md` returns a hit. Verification gate green.
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
+### Task #110 | consistency | severity 5
+**What:** Resolve the 2 remaining Full debt items in `lib/entitlement.ts`: (1) extract 5 remaining inline error strings at lines ~151,162,182,186,190 in `activateLicense` and `validateLicense` to named `ERR_*` constants; (2) harden `activateLicense` and `validateLicense` to not pass raw `res.error` from Lemon Squeezy to callers — replace with safe internal constants (same pattern as `deactivateLicense` was hardened in Task #053). Items (2) [String(e)] and (3) [ERR naming dual-use comment] from the original scope were absorbed and completed in Task #095.
+**Why:** Inline error strings at lines ~151,162,182,186,190 prevent consistent error message management. Raw res.error from LS API flowing to callers/UI is a severity-5 security debt (F7 from Task #053 audit) — any error string from LS could contain sensitive data. Task #095 fixed deactivateLicense; activate and validate remain.
+**File:** `lib/entitlement.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 1 file, 2 related changes
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — error message constants and safe error mapping; no behaviour change for happy paths.
+**What to change:**
+1. Extract 5 inline error strings in activateLicense (lines ~151, 162) and validateLicense (lines ~182, 186, 190) to named `ERR_*` constants at the top of the file (same pattern as existing ERR_ACTIVATE_NETWORK etc.).
+2. In activateLicense: replace `return { ok: false, error: ERR_ACTIVATION_FAILED }` calls that use `res.error` directly — map to internal constants only (never `res.error`). Same for validateLicense.
+3. Remove the 2 Full debt entries from `.autocode/debt.md` (Task #053 sev:4 inline strings + Task #053 sev:5 raw res.error).
+**Done condition:** `grep -n "ERR_" lib/entitlement.ts | wc -l` ≥ 15 (5 new constants added). No `res.error` string passed to callers in activateLicense or validateLicense. `grep -n "Task #053" .autocode/debt.md` returns zero hits (debt cleared). Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-29**
+
+---
+
 ## Escalation Queue
 Items that cannot be resolved without Max's input:
 
@@ -1707,3 +2177,583 @@ Items that cannot be resolved without Max's input:
 4. **ALL_PACK_CODES scope re: ready:false packs (Task #068):** `ALL_PACK_CODES` = all 5 registered codes including `ready: false` langs. The security guard in `loadPack`/`evictPack` validates against ALL_PACK_CODES, so `loadPack("fr", ...)` passes the guard and attempts a CDN fetch (which fails). Options: (A) Keep current — registered = loadable; CDN is the content gate; guard is purely security (path traversal / key poisoning prevention); (B) Add `READY_PACK_CODES` subset (`ready: true` only) and use it in the guard, giving early `"not_ready"` rejection before any network attempt. Decision needed from: Max.
 
 ---
+
+---
+
+## Batch 9 — Quality Hardening | 9 tasks | [COMPLETE]
+Dependency: Batch 8 complete.
+Theme: Rule 14 completion (4 page routes), CI enforcement, docs accuracy, architecture debt. Owner priority: quality before M2 ships.
+
+### Task #111 | tests | severity 7
+**What:** Create `app/page.test.tsx` with ≥3 behavioral tests covering: (1) `LanguageGrid` renders with Free / Unlock states based on entitlement; (2) `BuyModal` opens when an upgrade CTA is clicked; (3) language selection navigates to the study route. Use the same mock patterns as `app/settings/page.test.tsx` — mock `@/lib/storage`, `@/lib/tauri`, `@/store/entitlementStore` reset in `beforeEach`.
+**Why:** Rule 14 stop-the-line. `app/page.tsx` (107 lines) is the primary conversion surface: it contains `LanguageGrid` + `BuyModal` + entitlement-gated language selection. Zero test coverage on the page that drives subscription upgrades.
+**File:** `app/page.test.tsx` (new)
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — test-only addition.
+**Completion gates:** QA Agent sign-off
+**Done when:** `app/page.test.tsx` exists with ≥3 behavioral tests; `npm test` passes; `grep -r "page.test.tsx" app/` returns 1 hit.
+**Complexity:** 🔧 Full — new file, mocks ≥3 components/hooks
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #112 | tests | severity 7
+**What:** Create `app/study/page.test.tsx` with ≥3 behavioral tests covering: (1) `StudyCard` renders the first card in the queue; (2) `StudyDoneScreen` appears when queue is empty; (3) `InterruptHandler` mounting does not throw. Use same mock strategy: `@/lib/storage` no-op, store reset per test.
+**Why:** Rule 14 stop-the-line. `app/study/page.tsx` (150 lines) is the core study loop — the feature every user spends the most time in. It integrates `useStudySession` (12-param contract), `InterruptHandler`, `StudyCard`, and `StudyDoneScreen`. Zero tests on the most-used page.
+**File:** `app/study/page.test.tsx` (new)
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — test-only addition.
+**Completion gates:** QA Agent sign-off
+**Done when:** `app/study/page.test.tsx` exists with ≥3 behavioral tests; `npm test` passes; `grep -r "study/page.test.tsx" app/` returns 1 hit.
+**Complexity:** 🔧 Full — new file, mocks useStudySession + InterruptHandler
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #113 | tests | severity 5
+**What:** Create `app/learn/page.test.tsx` with ≥2 behavioral tests covering: (1) unit list renders from pack data with correct lock/unlock state per entitlement; (2) clicking a locked unit shows the upgrade prompt (or opens BuyModal). Mock `@/lib/packLoader` and `@/lib/storage`.
+**Why:** Rule 14 stop-the-line. `app/learn/page.tsx` (130 lines) contains pack-unlock gating logic — the first screen a new user sees after language selection.
+**File:** `app/learn/page.test.tsx` (new)
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — test-only addition.
+**Completion gates:** QA Agent sign-off
+**Done when:** `app/learn/page.test.tsx` exists with ≥2 behavioral tests; `npm test` passes.
+**Complexity:** 🔧 Full — new file, mocks packLoader + entitlement
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #114 | tests | severity 5
+**What:** Create `app/stats/page.test.tsx` with ≥2 behavioral tests covering: (1) stats render with correct "last seen Nd ago" neutral framing (not "Nd ago" alone); (2) empty state renders when no cards have been studied. Use `useStatsData` mock.
+**Why:** Rule 14 stop-the-line. `app/stats/page.tsx` (146 lines) contains the BRAND-compliant counter framing added in Task #088. A regression could silently re-introduce guilt-inducing copy.
+**File:** `app/stats/page.test.tsx` (new)
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — test-only addition.
+**Completion gates:** QA Agent sign-off
+**Done when:** `app/stats/page.test.tsx` exists with ≥2 behavioral tests including a "last seen" copy assertion; `npm test` passes.
+**Complexity:** 🔧 Full — new file, mocks useStatsData
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #115 | ci | severity 6
+**What:** Add three missing steps to `.github/workflows/ci.yml`: (1) `npm run lint` after the type-check step; (2) `--coverage` flag on the `npm test` invocation; (3) `npm audit --audit-level=high` after install. The existing 2 moderate vulns (next/postcss) are known and low-risk — `--audit-level=high` gates on new high/critical vulns without blocking CI on the known moderate chain.
+**Why:** The CI pipeline currently misses: lint errors (caught locally but not in CI), coverage threshold regressions (thresholds enforced in vitest.config.ts but `npm test` without `--coverage` skips the check), and new high/critical CVEs. A push to main could introduce all three silently.
+**File:** `.github/workflows/ci.yml`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — additive CI steps. If lint fails on current code, fix the lint errors first.
+**Completion gates:** Architecture Agent sign-off
+**Done when:** `.github/workflows/ci.yml` contains `npm run lint`, `npm test -- --coverage`, and `npm audit --audit-level=high`; `git push` to main produces a green CI run with all three steps visible in the Actions log.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #116 | docs | severity 4
+**What:** Update `CLAUDE.md` with 7 accuracy gaps from Batch 8, plus `STATUS.md` with 1 gap: (1) §2 Tauri Gateway — add `checkForUpdates()`, `enableAutostart()`, `disableAutostart()` to the listed exports; (2) Notable modules — add `lib/checkout.ts` entry; (3) Notable modules — add `lib/featureFlags.ts:isProEnabled` combinator; (4) Notable modules — add `UpdateChecker.tsx` description; (5) §5 Entitlement Model — add cross-ref to `lib/checkout.ts` for pricing constants; (6) §7 Introduction Engine — add session-start activation sentence (hooks/useStudySession.ts mount, Task #085, 2026-06-29); (7) STATUS.md §1 Shipped — add "Auto-updater wired (signing keys are Batch 10 prerequisites)". QA memory note: correct test baseline to 843 in any doc that references it (memory was projecting 908).
+**Why:** 7 doc gaps identified in run 6 examination. A new agent starting in Batch 9/10 will look for checkout constants in `lib/entitlement.ts` (wrong since Task #101), will add a second introduction activation path (missing the session-start note), and will not know about `isProEnabled` — the mandatory combinator for all Pro-gated features.
+**File:** `CLAUDE.md`, `STATUS.md`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — docs only.
+**Completion gates:** Docs Agent sign-off
+**Done when:** `grep "checkout.ts\|isProEnabled\|UpdateChecker\|checkForUpdates\|session-start" CLAUDE.md` returns ≥5 hits; `grep "auto-updater" STATUS.md` returns ≥1 hit in the Shipped section.
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope change
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #117 | architecture | severity 2
+**What:** Fix the `USED BY` comment in `lib/featureFlags.ts:5` — currently contains a shell command as a static comment (`grep -r "from \"@/lib/featureFlags\""...`). Replace with actual caller list: `components/InterruptHandler.tsx` (production). Update when new callers are added.
+**Why:** Rule 2 violation. A shell command embedded in a static comment is never executed and can never be updated automatically. Callers change; the comment does not. A future agent reading this comment will trust stale data.
+**File:** `lib/featureFlags.ts`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — comment change only.
+**Completion gates:** Architecture Agent sign-off
+**Done when:** `head -8 lib/featureFlags.ts` shows a USED BY line listing actual caller files (not a shell command).
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #118 | architecture | severity 4
+**What:** Audit every Pro-gated call site and ensure all use the `isProEnabled(flagValue, licenseType)` combinator from `lib/featureFlags.ts`. Run: `grep -rn 'licenseType === "subscription"' lib/ components/ hooks/ app/ --include="*.ts" --include="*.tsx" | grep -v ".test."`. For each hit: replace inline check with `isProEnabled(getFeatureFlags().[relevantFlag], licenseType)`. If the interrupt engine is intentionally ungated (owner decision 2026-06-29: free users can enable), exclude that specific call site from the audit scope and add a comment.
+**Why:** `isProEnabled` was added in Task #100 as the single combinator for all Pro-gated features. Only `InterruptHandler.tsx` uses it in production today. Any future feature that bypasses the combinator and checks `licenseType === "subscription"` directly creates two divergent code paths — the flag framework cannot disable a Pro feature without also touching the inline check.
+**File:** Multiple — grep to discover, then edit each hit
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — audit and cosmetic code path changes only. No behaviour change (inline check and combinator are logically identical).
+**Completion gates:** Architecture Agent sign-off
+**Done when:** `grep -rn 'licenseType === "subscription"' lib/ components/ hooks/ app/ --include="*.ts" --include="*.tsx" | grep -v ".test." | grep -v "licenseTypes.ts"` returns 0 hits (or only the intentionally-excepted interrupt engine comment).
+**Complexity:** 🔧 Full — grep across all layers, edit multiple files
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #119 | tests | severity 2
+**What:** Close 3 sev:2 debt items from debt.md in a single pass: (1) `tests/entitlement.test.ts` — add test for `deactivateLicense()` when `invoke` returns boolean `false` (the `raw !== true` guard exists but the branch is untested); (2) `lib/entitlement.ts:216` — rename log string `ENTITLEMENT_DEACTIVATE_EMPTY` to `ENTITLEMENT_DEACTIVATE_NON_TRUE` to accurately describe the condition (fires for any non-true invoke response, not just null/empty); (3) `lib/entitlement.ts:138` and `:179` — add `console.error` before returning `ERR_ACTIVATION_FAILED` and `ERR_VALIDATE_INACTIVE` when `res.error` is truthy, so the raw LS error string is logged at least once (not discarded silently).
+**Why:** 3 Direct severity-2 items deferred to debt.md since Tasks #095 and #110. Small fixes, negligible risk, best batched together.
+**File:** `tests/entitlement.test.ts`, `lib/entitlement.ts`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — test addition + two-line log changes.
+**Completion gates:** QA Agent sign-off
+**Done when:** (1) `npm test -- tests/entitlement.test.ts` passes including the new `invoke=false` test; (2) `grep "ENTITLEMENT_DEACTIVATE_EMPTY" lib/entitlement.ts` returns 0 hits; (3) `grep "console.error" lib/entitlement.ts` returns ≥2 hits in the activateLicense/validateLicense error branches; (4) 3 rows removed from debt.md.
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope change
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+## Batch 10 — M2 macOS Shipping Infrastructure | 6 tasks | [OWNER-BLOCKED]
+Dependency: Batch 9 complete. Owner actions (LS store creation, Apple Developer ID certificate) must be completed before tasks #120–#122 can close.
+Theme: The infrastructure prerequisites for distributing plyglt as a signed macOS desktop app. Windows/Linux packaging is Batch 11.
+
+### Task #120 | build | severity 9
+**What:** Create the Lemon Squeezy store at https://dashboard.lemonsqueezy.com — products: "plyglt Pro Monthly" ($4.99/mo) and "plyglt Pro Annual" ($34.99/yr). Confirm the store slug. If the slug is not "plyglt", update `lib/checkout.ts:LS_STORE_SLUG` to match the real slug and verify `CHECKOUT_URLS.monthly` and `CHECKOUT_URLS.annual` return 200. Also configure the license activation webhook in LS to call `lib/entitlement.ts:activateLicense` contract spec.
+**Why:** Owner confirmed LS store does not yet exist (2026-06-29). Every "Upgrade to Pro" click in the current build leads to a 404. The payment funnel is entirely non-functional. This is a prerequisite for M2.
+**File:** `lib/checkout.ts` (if slug differs from "plyglt"), `CONTRIBUTING_LANGUAGE.md` (add LS product setup note)
+**Blocks:** Batch 10 completion (cannot distribute without payment)
+**Blocked by:** Nothing (owner action)
+**Risk:** Medium — any slug mismatch requires a code change propagated to all URL callers (blast radius: 5 files import checkout.ts).
+**Completion gates:** Security Agent sign-off (LS URLs return 200)
+**Done when:** `curl https://plyglt.lemonsqueezy.com/buy/monthly` (or updated slug) returns HTTP 200; `grep LS_STORE_SLUG lib/checkout.ts` matches the real LS store slug.
+**Complexity:** ⚡ Direct — 1 file (if slug update needed), otherwise owner action only
+**Owner:** Architecture Agent
+
+---
+
+### Task #121 | security | severity 9
+**What:** Generate an ed25519 signing keypair for the Tauri auto-updater: run `tauri signer generate -w ~/.tauri/plyglt.key`. Place the **public key** in `src-tauri/tauri.conf.json:plugins.updater.pubkey`. Add the **private key** as a GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`. Never commit the private key. Verify the public key format matches Tauri's expected base64-encoded ed25519 spec.
+**Why:** `src-tauri/tauri.conf.json:46` has the literal placeholder `"REPLACE_WITH_TAURI_SIGNING_PUBLIC_KEY"`. The auto-updater cannot validate update manifests without a real public key. Shipping a binary with a placeholder pubkey accepts any update payload without signature verification — a supply-chain risk.
+**File:** `src-tauri/tauri.conf.json`
+**Blocks:** Task #123 (release workflow cannot sign without the key)
+**Blocked by:** Nothing (owner action)
+**Risk:** High — private key loss requires regenerating the keypair AND updating every deployed binary's pubkey (forces all users through a manual update). Store private key securely. Document in CONTRIBUTING_LANGUAGE.md.
+**Completion gates:** Security Agent sign-off
+**Done when:** `grep "REPLACE_WITH" src-tauri/tauri.conf.json` returns 0 hits for the pubkey field; CI secret `TAURI_SIGNING_PRIVATE_KEY` is confirmed set in GitHub repository settings.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
+**Owner:** Security Agent
+
+---
+
+### Task #122 | security | severity 9
+**What:** Configure macOS code signing in CI: obtain an Apple Developer ID Application certificate (from developer.apple.com), export as a .p12 file, add the following GitHub Actions secrets: `APPLE_CERTIFICATE` (base64-encoded .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (e.g. "Developer ID Application: Max Smith (TEAM_ID)"), `APPLE_ID` (Apple ID email), `APPLE_PASSWORD` (app-specific password), `APPLE_TEAM_ID`. Update `src-tauri/tauri.conf.json:bundle.macOS.signingIdentity` from `null` to the certificate common name.
+**Why:** `src-tauri/tauri.conf.json:33` has `"signingIdentity": null`. macOS Gatekeeper rejects unsigned binaries from unidentified developers. Users on macOS 13+ cannot open an unsigned app via standard installation. This is a hard distribution blocker.
+**File:** `src-tauri/tauri.conf.json`
+**Blocks:** Task #123 (release workflow must embed signing identity)
+**Blocked by:** Nothing (owner action — requires Apple Developer Program membership)
+**Risk:** High — certificate mismatch or wrong signing identity silently produces an unsigned binary. Validate with `codesign --verify --verbose` on the built .app.
+**Completion gates:** Security Agent sign-off
+**Done when:** `grep "signingIdentity" src-tauri/tauri.conf.json` returns a non-null string value; a test macOS build on CI produces a notarized .dmg that opens without Gatekeeper warning on a clean macOS install.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
+**Owner:** Security Agent
+
+---
+
+### Task #123 | build | severity 8
+**What:** Create `.github/workflows/release.yml` — a GitHub Actions workflow triggered on `push: tags: ['v*']` that: (1) runs the Tauri build matrix for macOS only (targeting `aarch64-apple-darwin` and `x86_64-apple-darwin`); (2) signs the .app using the Apple certificate secrets from Task #122; (3) notarizes the .app via `xcrun notarytool`; (4) uses `tauri-action` to generate the update manifest (`latest.json`); (5) uploads artifacts to a GitHub Release using `softpronic/action-gh-release` or equivalent; (6) uses `TAURI_SIGNING_PRIVATE_KEY` from Task #121 to sign the update manifest. Update `src-tauri/tauri.conf.json:plugins.updater.endpoints[0]` to point to the real GitHub Releases URL (replacing the REPLACE_WITH_REPO placeholder).
+**Why:** No release workflow exists. Building, signing, and distributing plyglt currently requires the developer's local machine. CI cannot produce a distributable binary. This is the final M2 prerequisite before a public macOS release.
+**File:** `.github/workflows/release.yml` (new), `src-tauri/tauri.conf.json` (update endpoint)
+**Blocks:** Nothing (end of M2 chain)
+**Blocked by:** Task #121 (signing keypair), Task #122 (Apple certificate CI secrets)
+**Risk:** High — incorrect signing, notarization failure, or artifact naming mismatch breaks distribution silently. Test with a pre-release tag (v0.1.0-beta.1) before the real v0.1.0 tag. Validate with `xcrun stapler validate` and a Gatekeeper check on a clean macOS machine.
+**Completion gates:** Security Agent sign-off + Architecture Agent sign-off
+**Done when:** Pushing a `v*` tag triggers the workflow; the resulting GitHub Release contains a signed .dmg and a `latest.json` manifest; `curl [endpoint]` returns the manifest with valid ed25519 signature; `grep "REPLACE_WITH_REPO" src-tauri/tauri.conf.json` returns 0 hits.
+**Complexity:** 🔧 Full — new file, implements full CI release pipeline
+**Owner:** Security Agent
+
+---
+
+### Task #124 | build | severity 4
+**What:** Add a notification permission onboarding explanation to the interrupt engine enable flow. When a user first toggles "Enable review reminders" ON in `app/settings/page.tsx`, show a short explanation before the OS permission dialog fires: "plyglt will send brief notifications during your workday — 3 to 5 cards per session, under a minute each. Allow notifications to enable this." If the user previously denied permission on macOS, show a graceful fallback: "Enable notifications for plyglt in System Settings → Notifications." (no repeat dialog, just the instruction).
+**Why:** Product agent found: "the first time a Pro user enables the interrupt engine, a notification permission dialog appears mid-session with no prior explanation." macOS does not allow re-prompting after a denial. Users who reflexively click "Don't Allow" lose the core Pro differentiator with no recovery path visible in the UI.
+**File:** `app/settings/page.tsx`, possibly a new small `components/NotificationPermissionGate.tsx`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — UI-only addition. Does not change Tauri IPC calls.
+**Completion gates:** Architecture Agent sign-off
+**Done when:** Toggling "Enable review reminders" ON shows an explanation sentence before the OS dialog fires (or inline in the settings card before the toggle if permission has already been granted); `npm test` passes; no Tauri IPC changes.
+**Complexity:** 🔧 Full — implements new UX flow
+**Owner:** Architecture Agent
+
+---
+
+### Task #125 | build | severity 3
+**What:** Add `npm audit --audit-level=high` to `.github/workflows/ci.yml` AND document the 2 known moderate vulns (postcss/next chain) in `STATUS.md §3 Known Issues`: "2 moderate npm vulnerabilities in the next/postcss dependency chain (CVE tracked). Unfixable without a major Next.js downgrade. Severity: moderate (build-time CSS ReDoS, not runtime). CI gates on high/critical only."
+**Why:** CI currently has no `npm audit` step (Task #115 adds high/critical gating). The 2 moderate vulns that already exist need to be documented so future agents don't waste time investigating them. Without documentation they appear as unknown/new on every fresh examination.
+**File:** `.github/workflows/ci.yml`, `STATUS.md`
+**Blocks:** Nothing
+**Blocked by:** Task #115 (adds the audit step — this task adds documentation for the known exceptions)
+**Risk:** Low — documentation + CI step addition.
+**Completion gates:** Docs Agent sign-off
+**Done when:** `grep "npm audit" .github/workflows/ci.yml` returns ≥1 hit; `grep "moderate" STATUS.md` returns ≥1 hit in Known Issues section.
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope change
+**Owner:** Docs Agent
+
+## Batch 11 — A1 Spanish Source-Language Translation | 21 tasks | [CURRENT SPRINT]
+Dependency: Batch 10 is owner-blocked (Tasks #120–#122 need owner actions). These tasks are fully independent and run immediately.
+Theme: Add `es` (Spanish) source-language fields to all 20 A1 Italian unit files. One task per unit + one export/validate task. All 20 unit tasks are independent — no cross-dependencies.
+
+Schema reference (`content/types.ts`):
+- `produce` cards only: `prompts?: Record<string, string>` → e.g. `prompts: { es: "rojo" }`
+- `recognize` cards only: `translations?: Record<string, string[]>` → e.g. `translations: { es: ["rojo"] }`
+- `conjugate` / `fill_blank` / `passage_cloze`: no translation fields — prompts are already in Italian; skip these.
+
+---
+
+### Task #126 | content | severity 5
+**What:** Open `content/cards/a1-unit-01-greetings.ts`. For every `produce` card add `prompts: { es: "..." }` with the Spanish translation of the English prompt. For every `recognize` card add `translations: { es: ["..."] }` with Spanish translation(s) matching the English `accepted` array. Skip `conjugate`, `fill_blank`, and `passage_cloze` cards entirely.
+
+Unit theme — Greetings & Identity. Key equivalents: buongiorno → buenos días; buonasera → buenas tardes; buonanotte → buenas noches; ciao → hola / adiós; arrivederci → hasta luego; grazie → gracias; prego → de nada; bene → bien; male → mal; così così → más o menos; italiano/a → italiano/a; americano/a → americano/a; inglese → inglés/inglesa; francese → francés/francesa. For produce cards with English sentence prompts (T3/T4), translate the full sentence to Spanish.
+**Why:** Spanish speakers see English prompts when studying Italian. The `types.ts` schema already supports `Card.prompts` and `Card.translations` for non-English source languages.
+**File:** `content/cards/a1-unit-01-greetings.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only; no existing fields modified.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-01-greetings.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #127 | content | severity 5
+**What:** Open `content/cards/a1-unit-02-bar.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — At the Bar/Café. Key equivalents: caffè → café; cappuccino → capuchino; acqua → agua; vino → vino; birra → cerveza; pane → pan; conto → cuenta; tavolo → mesa; cameriere → camarero; quanto costa → cuánto cuesta; vorrei → quisiera; per favore → por favor; un bicchiere di → un vaso de; ho sete → tengo sed; ho fame → tengo hambre.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-02-bar.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-02-bar.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #128 | content | severity 5
+**What:** Open `content/cards/a1-unit-03-family.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Family & Relationships. Key equivalents: madre → madre; padre → padre; fratello → hermano; sorella → hermana; figlio → hijo; figlia → hija; nonno → abuelo; nonna → abuela; zio → tío; zia → tía; cugino/a → primo/a; marito → marido/esposo; moglie → esposa; fidanzato/a → novio/a; amico/a → amigo/a; mio/mia → mi; tuo/tua → tu.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-03-family.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-03-family.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #129 | content | severity 5
+**What:** Open `content/cards/a1-unit-04-city.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — The City & Getting Around. Key equivalents: città → ciudad; piazza → plaza; strada → calle; negozio → tienda; supermercato → supermercado; chiesa → iglesia; museo → museo; farmacia → farmacia; banca → banco; stazione → estación; autobus → autobús; metro → metro; vicino a → cerca de; lontano da → lejos de; dov'è → dónde está; a destra → a la derecha; a sinistra → a la izquierda; dritto → recto.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-04-city.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-04-city.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #130 | content | severity 5
+**What:** Open `content/cards/a1-unit-05-time.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Days, Months & Time. Key equivalents: lunedì → lunes; martedì → martes; mercoledì → miércoles; giovedì → jueves; venerdì → viernes; sabato → sábado; domenica → domingo; gennaio → enero; febbraio → febrero; marzo → marzo; aprile → abril; maggio → mayo; giugno → junio; luglio → julio; agosto → agosto; settembre → septiembre; ottobre → octubre; novembre → noviembre; dicembre → diciembre; oggi → hoy; domani → mañana; ieri → ayer; mattina → mañana (morning); sera → tarde/noche; ora → hora; minuto → minuto.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-05-time.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-05-time.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #131 | content | severity 5
+**What:** Open `content/cards/a1-unit-06-describing.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Describing People & Things. Key equivalents: alto/a → alto/a; basso/a → bajo/a; grande → grande; piccolo/a → pequeño/a; bello/a → bonito/a / hermoso/a; brutto/a → feo/a; giovane → joven; vecchio/a → viejo/a / anciano/a; magro/a → delgado/a; grasso/a → gordo/a; lungo/a → largo/a; corto/a → corto/a; nuovo/a → nuevo/a; vecchio/a → viejo/a; caro/a → caro/a; economico/a → económico/a / barato/a; difficile → difícil; facile → fácil; interessante → interesante; noioso/a → aburrido/a.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-06-describing.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-06-describing.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #132 | content | severity 5
+**What:** Open `content/cards/a1-unit-07-likes.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Likes, Dislikes & Hobbies. Key equivalents: mi piace → me gusta; non mi piace → no me gusta; mi piacciono → me gustan; adoro → adoro; odio → odio; preferisco → prefiero; sport → deporte; musica → música; film → película; libro → libro; viaggiare → viajar; cucinare → cocinar; leggere → leer; scrivere → escribir; cantare → cantar; ballare → bailar; giocare → jugar; nuotare → nadar; correre → correr.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-07-likes.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-07-likes.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #133 | content | severity 5
+**What:** Open `content/cards/a1-unit-08-review.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — A1 Review (common verbs: essere, avere, fare, andare, venire, potere, volere, dovere). Key equivalents: essere → ser/estar; avere → tener; fare → hacer; andare → ir; venire → venir; potere → poder; volere → querer; dovere → deber; sapere → saber; stare → estar; dare → dar; dire → decir; mangiare → comer; bere → beber; dormire → dormir; lavorare → trabajar; abitare → vivir/habitar; parlare → hablar; capire → entender; guardare → mirar.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-08-review.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-08-review.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #134 | content | severity 5
+**What:** Open `content/cards/a1-unit-09-colors.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Colors & Shapes. Key equivalents: rosso/a → rojo/a; blu → azul; verde → verde; giallo/a → amarillo/a; bianco/a → blanco/a; nero/a → negro/a; arancione → naranja; viola → morado/a / violeta; rosa → rosa; grigio/a → gris; marrone → marrón; beige → beige; cerchio → círculo; quadrato → cuadrado; triangolo → triángulo; rettangolo → rectángulo; chiaro/a → claro/a; scuro/a → oscuro/a; colorato/a → colorido/a.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-09-colors.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-09-colors.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #135 | content | severity 5
+**What:** Open `content/cards/a1-unit-10-body.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — The Body & Health. Key equivalents: testa → cabeza; occhio/occhi → ojo/ojos; naso → nariz; bocca → boca; orecchio → oreja/oído; collo → cuello; spalla → hombro; braccio/braccia → brazo/brazos; mano/mani → mano/manos; dito/dita → dedo/dedos; petto → pecho; stomaco → estómago; schiena → espalda; gamba → pierna; ginocchio → rodilla; piede/piedi → pie/pies; mi fa male → me duele; ho mal di testa → tengo dolor de cabeza; febbre → fiebre; tosse → tos.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-10-body.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-10-body.ts` returns ≥ 50.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #136 | content | severity 5
+**What:** Open `content/cards/a1-unit-11-food.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Food & Drinks. Key equivalents: pane → pan; pasta → pasta; riso → arroz; carne → carne; pesce → pescado; pollo → pollo; verdura → verdura/vegetal; frutta → fruta; formaggio → queso; uovo/uova → huevo/huevos; latte → leche; acqua → agua; vino → vino; caffè → café; tè → té; succo → jugo/zumo; colazione → desayuno; pranzo → almuerzo/comida; cena → cena; ristorante → restaurante; mangiare → comer; bere → beber; cucinare → cocinar; delizioso → delicioso; salato/a → salado/a; dolce → dulce.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-11-food.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-11-food.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #137 | content | severity 5
+**What:** Open `content/cards/a1-unit-12-emotions.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Feelings & Emotions. Key equivalents: felice → feliz; triste → triste; arrabbiato/a → enojado/a; stanco/a → cansado/a; annoiato/a → aburrido/a; spaventato/a → asustado/a; sorpreso/a → sorprendido/a; nervoso/a → nervioso/a; contento/a → contento/a; preoccupato/a → preocupado/a; tranquillo/a → tranquilo/a; geloso/a → celoso/a; innamorato/a → enamorado/a; deluso/a → decepcionado/a; orgoglioso/a → orgulloso/a; imbarazzato/a → avergonzado/a; curioso/a → curioso/a; confuso/a → confundido/a; entusiasta → entusiasta; solo/a → solo/a; grato/a → agradecido/a; rilassato/a → relajado/a; stressato/a → estresado/a; bene → bien.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-12-emotions.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-12-emotions.ts` returns ≥ 60.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #138 | content | severity 5
+**What:** Open `content/cards/a1-unit-13-household.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Home & Household. Key equivalents: casa → casa; appartamento → apartamento; stanza → habitación; cucina → cocina; bagno → baño; camera da letto → dormitorio; salotto → sala de estar; tavolo → mesa; sedia → silla; letto → cama; divano → sofá; finestra → ventana; porta → puerta; pavimento → suelo/piso; tetto → techo; muro → pared; armadio → armario; frigorifero → nevera/refrigerador; lavatrice → lavadora; lampada → lámpara; pulire → limpiar; cucinare → cocinar; abitare → vivir.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-13-household.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-13-household.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #139 | content | severity 5
+**What:** Open `content/cards/a1-unit-14-animals.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Animals. Key equivalents: cane → perro; gatto → gato; cavallo → caballo; mucca → vaca; maiale → cerdo; pecora → oveja; pollo → pollo; pesce → pez; uccello → pájaro; coniglio → conejo; topo → ratón; elefante → elefante; leone → león; tigre → tigre; orso → oso; lupo → lobo; volpe → zorro; serpente → serpiente; scimmia → mono; delfino → delfín; animale → animal; selvaggio/a → salvaje; domestico/a → doméstico/a; grande → grande; piccolo/a → pequeño/a.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-14-animals.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-14-animals.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #140 | content | severity 5
+**What:** Open `content/cards/a1-unit-15-numbers.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Numbers & Money. Key equivalents: zero → cero; uno → uno; due → dos; tre → tres; quattro → cuatro; cinque → cinco; sei → seis; sette → siete; otto → ocho; nove → nueve; dieci → diez; venti → veinte; cento → cien/ciento; mille → mil; euro → euro; centesimo → céntimo; soldi → dinero; prezzo → precio; quanto costa → cuánto cuesta; vorrei → quisiera; ho bisogno di → necesito; portafoglio → billetera/cartera; resto → cambio; sconto → descuento.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-15-numbers.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-15-numbers.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #141 | content | severity 5
+**What:** Open `content/cards/a1-unit-16-shopping.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Shopping. Key equivalents: negozio → tienda; supermercato → supermercado; mercato → mercado; farmacia → farmacia; panetteria → panadería; libreria → librería; commesso/a → dependiente/a; cliente → cliente; cassa → caja; comprare → comprar; vendere → vender; cercare → buscar; pagare → pagar; scegliere → elegir; provare → probar; dov'è la cassa → dónde está la caja; c'è → hay; quanto costa → cuánto cuesta; vorrei → quisiera; in saldo → en oferta/rebaja; carta di credito → tarjeta de crédito.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-16-shopping.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-16-shopping.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #142 | content | severity 5
+**What:** Open `content/cards/a1-unit-17-weather.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Weather & Seasons. Key equivalents: sole → sol; pioggia → lluvia; neve → nieve; vento → viento; nebbia → niebla; temporale → tormenta; caldo → calor; freddo → frío; nuvoloso → nublado; soleggiato → soleado; piovoso → lluvioso; nevoso → nevado; fa caldo → hace calor; fa freddo → hace frío; c'è il sole → hay sol; piove → llueve; nevica → nieva; primavera → primavera; estate → verano; autunno → otoño; inverno → invierno; che tempo fa → qué tiempo hace; temperatura → temperatura; grado → grado; ombrello → paraguas.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-17-weather.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-17-weather.ts` returns ≥ 60.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #143 | content | severity 5
+**What:** Open `content/cards/a1-unit-18-routine.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Daily Routine & Reflexive Verbs. Key equivalents: svegliarsi → despertarse; alzarsi → levantarse; lavarsi → lavarse; vestirsi → vestirse; fare colazione → desayunar; andare al lavoro → ir al trabajo; tornare a casa → volver a casa; cenare → cenar; addormentarsi → dormirse; di mattina → por la mañana; di sera → por la noche; presto → temprano; tardi → tarde; prima → primero; poi → luego; dopo → después; sempre → siempre; spesso → a menudo; mai → nunca; a volte → a veces; ogni giorno → cada día.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-18-routine.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-18-routine.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #144 | content | severity 5
+**What:** Open `content/cards/a1-unit-19-work.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Work & Professions. Key equivalents: lavoro → trabajo; ufficio → oficina; medico → médico; infermiere/a → enfermero/a; insegnante → profesor/a; avvocato → abogado/a; architetto → arquitecto/a; cuoco/a → cocinero/a; cameriere/a → camarero/a; impiegato/a → empleado/a; giornalista → periodista; ingegnere → ingeniero/a; stipendio → salario/sueldo; riunione → reunión; collega → colega; capo → jefe/a; lavorare → trabajar; assumere → contratar; licenziare → despedir; fare il/la → ser + profesión.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-19-work.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-19-work.ts` returns ≥ 50.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #145 | content | severity 5
+**What:** Open `content/cards/a1-unit-20-clothes.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+
+Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantaloni → pantalones; gonna → falda; vestito → vestido/traje; giacca → chaqueta; cappotto → abrigo; maglione → suéter/jersey; scarpe → zapatos; stivali → botas; calzini → calcetines; sciarpa → bufanda; guanti → guantes; borsa → bolso; zaino → mochila; lungo/a → largo/a; stretto/a → estrecho/a; largo/a → ancho/a; elegante → elegante; comodo/a → cómodo/a; portare/indossare → llevar/usar; mettere → ponerse; togliere → quitarse; che taglia porti → qué talla usas; come mi sta → cómo me queda.
+**Why:** See Task #126.
+**File:** `content/cards/a1-unit-20-clothes.ts`
+**Blocks:** Task #146
+**Blocked by:** Nothing
+**Risk:** Low — additive only.
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-20-clothes.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #146 | content | severity 5
+**What:** Export and validate the Italian pack after all 20 Spanish translation tasks are complete. Run: `npx tsx scripts/exportPack.ts it` then `npx tsx scripts/validatePack.ts public/packs/it.json`. Verify the pack validates cleanly with no duplicate IDs or schema errors. Also spot-check 5 cards at random in the JSON output to confirm `prompts.es` and `translations.es` fields are present and contain plausible Spanish.
+**Why:** The exportPack script regenerates `public/packs/it.json` and `public/packs/manifest.json` from the TypeScript source. Running this after all 20 translation tasks ensures the pack reflects every unit's new Spanish fields and that sha256 manifest is updated.
+**File:** `public/packs/it.json`, `public/packs/manifest.json`
+**Blocks:** Nothing
+**Blocked by:** Tasks #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140, #141, #142, #143, #144, #145
+**Risk:** Low — export script is idempotent; validation catches any schema errors.
+**Done when:** `npx tsx scripts/validatePack.ts public/packs/it.json` exits 0; `grep -c '"es"' public/packs/it.json` returns ≥ 1000.
+**Complexity:** ⚡ Direct — 2 files, single-scope change, runs two deterministic scripts
+**Owner:** Architecture Agent
+
+---
+
+## Escalation Queue
+| Issue | Why it needs a decision | Options |
+|-------|------------------------|---------|
+| ALL_PACK_CODES vs READY_PACK_CODES decision (Task #068) | Should loadPack validate against all registered pack codes (including es with ready:false) or only packs that are actually ready to download? With es.json now in the CDN but hidden, this question is active again. | (A) Validate against READY_PACK_CODES only — es.json inaccessible until ready:true; (B) Validate against all registered codes — allows direct pack URL access even when hidden from UI |
+| Sentence generator go/no-go | BRAND.md flags this as "under evaluation." No task created. | (A) Greenlight — add BUILD task to Batch 10/11; (B) Hold — revisit at B2 content milestone |
+| Spanish pack quality gate | es.json (245KB, v0.9.0) exists but Max confirmed "not yet ready" on 2026-06-29. When is it ready? | Owner sets criteria: word count target, unit count, QA pass |
+| LS store creation (Task #120) | Owner action: create LS store before Task #120 can close. | Max creates store at dashboard.lemonsqueezy.com; confirms slug |
+| Apple Developer Program membership | Required for Task #122. Do you have an Apple Developer ID Application certificate? | (A) Yes, have certificate → Task #122 ready to start; (B) No — enroll at developer.apple.com ($99/yr); (C) Use ad-hoc signing for internal testing only |

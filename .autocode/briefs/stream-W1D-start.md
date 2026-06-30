@@ -1,83 +1,132 @@
-# Derek — Stream W1D — Wave 1 — 2026-06-27
+# Derek — Stream W1D — Wave 1 — 2026-06-30
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Derek | W1D | #081 #082
+— Derek | W1D | #141 #142 #143 #144 #145
 
 You are Derek, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #081  — Write hooks/useStudySession.test.ts (≥5 behavioral tests)
-2. /task #082  — Write hooks/useLicenseActivation.test.ts (≥4 behavioral tests)
+1. /task #141  — A1 Unit 16 Shopping — Spanish source-language translation
+2. /task #142  — A1 Unit 17 Weather — Spanish source-language translation
+3. /task #143  — A1 Unit 18 Routine — Spanish source-language translation
+4. /task #144  — A1 Unit 19 Work — Spanish source-language translation
+5. /task #145  — A1 Unit 20 Clothes — Spanish source-language translation
 
-## STATUS BOARD RULE — MANDATORY: After every completed /task, print before starting the next:
+STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
+the next one, print your current status board in this exact format:
 
 Derek — W1D
-[ ] #081 — useStudySession.test.ts
-[→] #082 — useLicenseActivation.test.ts
+[✓] #141 — Unit 16 Shopping    ← done
+[→] #142 — Unit 17 Weather     ← starting now
+[ ] #143 — Unit 18 Routine
+[ ] #144 — Unit 19 Work
+[ ] #145 — Unit 20 Clothes
 
-(adjust ✓/→/[ ] as you go)
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-hooks/useStudySession.test.ts      ← create (does not exist)
-hooks/useLicenseActivation.test.ts ← create (does not exist)
+content/cards/a1-unit-16-shopping.ts
+content/cards/a1-unit-17-weather.ts
+content/cards/a1-unit-18-routine.ts
+content/cards/a1-unit-19-work.ts
+content/cards/a1-unit-20-clothes.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-hooks/useStudySession.ts           ← read it for understanding; DO NOT modify it
-hooks/useLicenseActivation.ts      ← read it for understanding; DO NOT modify it
-CLAUDE.md, STATUS.md, BRAND.md     ← Barry W1B
-CONTRIBUTING_LANGUAGE.md           ← Charles W1C
-All other files in lib/, store/, components/, scripts/, app/  ← Adam W1A
+content/cards/a1-unit-01-greetings.ts
+content/cards/a1-unit-02-bar.ts
+content/cards/a1-unit-03-family.ts
+content/cards/a1-unit-04-city.ts
+content/cards/a1-unit-05-time.ts
+content/cards/a1-unit-06-describing.ts
+content/cards/a1-unit-07-likes.ts
+content/cards/a1-unit-08-review.ts
+content/cards/a1-unit-09-colors.ts
+content/cards/a1-unit-10-body.ts
+content/cards/a1-unit-11-food.ts
+content/cards/a1-unit-12-emotions.ts
+content/cards/a1-unit-13-household.ts
+content/cards/a1-unit-14-animals.ts
+content/cards/a1-unit-15-numbers.ts
 
 ## Task Definitions
-See .autocode/stream-W1D/tasks.md for full verbatim task blocks.
+
+### Task #141 — Shopping Spanish translation
+**What:** Open `content/cards/a1-unit-16-shopping.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
+Key vocab: negozio→tienda; supermercato→supermercado; mercato→mercado; farmacia→farmacia; panetteria→panadería; libreria→librería; commesso/a→dependiente/a; cliente→cliente; cassa→caja; comprare→comprar; vendere→vender; cercare→buscar; pagare→pagar; scegliere→elegir; provare→probar; dov'è la cassa→dónde está la caja; c'è→hay; quanto costa→cuánto cuesta; vorrei→quisiera; in saldo→en oferta/rebaja; carta di credito→tarjeta de crédito; contanti→efectivo; scontrino→recibo/ticket; taglia→talla; misura→medida; grande/piccolo→grande/pequeño.
+**File:** `content/cards/a1-unit-16-shopping.ts`
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-16-shopping.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+
+### Task #142 — Weather Spanish translation
+**What:** Open `content/cards/a1-unit-17-weather.ts`. Same pattern.
+Key vocab: sole→sol; pioggia→lluvia; neve→nieve; vento→viento; nebbia→niebla; temporale→tormenta; grandine→granizo; caldo→calor; freddo→frío; nuvoloso→nublado; soleggiato→soleado; piovoso→lluvioso; nevoso→nevado; ventoso→ventoso; fa caldo→hace calor; fa freddo→hace frío; c'è il sole→hay sol; piove→llueve; nevica→nieva; c'è nebbia→hay niebla; primavera→primavera; estate→verano; autunno→otoño; inverno→invierno; che tempo fa→qué tiempo hace; temperatura→temperatura; grado→grado; ombrello→paraguas; impermeabile→impermeable.
+**File:** `content/cards/a1-unit-17-weather.ts`
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-17-weather.ts` returns ≥ 60.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+
+### Task #143 — Routine Spanish translation
+**What:** Open `content/cards/a1-unit-18-routine.ts`. Same pattern.
+Key vocab: svegliarsi→despertarse; alzarsi→levantarse; lavarsi→lavarse; vestirsi→vestirse; fare colazione→desayunar; andare al lavoro→ir al trabajo/a la oficina; tornare a casa→volver a casa; cenare→cenar; addormentarsi→dormirse; di mattina→por la mañana; di pomeriggio→por la tarde; di sera→por la noche; presto→temprano; tardi→tarde; prima→primero; poi→luego/después; sempre→siempre; spesso→a menudo; mai→nunca; a volte→a veces; ogni giorno→cada día; di solito→normalmente; oggi→hoy; il lunedì→los lunes.
+**File:** `content/cards/a1-unit-18-routine.ts`
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-18-routine.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+
+### Task #144 — Work Spanish translation
+**What:** Open `content/cards/a1-unit-19-work.ts`. Same pattern.
+Key vocab: lavoro→trabajo; ufficio→oficina; medico→médico; infermiere/a→enfermero/a; insegnante→profesor/a; avvocato→abogado/a; architetto→arquitecto/a; cuoco/a→cocinero/a; cameriere/a→camarero/a; impiegato/a→empleado/a; giornalista→periodista; ingegnere→ingeniero/a; stilista→diseñador/a de moda; fotografo→fotógrafo; stipendio→salario/sueldo; riunione→reunión; collega→colega; capo→jefe/a; lavorare→trabajar; assumere→contratar; licenziare→despedir; fare il/la→ser/trabajar como; azienda→empresa; fabbrica→fábrica.
+**File:** `content/cards/a1-unit-19-work.ts`
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-19-work.ts` returns ≥ 50.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
+
+### Task #145 — Clothes Spanish translation
+**What:** Open `content/cards/a1-unit-20-clothes.ts`. Same pattern.
+Key vocab: camicia→camisa; pantaloni→pantalones; gonna→falda; vestito→vestido/traje; giacca→chaqueta/saco; cappotto→abrigo; maglione→suéter/jersey; scarpe→zapatos; stivali→botas; calzini→calcetines; sciarpa→bufanda; guanti→guantes; borsa→bolso; zaino→mochila; lungo/a→largo/a; stretto/a→estrecho/a; largo/a→ancho/a; elegante→elegante; comodo/a→cómodo/a; portare/indossare→llevar/usar; mettere→ponerse; togliere→quitarse; che taglia porti→qué talla usas; come mi sta→cómo me queda; in saldo→en oferta; di moda→de moda; fuori moda→pasado de moda.
+**File:** `content/cards/a1-unit-20-clothes.ts`
+**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-20-clothes.ts` returns ≥ 55.
+**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Owner:** Architecture Agent
 
 ## Agent Memories
 
-### QA Agent Memory (full relevant context)
-**Test framework:** Vitest 4 with vi.mock, vi.fn, vi.spyOn. Config in vitest.config.ts.
-**Test locations for hooks:** co-located .test.ts files inside hooks/ — required by Rule 14.
-**Current state:** hooks/useStudySession.ts has ZERO tests (sev:7). hooks/useLicenseActivation.ts has ZERO tests (sev:6).
+### Architecture Agent Memory — content/types.ts Card schema
 
-**For #081 — useStudySession.ts:**
-- This hook manages study sessions: queue building, card display, answer rating, session commit.
-- Reads from useSRSStore (getDueCards, getNewCards, activeSession, rateCardAndSaveSession).
-- Calls buildQueue from lib/queue.ts.
-- Tracks wasClose state (bool), currentCard, position.
-- Session commit: calls rateCardAndSaveSession with { unitId, queueIds, position, sessionCorrect, sessionTotal, startedAt }.
-- Pattern: vi.mock("@/lib/queue") for buildQueue; vi.mock("@/store/srsStore") for store actions.
-- The seam test tests/seam_studyLoop.test.ts already covers the real buildQueue→rateCard pipeline.
-  Your tests are UNIT tests: mock the store and queue, verify hook state transitions.
-- Assert BEHAVIORAL outcomes (state values, function call counts), not implementation details.
-- Anti-pattern to avoid: expect(result.current.currentCard).toBeDefined() — this is pseudocode.
-  Correct pattern: expect(result.current.currentCard?.id).toBe(expectedCard.id)
+The schema for source-language translation (from content/types.ts):
+```typescript
+export interface Card {
+  id: string;
+  type: CardType;  // "recognize" | "produce" | "conjugate" | "fill_blank" | "passage_cloze"
+  prompt: string;
+  accepted: string[];
+  translations?: Record<string, string[]>;  // recognize cards only — e.g. { "es": ["rojo"] }
+  prompts?: Record<string, string>;         // produce cards only — e.g. { "es": "rojo" }
+  hint?: string;
+  tags: string[];
+  tier: Tier;
+  prerequisites?: string[];
+  deprecated?: boolean;
+}
+```
 
-**For #082 — useLicenseActivation.ts:**
-- This hook manages three async flows: activate, validate, deactivate.
-- Calls activateLicense, validateLicense, deactivateLicense from lib/entitlement.ts (Tauri IPC).
-- Updates licenseStatus state: { type: "idle" | "loading" | "success" | "error", message?: string }.
-- Updates useEntitlementStore on success (licenseType, unlockedPacks, validUntil).
-- Pattern: vi.mock("@/lib/entitlement") — mock all three IPC functions.
-  Verify store mutations via useEntitlementStore.getState() after each handler.
-- The hook uses try/catch internally (Batch 3 added this). Your tests should verify the state
-  transitions produced by the try/catch, not mock the catch itself.
-- Anti-pattern: asserting licenseStatus.type without asserting the specific value.
-
-**Recurring test quality failures to avoid:**
-- Vacuous assertions (toBeTruthy, toBeDefined on non-trivial values).
-- Testing that a mock was called without asserting what it was called with.
-- Tests that would pass even if the hook returned the wrong state.
-
-**Coverage baseline (2026-06-27):** ~515 it() calls, stmts=83.49% (stale — likely higher). Thresholds in vitest.config.ts. Your new tests must not break existing thresholds.
+**Rules:**
+- `produce` cards: add `prompts: { es: "..." }` — Spanish translation of the English `prompt`
+- `recognize` cards: add `translations: { es: ["..."] }` — Spanish translation(s) of the `accepted` array
+- `conjugate`, `fill_blank`, `passage_cloze`: skip — prompts are already in Italian
+- Never modify existing fields — additive only
 
 ## When You Finish
 Write your completion summary to .autocode/stream-W1D/completion.md:
-  Tasks closed: [list]
-  Tasks NOT completed: [list + done-when condition that failed]
+  Tasks closed: [list task numbers that reached COMPLETE status]
+  Tasks NOT completed: [list task number + done-when condition that failed]
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
 
 Then tell Max in this window: "Derek is done."
 
-— Derek | W1D | #081 #082
+— Derek | W1D | #141 #142 #143 #144 #145
