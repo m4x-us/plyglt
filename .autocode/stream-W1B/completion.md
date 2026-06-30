@@ -2,6 +2,118 @@
 
 ---
 
+## Wave 1 — 2026-06-30 (#131 #132 #133 #134 #135) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-06-30**
+
+### Tasks closed
+- **#131** — A1 Unit 06 Describing — Spanish source-language translations — COMPLETE (107 `es:` fields)
+- **#132** — A1 Unit 07 Likes — Spanish source-language translations — COMPLETE (111 `es:` fields)
+- **#133** — A1 Unit 08 Review — Spanish source-language translations — COMPLETE (93 `es:` fields)
+- **#134** — A1 Unit 09 Colors — Spanish source-language translations — COMPLETE (90 `es:` fields)
+- **#135** — A1 Unit 10 Body — Spanish source-language translations — COMPLETE (91 `es:` fields)
+
+### What was built
+
+Added Spanish source-language translations to 5 A1 content card files. For every `produce` card: `prompts: { es: "..." }` added after `accepted:`. For every `recognize` card: `translations: { es: ["..."] }` added after `accepted:`. All `fill_blank`, `conjugate`, and `passage_cloze` cards skipped per schema rule.
+
+All files fully rewritten with complete card sets — no cards removed, structure preserved.
+
+### Done-when verification
+- `grep -c ' es: ' content/cards/a1-unit-06-describing.ts` → 107 ≥ 55 ✓
+- `grep -c ' es: ' content/cards/a1-unit-07-likes.ts` → 111 ≥ 55 ✓
+- `grep -c ' es: ' content/cards/a1-unit-08-review.ts` → 93 ≥ 55 ✓
+- `grep -c ' es: ' content/cards/a1-unit-09-colors.ts` → 90 ≥ 55 ✓
+- `grep -c ' es: ' content/cards/a1-unit-10-body.ts` → 91 ≥ 50 ✓
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+## Wave 1 — 2026-06-30 (#113 #114) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-06-30**
+**Tests added: 5 | Total suite: 849/849 passing**
+
+### Tasks closed
+- **#113** — Create `app/learn/page.test.tsx` (≥2 behavioral tests) — COMPLETE
+- **#114** — Create `app/stats/page.test.tsx` (≥2 behavioral tests) — COMPLETE
+
+### What was built
+
+#### #113 — `app/learn/page.test.tsx` (3 tests)
+- Mocked: `next/navigation`, `@/lib/tauri`, `@/lib/storage`, `@/store/srsStore`, `@/hooks/useLangPack`, `@/components/LevelSection`
+- LevelSection stubbed to expose `data-unlocked` attribute for lock-state assertions
+- Test 1: renders stats strip labels ("cards ready", "day streak 🔥") from pack data
+- Test 2: renders a LevelSection for each level that has units (A1, A2)
+- Test 3: A1 passes `unlocked=true`, A2 passes `unlocked=false` when A1 mastery < MASTERY_GATE (80)
+- Done-when: file exists, ≥2 behavioral tests, npm test passes ✓
+
+#### #114 — `app/stats/page.test.tsx` (2 tests)
+- Mocked: `@/hooks/useStatsData`, `@/components/DifficultyBar`, `next/link`
+- Test 1: empty state renders "Start studying to see your stats here." when seen=0
+- Test 2: at-risk cards show "last seen Nd ago" — regression guard counting that every `\d+d ago` occurrence is preceded by "last seen" (Task #088 BRAND fix)
+- Done-when: file exists, ≥2 behavioral tests including "last seen" copy assertion, npm test passes ✓
+
+### Verification gate
+- `npx tsc --noEmit`: PASS (0 errors)
+- `npm test`: 849/849 passing (all test files)
+- `npm run lint`: 0 errors (1 pre-existing warning in off-limits `hooks/useExportImport.test.ts`)
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+## Wave 1 — 2026-06-29 (#087 #088 #089) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-06-29**
+**Tests added: 6 | Total suite: 787 passing (pre-existing TDD failure in off-limits seam_studyLoop.test.ts)**
+
+### Tasks closed
+- **#087** — Extract BuyModal + language-selector from app/page.tsx — COMPLETE
+- **#088** — Fix BRAND violations: learn "cards due", stats "Nd ago" — COMPLETE
+- **#089** — Harden activateLicense + validateLicense (sanitize raw LS errors) — COMPLETE
+
+### What was built
+
+#### #087 — `components/BuyModal.tsx` + `components/LanguageGrid.tsx` + `components/BuyModal.test.tsx`
+- `BuyModal` extracted from `app/page.tsx` into `components/BuyModal.tsx` — includes `PricingRow` internally
+- Added `onActivate: (url: string) => void` prop to `BuyModal` so callers own the URL-opening side-effect (testable without Tauri mock)
+- `LanguageGrid` extracted to `components/LanguageGrid.tsx` — pure target-language selection, props: `onSelect`, `onUpgradeClick`, `isPackUnlocked`
+- `components/BuyModal.test.tsx` — 4 tests written first (SCTS TDD): renders pricing rows, fires onClose, fires onActivate with checkout URL, no "lifetime" text
+- `app/page.tsx`: 253 → 107 lines ✓
+- Done-when: `wc -l app/page.tsx` = 107, `BuyModal.tsx` exists, `grep BuyModal app/page.tsx` shows import not definition
+
+#### #088 — BRAND terminology fixes
+- `app/learn/page.tsx:87` "cards due" → "cards ready"
+- `app/learn/page.tsx:97` "due cards" → "ready cards"
+- `app/stats/page.tsx:57` `{N}d ago` → `last seen {N}d ago`
+- Done-when: both grep conditions return zero hits ✓
+
+#### #089 — `lib/entitlement.ts` hardening
+- `activateLicense` line 155: `res.error ?? ERR_ACTIVATION_FAILED` → `ERR_ACTIVATION_FAILED` (raw LS errors no longer reach caller)
+- `validateLicense` line 196: `res.error ?? ERR_VALIDATE_INACTIVE` → `ERR_VALIDATE_INACTIVE` (same pattern)
+- Two hardening tests written first in `tests/entitlement.test.ts` (SCTS TDD)
+- Existing tests that asserted passthrough behavior updated to expect constants instead
+- Done-when: `grep -n "res\.error" lib/entitlement.ts` — no passthrough on return paths ✓
+
+### Verification gate
+- `npx tsc --noEmit`: PASS (0 errors)
+- `npm test`: 787 pass; 1 pre-existing intentional failure in off-limits `tests/seam_studyLoop.test.ts` ("TDD — fails until Task #085")
+- `npm run lint`: 0 errors (9 pre-existing warnings in off-limits `hooks/useExportImport.test.ts` + `hooks/useStudySession.ts`)
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+---
+
 ## Wave 1 — 2026-06-27 (#031 #032 #079)
 
 **Status: COMPLETE**

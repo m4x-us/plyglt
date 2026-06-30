@@ -1,40 +1,38 @@
 # Stream W1D — Completion Summary
-**Completed:** 2026-06-27
-**Tasks:** #029 COMPLETE (prior wave), #081 COMPLETE, #082 COMPLETE
+**Completed:** 2026-06-30
 
 ## Tasks Closed
-- **#029** — Add feature flag system (Rule 4) ← COMPLETE (prior wave)
-  - Created `lib/featureFlags.ts` — `FeatureFlags` interface + `getFeatureFlags()` reading NEXT_PUBLIC_FLAGS_* env vars; default true (feature on)
-  - Created `tests/featureFlags.test.ts` — 7 tests (3 required + 4 additional covering all three flags)
-  - Updated `next.config.ts` — comment block documenting the 3 flag env vars
-  - Updated `components/InterruptHandler.tsx` — wrapper pattern: exported `InterruptHandler` reads flag, returns null or `<InterruptHandlerCore />`; inner `InterruptHandlerCore` holds all hooks (avoids rules-of-hooks lint error)
 
-- **#081** — Tests: hooks/useStudySession.ts ← COMPLETE
-  - Created `hooks/useStudySession.test.ts` — 6 behavioral tests covering:
-    - Happy path: queue initialized from initialQueue, pos 0, resumeDecision null
-    - Resume pending: resumeDecision set to "pending" when matching saved session exists
-    - Resume accepted: saved position/counters loaded on setResumeDecision("accepted")
-    - Correct answer (grade "good"): pos advances, sessionCorrect increments, commitSession called with correct args
-    - Wrong answer (grade "again"): card re-inserted, sessionCorrect stays 0, queue length increases
-    - Final card: commitSession called with unitId, sessionTotal ≥ 1, queueIds containing rated card
+- **#141** — A1 Unit 16 Shopping — Spanish source-language translation ← COMPLETE
+  - 95 `prompts:`/`translations:` entries added (threshold ≥55) — produce cards got `prompts: { es: "..." }`, recognize cards got `translations: { es: ["..."] }`
+  - Written in prior wave session; verified present at session start
 
-- **#082** — Tests: hooks/useLicenseActivation.ts ← COMPLETE
-  - Created `hooks/useLicenseActivation.test.ts` — 4 behavioral tests covering:
-    - handleActivate ok path: licenseStatus → "success", setEntitlement called with correct fields
-    - handleActivate error path: licenseStatus → "error" with server message, setEntitlement not called
-    - handleValidate valid: licenseStatus → "success", markValidated called with validUntil
-    - handleDeactivate ok: clearEntitlement called, licenseStatus → "idle"
+- **#142** — A1 Unit 17 Weather — Spanish source-language translation ← COMPLETE
+  - 106 entries added (threshold ≥60)
+  - All 37 Tier-1 produce + 37 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
+
+- **#143** — A1 Unit 18 Routine — Spanish source-language translation ← COMPLETE
+  - 92 entries added (threshold ≥55)
+  - All 32 Tier-1 produce + 32 Tier-1 recognize covered; plus Tier-3/4 produce cards
+
+- **#144** — A1 Unit 19 Work — Spanish source-language translation ← COMPLETE
+  - 97 entries added (threshold ≥50)
+  - All 30 Tier-1 produce + 30 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
+
+- **#145** — A1 Unit 20 Clothes — Spanish source-language translation ← COMPLETE
+  - 102 entries added (threshold ≥55)
+  - All 32 Tier-1 produce + 32 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
 
 ## Verification Gate
-- tsc --noEmit: PASS (0 errors)
-- npm test: 717 passed (34 test files) — up from ~515 prior to this wave
-- npm run lint: PASS (0 errors, warnings only in pre-existing files)
+- `npx tsc --noEmit`: PASS (0 errors)
+- `npm test`: 856 passed (49 test files)
+- `npm run lint`: PASS (0 errors, 1 pre-existing warning in useExportImport.test.ts)
 
 ## Tasks NOT Completed
 None.
 
 ## Debt Entries Logged
-0 (the sev-4 `validateLicense .then().catch()` debt from prior wave remains in debt.md — not cleared here)
+0
 
 ## Carry-Forward Tasks Generated
 0

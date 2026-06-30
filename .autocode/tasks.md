@@ -2746,6 +2746,7 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 **Done when:** `npx tsx scripts/validatePack.ts public/packs/it.json` exits 0; `grep -c '"es"' public/packs/it.json` returns ≥ 1000.
 **Complexity:** ⚡ Direct — 2 files, single-scope change, runs two deterministic scripts
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
 
 ---
 

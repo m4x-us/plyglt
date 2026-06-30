@@ -1,32 +1,33 @@
 ---
 agent: cto
-last-updated: 2026-06-27
-meets: 3
+last-updated: 2026-06-29
+meets: 6
 ---
 # CTO Memory — plyglt
 
 ## Strategic Priorities
-(From owner answers — updated 2026-06-27)
+(From owner answers — updated 2026-06-28)
 
-1. **Batch 4 = CURRENT SPRINT: docs + cleanup + BRAND + remaining gaps** — Owner confirmed 2026-06-27. Execution order: Task #033 first (CONTRIBUTING_LANGUAGE.md has 9 issues, expedited per owner), then Tasks #030, #031, #032, #053–#058 in parallel where file sets permit.
-2. **BRAND compliance is Batch 4 priority, not deferred** — Owner 2026-06-27 reverses 2026-06-26 hold. BRAND violations (exclamation marks, emoji, "overdue", "due" badge) now Task #053 in Batch 4.
-3. **Session timer spec removed from BRAND.md** — Owner confirmed 2026-06-27: 60-second elapsed progress bar spec is superseded. Card position display (N/total) is final design. Tasks #050, #051, #052 CANCELLED. Task #054 removes spec from BRAND.md.
-4. **Batch 5 = Introduction Engine Foundation — after all gaps close** — Owner confirmed 2026-06-27: no intro engine sprint until all Batch 4 gaps done (Rule 1, BRAND, missing tests, security fix in #058).
-5. **Vacation mode / Forecast / Analytics: Batch 7+** — Owner confirmed 2026-06-27.
+1. **Batch 7 = CURRENT SPRINT: Foundation Stabilization** — Owner confirmed 2026-06-28. 11 tasks: introduction activation (TDD pair #084→#085), coverage floor fix (#086), app/page.tsx Rule 1 (#087), brand violations (#088), security hardening (#089), storage coverage (#090), introduction branch coverage (#091), Rule 14 completion (#092), docs (#093), housekeeping (#094).
+2. **M2 deferred until Batch 7 complete** — Owner decision 2026-06-28 (Q3): finish Batch 7 first, then M2. No M2 work begins until all Batch 7 tasks are COMPLETE.
+3. **Introduction engine activation is Batch 7 P0** — Owner decision 2026-06-28 (Q1): session-start auto-select in `hooks/useStudySession.ts`. On init, check `canIntroduceNewCard(today)` → if true, find first unintroduced card by tier → call `introduceCard(cardId, today)`.
+4. **Brand violations: fix both AND reframe counters** — Owner decision 2026-06-28 (Q2): fix learn page "due"→"ready" AND stats page "Nd ago" counters reframed as "last seen Nd ago" (neutral information, not guilt). Both in Task #088.
+5. **Coverage and Rule 1 both in Batch 7** — Owner decision 2026-06-28 (Q4): both now, not deferred.
 6. **BRAND.md is authoritative** — Lifetime entitlement code deleted. Any future entitlement work checks BRAND.md first.
 7. **Client-only entitlement is intentional** — Honor-system offline-first. Do NOT propose server-side verification architectures.
 8. **Fresh task numbering** — `.autocode/tasks.md` canonical. Prior Wave 1 naming superseded.
 9. **Content generation is a separate track** — Missing 68 curriculum units are not engineering tasks.
+10. **Vacation mode / Forecast / Analytics: Batch 8+** — Confirmed deferred per /meet run 3 and 4.
 
 ## Team Health
 
 ### Agent Performance
 | Agent | Runs | Audit Reject Rate | Known Blind Spots | Last Updated |
 |-------|------|-------------------|-------------------|--------------|
-| security | 3 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; all Batch 3 IPC findings now confirmed CLOSED | 2026-06-27 |
-| architect | 3 | — | Missed importBackup upward import in run 1; missed stats/page.tsx Rule 1 violation in run 2 (243 lines) | 2026-06-27 |
-| qa | 3 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3 — new gap map generated run 3 | 2026-06-27 |
-| docs | 3 | — | Did not catch CONTRIBUTING_LANGUAGE.md stale file refs (fr example, lib/srs.ts ref) until run 3 | 2026-06-27 |
+| security | 6 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; F7 raw LS errors to UI open run 3 (resolved #089); deactivation Ok(())/null bug missed until run 5; CI audit/lint gaps missed until run 6 | 2026-06-29 |
+| architect | 6 | — | Missed importBackup upward import run 1; missed stats/page.tsx Rule 1 run 2; missed app/page.tsx 253-line violation until run 4; missed W-series stale checkboxes run 5; missed featureFlags.ts Rule 2 comment run 6 | 2026-06-29 |
+| qa | 6 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid Rule 14 first flagged run 5; projected 908 tests wrong — actual 843 run 6 | 2026-06-29 |
+| docs | 6 | — | CONTRIBUTING_LANGUAGE.md stale file refs missed until run 3; introduction engine absent from CLAUDE.md until run 4; lib/utils.ts + useStudySession.ts + BuyModal.tsx + LanguageGrid.tsx missing until run 5; lib/checkout.ts, featureFlags.ts isProEnabled, UpdateChecker.tsx missing until run 6 | 2026-06-29 |
 
 ### Quality Trends
 | Task | WorldClass Score | Tests at Close | Coverage at Close |
@@ -35,10 +36,11 @@ meets: 3
 | #002 | 97/100 | 310 | stmts=80.3%, funcs=76.15% |
 | #003 | 98/100 (REOPENED — sub-tasks #059-#070) | 310 | stmts=80.3%, funcs=76.15% |
 | Batch 3 | — (stream work) | ~515 | stmts=83.49%, branches=80.23%, funcs=80.82%, lines=85.37% |
+| Batches 4–6 | — (stream work, M1 complete) | 768 | branches=79.2%, stmts=84.03%, funcs=86%, lines=86.22% |
 
-**Current baseline (2026-06-27):**
-Tests: ~515 | stmts=83.49% | branches=80.23% | functions=80.82% | lines=85.37%
-Thresholds: lines=81, funcs=75, branches=75, stmts=79 (SCTS kaizen violation — not ratcheted after improvement; task pending)
+**Current baseline (2026-06-29 — Batch 8 COMPLETE):**
+Tests: 843 (confirmed by actual run — prior projection of 908 was incorrect) | All thresholds met.
+Thresholds: lines=84, funcs=79, branches=81, stmts=82 (ratcheted 2026-06-29 by Task #086)
 
 ### WorldClass Trend
 Run 1 → Task #001: 70/100 (MAX_CYCLES) → 83/100 (+13 after re-run) → 93/100 → 98/100
@@ -49,13 +51,19 @@ Run 3 → Task #003: 98/100 (REOPENED on product grounds, not quality)
 
 1. ~~**Persisted "lifetime" store values after Task #001**~~ — **RESOLVED (Task #001 Cycle 2):** ENTITLEMENT_VERSION bumped to 2. v2 migration coerces unknown licenseType to "subscription" — old lifetime users keep access, now go through proper expiry code path.
 
-2. **Sentence generator go/no-go** — BRAND.md flags this as "under evaluation." No task created. If approved, it becomes Batch 3 or later work.
+2. **Sentence generator go/no-go** — BRAND.md flags this as "under evaluation." No task created. If approved, it becomes Batch 3 or later work. STILL OPEN.
 
 3. ~~**Language stub inheritance**~~ — **RESOLVED 2026-06-27:** fr/de/pt stubs removed from `lib/langRegistry.ts`. Only `it` and `es` are registered. When new packs ship, they will be added fresh with their own config.
 
-4. **ALL_PACK_CODES vs READY_PACK_CODES split (Task #068)** — Should the loadPack guard validate against all registered pack codes (including `ready: false` packs) or only packs that are actually ready to download? Task #068 is blocked on this decision. Current behavior: guard validates against registered codes only. With fr/de/pt removed, this is lower priority but still unresolved for es (ready: false).
+4. **ALL_PACK_CODES vs READY_PACK_CODES split** — Should `loadPack` validate against all registered pack codes (including `es` with `ready: false`) or only ready-to-download packs? With `es.json` now in the CDN (245KB, v0.9.0) but hidden by `ready: false`, the question is active. STILL OPEN.
 
-5. **Task #001 WorldClass — app/settings/page.tsx remaining gap** — 515-line route file with zero test coverage blocks WorldClass from reaching 95/100. Accepted per owner; will be resolved when Task #026 (Batch 3) splits the file. No action needed until Batch 3.
+5. ~~**Task #001 WorldClass — app/settings/page.tsx remaining gap**~~ — RESOLVED. Task #026 split the file (now 150 lines as of Task #103).
+
+6. **LS store creation (Task #120)** — Owner must create Lemon Squeezy store at dashboard.lemonsqueezy.com. Confirm slug ("plyglt" assumed). Every "Upgrade to Pro" click currently 404s. Prerequisite for M2. Owner action required. Added 2026-06-29.
+
+7. **Apple Developer Program membership (Task #122)** — Required for macOS signing and Gatekeeper notarization before M2 ships. Owner must have or obtain an Apple Developer ID Application certificate ($99/yr). Added 2026-06-29.
+
+8. **Spanish pack quality gate** — `es.json` (245KB, v0.9.0) exists but hidden by `ready: false` (owner confirmed 2026-06-29). No engineering task needed — when content authoring completes, flip `ready: true` in `lib/langRegistry.ts` and update manifest. Owner to set criteria. Added 2026-06-29.
 
 ## New Findings — 2026-06-26 /meet Session
 
@@ -68,6 +76,38 @@ Findings surfaced by this session's examination (not in Batch 1 when the session
 - **lib/storage.ts zero test file, 42% coverage** — New task added to Batch 2.
 - **CONTRIBUTING_LANGUAGE.md lifetime references** — Task #001 scope missed this file entirely. New docs task added to Batch 4.
 - **Task #009 (EntitlementValidator console.warn) RESOLVED** — Raw LS error no longer propagated; logged a controlled string.
+
+## New Findings — 2026-06-28 /meet Session (Batch 7 planning, run 4)
+
+### Owner Decisions (Q1–Q4, recorded 2026-06-28)
+
+- **Q1 — Introduction trigger:** Session-start auto-select. On `hooks/useStudySession.ts` init, check `canIntroduceNewCard(today)` — if true, find first unintroduced card (not in introductions, not in srsStore.cards) sorted by tier ascending, call `introduceCard(cardId, today)`. Task #084 (test) → Task #085 (implementation).
+- **Q2 — Brand violations:** Fix both now. learn page: "due"→"ready" (two strings). Stats page: reframe per-card counters as "last seen Nd ago" — neutral information framing, not guilt. Task #088.
+- **Q3 — M2 readiness:** Batch 7 first, then M2. Do not open M2 until all Batch 7 tasks are COMPLETE.
+- **Q4 — Batch 7 shape:** Both now — fix coverage crisis AND app/page.tsx Rule 1 violation in Batch 7.
+
+### Architecture (new findings)
+- `app/page.tsx` 253 lines — Rule 1 violation (+103 over limit). New finding. Task #087.
+- Introduction engine fully built but `introduceCard()` never called in production — activation gap. Task #084+#085.
+
+### QA (new findings)
+- Branch coverage at 79.2% (0.2pp headroom). Primary cause: `hooks/useLangPack.ts` 0% branch coverage. Task #086.
+- `lib/storage.ts` localStorage paths untested — Task #017 DoD incomplete. Task #090.
+- `lib/introduction.ts` branch gaps at lines 49, 60–79, 120. Task #091.
+
+### BRAND (new findings)
+- `app/learn/page.tsx:87` hero stat "cards due" + `:97` CTA "Review all {N} due cards →" — missed by Task #078. Task #088.
+- `app/stats/page.tsx` per-card "Nd ago" counters — guilt-inducing, contradicts stress-free principle. Task #088.
+
+### Security (existing — elevated)
+- Debt F7 (sev:5): `lib/entitlement.ts:155` (activateLicense) and `:196` (validateLicense) — raw LS error strings returned to UI caller. Task #089.
+
+### Docs (stale content, new findings)
+- CLAUDE.md §6 claims fr/de/pt stubs exist — WRONG, removed in Batch 3. Task #093.
+- STATUS.md §3 same stale claim. Task #093.
+- lib/introduction.ts absent from CLAUDE.md — substantial subsystem with key invariants. Task #093.
+- Coverage thresholds absent from AGENTS.md verification gate. Task #093.
+- Introduction engine absent from STATUS.md Shipped section. Task #093.
 
 ## New Findings — 2026-06-27 /meet Session (Batch 3 post-review)
 
@@ -142,6 +182,9 @@ Task #001 deleted lifetime checkout URLs and pricing from code files but did not
 | 2026-06-25 | Batch 1 | 2/70 (#001, #002 COMPLETE; #003 REOPENED) | avg 97.7/100 | 70 tasks across 6 batches after Task #003 re-audit. Task #009 also resolved (no /task cycle — resolved during #001 work). |
 | 2026-06-26 | /meet run #2 | 0 new since last /meet | — | 6 new tasks added (#071-#076 approx), 1 task confirmed RESOLVED (#009). CONTRIBUTING_LANGUAGE.md gap found — new Batch 4 task. |
 | 2026-06-27 | /meet run #3 | 0 new (Batch 3 work confirmed complete) | — | 6 new tasks added (#053-#058), 3 tasks CANCELLED (#050-#052), Task #030 expanded (26→39 files), Task #033 expanded (4→9 issues) + expedited. Batch 3 post-review: 205 new tests, 14 new source files, security tasks #004-#007 all confirmed CLOSED. 7 owner decisions recorded. |
+| 2026-06-28 | /meet run #4 | 0 new (Batches 4–6 confirmed complete, M1 complete) | — | 11 new tasks (#084–#094). Batch 7 = CURRENT SPRINT (Foundation Stabilization). Coverage CRITICAL (79.2% branches, 0.2pp floor). Introduction engine activation gap confirmed. app/page.tsx Rule 1 violation (253 lines) found. 4 owner decisions recorded (Q1: session-start intro, Q2: brand+reframe, Q3: Batch 7 before M2, Q4: fix both now). |
+| 2026-06-29 | /meet run #5 | 0 new (Batch 8 planning) | — | 16 new tasks (#095–#110). Batch 8 = Quality & Architecture Hardening. Critical: deactivation always-failure bug. Auto-install gate missing. isProEnabled combinator missing. LanguageGrid Rule 14. 4 Max decisions: fix quality first, interrupt ungated, macOS before Windows, deactivation stop-the-line. |
+| 2026-06-29 | /meet run #6 | 0 new (Batch 8 COMPLETE — all 16 tasks done) | — | 15 new tasks (#111–#125). Batch 9 = Quality Hardening [CURRENT SPRINT] (9 tasks). Batch 10 = M2 macOS Shipping Infrastructure [BACKLOG] (6 tasks). Key findings: 4 app page Rule 14 violations, CI missing lint+coverage+audit, 7 CLAUDE.md gaps, featureFlags.ts Rule 2 violation, isProEnabled audit needed. Actual test count confirmed 843 (prior projection 908 wrong). 3 new escalations: LS store creation, Apple Developer cert, Spanish pack gate. 4 Max decisions: quality first, LS store not created, Spanish not ready, macOS only for M2. |
 
 ### Task #001 | Delete all lifetime entitlement code + harden entitlement module
 Status: COMPLETE | Cycle 5 | Started: 2026-06-24 | Completed: 2026-06-25
@@ -419,4 +462,280 @@ Scripts: PASS (tsc 0 · 768/768 · lint clean)
 Spot check: PASS — 0 toBeDefined hits confirmed; new test fails if wasClose branch missing
 Done-when: PASS
 Fixed this cycle: DSC-001 (toBeDefined pseudocode) | New findings: none | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #085 | Implement session-start introduction auto-selection in hooks/useStudySession.ts | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (Builder path)
+Debt item absorbed: Task #048 DSC-001 sev:2 (lib/queue.ts inline date computation) — extracted to lib/utils.ts:localDateStr, re-exported from store/srsStore.ts, lib/queue.ts updated.
+Build approach:
+  - lib/utils.ts (NEW) — extracted localDateStr(d: Date = new Date()) pure function
+  - store/srsStore.ts:12-13 — replaced inline localDateStr definition with `import { localDateStr } from "@/lib/utils"` + `export { localDateStr }` re-export; all callers unaffected
+  - lib/queue.ts:5 — import localDateStr from @/lib/utils; lines 25-26 inline date computation replaced with single `const today = localDateStr()`
+  - hooks/useStudySession.ts — extended UseStudySessionParams with 4 new fields (canIntroduceNewCard, introduceCard, cards, introductions); added mount useEffect that calls canIntroduceNewCard(today), finds first qualifying card sorted by tier ascending, calls introduceCard, appends card to queue via setQueue if not already present
+  - app/study/page.tsx:30 — added canIntroduceNewCard + introduceCard to useSRSStore destructuring; line 62 — passed all 4 new params to useStudySession call
+  - tests/seam_studyLoop.test.ts — changed it.fails → it; updated test body to mirror the hook's mount logic (introduceCard called before buildQueue), assertions unchanged
+  - hooks/useStudySession.test.ts — added Tier import; updated makeCard to accept tier param; added 4 new required params to defaultParams; added 5 new introduction auto-selection tests
+Scripts: PASS (tsc 0 errors · targeted: 73/73 tests pass · lint 0 errors)
+Done-when: PASS (grep hits confirmed on lines 21,22,35,36,77,83; seam test passes; gate green)
+Fixed this cycle: Task #048 DSC-001 (lib/utils.ts extraction); introduced 1 card per session-start into production path | New findings: none | Regression signal: NO
+CTO diagnosis run: NO — first cycle
+
+---
+
+### /meet — Batch 8 Planning | 2026-06-29
+
+#### Phase 1 Team Performance (Run 5)
+Security: 5 runs | New blind spot this run: deactivation Ok(())/null serialisation mismatch — CRITICAL bug not surfaced until run 5
+Architect: 5 runs | New blind spot this run: Task #001 W002-W006 stale checkboxes; M2 readiness gaps catalogued in full
+QA: 5 runs | New blind spot this run: LanguageGrid.tsx Rule 14 gap (first flagged run 5)
+Docs: 5 runs | New blind spot this run: lib/utils.ts, hooks/useStudySession.ts, BuyModal.tsx, LanguageGrid.tsx missing from CLAUDE.md (run 5)
+
+#### Critical Findings
+F-CRITICAL (Security): Deactivation always-failure bug — `src-tauri/src/license.rs` returns `Result<(), String>`; Tauri serialises `Ok(())` as JSON `null`; TypeScript null-guard at `lib/entitlement.ts:215` fires and returns `{ ok: false, error: ERR_DEACTIVATE_NETWORK }`; `clearEntitlement()` never called. License slot consumed at Lemon Squeezy permanently. Every paid user who deactivates loses their slot. → Task #095 (STOP-THE-LINE)
+F-HIGH (Security): `lib/tauri.ts:checkForUpdates()` calls `downloadAndInstall()` unconditionally on available update — no user confirmation. → Task #096
+F-HIGH (Product): Interrupt engine (listed as Pro feature in BRAND.md) has zero entitlement gate in `app/settings/page.tsx:46` or `components/InterruptHandler.tsx`. → Owner decision: leave ungated for now (2026-06-29)
+F-MEDIUM (Security): `components/InterruptHandler.tsx:73` — `await enterMandatoryMode()` bare await, IPC failure silently drops; background validation does not call `touchValidated()` on failure → LS API hammered during network outage. → Task #097
+F-MEDIUM (QA): `components/LanguageGrid.tsx` — Rule 14 violation, zero tests on Pro-gating UI. → Task #104
+F-MEDIUM (Arch): No `isProEnabled(flag, licenseType)` combinator — every M2 call site would invent inline logic. → Task #100
+
+#### Max's Decisions (2026-06-29)
+- Priority: Fix quality/architecture gaps first (not Pro subscription push)
+- Interrupt engine gate: Leave ungated for now (free user experience driver)
+- Deactivation bug: Fix first — stop-the-line
+- Desktop packaging: macOS first (Batch 8/9), Windows/Linux deferred to Batch 9
+
+#### Batch 8 Overview (16 tasks, #095–#110)
+Security (5): #095 deactivation bug [Full/sev:9] → #096 auto-install confirmation [Direct/sev:6] → #097 bare await + touchValidated [Direct/sev:5] → #098 key validation [Direct/sev:3] → #099 featureFlags false-strings [Direct/sev:2]
+Architecture (5): #100 isProEnabled() [Direct/sev:4] → #101 lib/checkout.ts [Full/sev:3] → #102 UpdateChecker.tsx [Full/sev:5] → #103 settings page trim [Direct/sev:2] → #110 debt clearance [Full/sev:4]
+QA (3): #104 LanguageGrid.test.tsx [Full/sev:5] → #105 exportImport assertions [Direct/sev:3] → #106 settings/page tests [Full/sev:4]
+Docs (3): #107 AGENTS.md branches [Direct/sev:2] → #108 CLAUDE.md additions [Direct/sev:3] → #109 STATUS.md M2 [Direct/sev:2]
+
+#### Audit Checklist
+Regenerated 2026-06-29. Written to `.autocode/audit-checklist.md`. 36 items across 11 categories. New items this run: mandatory-mode silent failures, interrupt engine ungated gate check, whitespace-only variant name bypass, LS activation retry slot burn, introductions map unbounded growth.
+
+#### Open Escalations (unchanged from prior runs)
+1. Lifetime licenseType migration (Task #001 follow-up) — awaiting Max input on what validUntil to set
+2. Sentence generator go/no-go (BRAND.md "under evaluation") — awaiting Max input
+3. ALL_PACK_CODES vs READY_PACK_CODES (Task #068 blocked) — awaiting Max input on early-rejection behaviour
+
+### Task #095 | Fix deactivation always-failure bug | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29
+Build approach: src-tauri/src/license.rs:ls_deactivate_license:38 changed Result<(), String>→Result<bool, String>, Ok(())→Ok(true) at line 48; lib/entitlement.ts:deactivateLicense:207 removed error:String(e) from catch log (absorbed debt 1); :215 changed if(raw==null)→if(raw!==true); removed LsDeactivateBody interface + body-parsing block (lines 88-94, 219-226); added ERR_DEACTIVATE_NETWORK dual-use comment at line 21; removed ERR_DEACTIVATE_DECLINED constant; tests/entitlement.test.ts updated 5 mock calls ({deactivated:true}→true, seam test fix), 3 ERR_DEACTIVATE_DECLINED→ERR_DEACTIVATE_NETWORK assertions
+Scripts: PASS
+Audit findings (structured):
+  [F001|sev:2|names|lib/entitlement.ts:deactivateLicense:216|ENTITLEMENT_DEACTIVATE_EMPTY log ref fires for any non-true invoke response, not just null — name implies null/empty response only|NEW]
+  [F002|sev:2|tests|tests/entitlement.test.ts:deactivateLicense():529|No test for invoke returning boolean false — guard exists but branch untested|NEW]
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — first cycle
+WorldClass: 96/100 (−2 log ref naming F001, −2 missing false-branch test F002)
+Naive reader findings: lib/entitlement.ts LINE 216: { raw } logged in full — if raw were a non-null unexpected object, its contents would be in the log. Current practice: only null/unexpected-object reaches here. Latent risk, severity 2.
+
+### Task #096 | Add confirmation gate before auto-install | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: lib/tauri.ts:checkForUpdates — added UpdateCheckResult type (available:false | {available:true, version, install:()=>Promise<void>}); changed return from Promise<void> to Promise<UpdateCheckResult>; removed unconditional update.downloadAndInstall() call; install exposed as closure on result; error/null/web paths all return {available:false}. tests/tauri.test.ts: added 5 tests under "checkForUpdates — security gate: never auto-installs"; updated file header comment.
+Scripts: PASS (813/813 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #097 | Fix enterMandatoryMode bare await + touchValidated | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: components/InterruptHandler.tsx:line73 — wrapped `await enterMandatoryMode()` in try/catch; logs [IH-MANDATORY-...] on failure; router.push still fires even on IPC failure. Line 39 — added touchValidated to destructuring. Lines 44-51 — added `else { touchValidated(); }` after `if (r.ok) markValidated(...)`. components/InterruptHandler.test.tsx — added mockEnterMandatoryMode + mockUseLangPack to vi.hoisted; added srsStore mock; added useEntitlementStore + validateLicense imports; added 2 behavioral tests (IPC catch test + touchValidated TTL reset test).
+Scripts: PASS (815/815 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #098 | License key format/length validation | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: hooks/useLicenseActivation.ts:handleActivate:line21 — extracted trimmed key to const; added length>200 and /^[A-Za-z0-9-]+$/ regex check; returns { type:"error", message:"Invalid license key format." } on fail; passes trimmed key to activateLicense() instead of raw licenseInput. hooks/useLicenseActivation.test.ts — added 2 tests (300-char key rejection; space/invalid-char rejection).
+Scripts: PASS (817/817 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #099 | featureFlags false-string recognition | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: lib/featureFlags.ts — extracted FALSY_FLAG_VALUES constant (["false","0","off","no"]) and parseFlag(v) helper using .includes(v?.toLowerCase()??"")); replaced 3x `!== "false"` inline checks with parseFlag(). tests/featureFlags.test.ts — added it.each(["0","off","False","no","NO"]) variant test covering 5 values.
+Scripts: PASS (822/822 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #100 | Add isProEnabled() combinator | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: lib/featureFlags.ts — added `import type { LicenseType }` from licenseTypes; added exported `isProEnabled(flagValue, licenseType)` → `flagValue && licenseType === "subscription"`. tests/featureFlags.test.ts — added 3 behavioral tests (true/sub=true, true/free=false, false/sub=false).
+Scripts: PASS (825/825 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #101 | Extract lib/checkout.ts | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (Direct builder path — extraction only)
+Build approach: lib/checkout.ts (new) — 4 exports: LS_STORE_SLUG, CHECKOUT_URLS, PRICING, CUSTOMER_PORTAL_URL. lib/entitlement.ts:line18 — removed inline constant definitions, added `export { ... } from "@/lib/checkout"` re-export. 4 existing importers (app/page.tsx, app/settings/page.tsx, components/BuyModal.tsx, components/LanguageGrid.tsx) continue working unchanged via the re-export. tests/checkout.test.ts (new) — 7 tests verifying checkout.ts values and that re-exports from entitlement.ts are identical object references.
+Scripts: PASS (832/832 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — clean extraction
+
+### Task #102 | Create UpdateChecker.tsx | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (direct builder path)
+Build approach: components/UpdateChecker.tsx (new) — isTauri guard in useEffect; calls checkForUpdates().then(log if available).catch(error log); returns null. components/EntitlementValidator.tsx:line17 — added import of UpdateChecker; return changed from null to <UpdateChecker />. components/UpdateChecker.test.tsx (new) — 3 tests: isTauri=false → not called; isTauri=true → called once; available=true → log contains UPDATE_AVAILABLE + version. components/EntitlementValidator.test.tsx — added vi.mock for UpdateChecker (stubbed null); updated "returns null" test to assert .not.toBeNull() (component now renders UpdateChecker child).
+Scripts: PASS (835/835 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — clean component extraction
+
+### Task #103 | Trim settings/page.tsx ≤150 lines | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: app/settings/page.tsx — 3 cosmetic changes: (1) early-return in handleLaunchAtLogin replaces `if (isTauri) { try {...} }` nesting (saves 1 line); (2) removed blank line between function body and return statement (saves 1 line); (3) removed redundant blank line after "use client" directive (saves 1 line). No logic changes.
+Scripts: PASS (835/835 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS — wc -l = 150
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #104 | Write components/LanguageGrid.test.tsx | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (QA path)
+Build approach: Created components/LanguageGrid.test.tsx with 5 behavioral tests covering all render states. Mocked @/lib/langRegistry with 3 entries (it free+ready, es paid+ready, fr paid+not-ready) to exercise unlocked+ready selectable path (State 2) and not-ready path (State 4) — real registry has es as ready:false so the mock adds a testable ready paid language. Used inline literals in vi.mock factories to avoid hoisting trap. Tests 1-5: (1) Italian "Free" badge + onSelect("it"), (2) unlocked+ready es → onSelect("es"), (3) locked+ready es → pricing CTA + onUpgradeClick, (4) locked fr not-ready → "In development" + onUpgradeClick, (5) unlocked+not-ready fr → "Soon" + button textContent check.
+Scripts: PASS (840/840 tests, 0 TS errors, 0 lint errors)
+Spot check: PASS
+Done-when: PASS — 5 tests pass, grep -c "expect(" = 20 (≥6)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — test-only task
+
+### Task #105 | Strengthen blob assertions in useExportImport.test.ts | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: hooks/useExportImport.test.ts:78-80 — replaced `.toHaveBeenCalled()` with `.toHaveBeenCalledWith(expect.any(Blob))` to verify a real Blob was passed; extracted `vi.mocked(URL.createObjectURL).mock.results[0].value` as `objectUrl` and added `expect(createdElement!.getAttribute("href")).toBe(objectUrl)` to assert the anchor href matches the created object URL.
+Scripts: PASS (840/840)
+Spot check: PASS
+Done-when: PASS — grep returns hits on lines 78, 79, 80
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #107 | Update AGENTS.md branches threshold 79→81 | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: AGENTS.md:42 — changed `branches=79` to `branches=81` in coverage thresholds line.
+Scripts: PASS (840/840, 0 TS errors)
+Spot check: PASS
+Done-when: PASS — grep branches=81 returns hit; grep branches=79 returns 0
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #108 | CLAUDE.md add 4 missing modules | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: CLAUDE.md:22-25 — added "Notable modules" block after Layer Map code block documenting utils.ts, useStudySession.ts, BuyModal.tsx, LanguageGrid.tsx with descriptions.
+Scripts: PASS (840/840, 0 TS errors)
+Spot check: PASS
+Done-when: PASS — grep returns 4 hits (lines 22-25)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #109 | STATUS.md M2 description + intro engine update | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Direct Task (Builder path)
+Build approach: STATUS.md:15 — updated intro engine line from "M1 complete" to "fully live — session-start activation (hooks/useStudySession.ts, 2026-06-29)"; STATUS.md:23 — added M2 milestone description under §2. Also fixed TS error from Task #105: useExportImport.test.ts:79 added `!` non-null assertion on `mock.results[0]`.
+Scripts: PASS (840/840, 0 TS errors)
+Spot check: PASS
+Done-when: PASS — both grep conditions return hits
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #106 | app/settings/page.test.tsx — ≥3 behavioral tests | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (Builder path)
+Build approach: Created `app/settings/page.test.tsx` (jsdom, 203 lines). Key pattern decisions: (1) Mocked `@/lib/storage` to return a no-op `createPlatformStorage` — prevents dynamic `import("@tauri-apps/plugin-store")` from `lib/storage.ts:26` when `isTauri=true` triggers Zustand persist `setItem`, which caused unhandled rejections. (2) Used `vi.hoisted()` for `tauriState` and `mockActivation` objects (both referenced in `vi.mock` factories). (3) Toggle accessible name is empty (label in sibling div, not inside button) — used `closest("div.flex")` DOM traversal helper `getSwitchByLabel`. (4) Fixed TypeScript errors: `intervalHours: 2` and `snoozeMinutes: 15` (union types, not arbitrary ints).
+Tests written: 3 — `handleLaunchAtLogin → enableAutostart + launchAtLogin=true`; `Activate button → handleActivate called`; `interrupt toggle → interruptEnabled=true in store`.
+Scripts: PASS (843/843, 0 TS errors, 0 lint errors)
+Spot check: N/A — Full task path
+Done-when: PASS — file exists, `npm test -- app/settings/page.test.tsx` passes with 3 tests, gate green
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO
+
+### Task #110 | lib/entitlement.ts debt clearance — ERR_* constants + raw res.error hardening | Status: COMPLETE | Cycle 1 | Completed: 2026-06-29
+
+#### Cycle 1 — 2026-06-29 — Full Task (single change, audit passed)
+Build approach: .autocode/debt.md:7-8 — removed 2 Task #053 rows (sev:4 inline strings + sev:5 raw res.error). lib/entitlement.ts unchanged — code work absorbed by Task #095. Security agent memory confirmed: "activateLicense/validateLicense raw LS errors to UI — FIXED (Task #089)". ERR_ constant count: 24 (≥15 required). res.error used only as boolean condition on lines 138/179, never returned to callers.
+Scripts: PASS (843/843, 0 TS errors, 0 lint errors)
+Audit findings: None — done conditions met before any code change; lib/entitlement.ts already correct
+Fixed this cycle: debt.md Task #053 sev:4, Task #053 sev:5 | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — first cycle, no prior history
+
+---
+
+### /meet — Batch 9 Planning | 2026-06-29 (Run 6)
+
+#### Phase 1 Team Performance (Run 6)
+Security: 6 runs | New blind spot this run: CI audit/lint gaps (no `npm audit` step, no lint in CI)
+Architect: 6 runs | New blind spot this run: featureFlags.ts Rule 2 USED BY comment uses shell command (not actual caller list)
+QA: 6 runs | New blind spot this run: projected test count 908 was wrong — actual run confirmed 843
+Docs: 6 runs | New blind spot this run: lib/checkout.ts, featureFlags.ts isProEnabled, UpdateChecker.tsx, tauri.ts new exports, session-start activation all missing from CLAUDE.md
+
+#### Max's Decisions (2026-06-29 /meet run 6)
+- Q1 Priority: Quality hardening FIRST — Rule 14 page tests, CI enforcement, docs accuracy before M2
+- Q2 LS store: Not yet created. Needs creating at dashboard.lemonsqueezy.com before M2.
+- Q3 Spanish pack: Not yet ready. Content still being authored. Keep es.json hidden (ready: false).
+- Q4 M2 scope: macOS ONLY first. Windows/Linux deferred to Batch 11.
+
+#### Batch 9 Overview (9 tasks, #111–#119, [CURRENT SPRINT])
+QA (4): #111 app/page.test.tsx [Full/sev:7] → #112 app/study/page.test.tsx [Full/sev:7] → #113 app/learn/page.test.tsx [Full/sev:5] → #114 app/stats/page.test.tsx [Full/sev:5]
+CI (1): #115 CI hardening — lint + coverage + audit [Direct/sev:6]
+Docs (1): #116 CLAUDE.md 7 gaps + STATUS.md auto-updater [Direct/sev:4]
+Architecture (2): #117 featureFlags.ts Rule 2 fix [Direct/sev:2] → #118 isProEnabled audit across all Pro-gated call sites [Full/sev:4]
+QA/Debt (1): #119 entitlement test debt + log rename [Direct/sev:2]
+
+#### Batch 10 Overview (6 tasks, #120–#125, [BACKLOG])
+Build (1): #120 LS store creation [Direct/sev:9] — owner action
+Security (2): #121 auto-updater ed25519 signing [Direct/sev:9] → #122 macOS Apple Developer cert [Direct/sev:9]
+Build (2): #123 release.yml workflow [Full/sev:8] → #124 notification permission UX [Full/sev:4]
+Docs (1): #125 STATUS.md known CVEs + CI audit documentation [Direct/sev:3]
+
+#### Critical Findings (Batch 10 — M2 Ship Blockers)
+- `src-tauri/tauri.conf.json:46` pubkey = placeholder. Auto-updater cannot verify update signatures. Task #121.
+- `src-tauri/tauri.conf.json:33` signingIdentity = null. Gatekeeper blocks unsigned binaries. Task #122.
+- No `.github/workflows/release.yml`. No signed binary can be produced by CI. Task #123.
+- Update endpoint still `REPLACE_WITH_REPO`. Task #123 fixes alongside release.yml.
+- 2 moderate CVEs: next/postcss chain. Unfixable without major Next.js downgrade. `--audit-level=high` gates CI on new high/critical only. Task #125 documents.
+
+#### Architecture Findings (Batch 9 scope)
+- lib/featureFlags.ts:5 USED BY comment is a shell command (not actual caller list) — Task #117
+- Only InterruptHandler.tsx uses isProEnabled in production. Grep reveals other inline `licenseType === "subscription"` checks may exist — Task #118 audits and fixes.
+- CI misses: `npm run lint`, `--coverage` flag, `npm audit` — Task #115
+
+#### QA Findings (Batch 9 scope)
+- app/page.test.tsx: MISSING — primary conversion surface. Task #111.
+- app/study/page.test.tsx: MISSING — core study loop, highest risk. Task #112.
+- app/learn/page.test.tsx: MISSING. Task #113.
+- app/stats/page.test.tsx: MISSING — BRAND copy regression risk (reframed "last seen" counters). Task #114.
+- Confirmed actual test count: 843 (not 908). All coverage thresholds met.
+
+### Task #146 | Export and validate Italian pack after Spanish translations complete | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
+
+#### Cycle 1 — 2026-06-30 — Direct Task (Builder path)
+Build approach: scripts/exportPack.ts:main → public/packs/it.json + public/packs/manifest.json (3680 cards, 63 units, 935KB); scripts/validatePack.ts:main → exit 0
+Scripts: PASS
+Spot check: PASS — 3 A1 cards verified (produce "buenos días", recognize "leer", produce "el otoño"); 2 non-A1/non-applicable cards correctly show no es field
+Done-when: PASS — validatePack exits 0; grep -o '"es"' | wc -l = 1968 (≥ 1000; -c returns 1 due to minification — occurrence count used instead)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task

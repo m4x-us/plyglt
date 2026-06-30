@@ -138,3 +138,107 @@ Explicitly deferred per done condition: "A004–A026 may be closed in subsequent
 - `npx tsc --noEmit`: 0 errors
 - `npm test`: 717/717 pass (34 files, +17 new tests)
 - `npm run lint`: 0 errors (10 pre-existing warnings unchanged)
+
+---
+
+## Wave 1 New Brief — Adam — 2026-06-29 (#084, #086, #090, #091)
+
+### Tasks closed
+
+- **#084** — TDD seam test for session-start auto-introduction in `tests/seam_studyLoop.test.ts`. Used `it.fails()` so the intentionally-failing test keeps the verification gate green (suite shows "1 expected fail") while documenting the unimplemented behavior for Task #085.
+
+- **#086** — Behavioral tests for `hooks/useLangPack.ts` hook body (lines 51–87):
+  - 7 tests in new file `hooks/useLangPack.test.ts` (jsdom environment)
+  - Covers: loading→loaded transition, loading→error on ok:false, lang switch triggers new loadPack call, static Italian path (lines 55-57, 63), .catch handler path (lines 79-81), cancelled guard path (lines 69, 84)
+  - Ratcheted `vitest.config.ts` branches threshold from 79 → 81
+  - Branches coverage: 82.38% (622/755)
+
+- **#090** — Storage behavioral tests: rewrote `tests/storage.test.ts` from node environment to jsdom. Added Tauri path mock (mutable `isTauri` via module mock mutation), 3 new Tauri tests covering `store.set` and `store.delete` (lines 66-67, 75-76), and 2 `useIsHydrated` hook tests (lines 102-110).
+  - `lib/storage.ts`: 100% statements, 90% branches
+
+- **#091** — Branch coverage for `lib/introduction.ts`: added 4 new tests covering `maxAppearancesToday(25)=0` (line 49 `?? 0`), `shouldAppearToday` with `lastSeenDate !== today` (line 60 ternary false), `recordResult` with `lastSeenDate !== today` (lines 78-79 date-reset), and `getNextCardType(null, [])` throw (line 120).
+  - `lib/introduction.ts`: 100% branch coverage (22/22)
+
+### Files modified
+- `tests/seam_studyLoop.test.ts` — it.fails guard on TDD test
+- `hooks/useLangPack.test.ts` — new file, 7 behavioral tests (jsdom)
+- `vitest.config.ts` — branches threshold 79 → 81
+- `tests/storage.test.ts` — rewrote to jsdom, added Tauri + useIsHydrated tests
+- `tests/introduction.test.ts` — 4 new branch coverage tests
+
+### Verification Gate (Wave 1 new brief)
+- `npx tsc --noEmit`: 0 errors
+- `npm test`: 802 passed + 1 expected fail (803 total, 41 files)
+- `npm run lint`: 0 errors (9 warnings, pre-existing)
+- `branches`: 82.38% ≥ 81% threshold ✓
+- `lib/storage.ts`: 100% statements ✓
+- `lib/introduction.ts`: 100% branches ✓
+
+---
+
+## Wave 1 New Brief — Adam — 2026-06-30 (#119, #111, #112)
+
+### Tasks closed
+
+- **#119** — Absorbed 3 debt items from debt.md:
+  1. Added test for `deactivateLicense()` when `invoke` returns boolean `false` (`raw !== true` guard confirmed)
+  2. Renamed log string `ENTITLEMENT_DEACTIVATE_EMPTY` → `ENTITLEMENT_DEACTIVATE_NON_TRUE` in `lib/entitlement.ts:203`
+  3. Added `console.error` for `res.error` in `activateLicense` (line 138) and `validateLicense` (line 179) before returning `ERR_ACTIVATION_FAILED` / `ERR_VALIDATE_INACTIVE`
+  4. Removed 4 rows from `.autocode/debt.md` (rows covering both activate and validate logging gaps)
+
+- **#111** — Created `app/page.test.tsx` with 4 behavioral tests:
+  1. `isPackUnlocked` → "Unlock Spanish" CTA for locked pack (free state)
+  2. `isPackUnlocked` → "Spanish" label when pack is unlocked (subscription state)
+  3. `BuyModal` opens on upgrade CTA click and closes on `onClose`
+  4. Language selection writes `"en-it"` to localStorage via `setTargetLangCode`
+
+- **#112** — Created `app/study/page.test.tsx` with 3 behavioral tests:
+  1. `StudyCard` renders current card when `pos < queue.length`
+  2. `StudyDoneScreen` renders when `pos >= queue.length` (done state)
+  3. "Nothing ready." screen renders when `buildQueue` returns empty
+
+### Files modified
+- `tests/entitlement.test.ts` — new `invoke=false` deactivateLicense test
+- `lib/entitlement.ts` — log rename + 2× console.error additions
+- `.autocode/debt.md` — 4 rows removed
+- `app/page.test.tsx` — new file, 4 behavioral tests (jsdom)
+- `app/study/page.test.tsx` — new file, 3 behavioral tests (jsdom)
+
+### Verification Gate (Wave 1 brief 2026-06-30)
+- `npx tsc --noEmit`: 0 errors ✓
+- `npm test`: 856 passed (49 files, +13 new tests vs prior wave) ✓
+- `npm run lint`: 0 errors (1 pre-existing warning) ✓
+
+---
+
+## Wave 1 New Brief — Adam — 2026-06-30 (#126 #127 #128 #129 #130)
+
+### Tasks closed
+
+- **#126** — A1 Unit 01 Greetings — Spanish source-language translation: added `prompts: { "es": "..." }` to all produce cards, `translations: { "es": ["..."] }` to all recognize cards. 96 `"es":` entries (≥ 55 ✓).
+
+- **#127** — A1 Unit 02 Bar — Spanish source-language translation: same pattern. 95 `"es":` entries (≥ 55 ✓).
+
+- **#128** — A1 Unit 03 Family — Spanish source-language translation: same pattern. 107 `"es":` entries (≥ 55 ✓).
+
+- **#129** — A1 Unit 04 City — Spanish source-language translation: same pattern. 102 `"es":` entries (≥ 55 ✓).
+
+- **#130** — A1 Unit 05 Time — Spanish source-language translation: same pattern. 109 `"es":` entries (≥ 55 ✓).
+
+### Tasks NOT completed
+- None
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+### Files modified
+- `content/cards/a1-unit-01-greetings.ts` — Spanish translations on all produce/recognize cards
+- `content/cards/a1-unit-02-bar.ts` — Spanish translations on all produce/recognize cards
+- `content/cards/a1-unit-03-family.ts` — Spanish translations on all produce/recognize cards
+- `content/cards/a1-unit-04-city.ts` — Spanish translations on all produce/recognize cards
+- `content/cards/a1-unit-05-time.ts` — Spanish translations on all produce/recognize cards
+
+### Verification Gate (Wave 1 Spanish translation brief 2026-06-30)
+- `npx tsc --noEmit`: 0 errors ✓
+- `npm run lint`: 0 errors (1 pre-existing warning, unchanged) ✓
+- grep done-when: #126=96, #127=95, #128=107, #129=102, #130=109 — all ≥ 55 ✓
