@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation } from "@/store/entitlementStore";
-import { resolveVariantEntitlement, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE, ERR_DEACTIVATE_DECLINED } from "@/lib/entitlement";
+import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
 import { ALL_PACK_CODES, FREE_PACK_CODES } from "@/lib/langRegistry";
 
 vi.mock("@/lib/tauri", async (importOriginal) => {
@@ -29,7 +29,7 @@ const store = () => useEntitlementStore.getState();
 // STATE ONLY — action methods are excluded to prevent silent store corruption. See Task #055.
 type EntitlementStateOnly = Pick<
   ReturnType<typeof useEntitlementStore.getState>,
-  "licenseKey" | "instanceId" | "licenseType" | "unlockedPacks" | "validUntil" | "lastValidated"
+  "licenseKey" | "instanceId" | "licenseType" | "unlockedPacks" | "purchasedAddOns" | "validUntil" | "lastValidated"
 >;
 
 function reset(overrides: Partial<EntitlementStateOnly> = {}) {
@@ -38,6 +38,7 @@ function reset(overrides: Partial<EntitlementStateOnly> = {}) {
     instanceId:    null,
     licenseType:   "free",
     unlockedPacks: [...FREE_PACK_CODES],
+    purchasedAddOns: [],
     lastValidated: 0,
     validUntil:    null,
     ...overrides,
@@ -50,12 +51,12 @@ beforeEach(() => reset());
 // These tests enforce BRAND.md: subscriptions are recurring-only; no permanent access purchases.
 
 describe("BRAND.md compliance — subscription-only model", () => {
-  it("CHECKOUT_URLS contains only monthly and annual keys", () => {
-    expect(Object.keys(CHECKOUT_URLS).sort()).toEqual(["annual", "monthly"]);
+  it("CHECKOUT_URLS contains only an annual key (annual-only pricing)", () => {
+    expect(Object.keys(CHECKOUT_URLS)).toEqual(["annual"]);
   });
 
-  it("PRICING contains only monthly and annual keys", () => {
-    expect(Object.keys(PRICING).sort()).toEqual(["annual", "monthly"]);
+  it("PRICING contains only an annual key (annual-only pricing)", () => {
+    expect(Object.keys(PRICING)).toEqual(["annual"]);
   });
 
   it("resolveVariantEntitlement always returns subscription licenseType regardless of variant name", () => {
@@ -297,15 +298,16 @@ describe("activateLicense — null safety", () => {
     expect(r.error).toBe(ERR_ACTIVATION_FAILED);
   });
 
-  it("returns ok:false with res.error message when res.error is non-null", async () => {
+  it("does not propagate raw LS error — returns ERR_ACTIVATION_FAILED instead (Task #089)", async () => {
     mockInvoke.mockResolvedValueOnce({
-      activated: false, error: "This license key has already been activated on another machine.",
+      activated: false, error: "internal LS API error with request details",
       license_key: null, instance: null, meta: null,
     });
     const r = await activateLicense("KEY-ABC");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe("This license key has already been activated on another machine.");
+    expect(r.error).not.toContain("internal LS API error with request details");
+    expect(r.error).toBe(ERR_ACTIVATION_FAILED);
   });
 
   it("returns ok:false when activation succeeds but instance is missing", async () => {
@@ -386,15 +388,16 @@ describe("validateLicense — null safety", () => {
     expect(r.error).toBe(ERR_LICENSE_NOT_ACTIVE);
   });
 
-  it("returns the API error message on non-ok response", async () => {
+  it("does not propagate raw LS error — returns ERR_VALIDATE_INACTIVE instead (Task #089)", async () => {
     mockInvoke.mockResolvedValueOnce({
-      valid: false, error: "License has been refunded.",
+      valid: false, error: "internal LS API error with request details",
       license_key: { status: "inactive", key: "K", expires_at: null },
     });
     const r = await validateLicense("KEY", "INST");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe("License has been refunded.");
+    expect(r.error).not.toContain("internal LS API error with request details");
+    expect(r.error).toBe(ERR_VALIDATE_INACTIVE);
   });
 
   it("returns ERR_VALIDATE_INACTIVE when LS returns valid:false with no error string", async () => {
@@ -475,9 +478,9 @@ describe("deactivateLicense()", () => {
     const result = await deactivateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
-    // deactivateLicense returns a generic message (not String(e)) to avoid
-    // exposing Tauri command internals in the UI. The raw error is logged via
-    // console.error with a ref ID in lib/entitlement.ts:deactivateLicense.
+    // deactivateLicense returns a generic message — never the raw IPC error —
+    // to prevent Tauri internals from reaching the UI. The IPC error is not
+    // logged either (it may embed the license key via request params).
     expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
@@ -490,36 +493,50 @@ describe("deactivateLicense()", () => {
   });
 
   it("returns safe fallback — never leaks raw LS error containing key or instance info (Task #074)", async () => {
-    // LS errors often contain identifying info: "Instance not found for key XXXX-XXXX..."
-    // Must not reach the UI — always replaced with a safe generic message.
+    // After Task #095: the Rust command returns Ok(true)/Err(msg) — no body is
+    // parsed. A non-true invoke response (incl. objects with LS error text) hits
+    // the raw !== true guard and returns a generic constant, never LS content.
     mockInvoke.mockResolvedValueOnce({ deactivated: false, error: "Instance not found for key XXXX-SECRET-KEY" });
     const result = await deactivateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
     expect(result.error).not.toContain("XXXX");
-    expect(result.error).toBe(ERR_DEACTIVATE_DECLINED);
+    expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
-  it("returns ok:false with safe message when LS responds with deactivated:false", async () => {
+  it("returns ok:false with generic message for any non-boolean-true invoke response", async () => {
     mockInvoke.mockResolvedValueOnce({ deactivated: false, error: "License not found" });
     const result = await deactivateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected ok:false");
-    expect(result.error).toBe(ERR_DEACTIVATE_DECLINED);
+    expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
-  it("returns ok:false with fallback message when res.deactivated is false and error is null", async () => {
+  it("returns ok:false for false-y non-null invoke response", async () => {
     mockInvoke.mockResolvedValueOnce({ deactivated: false, error: null });
     const r = await deactivateLicense("KEY-ABC", "inst-1");
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("Expected ok:false");
-    expect(r.error).toBe(ERR_DEACTIVATE_DECLINED);
+    expect(r.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 
-  it("returns ok:true when LS responds with deactivated:true", async () => {
-    mockInvoke.mockResolvedValueOnce({ deactivated: true, error: null });
+  // Write-first test (Task #095): mocking boolean true simulates Tauri's serialisation of
+  // Ok(true). Before the fix, true was cast to LsDeactivateBody where .deactivated is
+  // undefined — returning ok:false. After the fix, raw !== true is false → ok:true.
+  it("returns ok:true when invoke resolves to boolean true (Tauri Ok(true) serialisation)", async () => {
+    mockInvoke.mockResolvedValueOnce(true);
     const result = await deactivateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(true);
+  });
+
+  it("returns ok:false when invoke resolves to boolean false — raw !== true guard covers this", async () => {
+    // Tauri Err(msg) serialises as boolean false. This is distinct from null (empty body)
+    // and from objects, but the raw !== true guard catches all three.
+    mockInvoke.mockResolvedValueOnce(false);
+    const result = await deactivateLicense("KEY-ABC", "inst-123");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected ok:false");
+    expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
   });
 });
 
@@ -795,8 +812,8 @@ describe("seam: deactivateLicense ok:true → clearEntitlement → pack locked",
     });
     expect(store().isPackUnlocked(paidPack)).toBe(true);
 
-    // Step 2: deactivate returns ok:true
-    mockInvoke.mockResolvedValueOnce({ deactivated: true, error: null });
+    // Step 2: deactivate returns ok:true (Tauri serialises Rust Ok(true) as boolean true)
+    mockInvoke.mockResolvedValueOnce(true);
     const deactivateResult = await deactivateLicense("SEAM-DEACT-KEY", "seam-deact-inst");
     expect(deactivateResult.ok).toBe(true);
 
@@ -851,5 +868,79 @@ describe("seam: validateLicense → markValidated → isPackUnlocked", () => {
 
     // Pack should now be unlocked
     expect(store().isPackUnlocked("es")).toBe(true);
+  });
+});
+
+// ── purchasedAddOns / hasAddOn / purchaseAddOn ────────────────────────────────
+
+describe("purchasedAddOns — add-on entitlement (Task #148)", () => {
+  beforeEach(() => reset());
+
+  it("purchasedAddOns defaults to []", () => {
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("hasAddOn store method returns false when code is not in purchasedAddOns", () => {
+    expect(store().hasAddOn("it-medical")).toBe(false);
+  });
+
+  it("purchaseAddOn adds code to purchasedAddOns", () => {
+    store().purchaseAddOn("it-medical");
+    expect(store().purchasedAddOns).toContain("it-medical");
+    expect(store().purchasedAddOns).toHaveLength(1);
+  });
+
+  it("hasAddOn store method returns true after purchaseAddOn", () => {
+    store().purchaseAddOn("it-medical");
+    expect(store().hasAddOn("it-medical")).toBe(true);
+  });
+
+  it("hasAddOn returns false for a different code after purchaseAddOn", () => {
+    store().purchaseAddOn("it-medical");
+    expect(store().hasAddOn("it-business")).toBe(false);
+  });
+
+  it("purchaseAddOn is idempotent — calling twice does not duplicate the code", () => {
+    store().purchaseAddOn("it-medical");
+    store().purchaseAddOn("it-medical");
+    expect(store().purchasedAddOns).toEqual(["it-medical"]);
+  });
+
+  it("purchaseAddOn accumulates multiple distinct codes", () => {
+    store().purchaseAddOn("it-medical");
+    store().purchaseAddOn("it-business");
+    expect(store().purchasedAddOns).toContain("it-medical");
+    expect(store().purchasedAddOns).toContain("it-business");
+    expect(store().purchasedAddOns).toHaveLength(2);
+  });
+
+  it("clearEntitlement resets purchasedAddOns to []", () => {
+    store().purchaseAddOn("it-medical");
+    expect(store().purchasedAddOns).toHaveLength(1);
+    store().clearEntitlement();
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+});
+
+// ── hasAddOn pure function (lib/entitlement.ts) ───────────────────────────────
+
+describe("hasAddOn() — pure function (lib/entitlement.ts)", () => {
+  it("returns false for empty purchasedAddOns", () => {
+    expect(hasAddOn({ purchasedAddOns: [] }, "it-medical")).toBe(false);
+  });
+
+  it("returns true when code is in purchasedAddOns", () => {
+    expect(hasAddOn({ purchasedAddOns: ["it-medical"] }, "it-medical")).toBe(true);
+  });
+
+  it("returns false for a different code not in purchasedAddOns", () => {
+    expect(hasAddOn({ purchasedAddOns: ["it-medical"] }, "it-business")).toBe(false);
+  });
+
+  it("returns true for any entry in a populated array", () => {
+    const state = { purchasedAddOns: ["it-medical", "it-business", "es-cooking"] };
+    expect(hasAddOn(state, "es-cooking")).toBe(true);
+    expect(hasAddOn(state, "it-medical")).toBe(true);
+    expect(hasAddOn(state, "es-legal")).toBe(false);
   });
 });

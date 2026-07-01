@@ -137,8 +137,6 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-1 pt-1">
                   <p className="text-xs text-gray-600">Don&apos;t have a license?</p>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => openExternalUrl(CHECKOUT_URLS.monthly)} className="text-xs text-yellow-600 hover:text-yellow-500 underline">Monthly {PRICING.monthly}</button>
-                    <span className="text-gray-700">·</span>
                     <button onClick={() => openExternalUrl(CHECKOUT_URLS.annual)} className="text-xs text-yellow-600 hover:text-yellow-500 underline">Annual {PRICING.annual}</button>
                   </div>
                 </div>
