@@ -43,7 +43,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_TAURI_SIGNING_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0RDAzNjcyNUNCQjIwQjkKUldTNUlMdGNjamJRRk9DcE1lelV6bXVVSFFWc2ZZZ0xHenhrU2VzNHlEcnFUbE5nQ0xpMko0UEYK",
       "endpoints": [
         "https://github.com/REPLACE_WITH_REPO/releases/latest/download/latest.json"
       ]
