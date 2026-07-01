@@ -1,124 +1,142 @@
-# Derek — Stream W1D — Wave 1 — 2026-06-30
+# Derek — Stream W1D — Wave 1 — 2026-07-01
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Derek | W1D | #141 #142 #143 #144 #145
+— Derek | W1D | #156 #157
 
 You are Derek, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #141  — A1 Unit 16 Shopping — Spanish source-language translation
-2. /task #142  — A1 Unit 17 Weather — Spanish source-language translation
-3. /task #143  — A1 Unit 18 Routine — Spanish source-language translation
-4. /task #144  — A1 Unit 19 Work — Spanish source-language translation
-5. /task #145  — A1 Unit 20 Clothes — Spanish source-language translation
+1. /task #156  — Extract specialty pack logic from packLoader.ts (Rule 1 fix)
+2. /task #157  — Add getSpecialtyPacks() filter test with non-empty registry
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Derek — W1D
-[✓] #141 — Unit 16 Shopping    ← done
-[→] #142 — Unit 17 Weather     ← starting now
-[ ] #143 — Unit 18 Routine
-[ ] #144 — Unit 19 Work
-[ ] #145 — Unit 20 Clothes
+[✓] #156 — Extract specialty pack logic from packLoader.ts   ← done
+[→] #157 — getSpecialtyPacks() filter test   ← starting now
 
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+Then proceed to the next task. This lets Max glance at any window and know exactly where you are.
 
 ## Files You Own (edit ONLY these)
-content/cards/a1-unit-16-shopping.ts
-content/cards/a1-unit-17-weather.ts
-content/cards/a1-unit-18-routine.ts
-content/cards/a1-unit-19-work.ts
-content/cards/a1-unit-20-clothes.ts
+lib/packLoader.ts
+lib/specialtyPackLoader.ts   ← new file (create it)
+tests/packLoader.test.ts
+tests/langRegistry.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-content/cards/a1-unit-01-greetings.ts
-content/cards/a1-unit-02-bar.ts
-content/cards/a1-unit-03-family.ts
-content/cards/a1-unit-04-city.ts
-content/cards/a1-unit-05-time.ts
-content/cards/a1-unit-06-describing.ts
-content/cards/a1-unit-07-likes.ts
-content/cards/a1-unit-08-review.ts
-content/cards/a1-unit-09-colors.ts
-content/cards/a1-unit-10-body.ts
-content/cards/a1-unit-11-food.ts
-content/cards/a1-unit-12-emotions.ts
-content/cards/a1-unit-13-household.ts
-content/cards/a1-unit-14-animals.ts
-content/cards/a1-unit-15-numbers.ts
+app/settings/page.tsx
+components/NotificationPermissionGate.tsx
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+app/stats/page.tsx
+app/stats/page.test.tsx
+app/learn/page.test.tsx
 
 ## Task Definitions
 
-### Task #141 — Shopping Spanish translation
-**What:** Open `content/cards/a1-unit-16-shopping.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-Key vocab: negozio→tienda; supermercato→supermercado; mercato→mercado; farmacia→farmacia; panetteria→panadería; libreria→librería; commesso/a→dependiente/a; cliente→cliente; cassa→caja; comprare→comprar; vendere→vender; cercare→buscar; pagare→pagar; scegliere→elegir; provare→probar; dov'è la cassa→dónde está la caja; c'è→hay; quanto costa→cuánto cuesta; vorrei→quisiera; in saldo→en oferta/rebaja; carta di credito→tarjeta de crédito; contanti→efectivo; scontrino→recibo/ticket; taglia→talla; misura→medida; grande/piccolo→grande/pequeño.
-**File:** `content/cards/a1-unit-16-shopping.ts`
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-16-shopping.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+### Task #156 | architecture | severity 5
+**What:** Extract specialty-pack handling from `lib/packLoader.ts` (currently 426 lines — 26 over Rule 1 service ceiling of 400) into new `lib/specialtyPackLoader.ts`. Move: `isReadySpecialtyPack` guard logic, specialty pack download + sha256 verify + merge into `memCache[baseLang]`, `loadedAddOns` array, `getLoadedAddOns()` export, `"base_pack_not_loaded"` error path. `lib/packLoader.ts` calls `lib/specialtyPackLoader.ts` for the specialty branch. Keep `clearCacheForTesting` exports accessible to tests (either re-export or expose from both modules). Add Rule 2 header to `lib/specialtyPackLoader.ts`.
+**Why:** Rule 1 — service files cap at 400 lines. `lib/packLoader.ts` is at 426 lines and will grow as specialty packs ship.
+**File:** `lib/packLoader.ts`, `lib/specialtyPackLoader.ts` (new), `tests/packLoader.test.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files + 1 new, refactor (keyword: extract)
+**Test required:** Yes — all 28+ existing packLoader tests must continue passing, including the 3 specialty pack merge path tests (Task #152).
+**Done when:** `lib/packLoader.ts` ≤ 400 lines. `lib/specialtyPackLoader.ts` exists with Rule 2 header. All packLoader tests pass. `npm test` passes. No coverage regression.
 **Owner:** Architecture Agent
 
-### Task #142 — Weather Spanish translation
-**What:** Open `content/cards/a1-unit-17-weather.ts`. Same pattern.
-Key vocab: sole→sol; pioggia→lluvia; neve→nieve; vento→viento; nebbia→niebla; temporale→tormenta; grandine→granizo; caldo→calor; freddo→frío; nuvoloso→nublado; soleggiato→soleado; piovoso→lluvioso; nevoso→nevado; ventoso→ventoso; fa caldo→hace calor; fa freddo→hace frío; c'è il sole→hay sol; piove→llueve; nevica→nieva; c'è nebbia→hay niebla; primavera→primavera; estate→verano; autunno→otoño; inverno→invierno; che tempo fa→qué tiempo hace; temperatura→temperatura; grado→grado; ombrello→paraguas; impermeabile→impermeable.
-**File:** `content/cards/a1-unit-17-weather.ts`
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-17-weather.ts` returns ≥ 60.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
+---
 
-### Task #143 — Routine Spanish translation
-**What:** Open `content/cards/a1-unit-18-routine.ts`. Same pattern.
-Key vocab: svegliarsi→despertarse; alzarsi→levantarse; lavarsi→lavarse; vestirsi→vestirse; fare colazione→desayunar; andare al lavoro→ir al trabajo/a la oficina; tornare a casa→volver a casa; cenare→cenar; addormentarsi→dormirse; di mattina→por la mañana; di pomeriggio→por la tarde; di sera→por la noche; presto→temprano; tardi→tarde; prima→primero; poi→luego/después; sempre→siempre; spesso→a menudo; mai→nunca; a volte→a veces; ogni giorno→cada día; di solito→normalmente; oggi→hoy; il lunedì→los lunes.
-**File:** `content/cards/a1-unit-18-routine.ts`
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-18-routine.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #144 — Work Spanish translation
-**What:** Open `content/cards/a1-unit-19-work.ts`. Same pattern.
-Key vocab: lavoro→trabajo; ufficio→oficina; medico→médico; infermiere/a→enfermero/a; insegnante→profesor/a; avvocato→abogado/a; architetto→arquitecto/a; cuoco/a→cocinero/a; cameriere/a→camarero/a; impiegato/a→empleado/a; giornalista→periodista; ingegnere→ingeniero/a; stilista→diseñador/a de moda; fotografo→fotógrafo; stipendio→salario/sueldo; riunione→reunión; collega→colega; capo→jefe/a; lavorare→trabajar; assumere→contratar; licenziare→despedir; fare il/la→ser/trabajar como; azienda→empresa; fabbrica→fábrica.
-**File:** `content/cards/a1-unit-19-work.ts`
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-19-work.ts` returns ≥ 50.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #145 — Clothes Spanish translation
-**What:** Open `content/cards/a1-unit-20-clothes.ts`. Same pattern.
-Key vocab: camicia→camisa; pantaloni→pantalones; gonna→falda; vestito→vestido/traje; giacca→chaqueta/saco; cappotto→abrigo; maglione→suéter/jersey; scarpe→zapatos; stivali→botas; calzini→calcetines; sciarpa→bufanda; guanti→guantes; borsa→bolso; zaino→mochila; lungo/a→largo/a; stretto/a→estrecho/a; largo/a→ancho/a; elegante→elegante; comodo/a→cómodo/a; portare/indossare→llevar/usar; mettere→ponerse; togliere→quitarse; che taglia porti→qué talla usas; come mi sta→cómo me queda; in saldo→en oferta; di moda→de moda; fuori moda→pasado de moda.
-**File:** `content/cards/a1-unit-20-clothes.ts`
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-20-clothes.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
+### Task #157 | tests | severity 4
+**What:** Add a test describe block to `tests/langRegistry.test.ts` exercising `getSpecialtyPacks(lang)` with a non-empty `SPECIALTY_PACKS` registry. Use `vi.mock`/`vi.hoisted` to temporarily replace `SPECIALTY_PACKS` with a 3-pack mock (2 with `baseLang: "it"`, 1 with `baseLang: "es"`). Assert: `getSpecialtyPacks("it")` returns exactly the 2 Italian packs; `getSpecialtyPacks("es")` returns exactly the 1 Spanish pack; `getSpecialtyPacks("fr")` returns [].
+**Why:** The `sp.baseLang === lang` filter predicate in `getSpecialtyPacks()` has no test with a non-empty registry. If someone adds specialty packs and misspells `baseLang`, no test catches it.
+**File:** `tests/langRegistry.test.ts`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, tests only
+**Test required:** This task IS the test.
+**Done when:** `tests/langRegistry.test.ts` has a new describe block "getSpecialtyPacks with non-empty registry" with ≥3 test cases. `npm test` passes.
+**Owner:** QA Agent
 
 ## Agent Memories
 
-### Architecture Agent Memory — content/types.ts Card schema
+### Architecture Agent Memory (first 100 lines)
+Stack: Next.js 16.2.9, React 19, Zustand 5, Tauri 2. TypeScript throughout.
 
-The schema for source-language translation (from content/types.ts):
-```typescript
-export interface Card {
-  id: string;
-  type: CardType;  // "recognize" | "produce" | "conjugate" | "fill_blank" | "passage_cloze"
-  prompt: string;
-  accepted: string[];
-  translations?: Record<string, string[]>;  // recognize cards only — e.g. { "es": ["rojo"] }
-  prompts?: Record<string, string>;         // produce cards only — e.g. { "es": "rojo" }
-  hint?: string;
-  tags: string[];
-  tier: Tier;
-  prerequisites?: string[];
-  deprecated?: boolean;
-}
+Layer rules:
+- lib/ must NEVER import from store/, hooks/, components/, or app/
+- store/ must NEVER import from hooks/, components/, or app/
+
+Specialty Pack Architecture (established Batch 12 — COMPLETE):
+- `lib/langRegistry.ts` exports: `SpecialtyPack` interface (code, baseLang, name, ready:boolean), `SPECIALTY_PACKS` (frozen empty array), `getSpecialtyPacks(lang)` filter helper, `isSpecialtyPackCode(s)` type guard
+- `lib/packLoader.ts:loadPack` — guard restructured in Task #147 to accept ready specialty packs
+- Specialty pack merge path (Task #149 — COMPLETE): `isReadySpecialtyPack` guard, baseLang check, download+verify+merge into `memCache[baseLang]`, `loadedAddOns:string[]`, `getLoadedAddOns()` export, `"base_pack_not_loaded"` error variant; 3 tests added in Task #152
+- `lib/packLoader.ts` blast radius: 5 importers. Changes here require ALL 28+ tests to pass.
+
+Rule 2 header format (required for lib/specialtyPackLoader.ts):
+```
+/**
+ * specialtyPackLoader — loads and merges specialty packs into their base language pack.
+ * Inputs: specialty pack code, base language memCache.
+ * Outputs: merged memCache[baseLang] with specialty cards appended; loadedAddOns list.
+ * Called by: lib/packLoader.ts (specialty branch of loadPack).
+ * Pure functions only — no React, no Zustand.
+ */
 ```
 
-**Rules:**
-- `produce` cards: add `prompts: { es: "..." }` — Spanish translation of the English `prompt`
-- `recognize` cards: add `translations: { es: ["..."] }` — Spanish translation(s) of the `accepted` array
-- `conjugate`, `fill_blank`, `passage_cloze`: skip — prompts are already in Italian
-- Never modify existing fields — additive only
+clearCacheForTesting pattern — expose from specialtyPackLoader.ts too:
+```ts
+// in specialtyPackLoader.ts:
+export function clearSpecialtyCache() {
+  loadedAddOns.length = 0
+}
+// in packLoader.ts clearCacheForTesting: also call clearSpecialtyCache()
+```
+
+### QA Agent Memory (first 100 lines)
+Test framework: Vitest 4 with vi.mock, vi.fn, vi.spyOn. @testing-library/react for hook tests.
+Test command: `npm test`. Current baseline: 891 tests. Coverage thresholds: lines=84, funcs=79, branches=81, stmts=82.
+
+Task #152 (COMPLETE): added 3 specialty pack merge path tests to `tests/packLoader.test.ts` in "specialty pack merge path" describe block. Mock strategy:
+```ts
+const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => [])
+vi.mock('@/lib/langRegistry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/langRegistry')>()
+  return { ...actual, SPECIALTY_PACKS: mockSpecialtyPacks }
+})
+beforeEach(() => { mockSpecialtyPacks.length = 0 })
+```
+Use the SAME mocking strategy for Task #157's langRegistry tests.
+
+Task #157 mock template:
+```ts
+const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => [])
+vi.mock('@/lib/langRegistry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/langRegistry')>()
+  return { ...actual, SPECIALTY_PACKS: mockSpecialtyPacks }
+})
+
+describe('getSpecialtyPacks with non-empty registry', () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.length = 0
+    mockSpecialtyPacks.push(
+      { code: 'it-medical', baseLang: 'it', name: 'Medical', ready: false },
+      { code: 'it-business', baseLang: 'it', name: 'Business', ready: false },
+      { code: 'es-travel', baseLang: 'es', name: 'Travel', ready: false }
+    )
+  })
+  it('returns only Italian packs for "it"', () => {
+    expect(getSpecialtyPacks('it')).toHaveLength(2)
+  })
+  it('returns only Spanish packs for "es"', () => {
+    expect(getSpecialtyPacks('es')).toHaveLength(1)
+  })
+  it('returns [] for unknown language "fr"', () => {
+    expect(getSpecialtyPacks('fr')).toEqual([])
+  })
+})
+```
 
 ## When You Finish
 Write your completion summary to .autocode/stream-W1D/completion.md:
@@ -127,6 +145,6 @@ Write your completion summary to .autocode/stream-W1D/completion.md:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
 
-Then tell Max in this window: "Derek is done."
+Then tell Max: "Derek is done."
 
-— Derek | W1D | #141 #142 #143 #144 #145
+— Derek | W1D | #156 #157

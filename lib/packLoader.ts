@@ -12,17 +12,25 @@
  *   2. Platform storage              — Tauri Store (desktop) or localStorage (web)
  *   3. Network download              — fetch from /packs/{lang}.json
  *
- * Security: loadPack validates lang against READY_PACK_CODES (fail fast — unready
- * packs return "invalid_lang" before any network request). evictPack validates
- * against isValidPackCode/ALL_PACK_CODES (any registered code can be evicted for
- * cleanup). Both guards prevent path traversal and storage key poisoning.
+ * Security: loadPack validates lang against READY_PACK_CODES and SPECIALTY_PACKS
+ * with ready:true (fail fast — unready and unknown codes return "invalid_lang" before
+ * any network request). evictPack validates against isValidPackCode/ALL_PACK_CODES.
+ * Both guards prevent path traversal and storage key poisoning.
  *
- * Public API: loadPack, getInstalledPacks, evictPack, fetchManifest, clearCacheForTesting
+ * Specialty packs: loadPack("it-medical") merges the add-on's units into the base
+ * ("it") pack in memCache. The base pack must be loaded first. Merged units are
+ * additive — base units are never removed. loadedAddOns tracks which add-ons are
+ * merged this session. Since SPECIALTY_PACKS is currently empty, the specialty path
+ * never executes — the structure is in place for when content arrives.
+ *
+ * Public API: loadPack, getInstalledPacks, getLoadedAddOns, evictPack, fetchManifest, clearCacheForTesting
  */
 
 import type { Unit } from "@/content/types";
 import { createPlatformStorage } from "@/lib/storage";
-import { READY_PACK_CODES, isValidPackCode, type PackCode } from "@/lib/langRegistry";
+import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } from "@/lib/langRegistry";
+import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
 
 // ── Pack types ────────────────────────────────────────────────────────────────
 
@@ -162,8 +170,9 @@ export type LoadPackResult =
   | {
       ok: false;
       error:
-        | "invalid_lang"      // lang code not in the allowlist — do NOT retry
-        | "download_failed"   // network error or non-200 response
+        | "invalid_lang"          // lang code not in the allowlist — do NOT retry
+        | "base_pack_not_loaded"  // specialty pack requested before its base lang is loaded
+        | "download_failed"       // network error or non-200 response
         | "checksum_mismatch"
         | "parse_error";
     };
@@ -183,12 +192,20 @@ export async function loadPack(
   manifest: Manifest | null,
   options?: { forceRedownload?: boolean }
 ): Promise<LoadPackResult> {
-  // Reject unregistered AND unready lang codes — prevents path traversal via URL interpolation,
-  // storage key poisoning, and wasteful CDN requests for packs not yet shipped.
-  // "invalid_lang" is distinct from "download_failed" so callers never retry adversarial or
-  // unready codes. Uses READY_PACK_CODES (not ALL_PACK_CODES) to fail fast before any I/O.
-  if (!READY_PACK_CODES.some(c => c === lang)) {
+  // Accept ready base packs (READY_PACK_CODES) and ready specialty packs (SPECIALTY_PACKS with
+  // ready:true). Reject everything else — unknown codes (path traversal) and registered-but-unready
+  // packs. "invalid_lang" is distinct from "download_failed" so callers never retry unknown codes.
+  const isReadyBasePack = READY_PACK_CODES.some(c => c === lang);
+  const isReadySpecialtyPack = SPECIALTY_PACKS.some(sp => sp.code === lang && sp.ready);
+  if (!isReadyBasePack && !isReadySpecialtyPack) {
     return { ok: false, error: "invalid_lang" };
+  }
+
+  // ── Specialty pack path ────────────────────────────────────────────────────
+  // Delegated to lib/specialtyPackLoader.ts. memCache is passed so the add-on
+  // units can be merged into the already-loaded base pack entry.
+  if (isReadySpecialtyPack) {
+    return loadSpecialtyPack(lang, memCache, manifest);
   }
 
   // 1. Memory hit — fastest path, avoids all storage I/O
@@ -314,9 +331,9 @@ export async function loadPack(
 }
 
 /**
- * Returns the list of language codes loaded in the current session.
- * Safe: memCache is exclusively populated via loadPack(), which validates lang against
- * READY_PACK_CODES — so this can never return an unregistered or unready code.
+ * Returns the list of base language codes loaded in the current session.
+ * Safe: base pack entries in memCache are only written via loadPack(), which validates
+ * against READY_PACK_CODES — so this can never return an unregistered or unready code.
  */
 export function getInstalledPacks(): PackCode[] {
   return Array.from(memCache.keys()) as PackCode[];
@@ -341,5 +358,6 @@ export async function evictPack(lang: string): Promise<void> {
  */
 export function clearCacheForTesting(): void {
   memCache.clear();
+  clearSpecialtyCache();
   _storage = null;
 }

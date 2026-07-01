@@ -1,38 +1,33 @@
 # Stream W1D — Completion Summary
-**Completed:** 2026-06-30
+**Completed:** 2026-07-01
 
 ## Tasks Closed
 
-- **#141** — A1 Unit 16 Shopping — Spanish source-language translation ← COMPLETE
-  - 95 `prompts:`/`translations:` entries added (threshold ≥55) — produce cards got `prompts: { es: "..." }`, recognize cards got `translations: { es: ["..."] }`
-  - Written in prior wave session; verified present at session start
+- **#156** — Extract specialty pack logic from packLoader.ts (Rule 1 fix) ← COMPLETE
+  - Created `lib/specialtyPackLoader.ts` (116 lines) with Rule 2 header
+  - Moved: `loadedAddOns`, `getLoadedAddOns()`, `clearSpecialtyCache()`, full specialty pack download+verify+merge path
+  - `lib/packLoader.ts` reduced from 426 → 363 lines (≤400 threshold met)
+  - `packLoader.ts` calls `loadSpecialtyPack(lang, memCache, manifest)` for the specialty branch
+  - `getLoadedAddOns` re-exported from `packLoader.ts` via `export { getLoadedAddOns } from "@/lib/specialtyPackLoader"` — no import changes required in callers
+  - `clearCacheForTesting()` now calls `clearSpecialtyCache()` to reset both modules
+  - All 31 packLoader tests pass (including 3 specialty pack merge path tests from Task #152)
 
-- **#142** — A1 Unit 17 Weather — Spanish source-language translation ← COMPLETE
-  - 106 entries added (threshold ≥60)
-  - All 37 Tier-1 produce + 37 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
-
-- **#143** — A1 Unit 18 Routine — Spanish source-language translation ← COMPLETE
-  - 92 entries added (threshold ≥55)
-  - All 32 Tier-1 produce + 32 Tier-1 recognize covered; plus Tier-3/4 produce cards
-
-- **#144** — A1 Unit 19 Work — Spanish source-language translation ← COMPLETE
-  - 97 entries added (threshold ≥50)
-  - All 30 Tier-1 produce + 30 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
-
-- **#145** — A1 Unit 20 Clothes — Spanish source-language translation ← COMPLETE
-  - 102 entries added (threshold ≥55)
-  - All 32 Tier-1 produce + 32 Tier-1 recognize covered; plus Tier-2/3/4 produce cards
+- **#157** — Add getSpecialtyPacks() filter test with non-empty registry ← COMPLETE
+  - Added `vi.mock` with custom `getSpecialtyPacks`/`isSpecialtyPackCode` implementations using `mockSpecialtyPacks`
+  - Added global `beforeEach(() => { mockSpecialtyPacks.length = 0 })` to isolate all tests
+  - Added new describe block "getSpecialtyPacks with non-empty registry" with 3 test cases (2 Italian, 1 Spanish, 0 French)
+  - All 21 langRegistry tests pass
 
 ## Verification Gate
 - `npx tsc --noEmit`: PASS (0 errors)
-- `npm test`: 856 passed (49 test files)
-- `npm run lint`: PASS (0 errors, 1 pre-existing warning in useExportImport.test.ts)
+- `npm test`: 893 passed, 1 pre-existing failure in `tests/tauri.test.ts` (ERR-VALIDATE- test reads wrong file — not caused by my changes; confirmed by git stash comparison showing same failure pre-exists)
+- `npm run lint`: 1 pre-existing error in `app/settings/page.tsx` (off-limits file owned by another stream; committed codebase was clean — confirmed by stash)
 
 ## Tasks NOT Completed
 None.
 
 ## Debt Entries Logged
-0
+1 — `app/settings/page.tsx:23` — `react-hooks/set-state-in-effect` lint error introduced by another stream agent in this wave's working directory changes. Not fixable by Derek (off-limits). Needs resolution before merge.
 
 ## Carry-Forward Tasks Generated
 0

@@ -9,12 +9,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
+import { validateLicense } from "@/lib/entitlement";
 import { InterruptHandler } from "./InterruptHandler";
 
 // ── vi.hoisted: all values referenced inside vi.mock factories must be hoisted ─
 // vi.mock factories are hoisted to the top of the file; any const defined in the
 // module body is in the temporal dead zone when the factory runs.
-const { tauriState, mockUpdateInterruptConfig, mockPush } = vi.hoisted(() => ({
+const { tauriState, mockUpdateInterruptConfig, mockPush, mockEnterMandatoryMode, mockUseLangPack } = vi.hoisted(() => ({
   tauriState: {
     isTauri: false as boolean,
     // Captures listen callbacks by event name so tests can fire them manually.
@@ -22,6 +23,8 @@ const { tauriState, mockUpdateInterruptConfig, mockPush } = vi.hoisted(() => ({
   },
   mockUpdateInterruptConfig: vi.fn().mockResolvedValue(undefined),
   mockPush: vi.fn(),
+  mockEnterMandatoryMode: vi.fn().mockResolvedValue(undefined),
+  mockUseLangPack: vi.fn().mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null }),
 }));
 
 // ── tauri mock ────────────────────────────────────────────────────────────────
@@ -32,7 +35,7 @@ vi.mock("@/lib/tauri", () => ({
     return Promise.resolve(() => { tauriState.listeners.delete(event); });
   }),
   updateInterruptConfig: mockUpdateInterruptConfig,
-  enterMandatoryMode: vi.fn().mockResolvedValue(undefined),
+  enterMandatoryMode: mockEnterMandatoryMode,
   enableAutostart: vi.fn(),
   disableAutostart: vi.fn(),
   openExternalUrl: vi.fn(),
@@ -45,10 +48,17 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-// ── useLangPack — returns empty units so totalDue=0 (no trigger) ──────────────
+// ── useLangPack — default: empty units so totalDue=0; override per-test for mandatory tests ─
 vi.mock("@/hooks/useLangPack", () => ({
-  useLangPack: () => ({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null }),
+  useLangPack: mockUseLangPack,
   LOAD_PACK_ERROR_MESSAGES: {},
+}));
+
+// ── srsStore — minimal stub so getStats().due can be controlled per-test ─────
+vi.mock("@/store/srsStore", () => ({
+  useSRSStore: {
+    getState: () => ({ getStats: () => ({ due: 1 }) }),
+  },
 }));
 
 // ── validateLicense — silent no-op in background ──────────────────────────────
@@ -82,6 +92,8 @@ beforeEach(() => {
   tauriState.listeners.clear();
   vi.clearAllMocks();
   mockUpdateInterruptConfig.mockResolvedValue(undefined);
+  mockEnterMandatoryMode.mockResolvedValue(undefined);
+  mockUseLangPack.mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null });
   // Reset settings to deterministic defaults
   useSettingsStore.setState({
     interruptEnabled: true,
@@ -133,6 +145,36 @@ describe("InterruptHandler", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  // ── Test 4: enterMandatoryMode IPC failure is caught — navigation still proceeds ─
+  it("logs error and still navigates when enterMandatoryMode rejects", async () => {
+    // Provide one unit with a card so totalDue > 0 (guard passes)
+    mockUseLangPack.mockReturnValueOnce({
+      units: [{ id: "u1", cards: [] }],
+      unitMap: {},
+      lang: { code: "it" },
+      loading: false,
+      error: null,
+    });
+    mockEnterMandatoryMode.mockRejectedValueOnce(new Error("Tauri IPC failed"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    tauriState.isTauri = true;
+    await act(async () => { render(<InterruptHandler />); });
+
+    const callback = tauriState.listeners.get("interrupt:fire");
+    await act(async () => { if (callback) await callback(true); }); // mandatory=true
+
+    // Error must be caught and logged — not propagated as unhandled rejection
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("IH-MANDATORY"),
+      expect.any(Error)
+    );
+    // Navigation must still happen despite the IPC failure
+    expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
+
+    errorSpy.mockRestore();
+  });
+
   // ── Test 3: updateInterruptConfig called when interruptEnabled changes ─────────
   it("calls updateInterruptConfig when interruptEnabled changes", async () => {
     useSettingsStore.setState({ interruptEnabled: false, intervalHours: 2, mandatory: false });
@@ -150,5 +192,16 @@ describe("InterruptHandler", () => {
     expect(mockUpdateInterruptConfig).toHaveBeenCalledTimes(2);
     // toHaveBeenCalledTimes(2) guarantees calls[1] exists — non-null assertion is safe.
     expect(mockUpdateInterruptConfig.mock.calls[1]![0]).toBe(true);
+  });
+
+  // ── Test: validateLicense NOT called on mount — EntitlementValidator.tsx owns revalidation ─
+  it("does not call validateLicense on mount", async () => {
+    // EntitlementValidator.tsx (mounted in app/layout.tsx) is the sole owner of license
+    // revalidation. Duplicate logic here caused two concurrent Lemon Squeezy API calls on
+    // every app launch when validation was due. This test fails if the block is re-added.
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    expect(vi.mocked(validateLicense)).not.toHaveBeenCalled();
   });
 });

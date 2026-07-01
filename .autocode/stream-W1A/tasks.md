@@ -1,46 +1,13 @@
 # Stream W1A Task State
 
-### Task #126 | content | severity 5
-**What:** Open `content/cards/a1-unit-01-greetings.ts`. For every `produce` card add `prompts: { es: "..." }` with the Spanish translation of the English prompt. For every `recognize` card add `translations: { es: ["..."] }` with Spanish translation(s). Skip `conjugate`, `fill_blank`, `passage_cloze` cards entirely.
-**File:** `content/cards/a1-unit-01-greetings.ts`
-**Blocks:** Task #146
+### Task #124 | build | severity 4
+**What:** Add a notification permission onboarding explanation to the interrupt engine enable flow. When a user first toggles "Enable review reminders" ON in `app/settings/page.tsx`, show a short explanation before the OS permission dialog fires: "plyglt will send brief notifications during your workday — 3 to 5 cards per session, under a minute each. Allow notifications to enable this." If the user previously denied permission on macOS, show a graceful fallback: "Enable notifications for plyglt in System Settings → Notifications." (no repeat dialog, just the instruction).
+**Why:** Product agent found: "the first time a Pro user enables the interrupt engine, a notification permission dialog appears mid-session with no prior explanation." macOS does not allow re-prompting after a denial. Users who reflexively click "Don't Allow" lose the core Pro differentiator with no recovery path visible in the UI.
+**File:** `app/settings/page.tsx`, possibly a new small `components/NotificationPermissionGate.tsx`
+**Blocks:** Nothing
 **Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-01-greetings.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #127 | content | severity 5
-**What:** Open `content/cards/a1-unit-02-bar.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-02-bar.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-02-bar.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #128 | content | severity 5
-**What:** Open `content/cards/a1-unit-03-family.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-03-family.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-03-family.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #129 | content | severity 5
-**What:** Open `content/cards/a1-unit-04-city.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-04-city.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-04-city.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #130 | content | severity 5
-**What:** Open `content/cards/a1-unit-05-time.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-05-time.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-05-time.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+**Risk:** Low — UI-only addition. Does not change Tauri IPC calls.
+**Completion gates:** Architecture Agent sign-off
+**Done when:** Toggling "Enable review reminders" ON shows an explanation sentence before the OS dialog fires (or inline in the settings card before the toggle if permission has already been granted); `npm test` passes; no Tauri IPC changes.
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
 **Owner:** Architecture Agent

@@ -9,8 +9,6 @@ import { isTauri, listen, enterMandatoryMode, updateInterruptConfig } from "@/li
 import { useSettingsStore, isInDnd } from "@/store/settingsStore";
 import { useSRSStore } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
-import { useEntitlementStore } from "@/store/entitlementStore";
-import { validateLicense } from "@/lib/entitlement";
 import { getFeatureFlags } from "@/lib/featureFlags";
 
 /** Mounted in the root layout. Returns null immediately when the interrupt engine flag is off. */
@@ -35,20 +33,6 @@ function InterruptHandlerCore() {
     });
   }, [interruptEnabled, intervalHours, mandatory]);
 
-  // Silently re-validate subscriptions on every app launch (not just when settings page opens).
-  const { licenseKey, instanceId, needsValidation, markValidated } = useEntitlementStore();
-  useEffect(() => {
-    if (!needsValidation() || !licenseKey || !instanceId) return;
-    validateLicense(licenseKey, instanceId)
-      .then((r) => {
-        if (r.ok) markValidated(r.validUntil);
-      })
-      .catch((err) => {
-        console.error(`[ERR-VALIDATE-${Date.now()}] Background license validation failed:`, err);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — one check per mount, not on every store change
-
   // Subscribe to interrupt:fire events.
   useEffect(() => {
     if (!isTauri) return;
@@ -70,7 +54,13 @@ function InterruptHandlerCore() {
       if (totalDue === 0) return;
 
       if (isMandatory) {
-        await enterMandatoryMode();
+        try {
+          await enterMandatoryMode();
+        } catch (e) {
+          // IPC failure means the window won't be locked, but the study session
+          // must still open — a soft-lock is better than a silent no-op.
+          console.error(`[IH-MANDATORY-${Date.now()}] enterMandatoryMode IPC failed — window not locked`, e);
+        }
         router.push("/study?mode=interrupt");
       } else {
         // Passive: system notification — import dynamically so web builds tree-shake it.

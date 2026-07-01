@@ -2,6 +2,70 @@
 
 ---
 
+## Wave 1 — 2026-07-01 (#154) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-07-01**
+**Lines deleted: 19 (InterruptHandler.tsx) | Tests: 5/5 passing (4 existing + 1 new)**
+
+### Tasks closed
+- **#154** — Delete InterruptHandler.tsx:39-56 (stop-the-line duplicate validation) — COMPLETE
+
+### What was built
+
+Deleted the duplicate license revalidation block from `components/InterruptHandler.tsx`:
+- Removed `import { useEntitlementStore } from "@/store/entitlementStore"` (no longer used)
+- Removed `import { validateLicense } from "@/lib/entitlement"` (no longer used)
+- Removed lines 38–56: comment + `useEntitlementStore()` destructure + `useEffect` that called `validateLicense` → `markValidated`/`touchValidated`
+- `EntitlementValidator.tsx` (mounted in `app/layout.tsx`) is the sole owner of license revalidation. Both mounting simultaneously caused two concurrent Lemon Squeezy API calls on every app launch when validation was due.
+
+Updated `components/InterruptHandler.test.tsx`:
+- Removed `import { useEntitlementStore }` (no longer referenced in test file)
+- Removed `useEntitlementStore.setState(...)` from `beforeEach` (dead setup after deletion)
+- Deleted Test 5 ("calls touchValidated() when validateLicense returns ok:false") — tested deleted behavior
+- Added new test: "does not call validateLicense on mount" — verifies `vi.mocked(validateLicense)` was NOT called after render; fails if the duplicate block is ever re-added
+
+### Done-when verification
+- `grep -n "needsValidation|validateLicense|markValidated|touchValidated" components/InterruptHandler.tsx` → 0 results ✓
+- `npm test -- components/InterruptHandler.test.tsx` → 5/5 passing ✓
+
+### Cross-stream note
+`lib/packLoader.ts` (off-limits, owned by another agent) has TypeScript errors from a parallel change to `lib/specialtyPackLoader.ts`. Zero errors in files I own.
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+## Wave 1 — 2026-06-30 (#152) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-06-30**
+**Tests added: 3 | Total suite: 891/891 passing**
+
+### Tasks closed
+- **#152** — Specialty pack merge path test — COMPLETE
+
+### What was built
+
+Added `describe("specialty pack merge path", ...)` to `tests/packLoader.test.ts` with 3 tests that prove the `isReadySpecialtyPack` merge block in `lib/packLoader.ts` is live code:
+
+1. **Happy path merge** — registers `it-medical` as a ready specialty pack via `vi.mock("@/lib/langRegistry")`, seeds `memCache` with the base Italian pack, mocks fetch to return add-on JSON with matching sha256, asserts `result.pack.unitCount === base.unitCount + addOn.unitCount` and `getLoadedAddOns()` includes `"it-medical"`. Removing the merge block causes this to fail (unitCount=5 ≠ 6).
+2. **base_pack_not_loaded** — asserts `{ ok: false, error: "base_pack_not_loaded" }` when the specialty pack is requested before its base. Removing the merge block changes error to `download_failed`.
+3. **Idempotent** — asserts that a second `loadPack("it-medical", ...)` returns ok without a 3rd fetch. Removing the merge block causes the second call to re-fetch and fail.
+
+Mock strategy: `vi.hoisted<SpecialtyPack[]>(() => [])` creates a mutable array safe to reference inside `vi.mock`. The factory spreads the real module and overrides `SPECIALTY_PACKS` with the mutable array. Global `beforeEach` clears it (`mockSpecialtyPacks.length = 0`) so all existing 28 tests continue to see `SPECIALTY_PACKS = []`.
+
+### Verification gate
+- `npx tsc --noEmit`: PASS (0 errors)
+- `npm test -- tests/packLoader.test.ts`: 31/31 passing (28 existing + 3 new)
+- `npm run lint`: 0 errors (1 pre-existing warning in off-limits file)
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 1 — 2026-06-30 (#131 #132 #133 #134 #135) — Barry
 
 **Status: COMPLETE**

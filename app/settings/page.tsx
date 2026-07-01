@@ -2,9 +2,8 @@
 // page.tsx — Settings page: interrupt schedule, DnD, snooze, and license controls
 // ============================================================
 "use client";
-
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS } from "@/store/settingsStore";
 import { useEntitlementStore, ALL_KNOWN_PACKS } from "@/store/entitlementStore";
 import { runEntitlementValidation } from "@/components/EntitlementValidator";
@@ -12,6 +11,7 @@ import { isTauri, enableAutostart, disableAutostart, openExternalUrl } from "@/l
 import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { Section } from "@/components/settings/Section";
 import { Toggle } from "@/components/settings/Toggle";
+import { NotificationPermissionGate } from "@/components/NotificationPermissionGate";
 import { useExportImport } from "@/hooks/useExportImport";
 import { useLicenseActivation } from "@/hooks/useLicenseActivation";
 
@@ -19,20 +19,32 @@ export default function SettingsPage() {
   const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, setLaunchAtLogin, setInterruptEnabled, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes } = useSettingsStore();
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
   useEffect(() => { runEntitlementValidation(useEntitlementStore.getState); }, []);
+  const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "default" | "unsupported">("unsupported");
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (typeof Notification !== "undefined") setNotifPermission(Notification.permission); }, []);
   const { importRef, dataStatus, handleExport, handleImportFile } = useExportImport();
   const { licenseInput, setLicenseInput, licenseStatus, setLicenseStatus, handleActivate, handleValidate, handleDeactivate } = useLicenseActivation();
+  async function handleInterruptToggle(v: boolean) {
+    if (!v) { setInterruptEnabled(false); return; }
+    if (notifPermission === "denied") return;
+    if (notifPermission === "default" && typeof Notification !== "undefined") {
+      const result = await Notification.requestPermission();
+      setNotifPermission(result);
+      if (result === "granted") setInterruptEnabled(true);
+      return;
+    }
+    setInterruptEnabled(true);
+  }
   async function handleLaunchAtLogin(v: boolean) {
     setLaunchAtLogin(v);
-    if (isTauri) {
-      try {
-        if (v) await enableAutostart(); else await disableAutostart();
-      } catch (e) {
-        console.error(`[ERR-AUTOSTART-${Date.now()}]`, e);
-        setLaunchAtLogin(!v);
-      }
+    if (!isTauri) return;
+    try {
+      if (v) await enableAutostart(); else await disableAutostart();
+    } catch (e) {
+      console.error(`[ERR-AUTOSTART-${Date.now()}]`, e);
+      setLaunchAtLogin(!v);
     }
   }
-
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center px-4 py-12">
       <div className="w-full max-w-lg">
@@ -43,7 +55,8 @@ export default function SettingsPage() {
 
         <div className="space-y-8">
           <Section title="Review Reminders">
-            <Toggle label="Enable review reminders" description="Get reminded to review when cards are ready" checked={interruptEnabled} onChange={setInterruptEnabled} />
+            <Toggle label="Enable review reminders" description="Get reminded to review when cards are ready" checked={interruptEnabled} onChange={handleInterruptToggle} />
+            <NotificationPermissionGate permission={notifPermission} />
             {interruptEnabled && (
               <div className="pt-2">
                 <label className="text-sm text-gray-400 block mb-2">Remind me every</label>
@@ -91,7 +104,7 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-white capitalize">{licenseType === "subscription" ? "Subscription" : "Free"} license</div>
+                    <div className="text-sm font-medium text-white capitalize">{licenseType === "subscription" ? "Subscription" : "Free"} license</div>{/* display label — not a feature gate */}
                     <div className="text-xs text-gray-500 mt-0.5">
                       {unlockedPacks.length >= ALL_KNOWN_PACKS.length ? "All languages unlocked" : `${unlockedPacks.join(", ").toUpperCase()} unlocked`}
                       {validUntil && <> · active until {new Date(validUntil).toLocaleDateString()}</>}
@@ -100,6 +113,7 @@ export default function SettingsPage() {
                   <span className="text-xs bg-green-900 text-green-400 rounded-full px-2.5 py-0.5 font-semibold">Active</span>
                 </div>
                 <div className="flex gap-2 pt-1">
+                  {/* subscription-only action — no feature flag, always visible to subscription users; isProEnabled() does not apply */}
                   {licenseType === "subscription" && (
                     <button onClick={() => openExternalUrl(CUSTOMER_PORTAL_URL)} className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg px-3 py-1.5 transition-colors">Manage subscription →</button>
                   )}

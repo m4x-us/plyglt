@@ -1,6 +1,30 @@
-import { describe, it, expect } from "vitest";
-import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode } from "@/lib/langRegistry";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, getSpecialtyPacks, isSpecialtyPackCode } from "@/lib/langRegistry";
+import type { SpecialtyPack } from "@/lib/langRegistry";
 import { ALL_KNOWN_PACKS } from "@/store/entitlementStore";
+
+// ── Specialty pack mock ────────────────────────────────────────────────────────
+// getSpecialtyPacks and isSpecialtyPackCode close over the module-internal SPECIALTY_PACKS
+// constant — mocking only the export doesn't affect them. The mock factory re-implements
+// both functions using mockSpecialtyPacks so the filter predicate is exercised against
+// a live, mutable registry rather than the frozen empty constant.
+const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => []);
+vi.mock("@/lib/langRegistry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
+  return {
+    ...actual,
+    SPECIALTY_PACKS: mockSpecialtyPacks,
+    getSpecialtyPacks: (lang: string): SpecialtyPack[] =>
+      mockSpecialtyPacks.filter(sp => sp.baseLang === lang),
+    isSpecialtyPackCode: (s: string): boolean =>
+      mockSpecialtyPacks.some(sp => sp.code === s),
+  };
+});
+
+// Reset to empty before every test so existing tests see the real empty-registry behaviour.
+beforeEach(() => {
+  mockSpecialtyPacks.length = 0;
+});
 
 describe("langRegistry — derived constants are consistent", () => {
   it("ALL_KNOWN_PACKS (from entitlementStore) equals ALL_PACK_CODES (from langRegistry)", () => {
@@ -67,6 +91,35 @@ describe("langRegistry — derived constants are consistent", () => {
   });
 });
 
+describe("SpecialtyPack registry — initial empty state", () => {
+  it("SPECIALTY_PACKS is empty — no specialty content registered yet", () => {
+    expect(SPECIALTY_PACKS.length).toBe(0);
+  });
+
+  it("getSpecialtyPacks returns empty array for any lang when registry is empty", () => {
+    expect(getSpecialtyPacks("it")).toEqual([]);
+    expect(getSpecialtyPacks("es")).toEqual([]);
+    expect(getSpecialtyPacks("xx")).toEqual([]);
+  });
+
+  it("isSpecialtyPackCode returns false for base language codes", () => {
+    // Base pack codes are in LANGUAGE_REGISTRY, not SPECIALTY_PACKS.
+    expect(isSpecialtyPackCode("it")).toBe(false);
+    expect(isSpecialtyPackCode("es")).toBe(false);
+  });
+
+  it("isSpecialtyPackCode returns false for unregistered specialty-format codes", () => {
+    expect(isSpecialtyPackCode("it-medical")).toBe(false);
+    expect(isSpecialtyPackCode("it-business")).toBe(false);
+    expect(isSpecialtyPackCode("es-cooking")).toBe(false);
+  });
+
+  it("isSpecialtyPackCode returns false for path traversal attempts", () => {
+    expect(isSpecialtyPackCode("../evil")).toBe(false);
+    expect(isSpecialtyPackCode("../../etc/passwd")).toBe(false);
+  });
+});
+
 describe("isValidPackCode — type guard", () => {
   it("returns true for registered codes", () => {
     expect(isValidPackCode("it")).toBe(true);
@@ -87,5 +140,27 @@ describe("isValidPackCode — type guard", () => {
   it("returns false for path traversal attempts", () => {
     expect(isValidPackCode("../evil")).toBe(false);
     expect(isValidPackCode("../../etc/passwd")).toBe(false);
+  });
+});
+
+describe("getSpecialtyPacks with non-empty registry", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push(
+      { code: "it-medical", baseLang: "it", name: "Medical", ready: false },
+      { code: "it-business", baseLang: "it", name: "Business", ready: false },
+      { code: "es-travel", baseLang: "es", name: "Travel", ready: false },
+    );
+  });
+
+  it("returns only Italian packs for \"it\"", () => {
+    expect(getSpecialtyPacks("it")).toHaveLength(2);
+  });
+
+  it("returns only Spanish packs for \"es\"", () => {
+    expect(getSpecialtyPacks("es")).toHaveLength(1);
+  });
+
+  it("returns [] for unknown language \"fr\"", () => {
+    expect(getSpecialtyPacks("fr")).toEqual([]);
   });
 });

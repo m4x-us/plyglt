@@ -4,11 +4,12 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "node",
+    setupFiles: ["./tests/setup.ts"],
     passWithNoTests: true,
     // Exclude worktrees created by build agents — they contain stale test
     // file copies that would otherwise be discovered and run against the
     // current codebase with mismatched assertions.
-    exclude: ["node_modules", ".claude/**"],
+    exclude: ["node_modules", ".claude/**", "tests/e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
@@ -19,7 +20,7 @@ export default defineConfig({
       thresholds: {
         lines: 84,
         functions: 79,
-        branches: 79,
+        branches: 81,
         statements: 82,
       },
       exclude: ["node_modules", "tests", ".next", "scripts"],

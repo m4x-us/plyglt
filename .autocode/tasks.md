@@ -1,12 +1,12 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-06-29
+Last updated: 2026-07-01
 
 ## Summary
-125 tasks across 10 batches (Batches 1–9 COMPLETE)
-Critical (severity 8-9): 13 | High (6-7): 33 | Medium (4-5): 27 | Low (1-3): 17
-Current Sprint: Batch 10 — 6 tasks (M2 macOS Shipping Infrastructure)
+172 tasks across 17 batches (Batches 1–9, 11–13 COMPLETE; Batch 10 CURRENT SPRINT; Batches 14–17 PLANNED)
+Critical (severity 8-9): 19 | High (6-7): 37 | Medium (4-5): 36 | Low (1-3): 19
+Current Sprint: Batch 10 (owner-blocked: #120–#122; immediately workable: #154–#158) · Next sprint: Batch 14 (M3 macOS OS Hooks)
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -2319,7 +2319,7 @@ Theme: Rule 14 completion (4 page routes), CI enforcement, docs accuracy, archit
 
 ---
 
-## Batch 10 — M2 macOS Shipping Infrastructure | 6 tasks | [OWNER-BLOCKED]
+## Batch 10 — M2 macOS Shipping Infrastructure | 11 tasks | [CURRENT SPRINT]
 Dependency: Batch 9 complete. Owner actions (LS store creation, Apple Developer ID certificate) must be completed before tasks #120–#122 can close.
 Theme: The infrastructure prerequisites for distributing plyglt as a signed macOS desktop app. Windows/Linux packaging is Batch 11.
 
@@ -2374,7 +2374,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Risk:** High — incorrect signing, notarization failure, or artifact naming mismatch breaks distribution silently. Test with a pre-release tag (v0.1.0-beta.1) before the real v0.1.0 tag. Validate with `xcrun stapler validate` and a Gatekeeper check on a clean macOS machine.
 **Completion gates:** Security Agent sign-off + Architecture Agent sign-off
 **Done when:** Pushing a `v*` tag triggers the workflow; the resulting GitHub Release contains a signed .dmg and a `latest.json` manifest; `curl [endpoint]` returns the manifest with valid ed25519 signature; `grep "REPLACE_WITH_REPO" src-tauri/tauri.conf.json` returns 0 hits.
-**Complexity:** 🔧 Full — new file, implements full CI release pipeline
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
 **Owner:** Security Agent
 
 ---
@@ -2388,7 +2388,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Risk:** Low — UI-only addition. Does not change Tauri IPC calls.
 **Completion gates:** Architecture Agent sign-off
 **Done when:** Toggling "Enable review reminders" ON shows an explanation sentence before the OS dialog fires (or inline in the settings card before the toggle if permission has already been granted); `npm test` passes; no Tauri IPC changes.
-**Complexity:** 🔧 Full — implements new UX flow
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
 **Owner:** Architecture Agent
 
 ---
@@ -2404,8 +2404,79 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** `grep "npm audit" .github/workflows/ci.yml` returns ≥1 hit; `grep "moderate" STATUS.md` returns ≥1 hit in Known Issues section.
 **Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope change
 **Owner:** Docs Agent
+**Status: COMPLETE — 2026-07-01**
 
-## Batch 11 — A1 Spanish Source-Language Translation | 21 tasks | [CURRENT SPRINT]
+---
+
+### Task #154 | code | severity 8
+**What:** Delete `components/InterruptHandler.tsx` lines 39–56 — the duplicate license revalidation block (`needsValidation()` check + `validateLicense()` call + `markValidated()`/`touchValidated()` branches). `EntitlementValidator.tsx` already runs identical logic on mount in `app/layout.tsx`. When both components mount simultaneously, Zustand reads `needsValidation()` as true for both before either effect's `touchValidated()` propagates — producing two concurrent Lemon Squeezy API calls on every app launch when validation is due.
+**Why:** SCTS Andon cord — two concurrent LS API calls on every launch when validation is due. Could exhaust LS rate limits, create duplicate validation events, and masks the responsibility boundary (`EntitlementValidator.tsx` owns revalidation). Stop-the-line.
+**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
+**Severity:** 8 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file (+ test), deletion only
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** Yes — `InterruptHandler.test.tsx` must add a test verifying the component does NOT call `validateLicense` on mount.
+**Done when:** `components/InterruptHandler.tsx` contains no `needsValidation`, `validateLicense`, `markValidated`, or `touchValidated` import or call. `components/InterruptHandler.test.tsx` has a new assertion that renders `<InterruptHandler />` and asserts `validateLicense` was NOT called. `npm test` passes.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #155 | product | severity 6
+**What:** Gate `app/stats/page.tsx` behind `isProEnabled(flags.analytics, licenseType)`. Import `useSettingsStore` to get `licenseType`. Import `getFeatureFlags` and `isProEnabled` from `lib/featureFlags`. Add gate at top of page component: if `!isProEnabled(flags.analytics, licenseType)` render a Pro upgrade prompt (matching the pattern in other gated surfaces) instead of the stats view. Wire `flags.analytics` from `getFeatureFlags()`.
+**Why:** BRAND.md lists Analytics as Pro-only. The `analytics` feature flag exists in `lib/featureFlags.ts:35` but is never wired to `app/stats/page.tsx` — every free user sees the stats page. Owner decision 2026-07-01: gate it. Without this the flag is a dead symbol and free users have access to a Pro feature.
+**File:** `app/stats/page.tsx`, `app/stats/page.test.tsx`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** Yes — 2 new test cases: (1) free user sees upgrade prompt, (2) Pro user sees stats. Also test analytics flag=false shows prompt even for Pro.
+**Done when:** Free users (licenseType="free") see an upgrade prompt on `/stats`. Pro users see full stats. Flag=false blocks even Pro users. `app/stats/page.test.tsx` has ≥2 new gate test cases. `npm test` passes with no coverage regression.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #156 | architecture | severity 5
+**What:** Extract specialty-pack handling from `lib/packLoader.ts` (currently 426 lines — 26 over Rule 1 service ceiling of 400) into new `lib/specialtyPackLoader.ts`. Move: `isReadySpecialtyPack` guard logic, specialty pack download + sha256 verify + merge into `memCache[baseLang]`, `loadedAddOns` array, `getLoadedAddOns()` export, `"base_pack_not_loaded"` error path. `lib/packLoader.ts` calls `lib/specialtyPackLoader.ts` for the specialty branch. Keep `clearCacheForTesting` exports accessible to tests (either re-export or expose from both modules). Add Rule 2 header to `lib/specialtyPackLoader.ts`.
+**Why:** Rule 1 — service files cap at 400 lines. `lib/packLoader.ts` is at 426 lines and will grow as specialty packs ship. Extract now avoids a larger refactor later.
+**File:** `lib/packLoader.ts`, `lib/specialtyPackLoader.ts` (new), `tests/packLoader.test.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files + 1 new, refactor
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** Yes — all 28+ existing packLoader tests must continue passing, including the 3 specialty pack merge path tests.
+**Done when:** `lib/packLoader.ts` ≤ 400 lines. `lib/specialtyPackLoader.ts` exists with Rule 2 header. All existing packLoader tests pass (no regressions). `npm test` passes. No coverage regression.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #157 | tests | severity 4
+**What:** Add a test describe block to `tests/langRegistry.test.ts` exercising `getSpecialtyPacks(lang)` with a non-empty `SPECIALTY_PACKS` registry. Use `vi.mock`/`vi.hoisted` to temporarily replace `SPECIALTY_PACKS` with a 3-pack mock (2 with `baseLang: "it"`, 1 with `baseLang: "es"`). Assert: `getSpecialtyPacks("it")` returns exactly the 2 Italian packs; `getSpecialtyPacks("es")` returns exactly the 1 Spanish pack; `getSpecialtyPacks("fr")` returns [].
+**Why:** The `sp.baseLang === lang` filter predicate in `getSpecialtyPacks()` has no test with a non-empty registry. LanguageGrid tests mock the function entirely. If someone adds specialty packs and misspells `baseLang`, no test catches it.
+**File:** `tests/langRegistry.test.ts`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, tests only
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** This task IS the test.
+**Done when:** `tests/langRegistry.test.ts` has a new describe block "getSpecialtyPacks with non-empty registry" with ≥3 test cases. `npm test` passes.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #158 | tests | severity 3
+**What:** Replace 6 redundant `expect(screen.getByX(...)).toBeDefined()` patterns with bare calls or specific value assertions. Locations: `app/learn/page.test.tsx` lines 96, 97, 105, 106 and `app/stats/page.test.tsx` lines 69, 83. `screen.getByText()` and `screen.getByTestId()` already throw if absent — `.toBeDefined()` adds zero signal. Use specific text/value assertions where a meaningful check is possible; otherwise use bare `screen.getByText('...')`.
+**Why:** Kaizen — pseudocode assertions pass when the implementation is wrong. Rule 5 requires tests that fail with wrong output.
+**File:** `app/learn/page.test.tsx`, `app/stats/page.test.tsx`
+**Severity:** 3 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, test cleanup
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** The fixes ARE the tests.
+**Done when:** Neither file has `.toBeDefined()` wrapping a `getBy*` result. `npm test` passes.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-07-01**
+
+## Batch 11 — A1 Spanish Source-Language Translation | 21 tasks | [COMPLETE]
 Dependency: Batch 10 is owner-blocked (Tasks #120–#122 need owner actions). These tasks are fully independent and run immediately.
 Theme: Add `es` (Spanish) source-language fields to all 20 A1 Italian unit files. One task per unit + one export/validate task. All 20 unit tasks are independent — no cross-dependencies.
 
@@ -2747,6 +2818,301 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 **Complexity:** ⚡ Direct — 2 files, single-scope change, runs two deterministic scripts
 **Owner:** Architecture Agent
 **Status: COMPLETE — 2026-06-30**
+
+---
+
+## Batch 12 — Specialty Pack Architecture | 4 tasks | [CURRENT SPRINT]
+Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
+Theme: Extend the pack registry, entitlement model, pack loader, and UI to support the concept of sub-packs within a language — so adding a real specialty pack later requires only content and a pricing entry, not architectural changes.
+
+### Task #147 | architecture | severity 6
+**What:** Extend `lib/langRegistry.ts` to support specialty pack codes as a first-class concept. Add a `SpecialtyPack` interface with fields: `code` (e.g. `"it-medical"`), `baseLang` (`"it"`), `name`, `ready: false`. Add an empty `SPECIALTY_PACKS` registry array. Update `packLoader.ts` to accept specialty pack codes as valid (no-op for now since none are `ready: true`) without allowing path traversal. Add a `getSpecialtyPacks(lang)` helper that filters by baseLang.
+**Why:** The pack loader currently validates codes against a flat `READY_PACK_CODES` allowlist. Specialty packs are sub-packs within a language — a concept the codebase doesn't have yet. This task introduces the type and registry so all future tasks can build on a concrete interface rather than strings.
+**File:** `lib/langRegistry.ts`, `lib/packLoader.ts`
+**Blocks:** Tasks #148, #149, #150
+**Blocked by:** Nothing
+**Done when:** `grep "SpecialtyPack" lib/langRegistry.ts` returns a type definition; `grep "SPECIALTY_PACKS" lib/langRegistry.ts` returns the registry array; `npx tsc --noEmit` passes; `npm test` passes.
+**Complexity:** 🔧 Full — 2 files, introduces new type and registry
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+### Task #148 | architecture | severity 5
+**What:** Extend `store/entitlementStore.ts` and `lib/entitlement.ts` to track purchased add-on pack codes separately from the Pro subscription. Add `purchasedAddOns: string[]` to the persisted entitlement state (default `[]`). Add `hasAddOn(code: string): boolean` selector. Add a `purchaseAddOn(code: string)` action (no-op implementation for now — real payment integration comes later). Increment `ENTITLEMENT_VERSION` and add the migration in `store/migrations.ts`.
+**Why:** The current entitlement model is binary: free or Pro. Specialty packs are a third axis — a user might be free-tier but have purchased a specific add-on pack. The data shape must exist before any UI or payment work can reference it.
+**File:** `store/entitlementStore.ts`, `lib/entitlement.ts`, `store/migrations.ts`
+**Blocks:** Tasks #149, #150
+**Blocked by:** Task #147
+**Done when:** `grep "purchasedAddOns" store/entitlementStore.ts` returns the state field; `grep "hasAddOn" lib/entitlement.ts` returns the selector; `grep "ENTITLEMENT_VERSION" store/migrations.ts` is incremented and a migration entry exists; `npm test` passes.
+**Complexity:** 🔧 Full — 3 files, schema migration required
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+### Task #149 | architecture | severity 5
+**What:** Extend `lib/packLoader.ts` to support loading a specialty pack *alongside* the base language pack, not instead of it. A call to `loadPack("it-medical")` should: (1) verify `it` base pack is already loaded, (2) load and verify the specialty pack JSON, (3) merge its cards into the active session without replacing core Italian cards. Add a `loadedAddOns: string[]` field to the in-memory pack cache. For now, since no specialty packs exist, this path will always return a "not available" result — the structure just needs to be correct.
+**Why:** The current loader assumes one active pack per language. Specialty packs are additive — a user studies core Italian AND medical vocabulary in the same session. Getting the merge logic right now prevents a painful refactor when real content arrives.
+**File:** `lib/packLoader.ts`
+**Blocks:** Task #150
+**Blocked by:** Tasks #147, #148
+**Done when:** `grep "loadedAddOns" lib/packLoader.ts` returns the cache field; `grep "it-medical\|baseLang" lib/packLoader.ts` shows the specialty code path exists; `npx tsc --noEmit` passes; `npm test` passes.
+**Complexity:** 🔧 Full — 1 file, non-trivial logic change
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+### Task #150 | ui | severity 3
+**What:** Add a "Specialty packs" section to `components/LanguageGrid.tsx` (or wherever the language/pack picker renders). For each language the user has unlocked, show a subsection listing `getSpecialtyPacks(lang)` entries. Since `SPECIALTY_PACKS` is empty, this renders nothing in production — but the component slot exists so adding a real pack later requires only a registry entry, not a UI change. Add a `hasAddOn` check from `entitlementStore` to gate the tile state (locked vs unlocked).
+**Why:** The UI must be wired to the new registry and entitlement selector so the full data flow — registry → loader → entitlement → UI — is exercised end-to-end before any real content exists. An untested integration discovered at content-launch time is expensive.
+**File:** `components/LanguageGrid.tsx`
+**Blocks:** Nothing
+**Blocked by:** Tasks #147, #148, #149
+**Done when:** `grep "getSpecialtyPacks\|SPECIALTY_PACKS" components/LanguageGrid.tsx` returns a usage; `grep "hasAddOn" components/LanguageGrid.tsx` returns a usage; `npx tsc --noEmit` passes; `npm test` passes; specialty section renders (empty) without errors.
+**Complexity:** 🔧 Full — 1 file, new UI section
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+## Batch 13 — Quality Foundation | 3 tasks | [CURRENT SPRINT]
+Dependency: Independent. No owner actions required.
+Theme: Three gaps identified in the world-class audit (2026-06-30) with no existing task coverage: content depth checkpoint, specialty pack merge path proof, and E2E seam test.
+
+### Task #151 | audit | severity 5
+**What:** Run `npx tsx scripts/exportPack.ts it && npx tsx scripts/validatePack.ts public/packs/it.json`. Record the exact `unitCount` and `cardCount` from the JSON output. Compare against the CURRICULUM.md A1 target (20 units, ~2,600 cards). If `unitCount < 20`, create specific content tasks for the missing units. If `unitCount >= 20`, document the milestone and note the gap to A2 (50 units total).
+**Why:** No task forces a content depth checkpoint before M2 ships. The pack loader, scheduler, and UI all assume substantial content — but no CI gate or task verifies how much content actually exists. A beautiful system with 3 units cannot achieve B2 fluency.
+**File:** `public/packs/it.json` (read-only), `content/cards/` (audit target)
+**Severity:** 5 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — read-only audit, no code changes
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** None — read-only. May generate follow-on content tasks.
+**Test required:** None — this task is an audit checkpoint.
+**Done when:** A status note is added to this task recording the exact `unitCount` and `cardCount` from the validated pack. If below A1 target, at least one content task is created in a new batch.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-06-30**
+**Audit result:** `unitCount=63, cardCount=3680` (exportPack + validatePack, 2026-06-30)
+- A1 milestone (20 units, ~2,600 cards): **COMPLETE** ✓ — 63 ≥ 20 units, 3,680 ≥ 2,600 cards
+- A2 milestone (50 units total): **COMPLETE on units** ✓ — 63 ≥ 50 units; card count (3,680) is below A2 total target (~8,300) — card depth lags unit count
+- B1 progress: 63 of 85 units — **22 units remaining** to reach B1 milestone
+- B2 target: 63 of 125 units — **62 units remaining** to full curriculum
+- Carry-forward: 0 content tasks created (unitCount ≥ 20; B1/B2 gaps are curriculum build-out, not audit blockers)
+
+---
+
+### Task #152 | tests | severity 4
+**What:** Write a unit test that exercises the `isReadySpecialtyPack` branch in `lib/packLoader.ts:loadPack`. The test must: (1) override `SPECIALTY_PACKS` via module mock to include `{ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true }`; (2) seed `memCache` with a base Italian pack via a prior `loadPack("it", ...)` call; (3) mock `fetch` to return a minimal valid pack JSON with a computed sha256 matching the mocked manifest; (4) call `loadPack("it-medical", null)` and assert `result.ok === true` and `result.pack.unitCount === base.unitCount + addon.unitCount`; (5) call `getLoadedAddOns()` and assert it includes `"it-medical"`.
+**Why:** The merge path added in Task #149 is dead code while `SPECIALTY_PACKS = []` — removing the entire `isReadySpecialtyPack` block causes zero test failures. Dead code rots silently until the moment it matters (real specialty pack launch), which is the worst time to discover it was broken.
+**File:** `tests/packLoader.test.ts`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, test only
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Low — test only. The mock approach for overriding `SPECIALTY_PACKS` must use `vi.mock` factory or `vi.spyOn` depending on how the module is structured.
+**Test required:** This task IS the test.
+**Done when:** A test exists under describe "specialty pack merge path" that fails if the merge logic in `lib/packLoader.ts` is removed, and passes in CI. `npm test -- tests/packLoader.test.ts` green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+### Task #153 | tests | severity 5
+**What:** Add Playwright as a dev dependency and create `tests/e2e/study-session.spec.ts` with one smoke test covering the core user path: (1) navigate to `/` — assert the language picker renders; (2) click the Italian button — assert navigation to `/learn`; (3) click into the first unlocked unit — assert a StudyCard renders with a prompt; (4) advance the card (keypress or button click) — assert the session progresses. Run against the Next.js dev server (`next dev`). Add a `playwright.config.ts` pointing at `http://localhost:3000`.
+**Why:** 888 unit tests cover individual pieces with mocked boundaries. No test exercises the path a real user takes through the full stack without mocks. A regression in the component-to-hook-to-store-to-renderer seam is invisible in CI until a user reports it.
+**File:** `tests/e2e/study-session.spec.ts` (new), `playwright.config.ts` (new), `package.json` (devDep)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — new test infrastructure, 3 files, new devDep
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Risk:** Medium — Playwright installs ~200MB of browser binaries. Add `tests/e2e/` to `.gitignore` snapshots but commit the spec and config. Add a `test:e2e` script to `package.json` so E2E does not run as part of `npm test` (keep unit and E2E separate).
+**Test required:** This task IS the test infrastructure.
+**Done when:** `npx playwright test` passes with the smoke test against a running dev server. `playwright.config.ts` exists. The spec covers steps 1–4 above. The smoke test is NOT included in `npm test` (unit test suite unchanged).
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-06-30**
+
+---
+
+## Batch 14 — M3 macOS OS Hooks [NEXT SPRINT after Batch 10]
+Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire interrupts from real OS events — wake from sleep, unlock screen, and idle return — rather than the 30-second interval timer alone.
+
+### Task #159 | docs | severity 3
+**What:** Add Rule 2 plain English comment headers to 3 Rust source files currently missing them: `src-tauri/src/lib.rs` (main Tauri entry point — registers all plugins, sets up tray, wires IPC handlers), `src-tauri/src/interrupt.rs` (InterruptState struct + 30-second poll thread + 4 IPC commands: update_interrupt_config, snooze_interrupt, enter_mandatory_mode, exit_mandatory_mode), `src-tauri/src/license.rs` (Lemon Squeezy IPC commands: activate_license, deactivate_license, validate_license, open_url). Each header: 2–3 sentences describing what the file owns, its responsibilities, and what depends on it.
+**Why:** Rule 2 — every file starts with a plain English explanation. Rust files are not exempt. Batch 14 adds more Rust code; headers must be in place first.
+**File:** `src-tauri/src/lib.rs`, `src-tauri/src/interrupt.rs`, `src-tauri/src/license.rs`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 3 files, comment headers only
+**Blocked by:** Nothing | **Blocks:** #160, #161
+**Test required:** No — Rule 2 is structural, not behavioral.
+**Done when:** Each of the 3 files starts with a `//` comment block (≥2 sentences). No code changed. `cargo build` still compiles.
+**Owner:** Architecture Agent
+
+---
+
+### Task #160 | architecture | severity 5
+**What:** Extract `setup_tray()` function (currently embedded in `src-tauri/src/lib.rs`, ~40 lines) into a new file `src-tauri/src/tray.rs`. Export `pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>`. Import and call from `lib.rs`. Add Rule 2 header to `src-tauri/src/tray.rs`. No behavior change.
+**Why:** `src-tauri/src/lib.rs` needs headroom for OS hook registration in Task #162 (~40 lines per trigger type). Pre-extract `setup_tray()` now so `lib.rs` stays under 150 lines after Batch 14 additions.
+**File:** `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs` (new)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files (1 new), Rust refactor
+**Blocked by:** #159 | **Blocks:** #162
+**Test required:** No behavior change — `cargo build` compiling is the test.
+**Done when:** `src-tauri/src/tray.rs` exists with `pub fn setup_tray(...)` and Rule 2 header. `src-tauri/src/lib.rs` ≤ 120 lines (makes room for Task #162 additions). `cargo build` compiles. App launches normally.
+**Owner:** Architecture Agent
+
+---
+
+### Task #161 | architecture | severity 5
+**What:** Extract the 5 interrupt-specific exports from `lib/tauri.ts` into a new `lib/tauriInterrupt.ts`: `updateInterruptConfig`, `snoozeInterrupt`, `enterMandatoryMode`, `exitMandatoryMode`, `updateTrayBadge`. Add Rule 2 header to `lib/tauriInterrupt.ts`. Update callers (`components/InterruptHandler.tsx`, `app/settings/page.tsx`) to import from `@/lib/tauriInterrupt`. Grep for any other callers: `grep -r "updateInterruptConfig\|snoozeInterrupt\|enterMandatoryMode\|exitMandatoryMode\|updateTrayBadge" --include="*.ts" --include="*.tsx" . | grep -v node_modules`. If `lib/tauri.ts` re-exports them for backwards compatibility, add a note that the re-exports will be removed in a future cleanup.
+**Why:** `lib/tauri.ts` is at 151 lines. Task #162 will add OS-trigger IPC calls (enableWakeTrigger, enableUnlockTrigger, setIdleThreshold) — without extraction, `lib/tauri.ts` exceeds 200 lines. Extract interrupt IPC into its own module now.
+**File:** `lib/tauri.ts`, `lib/tauriInterrupt.ts` (new), `components/InterruptHandler.tsx`, `app/settings/page.tsx`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 4 files (1 new), refactor
+**Blocked by:** #159 | **Blocks:** #162
+**Test required:** No behavior change — `npm test` passing is the test (all existing InterruptHandler + settings tests must pass).
+**Done when:** `lib/tauriInterrupt.ts` exists with Rule 2 header and all 5 exports. `lib/tauri.ts` ≤ 145 lines. No interrupt-specific imports from `lib/tauri.ts` in callers (or clearly marked re-exports). `npm test` passes.
+**Owner:** Architecture Agent
+
+---
+
+### Task #162 | feature | severity 8
+**What:** Create `src-tauri/src/os_events.rs` with `#[cfg(target_os = "macos")]` implementations of three macOS OS event listeners. All three emit `app.emit("interrupt:fire", payload)` — the same event the 30-second interval timer already emits. `InterruptHandler.tsx` handles it identically regardless of source.
+1. **Wake detection:** Register `NSWorkspaceDidWakeNotification` via Objective-C bridge or `objc2` crate. On notification: check `InterruptState.enabled` and `active_hours` guards; if clear, emit `interrupt:fire`.
+2. **Unlock/session-active detection:** Register `NSWorkspaceSessionDidBecomeActiveNotification`. Same guard check before emitting.
+3. **Idle detection:** In the existing 30-second poll thread (or a dedicated thread), call `CGEventSourceSecondsSinceLastEventType()` or equivalent. Track idle→active transition: when idle time exceeded `idleThresholdMinutes` and then drops back below 10 seconds (user returned), emit `interrupt:fire`. Same guards.
+Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `src-tauri/src/lib.rs` after app setup. Add Rule 2 header to `os_events.rs`.
+**Why:** This is the core Batch 14 deliverable. The interval timer fires regardless of whether the user is at their computer. OS hooks fire at the right moments: after a break, after a meeting, when returning from being away. Without OS hooks, plyglt is "open to review" not "proactively interrupting."
+**File:** `src-tauri/src/os_events.rs` (new), `src-tauri/src/lib.rs`, `src-tauri/src/interrupt.rs`
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 3 files (1 new), new macOS Rust feature
+**Blocked by:** #160, #161 | **Blocks:** #163
+**Test required:** Manual verification (macOS system events are not unit-testable in CI). Document manual test steps in the task completion summary.
+**Done when:** `src-tauri/src/os_events.rs` exists and compiles on macOS (`cargo build --target aarch64-apple-darwin`). `src-tauri/src/lib.rs` calls `os_events::start_os_listeners(app_handle)`. Manual test: put Mac to sleep → wake → interrupt fires within 5 seconds. Lock screen → unlock → interrupt fires. Leave idle 15+ minutes → return → interrupt fires.
+**Owner:** Architecture Agent
+
+---
+
+### Task #163 | feature | severity 5
+**What:** Add OS trigger toggle controls to interrupt settings. Extend `InterruptConfig` in `store/settingsStore.ts` with 4 new fields: `wakeEnabled: boolean` (default true), `unlockEnabled: boolean` (default true), `idleEnabled: boolean` (default true), `idleThresholdMinutes: number` (default 15). Bump `SETTINGS_VERSION` and add migration. Wire all 4 through the `update_interrupt_config` IPC command (extend its payload type in `src-tauri/src/interrupt.rs` and `lib/tauriInterrupt.ts`). Add 3 toggle rows and an idle-threshold number input to the interrupt section in `app/settings/page.tsx`.
+**Why:** Users need control over which triggers fire. Some may not want interruptions on every wake; others may prefer only scheduled interruptions. Without controls, all 3 new OS triggers fire permanently with no opt-out.
+**File:** `store/settingsStore.ts`, `store/migrations.ts`, `app/settings/page.tsx`, `lib/tauriInterrupt.ts`, `src-tauri/src/interrupt.rs`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 5 files, new settings + migration
+**Blocked by:** #162 | **Blocks:** #164
+**Test required:** Yes — settings store migration test for new fields, component tests for new toggle rows.
+**Done when:** `InterruptConfig` has 4 new fields with correct defaults. `SETTINGS_VERSION` bumped + migration adds them. Settings page renders 3 toggles + idle threshold input. `update_interrupt_config` payload includes new fields. `npm test` passes. `cargo build` compiles. `store/migrations.ts` tests cover v→v+1 migration for the new fields.
+**Owner:** Architecture Agent
+
+---
+
+### Task #164 | tests | severity 5
+**What:** Add tests for the Task #163 OS trigger settings. In `tests/migrations.test.ts`: add test for the SETTINGS_VERSION migration that adds `wakeEnabled`, `unlockEnabled`, `idleEnabled`, `idleThresholdMinutes` to existing state without those fields. In `app/settings/page.test.tsx`: add 3 test cases for the new toggle rows (wake toggle renders, unlock toggle renders, idle toggle renders + threshold input visible).
+**Why:** Rule 5 + Kaizen — new store schema fields need migration tests (invariant: old data is not corrupted). New settings UI elements need Rule 14 component tests.
+**File:** `tests/migrations.test.ts`, `app/settings/page.test.tsx`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, new tests
+**Blocked by:** #163 | **Blocks:** Nothing
+**Test required:** This task IS the tests.
+**Done when:** `tests/migrations.test.ts` has a new test for the SETTINGS_VERSION migration adding OS trigger defaults. `app/settings/page.test.tsx` has ≥3 new test cases for OS trigger toggles. `npm test` passes. Coverage thresholds maintained.
+**Owner:** QA Agent
+
+---
+
+## Batch 15 — Windows + Linux Packaging
+Dependency: Batch 14 complete (OS events architecture in place). Theme: Port OS hooks to Windows and Linux, and set up platform packaging and code signing for all three desktop platforms.
+
+### Task #165 | build | severity 7
+**What:** Windows code signing — choose between EV certificate and Azure Trusted Signing. Configure `src-tauri/tauri.conf.json` for Windows signing. Update `.github/workflows/release.yml` to sign and notarize the Windows installer (NSIS format). Document the signing choice in `docs/SIGNING.md` (new).
+**Why:** Without Windows code signing, SmartScreen blocks the installer with "Windows protected your PC." Most users will not proceed past this dialog. Required for any meaningful Windows distribution.
+**File:** `src-tauri/tauri.conf.json`, `.github/workflows/release.yml`, `docs/SIGNING.md` (new)
+**Severity:** 7 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 3 files (1 new)
+**Blocked by:** #123 | **Blocks:** #166
+**Done when:** `tauri.conf.json` has Windows bundle signing config. `release.yml` signs Windows installer. NSIS `.exe` generated in release pipeline. SmartScreen does not block the signed installer.
+**Owner:** Architecture Agent
+
+---
+
+### Task #166 | feature | severity 6
+**What:** Windows OS event hooks — add a `#[cfg(target_os = "windows")]` block to `src-tauri/src/os_events.rs`. Implement: (1) Wake detection via `WM_POWERBROADCAST` / `PBT_APMRESUMEAUTOMATIC` Windows message, (2) Unlock detection via `WM_WTSSESSION_CHANGE` / `WTS_SESSION_UNLOCK`, (3) Idle detection via `GetLastInputInfo()` in the poll thread. All three emit `interrupt:fire` with the same guard checks as macOS. Requires `windows-sys` or `winapi` crate dependency in `Cargo.toml`.
+**Why:** macOS OS hooks ship in Batch 14. Batch 15 ports them to Windows. The IPC interface and JS handler are identical — only the Rust platform code differs. Same user experience across platforms.
+**File:** `src-tauri/src/os_events.rs`, `src-tauri/Cargo.toml`
+**Severity:** 6 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 2 files, platform Rust
+**Blocked by:** #162, #165 | **Blocks:** #167
+**Done when:** `os_events.rs` compiles on Windows (`cargo build --target x86_64-pc-windows-msvc`). Manual test on Windows 11: wake from sleep → interrupt fires; lock screen → unlock → interrupt fires.
+**Owner:** Architecture Agent
+
+---
+
+### Task #167 | build | severity 5
+**What:** Linux packaging — configure Tauri bundler for AppImage output in `src-tauri/tauri.conf.json`. Add `.github/workflows/release.yml` Linux runner (Ubuntu 22.04) producing AppImage. Implement Linux OS event hooks in `src-tauri/src/os_events.rs` under `#[cfg(target_os = "linux")]`: (1) Wake/unlock via systemd-logind D-Bus (`PrepareForSleep` signal + `Session.Lock`/`Unlock` signals), (2) Idle detection via `XScreenSaverQueryInfo` or `/proc/uptime` comparison.
+**Why:** Linux desktop users over-index in plyglt's target demographic (productivity professionals). AppImage requires no installation and works on all major distros. Linux OS hooks complete the cross-platform interrupt engine.
+**File:** `src-tauri/src/os_events.rs`, `src-tauri/tauri.conf.json`, `.github/workflows/release.yml`
+**Severity:** 5 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 3 files, Linux packaging + Rust
+**Blocked by:** #166 | **Blocks:** Nothing (Batch 15 complete)
+**Done when:** AppImage generated in release pipeline. `cargo build --target x86_64-unknown-linux-gnu` compiles. Manual test on Ubuntu 22.04: suspend → resume → interrupt fires.
+**Owner:** Architecture Agent
+
+---
+
+## Batch 16 — Sync Backend
+Dependency: Batch 15 complete (all desktop platforms shipping). Theme: Add a cloud sync backend and auth layer so user progress persists across devices — prerequisite for Batch 17 (mobile).
+
+### Task #168 | architecture | severity 9
+**What:** Write sync backend architecture decision doc at `docs/SYNC_ARCHITECTURE.md`. Must cover: (1) platform choice (Supabase vs Firebase vs custom server — choose one, justify), (2) what syncs: SRS card state (cardId, stability, difficulty, dueDate, lastReview, reviewCount, lapses), settings (interrupt config), entitlement (licenseKey, licenseType, purchasedAddOns), (3) offline-first model: all writes local-first, sync on open + periodic, (4) conflict resolution strategy for SRS data — last-write-wins is wrong for concurrent reviews on multiple devices; specify merge strategy (e.g., per-card timestamp, version vector), (5) auth providers: Apple Sign In + Google Sign In minimum (Apple Sign In required for App Store), (6) push notification infrastructure: APNs (iOS) + FCM (Android), (7) estimated monthly cost at 1,000 / 10,000 / 100,000 users.
+**Why:** The platform choice constrains all of Batches 16-17. A wrong choice is expensive to reverse. Apple Sign In is required by App Store guidelines for any app that offers social login. Push notification server design must be decided before mobile starts. Conflict resolution for SRS data is subtle — cannot be deferred.
+**File:** `docs/SYNC_ARCHITECTURE.md` (new)
+**Severity:** 9 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 1 file, architecture doc
+**Blocked by:** Nothing (but requires owner decision on platform and auth) | **Blocks:** #169
+**Done when:** `docs/SYNC_ARCHITECTURE.md` exists. Platform chosen (not TBD). Auth providers listed. Conflict resolution strategy named specifically. Push notification stack defined. Cost estimate table present.
+**Owner:** Architecture Agent
+
+---
+
+### Task #169 | feature | severity 9
+**What:** Implement sync backend using the platform chosen in Task #168. Schema and API per `docs/SYNC_ARCHITECTURE.md`. Offline-first: Zustand stores continue operating as before; add a sync layer that pushes local state to backend on connect and merges incoming changes. Conflict resolution: per-card timestamp merge for SRS data (latest review timestamp wins per card, not per sync session). Auth: Apple Sign In + Google Sign In flows in the app and backend. Data encrypted in transit (TLS) and at rest.
+**Why:** Sync is the feature that makes Pro worth $4.99/mo for multi-device users. Required for mobile (Batch 17 depends on this).
+**File:** Multiple — new sync layer, backend config, auth integration, Zustand store modifications
+**Severity:** 9 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — multiple files, new backend
+**Blocked by:** #168 | **Blocks:** #170
+**Done when:** SRS state syncs bidirectionally between two desktop instances with no data loss. Conflict resolution works for concurrent reviews on two devices. Auth flow works end-to-end on macOS.
+**Owner:** Architecture Agent
+
+---
+
+### Task #170 | feature | severity 8
+**What:** Push notification server — component of the sync backend (Task #169) that stores per-user device push tokens and sends APNs (iOS) and FCM (Android) notifications on each user's interrupt schedule. Desktop app registers push token on Pro activation. Server fires notifications on schedule. Notification payload: card count + session type. iOS/Android clients handle tap → in-app session.
+**Why:** Mobile interruption (Batch 17) cannot use the client-side timer mechanic — apps are suspended on mobile. Server-sent push notifications are the only viable mobile interrupt mechanism. Must exist before mobile (Batch 17) begins.
+**File:** Multiple — server push notification service, desktop app token registration
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — new service
+**Blocked by:** #169 | **Blocks:** #171
+**Done when:** Push server sends APNs and FCM notifications. Desktop app registers token. Notifications fire within 60 seconds of scheduled time in test environment.
+**Owner:** Architecture Agent
+
+---
+
+## Batch 17 — Mobile (iOS + Android)
+Dependency: Batch 16 complete (sync backend and push notification server live). Theme: Launch plyglt on iOS and Android using Tauri 2 mobile targets, with push-interrupt sessions and seamless SRS sync with desktop.
+
+### Task #171 | build | severity 8
+**What:** iOS app — Tauri 2 iOS build pipeline. Configure Xcode project, bundle identifier (`com.plyglt.app`), push notification entitlement. Set up TestFlight distribution and App Store submission. Implement APNs push notification client: register device token on launch, send to sync backend (Task #170), handle notification tap → immediate in-app StudyCard session (bypasses main menu, presents a 3-card session directly). Requires Apple Developer Program membership (same account as macOS signing, Task #122).
+**Why:** iOS is the highest-value Pro tier opportunity. Push-interrupted mobile study sessions during commute/breaks are the flagship use case for plyglt's Pro tier.
+**File:** Multiple — Tauri iOS config, push notification client, session-from-notification flow
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — multiple files, iOS build
+**Blocked by:** #170 | **Blocks:** #172
+**Done when:** App installable via TestFlight. APNs push notification fires on schedule (manual test). Notification tap opens app directly into a 3-card session. SRS state syncs with desktop automatically after the session.
+**Owner:** Architecture Agent
+
+---
+
+### Task #172 | build | severity 7
+**What:** Android app — Tauri 2 Android build pipeline. Configure Gradle, Play Console account, Play Store submission pipeline. Implement FCM push notification client (parallel to APNs in Task #171): register FCM token on launch, send to sync backend, handle notification tap → immediate in-app session. Target: API level 26+ (Android 8.0).
+**Why:** Android completes the mobile platform coverage. FCM is the Android equivalent of APNs. Same interrupt experience as iOS.
+**File:** Multiple — Tauri Android config, FCM client, session-from-notification flow
+**Severity:** 7 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — multiple files, Android build
+**Blocked by:** #171 | **Blocks:** Nothing (Batch 17 complete)
+**Done when:** App installable from Play Store (or internal testing track). FCM notifications fire on schedule. Tap → in-app session works. SRS state syncs with desktop.
+**Owner:** Architecture Agent
 
 ---
 

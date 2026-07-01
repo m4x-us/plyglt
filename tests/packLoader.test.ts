@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createHash } from "node:crypto";
 import type { Manifest, Pack } from "@/lib/packLoader";
-import { loadPack, getInstalledPacks, evictPack, clearCacheForTesting, fetchManifest } from "@/lib/packLoader";
+import { loadPack, getInstalledPacks, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManifest } from "@/lib/packLoader";
+import type { SpecialtyPack } from "@/lib/langRegistry";
 
 // ── localStorage stub ────────────────────────────────────────────────────────
 
@@ -32,6 +33,15 @@ vi.stubGlobal("crypto", {
       return hash.buffer as ArrayBuffer;
     },
   },
+});
+
+// ── Specialty pack mock ────────────────────────────────────────────────────────
+// mockSpecialtyPacks is mutated per-describe-block via push/length=0.
+// Global beforeEach clears it so existing tests (which require SPECIALTY_PACKS=[]) are unaffected.
+const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => []);
+vi.mock("@/lib/langRegistry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
+  return { ...actual, SPECIALTY_PACKS: mockSpecialtyPacks };
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,12 +71,37 @@ const fakeManifest = (sha256 = CORRECT_SHA): Manifest => ({
   },
 });
 
+// ── Add-on pack fixture ───────────────────────────────────────────────────────
+const fakeAddOnPack = (): Pack => ({
+  _version: 1,
+  lang: "it-medical",
+  packVersion: "1.0.0",
+  canonicalSource: "en",
+  name: "Medical Italian",
+  nativeName: "Italiano Medico",
+  flag: "🇮🇹",
+  unitCount: 5,
+  cardCount: 50,
+  units: [],
+});
+const ADD_ON_PACK_JSON = JSON.stringify(fakeAddOnPack());
+const ADD_ON_SHA = createHash("sha256").update(ADD_ON_PACK_JSON).digest("hex");
+const fakeAddOnManifest = (): Manifest => ({
+  _version: 1,
+  generatedAt: "2026-01-01T00:00:00.000Z",
+  packs: {
+    it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: CORRECT_SHA },
+    "it-medical": { name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹", version: "1.0.0", size: 50, sha256: ADD_ON_SHA },
+  },
+});
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   localStorageMock.clear();
   clearCacheForTesting();
   vi.resetAllMocks();
+  mockSpecialtyPacks.length = 0;
 });
 
 describe("loadPack", () => {
@@ -397,6 +432,28 @@ describe("loadPack — A003: cachedData nulled after SHA-eviction (integrity byp
   });
 });
 
+describe("loadPack — specialty pack code validation", () => {
+  it("returns invalid_lang for unregistered specialty-format code without fetching", async () => {
+    // "it-medical" matches the specialty pack naming convention but is not in SPECIALTY_PACKS.
+    // The guard must reject it as an unknown code (same path as path traversal attempts).
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await loadPack("it-medical", null);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns invalid_lang for specialty-format code with forceRedownload:true", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await loadPack("it-business", null, { forceRedownload: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe("evictPack — allowlist validation", () => {
   it("silently no-ops for unknown lang — guard prevents clearPackCache from running", async () => {
     // Pre-seed poisoned entries under the malicious key so the test can observe whether clearPackCache ran
@@ -413,5 +470,111 @@ describe("evictPack — allowlist validation", () => {
     expect(localStorageMock.getItem("pack-data-v1-../evil")).toBe("poison-data");
     // Italian data not collateral-damaged (exact value preserved)
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBe(italianMeta);
+  });
+});
+
+describe("loadedAddOns — in-memory specialty pack tracking (Task #149)", () => {
+  it("getLoadedAddOns returns an empty array before any add-ons are loaded", () => {
+    // SPECIALTY_PACKS is empty — no add-on can ever be loaded in this environment.
+    // This verifies the loadedAddOns array exists and starts clean each session.
+    expect(getLoadedAddOns()).toEqual([]);
+  });
+
+  it("getLoadedAddOns returns a copy — mutation does not affect internal state", () => {
+    const result = getLoadedAddOns();
+    result.push("it-medical");
+    // Internal loadedAddOns must still be empty — return value is a fresh copy
+    expect(getLoadedAddOns()).toEqual([]);
+  });
+
+  it("clearCacheForTesting resets getLoadedAddOns to []", async () => {
+    // Load a real pack so clearCacheForTesting has actual state to clear
+    vi.stubGlobal("fetch", async () => ({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeManifest());
+    expect(getInstalledPacks()).toContain("it");
+
+    clearCacheForTesting();
+
+    // Both base packs and add-ons must be cleared
+    expect(getInstalledPacks()).toEqual([]);
+    expect(getLoadedAddOns()).toEqual([]);
+  });
+
+  it("loadPack with unregistered specialty-format code returns invalid_lang — not base_pack_not_loaded", async () => {
+    // "it-medical" is not in SPECIALTY_PACKS (registry is empty) — must be rejected as
+    // invalid_lang (unknown code), not base_pack_not_loaded (registered but base missing).
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await loadPack("it-medical", null);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(getLoadedAddOns()).toEqual([]);
+  });
+});
+
+describe("specialty pack merge path", () => {
+  // Register a ready specialty pack before each test in this block.
+  // Global beforeEach has already cleared mockSpecialtyPacks to [] — push here so
+  // only tests inside this block see a non-empty SPECIALTY_PACKS.
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+  });
+
+  it("fetches add-on, verifies sha256, merges units into base pack, and tracks in loadedAddOns", async () => {
+    // This test fails if the isReadySpecialtyPack merge block in packLoader.ts is removed:
+    // without it, loadPack("it-medical") loads as a standalone pack → unitCount=5, not 1+5=6.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })         // call 1: base "it"
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON }); // call 2: add-on "it-medical"
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Load base pack into memCache first — add-on requires it
+    await loadPack("it", fakeAddOnManifest());
+
+    const result = await loadPack("it-medical", fakeAddOnManifest());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // unitCount and cardCount are the sum of base + add-on — not just the add-on alone
+      expect(result.pack.unitCount).toBe(fakePack().unitCount + fakeAddOnPack().unitCount);
+      expect(result.pack.cardCount).toBe(fakePack().cardCount + fakeAddOnPack().cardCount);
+    }
+    // Add-on is tracked for the session — idempotency guard relies on this
+    expect(getLoadedAddOns()).toContain("it-medical");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns base_pack_not_loaded when base pack is not yet in memCache", async () => {
+    // The merge path requires the base pack ("it") to be loaded before any add-on.
+    // Callers must load the base first — this is enforced, not silently corrected.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await loadPack("it-medical", null);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("base_pack_not_loaded");
+    // Guard fires before any network request
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns merged pack without re-fetching when add-on is already loaded (idempotent)", async () => {
+    // Merging the same add-on twice must be idempotent — units are not duplicated
+    // and no second fetch is issued.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest());
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    // Second add-on call — must return ok:true from the idempotency path, no 3rd fetch
+    const result = await loadPack("it-medical", fakeAddOnManifest());
+    expect(result.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(2); // no additional fetch
+    expect(getLoadedAddOns()).toContain("it-medical");
   });
 });

@@ -5,48 +5,105 @@ stream: W1A
 wave: 1
 ---
 
-# Adam — Stream W1A — Wave 1 — 2026-06-30
+# Adam — Stream W1A — Wave 1 — 2026-07-01
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W1A | #126 #127 #128 #129 #130
+— Adam | W1A | #124
 
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
+You are Adam, a CTO working on a specific task in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #126  — A1 Unit 01 Greetings — Spanish source-language translation
-2. /task #127  — A1 Unit 02 Bar — Spanish source-language translation
-3. /task #128  — A1 Unit 03 Family — Spanish source-language translation
-4. /task #129  — A1 Unit 04 City — Spanish source-language translation
-5. /task #130  — A1 Unit 05 Time — Spanish source-language translation
+1. /task #124  — Notification permission onboarding UX
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
+STATUS BOARD RULE — MANDATORY: After completing /task #124, print:
 
 Adam — W1A
-[✓] #126 — Unit 01 Greetings   ← done
-[→] #127 — Unit 02 Bar         ← starting now
-[ ] #128 — Unit 03 Family
-[ ] #129 — Unit 04 City
-[ ] #130 — Unit 05 Time
+[✓] #124 — Notification permission onboarding UX   ← done
+
+Then tell Max: "Adam is done."
 
 ## Files You Own (edit ONLY these)
-content/cards/a1-unit-01-greetings.ts
-content/cards/a1-unit-02-bar.ts
-content/cards/a1-unit-03-family.ts
-content/cards/a1-unit-04-city.ts
-content/cards/a1-unit-05-time.ts
+app/settings/page.tsx
+components/NotificationPermissionGate.tsx   ← may be new
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-content/cards/a1-unit-06-describing.ts through content/cards/a1-unit-20-clothes.ts
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+app/stats/page.tsx
+app/stats/page.test.tsx
+app/learn/page.test.tsx
+lib/packLoader.ts
+lib/specialtyPackLoader.ts
+tests/packLoader.test.ts
+tests/langRegistry.test.ts
 
 ## Task Definitions
-See .autocode/briefs/stream-W1A-start.md for full task definitions and vocabulary reference.
 
-Key schema rule: add `prompts: { es: "..." }` to produce cards, `translations: { es: ["..."] }` to recognize cards, skip all other card types.
+### Task #124 | build | severity 4
+**What:** Add a notification permission onboarding explanation to the interrupt engine enable flow. When a user first toggles "Enable review reminders" ON in `app/settings/page.tsx`, show a short explanation before the OS permission dialog fires: "plyglt will send brief notifications during your workday — 3 to 5 cards per session, under a minute each. Allow notifications to enable this." If the user previously denied permission on macOS, show a graceful fallback: "Enable notifications for plyglt in System Settings → Notifications." (no repeat dialog, just the instruction).
+**Why:** Product agent found: "the first time a Pro user enables the interrupt engine, a notification permission dialog appears mid-session with no prior explanation." macOS does not allow re-prompting after a denial. Users who reflexively click "Don't Allow" lose the core Pro differentiator with no recovery path visible in the UI.
+**File:** `app/settings/page.tsx`, possibly a new small `components/NotificationPermissionGate.tsx`
+**Blocks:** Nothing
+**Blocked by:** Nothing
+**Risk:** Low — UI-only addition. Does not change Tauri IPC calls.
+**Completion gates:** Architecture Agent sign-off
+**Done when:** Toggling "Enable review reminders" ON shows an explanation sentence before the OS dialog fires (or inline in the settings card before the toggle if permission has already been granted); `npm test` passes; no Tauri IPC changes.
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
+**Owner:** Architecture Agent
+
+## Agent Memories
+
+### Architecture Agent Memory (first 150 lines)
+Stack: Next.js 16.2.9, React 19, Zustand 5, Tauri 2. TypeScript throughout.
+
+Layer rules (strictly enforced):
+- app/ → components/ → hooks/ → store/ (peer of lib/) → lib/ → content/
+- lib/ must NEVER import from store/, hooks/, components/, or app/
+- store/ must NEVER import from hooks/, components/, or app/
+- Never import @tauri-apps/api directly — route through lib/tauri.ts only
+- Never call localStorage directly — route through lib/storage.ts only
+
+Key files for this task:
+- `app/settings/page.tsx` (150 lines — at the route limit; be surgical)
+- `lib/featureFlags.ts` — exports isProEnabled(flagValue, licenseType); licenseType from useSettingsStore
+- `lib/tauri.ts` — Tauri gateway; all Tauri API calls route through here
+- `components/EntitlementValidator.tsx` — owns license revalidation (do NOT add revalidation here)
+
+Dead zones relevant to this task:
+- Push notification permission UI — this IS Task #124 (UX only, no IPC changes)
+- `vacationMode` flag — intentional stub, ignore
+
+Voice and tone (BRAND.md):
+- No exclamation marks in UI copy
+- No filler words ("just", "simply", "quickly")
+- Present tense, short sentences, one idea per sentence
+- "plyglt will send brief notifications during your workday — 3 to 5 cards per session, under a minute each. Allow notifications to enable this."
+- Fallback: "Enable notifications for plyglt in System Settings → Notifications."
+
+Pattern for checking notification permission state (Tauri):
+- `invoke("check_notification_permission")` via lib/tauri.ts
+- Or use the browser Notification API: `Notification.permission` ("granted" | "denied" | "default")
+- The Tauri notification plugin surfaces this — use lib/tauri.ts as the gateway
+
+app/settings/page.tsx is at 150 lines (route limit). If adding the permission gate pushes past 150 lines, extract the gate UI to a new component (NotificationPermissionGate.tsx). Keep the page component thin.
+
+isProEnabled pattern (Task #118 — verified complete):
+```ts
+import { getFeatureFlags, isProEnabled } from 'lib/featureFlags'
+const flags = getFeatureFlags()
+const { licenseType } = useSettingsStore()
+if (!isProEnabled(flags.interruptions, licenseType)) { /* show upgrade */ }
+```
 
 ## When You Finish
-Write completion summary to .autocode/stream-W1A/completion.md, then tell Max: "Adam is done."
+Write your completion summary to .autocode/stream-W1A/completion.md:
+  Tasks closed: [#124 if done-when passes]
+  Tasks NOT completed: [list + reason if any]
+  Debt entries logged: [count]
+  Carry-forward tasks generated: [count]
 
-— Adam | W1A | #126 #127 #128 #129 #130
+Then tell Max: "Adam is done."
+
+— Adam | W1A | #124

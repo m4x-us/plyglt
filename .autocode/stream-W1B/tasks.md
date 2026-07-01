@@ -1,46 +1,12 @@
 # Stream W1B Task State
 
-### Task #131 | content | severity 5
-**What:** Open `content/cards/a1-unit-06-describing.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-06-describing.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-06-describing.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #132 | content | severity 5
-**What:** Open `content/cards/a1-unit-07-likes.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-07-likes.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-07-likes.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #133 | content | severity 5
-**What:** Open `content/cards/a1-unit-08-review.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-08-review.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-08-review.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #134 | content | severity 5
-**What:** Open `content/cards/a1-unit-09-colors.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-09-colors.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-09-colors.ts` returns ≥ 55.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
-**Owner:** Architecture Agent
-
-### Task #135 | content | severity 5
-**What:** Open `content/cards/a1-unit-10-body.ts`. For every `produce` card add `prompts: { es: "..." }`. For every `recognize` card add `translations: { es: ["..."] }`. Skip `conjugate`, `fill_blank`, `passage_cloze`.
-**File:** `content/cards/a1-unit-10-body.ts`
-**Blocks:** Task #146
-**Blocked by:** Nothing
-**Done when:** `npx tsc --noEmit` passes; `grep -c '"es":' content/cards/a1-unit-10-body.ts` returns ≥ 50.
-**Complexity:** ⚡ Direct — 1 file, no package boundary, additive field additions only
+### Task #154 | code | severity 8
+**What:** Delete `components/InterruptHandler.tsx` lines 39–56 — the duplicate license revalidation block (`needsValidation()` check + `validateLicense()` call + `markValidated()`/`touchValidated()` branches). `EntitlementValidator.tsx` already runs identical logic on mount in `app/layout.tsx`. When both components mount simultaneously, Zustand reads `needsValidation()` as true for both before either effect's `touchValidated()` propagates — producing two concurrent Lemon Squeezy API calls on every app launch when validation is due.
+**Why:** SCTS Andon cord — two concurrent LS API calls on every launch when validation is due. Could exhaust LS rate limits, create duplicate validation events, and masks the responsibility boundary (`EntitlementValidator.tsx` owns revalidation). Stop-the-line.
+**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
+**Severity:** 8 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file (+ test), deletion only
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** Yes — `InterruptHandler.test.tsx` must add a test verifying the component does NOT call `validateLicense` on mount.
+**Done when:** `components/InterruptHandler.tsx` contains no `needsValidation`, `validateLicense`, `markValidated`, or `touchValidated` import or call. `components/InterruptHandler.test.tsx` has a new assertion that renders `<InterruptHandler />` and asserts `validateLicense` was NOT called. `npm test` passes.
 **Owner:** Architecture Agent

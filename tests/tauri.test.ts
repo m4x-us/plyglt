@@ -3,12 +3,13 @@
  *
  * What IS testable here: environment detection and web-mode no-ops.
  *
+ * What IS testable via @tauri-apps/* mocks: updateInterruptConfig(), snoozeInterrupt(),
+ * checkForUpdates() — these are tested via vi.doMock of the plugin modules below.
+ *
  * What is NOT testable without the Tauri runtime: invoke(), listen(), emit(),
- * updateTrayBadge(), updateInterruptConfig(), snoozeInterrupt(), enterMandatoryMode(),
- * exitMandatoryMode(), enableAutostart(), disableAutostart(), checkForUpdates().
- * These all gate on isTauri and return null / no-op / early-return in web mode,
- * which is exactly what the tests below verify. The Rust IPC layer requires a
- * running Tauri webview and cannot be unit-tested here.
+ * updateTrayBadge(), enterMandatoryMode(), exitMandatoryMode(), enableAutostart(),
+ * disableAutostart() — these gate on isTauri and return null / no-op in web mode.
+ * The Rust IPC layer requires a running Tauri webview and cannot be unit-tested here.
  */
 
 import { readFileSync } from "node:fs";
@@ -130,6 +131,79 @@ describe("snoozeInterrupt — IPC error surfacing", () => {
   });
 });
 
+// #096 — checkForUpdates() must never call downloadAndInstall() without explicit caller consent
+// This test fails with the old implementation (auto-installs) and passes after the fix
+// (returns UpdateCheckResult so the caller controls install timing).
+describe("checkForUpdates — security gate: never auto-installs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("returns { available: true, version, install } without calling downloadAndInstall", async () => {
+    const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-updater", () => ({
+      check: vi.fn().mockResolvedValue({ available: true, version: "1.2.0", downloadAndInstall }),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { checkForUpdates } = await import("@/lib/tauri");
+
+    const result = await checkForUpdates();
+
+    // Must NOT auto-install — caller controls timing
+    expect(downloadAndInstall).not.toHaveBeenCalled();
+    // Must return structured result with install callback
+    expect(result).toMatchObject({ available: true, version: "1.2.0" });
+    expect(typeof (result as { available: true; version: string; install: () => Promise<void> }).install).toBe("function");
+  });
+
+  it("calling install() on the result triggers downloadAndInstall exactly once", async () => {
+    const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-updater", () => ({
+      check: vi.fn().mockResolvedValue({ available: true, version: "1.2.0", downloadAndInstall }),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { checkForUpdates } = await import("@/lib/tauri");
+
+    const result = await checkForUpdates();
+    if (result.available) await result.install();
+
+    expect(downloadAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns { available: false } when no update is available", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-updater", () => ({
+      check: vi.fn().mockResolvedValue({ available: false }),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { checkForUpdates } = await import("@/lib/tauri");
+
+    const result = await checkForUpdates();
+    expect(result).toEqual({ available: false });
+  });
+
+  it("returns { available: false } in web mode without consulting the updater plugin", async () => {
+    const { checkForUpdates } = await import("@/lib/tauri");
+    const result = await checkForUpdates();
+    expect(result).toEqual({ available: false });
+  });
+
+  it("returns { available: false } when check() throws (network / manifest error)", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-updater", () => ({
+      check: vi.fn().mockRejectedValue(new Error("network error")),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { checkForUpdates } = await import("@/lib/tauri");
+
+    const result = await checkForUpdates();
+    expect(result).toEqual({ available: false });
+  });
+});
+
 // #006 — InterruptHandler.tsx must not have bare catch {} blocks
 describe("InterruptHandler.tsx — no bare catch blocks (source seam)", () => {
   it("components/InterruptHandler.tsx contains no bare 'catch {'", () => {
@@ -142,9 +216,9 @@ describe("InterruptHandler.tsx — no bare catch blocks (source seam)", () => {
     expect(content).toContain("ERR-NOTIF-");
   });
 
-  it("validateLicense .then() has a .catch() with an ERR-VALIDATE- ref ID", () => {
+  it("validateLicense is not imported or called in InterruptHandler.tsx (Task #154 — EntitlementValidator owns revalidation)", () => {
     const content = readFileSync(resolve(process.cwd(), "components/InterruptHandler.tsx"), "utf-8");
-    expect(content).toContain(".catch((err)");
-    expect(content).toContain("ERR-VALIDATE-");
+    expect(content).not.toContain("validateLicense");
+    expect(content).not.toContain("ERR-VALIDATE-");
   });
 });

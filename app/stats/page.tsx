@@ -4,12 +4,24 @@
 "use client";
 
 import Link from "next/link";
+import { useEntitlementStore } from "@/store/entitlementStore";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
 import { useStatsData } from "@/hooks/useStatsData";
 import DifficultyBar, { stabilityColorClass } from "@/components/DifficultyBar";
 
 export default function StatsPage() {
+  const { licenseType } = useEntitlementStore();
   const { loading, seen, totalCards, now, hardest, weakestTags, levelStability, atRisk } =
     useStatsData();
+
+  if (!isProEnabled(getFeatureFlags().analytics, licenseType)) return (
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
+      <div className="text-4xl mb-4">📊</div>
+      <h1 className="text-xl font-bold text-white mb-2">Learning Stats</h1>
+      <p className="text-gray-500 text-sm mb-6 max-w-xs">Detailed analytics are a Pro feature.</p>
+      <Link href="/" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← Home</Link>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -54,7 +66,7 @@ export default function StatsPage() {
                     >
                       <span className="text-white text-sm truncate mr-4">{card.prompt}</span>
                       <span className="text-red-400 text-xs flex-shrink-0">
-                        {Math.floor((now - progress.dueDate) / 86400000)}d ago
+                        last seen {Math.floor((now - progress.dueDate) / 86400000)}d ago
                       </span>
                     </div>
                   ))}
