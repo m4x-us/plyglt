@@ -2968,6 +2968,7 @@ Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire inter
 **Test required:** No new tests needed — type extraction is structural. All 897 existing tests pass (no behavior change).
 **Done when:** `lib/packTypes.ts` exists with all 5 shared type definitions and a Rule 2 header. Neither `packLoader.ts` nor `specialtyPackLoader.ts` imports types from each other. Verification gate green.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
 
 ---
 
@@ -3008,6 +3009,7 @@ Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire inter
 **Test required:** No — Rule 2 is structural, not behavioral.
 **Done when:** Each of the 3 files starts with a `//` comment block (≥2 sentences). No code changed. `cargo build` still compiles.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
 
 ---
 

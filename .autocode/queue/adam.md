@@ -1,108 +1,125 @@
 ---
 status: done
 agent: adam
-stream: W1A
-wave: 1
+stream: W2A
+wave: 2
 ---
 
-# Adam — Stream W1A — Wave 1 — 2026-07-01
+# Adam — Stream W2A — Wave 2 — 2026-07-02
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W1A | #173
+— Adam | W2A | #175
 
-You are Adam, a CTO working on a specific task in parallel with other windows.
+You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #173  — Extract sha256Hex + packUrl helpers to lib/utils.ts
+1. /task #175  — Extract shared pack types to lib/packTypes.ts (break circular dependency)
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Adam — W1A
-[✓] #173 — Extract sha256Hex + packUrl helpers to lib/utils.ts   ← done
+Adam — W2A
+[→] #175 — Extract shared pack types to lib/packTypes.ts   ← starting now
 
-Then tell Max: "Adam is done."
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-lib/utils.ts
+lib/packTypes.ts  (new — create this file)
 lib/packLoader.ts
 lib/specialtyPackLoader.ts
-tests/utils.test.ts  (for the sha256Hex known-answer test vector)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-app/stats/page.tsx
-components/StatsProGate.tsx
-components/StatsProGate.test.tsx
-app/page.test.tsx
-app/settings/page.test.tsx
-app/study/page.test.tsx
+src-tauri/src/lib.rs
+src-tauri/src/interrupt.rs
+src-tauri/src/license.rs
 
 ## Task Definitions
 
-### Task #173 | architecture | severity 7
-**What:** Extract duplicated `sha256Hex()` and `packUrl()` helpers that exist identically in both `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` into `lib/utils.ts`. The `sha256Hex(text: string): Promise<string>` implementation at `packLoader.ts:94-100` and `specialtyPackLoader.ts:21-27` is byte-for-byte identical. The `packUrl(lang: string): string` at `packLoader.ts:141-143` and `specialtyPackLoader.ts:17-19` is byte-for-byte identical. Remove both from both source files and add one canonical copy to `lib/utils.ts`. Update all callers to import from `lib/utils.ts`.
-**Why:** SCTS Poka-Yoke — a security-critical sha256 hash function with two independent copies is a stop-the-line violation. Task #156 extracted the specialty pack logic but copied these helpers instead of consolidating them. Any future divergence between the two copies would be undetectable.
-**File:** `lib/utils.ts`, `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
-**Severity:** 7 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 3 files, extraction refactor
-**Blocked by:** Nothing | **Blocks:** #175
-**Test required:** Yes — `tests/packLoader.test.ts` must still pass (no behavior change). Add one test to `tests/utils.test.ts` or equivalent pinning that `sha256Hex("abc")` returns `"ba7816bf8f01cfea414140de5dae2ec73b00361bbef0469f490f9e673c3eca08"` (known-answer test vector) so the Web Crypto stub alignment is verified.
-**Done when:** `grep -n "sha256Hex\|packUrl" lib/packLoader.ts lib/specialtyPackLoader.ts` shows only import statements, not implementations. Both functions implemented exactly once in `lib/utils.ts`. All 897 tests pass. Verification gate green.
+### Task #175 | architecture | severity 5
+**What:** Break the circular type dependency between `lib/packLoader.ts` and `lib/specialtyPackLoader.ts`. Currently `specialtyPackLoader.ts:9` does `import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader"` while `packLoader.ts:32` does `import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader"`. Extract the shared type definitions (`Pack`, `PackMeta`, `Manifest`, `LoadPackResult`, `CachedPackMeta`) to a new `lib/packTypes.ts` module. Update both files to import types from `lib/packTypes.ts` instead.
+**Why:** `import type` prevents a runtime cycle but the design is fragile — any refactor of the shared types requires coordinating both files. Extracting to `lib/packTypes.ts` eliminates the cycle completely and makes the type contract explicit.
+**File:** `lib/packTypes.ts` (new), `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 3 files, type extraction
+**Blocked by:** #173 | **Blocks:** Nothing
+**Test required:** No new tests needed — type extraction is structural. All 902 existing tests pass (no behavior change).
+**Done when:** `lib/packTypes.ts` exists with all 5 shared type definitions and a Rule 2 header. Neither `packLoader.ts` nor `specialtyPackLoader.ts` imports types from each other. Verification gate green.
 **Owner:** Architecture Agent
 
 ## Agent Memories
 
 ## Architecture Agent Memory (first 150 lines)
-
 # Architecture Agent Memory — plyglt
 
 ## Stack
 Next.js 16.2.9, React 19, Zustand 5, Tauri 2 (desktop + web). TypeScript throughout.
 
 ## Layer Structure (dependencies flow strictly down)
-- `app/` — Next.js routes. LIMIT: ≤150 lines. All pages within limit: page=107, study=150, learn=130, stats=146, settings=150.
-- `components/` — React UI components. All within limits.
-- `hooks/` — Custom React hooks. Own session management contract.
-- `store/` — Zustand stores (srsStore, settingsStore, entitlementStore). Imports from lib/.
+- `app/` — Next.js routes. LIMIT: ≤150 lines. All pages within limit.
+- `components/` — React UI components.
+- `hooks/` — Custom React hooks.
+- `store/` — Zustand stores. Imports from lib/.
 - `lib/` — Pure utilities. No React, no Zustand imports. Must NEVER import from store/, hooks/, components/, app/.
 - `content/` — Static card data and type definitions.
 
-## Key Files and Blast Radius
-High blast-radius (many importers — touch carefully):
-1. `store/srsStore.ts` — 20 files
-2. Entitlement cluster (`lib/entitlement.ts` + `lib/checkout.ts` + `store/entitlementStore.ts`) — 26 files combined
+## Key Files
+High blast-radius (touch carefully):
+1. `store/srsStore.ts` — 20 importers
+2. Entitlement cluster — 26 files combined
 3. `lib/langRegistry.ts` — 20 importers
 4. `lib/packLoader.ts` — 5 importers
 5. `lib/srs.ts` — 13 importers
-6. `lib/tauri.ts` — 8 importers (151 lines — note only)
+6. `lib/tauri.ts` — 8 importers
 7. `lib/constants.ts` — 8 importers
 
-## Important Modules (as of Batch 9 COMPLETE)
-- `lib/utils.ts` — pure utilities; exports `localDateStr(d?)` for local-time ISO date strings. Used by useStudySession, lib/queue.ts.
-- `lib/packLoader.ts` — 5 importers. RULE 1 RESOLVED (Task #156): reduced 426→363 lines. Specialty pack logic extracted to `lib/specialtyPackLoader.ts`.
-- `lib/specialtyPackLoader.ts` — NEW (Task #156). Handles specialty pack merge path.
+## Important Modules
+- `lib/utils.ts` — pure utilities; exports `localDateStr(d?)`, `sha256Hex(text)`, `packUrl(lang)`.
+  After Task #173 (W1A, Wave 1), sha256Hex and packUrl were extracted here from packLoader.ts
+  and specialtyPackLoader.ts. Both packLoader.ts:33 and specialtyPackLoader.ts:11 now
+  import from "@/lib/utils".
 
-## M2 Readiness State (Batch 10)
-- LS store: LIVE — Task #120 COMPLETE. Real annual checkout URL. Monthly pricing removed; annual-only ($34.99/yr). CHECKOUT_URLS.monthly removed; only CHECKOUT_URLS.annual exists.
-- Task #121 COMPLETE: real ed25519 pubkey in tauri.conf.json.
+## Prior Wave Changes — Read Before Starting
 
-## NEW FINDINGS RUN 9 (2026-07-01) — CURRENT SPRINT CONTEXT
-1. **POKA-YOKE VIOLATION: duplicate sha256Hex** — `lib/packLoader.ts:94` and `lib/specialtyPackLoader.ts:21` define identical `sha256Hex(text)` implementations. Must be extracted to `lib/utils.ts`. THIS IS YOUR TASK.
-2. **POKA-YOKE VIOLATION: duplicate packUrl** — `lib/packLoader.ts:141` and `lib/specialtyPackLoader.ts:17` define identical `packUrl(lang)` functions. Same fix.
-3. **TYPE-CIRCULAR DEPENDENCY** — `lib/specialtyPackLoader.ts:9` imports `Pack`, `LoadPackResult`, `Manifest` types from `lib/packLoader.ts`; `lib/packLoader.ts:32` imports functions from `lib/specialtyPackLoader.ts`. This is a separate Task #175 that BLOCKS on YOUR task completing first.
+W1A (Wave 1, Adam) modified these files while closing Task #173:
 
-## Critical Rule: lib/ must never import from store/, hooks/, components/, or app/.
-## lib/utils.ts is a pure utility module — keep it free of framework dependencies.
+lib/utils.ts — ADDED sha256Hex(text: string): Promise<string> and packUrl(lang: string): string.
+  These were previously defined identically in both packLoader.ts and specialtyPackLoader.ts.
+  They now exist only in lib/utils.ts.
+
+lib/packLoader.ts — line 33: changed from `import { packUrl }` (local impl) to
+  `import { sha256Hex, packUrl } from "@/lib/utils"`. Removed the local sha256Hex
+  and packUrl function bodies. Types still defined here: PackMeta (line 38),
+  Manifest (line 47), Pack (line 53), CachedPackMeta (line 66), LoadPackResult (line 154).
+
+lib/specialtyPackLoader.ts — line 9: still imports `Pack, LoadPackResult, Manifest`
+  from "@/lib/packLoader". Line 11: imports `sha256Hex, packUrl` from "@/lib/utils".
+
+Your task (#175) is to move the 5 type definitions OUT of packLoader.ts and INTO
+the new lib/packTypes.ts file. After you're done:
+  - packLoader.ts should import its own types from "@/lib/packTypes"
+  - specialtyPackLoader.ts should import types from "@/lib/packTypes" instead of "@/lib/packLoader"
+  - CachedPackMeta can remain private (unexported) in packLoader.ts if you prefer,
+    OR move it to packTypes.ts — your judgment; it's only used in packLoader.ts.
+
+The 5 types to extract (current locations in packLoader.ts):
+  PackMeta    — line 38–45 (exported)
+  Manifest    — line 47–51 (exported)
+  Pack        — line 53–64 (exported)
+  CachedPackMeta — line 66–70 (unexported — used only inside packLoader.ts)
+  LoadPackResult — line 154–165 (exported union type)
+
+Rule 2 header required on lib/packTypes.ts (2–3 sentences describing ownership).
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
+Write your completion summary to .autocode/stream-W2A/completion.md:
+  Tasks closed: [list task numbers]
+  Tasks NOT completed: [list + done-when condition that failed]
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
 
-Then tell Max in this window: "Adam is done."
+Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W1A | #173
+— Adam | W2A | #175

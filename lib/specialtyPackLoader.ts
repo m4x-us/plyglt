@@ -6,7 +6,7 @@
  * Pure functions only — no React, no Zustand.
  */
 
-import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader";
+import type { Pack, LoadPackResult, Manifest } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
 

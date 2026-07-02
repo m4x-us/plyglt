@@ -1,3 +1,9 @@
+// license.rs — Owns Lemon Squeezy license management IPC commands: ls_activate_license,
+// ls_validate_license, ls_deactivate_license (all POST to the LS /v1/licenses API), and
+// open_url (opens an HTTPS URL in the system browser, rejecting non-HTTPS schemes).
+// Registered by lib.rs; called from the JS side by hooks/useLicenseActivation.ts and
+// components/EntitlementValidator.tsx via invoke().
+
 const LS_BASE: &str = "https://api.lemonsqueezy.com/v1/licenses";
 
 #[tauri::command]

@@ -1,3 +1,10 @@
+// interrupt.rs — Owns the proactive interrupt engine. Defines InterruptState (enabled,
+// interval_secs, mandatory, snooze_until_secs, last_triggered_secs, auto_opened) and a
+// 30-second background poll thread that emits "interrupt:fire" events to the JS frontend when
+// the interval has elapsed and no snooze is active. Exposes four Tauri IPC commands:
+// update_interrupt_config, snooze_interrupt, enter_mandatory_mode, exit_mandatory_mode.
+// Registered by lib.rs; called from the JS side by components/InterruptHandler.tsx via invoke().
+
 use std::{
     panic,
     sync::{Arc, Mutex},

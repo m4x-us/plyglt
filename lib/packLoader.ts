@@ -26,42 +26,15 @@
  * Public API: loadPack, getInstalledPacks, getLoadedAddOns, evictPack, fetchManifest, clearCacheForTesting
  */
 
-import type { Unit } from "@/content/types";
 import { createPlatformStorage } from "@/lib/storage";
 import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } from "@/lib/langRegistry";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
+import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
+export type { PackMeta, Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 
-// ── Pack types ────────────────────────────────────────────────────────────────
-
-export interface PackMeta {
-  version: string;
-  size: number;
-  sha256: string;
-  name: string;
-  nativeName: string;
-  flag: string;
-}
-
-export interface Manifest {
-  _version: 1;
-  generatedAt: string;
-  packs: Record<string, PackMeta>;
-}
-
-export interface Pack {
-  _version: 1;
-  lang: string;
-  packVersion: string;
-  canonicalSource: string;
-  name: string;
-  nativeName: string;
-  flag: string;
-  unitCount: number;
-  cardCount: number;
-  units: Unit[];
-}
+// ── Private cache metadata type (internal to packLoader) ─────────────────────
 
 interface CachedPackMeta {
   version: string;
@@ -150,18 +123,6 @@ export async function fetchManifest(): Promise<Manifest | null> {
     return null;
   }
 }
-
-export type LoadPackResult =
-  | { ok: true; pack: Pack }
-  | {
-      ok: false;
-      error:
-        | "invalid_lang"          // lang code not in the allowlist — do NOT retry
-        | "base_pack_not_loaded"  // specialty pack requested before its base lang is loaded
-        | "download_failed"       // network error or non-200 response
-        | "checksum_mismatch"
-        | "parse_error";
-    };
 
 /**
  * Loads a pack for the given language code.

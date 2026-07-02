@@ -1,3 +1,8 @@
+// lib.rs — Tauri application entry point for plyglt. Registers all plugins (store, notification,
+// autostart, updater), initialises the system tray with Study Now and Quit items, and wires all
+// IPC command handlers exposed by interrupt.rs and license.rs into the Tauri invoke handler.
+// Called by the Tauri runtime on startup; no other Rust file imports this module.
+
 mod interrupt;
 mod license;
 

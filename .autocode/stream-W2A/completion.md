@@ -1,4 +1,30 @@
-# Stream W2A Completion — Adam — 2026-06-27
+# Stream W2A Completion — Adam — 2026-07-02 (Wave 2)
+
+## Task #175 — Extract shared pack types to lib/packTypes.ts
+
+### Tasks closed: [175]
+### Tasks NOT completed: none
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+### Files modified
+- `lib/packTypes.ts` — new file; exports `PackMeta`, `Manifest`, `Pack`, `LoadPackResult` with Rule 2 header
+- `lib/packLoader.ts` — removed 4 exported type definitions; added `import type` + `export type` from `@/lib/packTypes`; removed now-unused `import type { Unit }` from `@/content/types`; `CachedPackMeta` kept private (unexported, only used inside packLoader)
+- `lib/specialtyPackLoader.ts` — changed `import type { Pack, LoadPackResult, Manifest }` source from `@/lib/packLoader` to `@/lib/packTypes`
+
+### Notes
+Callers that previously imported types from `lib/packLoader` continue to work unchanged — packLoader re-exports all 4 types via `export type { ... } from "@/lib/packTypes"`. The type circular dependency is fully eliminated: specialtyPackLoader no longer imports anything from packLoader; packLoader imports only runtime functions from specialtyPackLoader.
+
+### Verification Gate (Wave 2 pack type extraction brief 2026-07-02)
+- `npx tsc --noEmit`: 0 errors ✓
+- `npm test`: 902 tests pass ✓
+- `lib/packTypes.ts` exists with 4 exported type definitions ✓
+- `specialtyPackLoader.ts` imports types from `@/lib/packTypes`, not `@/lib/packLoader` ✓
+- `packLoader.ts` imports types from `@/lib/packTypes`, not `@/lib/specialtyPackLoader` ✓
+
+---
+
+# Stream W2A Completion — Adam — 2026-06-27 (Wave 1)
 
 ## Tasks Closed
 
