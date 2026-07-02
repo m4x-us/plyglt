@@ -14,10 +14,16 @@ import { invoke } from "@/lib/tauri";
 import type { LicenseType } from "@/lib/licenseTypes";
 import { ALL_PACK_CODES, FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
 
+// ── Checkout constants (live in lib/checkout.ts — re-exported for callers) ───
+export { LS_STORE_SLUG, CHECKOUT_URLS, PRICING, CUSTOMER_PORTAL_URL } from "@/lib/checkout";
+
 // ── Error message constants ───────────────────────────────────────────────────
 // Named constants prevent silent divergence between call sites.
 // Import these in callers — never repeat the string literal inline.
 export const ERR_ACTIVATE_NETWORK     = "Activation request failed — check your connection." as const;
+// ERR_DEACTIVATE_NETWORK covers both IPC throws (network) and non-true invoke
+// responses (web env / serialisation mismatch). Both cases: connection context
+// is the correct user-facing mental model.
 export const ERR_DEACTIVATE_NETWORK   = "Deactivation failed — check your connection." as const;
 export const ERR_ACTIVATION_FAILED    = "Activation failed." as const;
 export const ERR_ACTIVATE_NO_INSTANCE = "Activation returned no instance." as const;
@@ -27,23 +33,6 @@ export const ERR_LICENSE_NOT_ACTIVE   = "License is not active." as const;
 export const ERR_VALIDATE_NETWORK     = "Validation failed — check your connection." as const;
 export const ERR_VALIDATE_NULL        = "Validation request failed." as const;
 export const ERR_VALIDATE_INACTIVE    = "License is no longer valid." as const;
-export const ERR_DEACTIVATE_DECLINED  = "Deactivation declined." as const;
-
-// ── Lemon Squeezy URLs ────────────────────────────────────────────────────────
-// Update LS_STORE_SLUG once when your Lemon Squeezy store is created.
-const LS_STORE_SLUG = "plyglt";
-export const CHECKOUT_URLS = {
-  monthly: `https://${LS_STORE_SLUG}.lemonsqueezy.com/buy/monthly`,
-  annual:  `https://${LS_STORE_SLUG}.lemonsqueezy.com/buy/annual`,
-} as const;
-
-// Customer portal where users can manage / cancel their subscription.
-export const CUSTOMER_PORTAL_URL = "https://app.lemonsqueezy.com/my-orders";
-
-export const PRICING = {
-  monthly: "$4.99/mo",
-  annual:  "$34.99/yr",
-} as const;
 
 // Lemon Squeezy variant name substrings used in resolveVariantEntitlement.
 // Update here if LS variant names change — one place, not buried in logic.
@@ -82,12 +71,6 @@ interface LsValidateBody {
   valid?: boolean;
   error: string | null;
   license_key: LsKey | null | undefined;
-}
-
-// Deactivation response — returned by ls_deactivate_license
-interface LsDeactivateBody {
-  deactivated?: boolean;
-  error: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -152,7 +135,10 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
   }
 
   const res = raw as LsActivateBody;
-  if (!res.activated || res.error) return { ok: false, error: res.error ?? ERR_ACTIVATION_FAILED };
+  if (!res.activated || res.error) {
+    if (res.error) console.error(`[ENTITLEMENT_ACTIVATE_ERR-${Date.now()}]`, { error: res.error });
+    return { ok: false, error: ERR_ACTIVATION_FAILED };
+  }
   if (!res.instance) {
     console.error(`[ENTITLEMENT_ACTIVATE_NO_INSTANCE-${Date.now()}]`, { activated: res.activated });
     return { ok: false, error: ERR_ACTIVATE_NO_INSTANCE };
@@ -193,7 +179,10 @@ export async function validateLicense(key: string, instanceId: string): Promise<
   }
 
   const res = raw as LsValidateBody;
-  if (!res.valid || res.error) return { ok: false, error: res.error ?? ERR_VALIDATE_INACTIVE };
+  if (!res.valid || res.error) {
+    if (res.error) console.error(`[ENTITLEMENT_VALIDATE_ERR-${Date.now()}]`, { error: res.error });
+    return { ok: false, error: ERR_VALIDATE_INACTIVE };
+  }
   if (!res.license_key || res.license_key.status !== "active") {
     console.error(`[ENTITLEMENT_VALIDATE_STRUCT-${Date.now()}]`, { valid: res.valid, status: res.license_key?.status });
     return { ok: false, error: ERR_LICENSE_NOT_ACTIVE };
@@ -202,24 +191,30 @@ export async function validateLicense(key: string, instanceId: string): Promise<
   return { ok: true, validUntil: parseExpiry(res.license_key.expires_at) };
 }
 
+// ── Add-on entitlement ────────────────────────────────────────────────────────
+
+/** Returns true if the given specialty pack code has been purchased as an add-on. */
+export function hasAddOn(state: { purchasedAddOns: string[] }, code: string): boolean {
+  return state.purchasedAddOns.includes(code);
+}
+
 export type DeactivateResult = { ok: true } | { ok: false; error: string };
 
 export async function deactivateLicense(key: string, instanceId: string): Promise<DeactivateResult> {
   let raw: unknown;
   try {
     raw = await invoke<unknown>("ls_deactivate_license", { licenseKey: key, instanceId });
-  } catch (e) {
-    console.error(`[ENTITLEMENT_DEACTIVATE_FAIL-${Date.now()}]`, { licenseKey: key.slice(0, 8) + "...", error: String(e) });
+  } catch {
+    // IPC error is not logged — it may embed the license key via request params.
+    console.error(`[ENTITLEMENT_DEACTIVATE_FAIL-${Date.now()}]`, { licenseKey: key.slice(0, 8) + "..." });
     return { ok: false, error: ERR_DEACTIVATE_NETWORK };
   }
-  if (raw == null) {
-    console.error(`[ENTITLEMENT_DEACTIVATE_EMPTY-${Date.now()}]`, { raw });
+  // ls_deactivate_license returns Result<bool, String>. Tauri serialises Ok(true)
+  // as JSON true. Any other value (null in web env, false, or an object) means
+  // the deactivation did not succeed.
+  if (raw !== true) {
+    console.error(`[ENTITLEMENT_DEACTIVATE_NON_TRUE-${Date.now()}]`, { raw });
     return { ok: false, error: ERR_DEACTIVATE_NETWORK };
-  }
-  const res = raw as LsDeactivateBody;
-  if (!res.deactivated) {
-    console.error(`[ENTITLEMENT_DEACTIVATE_DECLINED-${Date.now()}]`, { error: res.error });
-    return { ok: false, error: ERR_DEACTIVATE_DECLINED };
   }
   return { ok: true };
 }

@@ -1,133 +1,230 @@
----
-agent: architect
-last-updated: 2026-06-27
-runs: 3
----
 # Architecture Agent Memory — plyglt
 
-## Codebase Model (updated)
+## Stack
+Next.js 16.2.9, React 19, Zustand 5, Tauri 2 (desktop + web). TypeScript throughout.
 
-**Stack:** Next.js 16.2.9, React 19, Zustand 5, Tauri 2. Desktop app wrapped in Tauri; web routes served via Next.js App Router.
+## Layer Structure (dependencies flow strictly down)
+- `app/` — Next.js routes. LIMIT: ≤150 lines. All pages within limit: page=107, study=150, learn=130, stats=146, settings=150.
+- `components/` — React UI components. All within limits.
+- `hooks/` — Custom React hooks. Own session management contract.
+- `store/` — Zustand stores (srsStore, settingsStore, entitlementStore). Imports from lib/.
+- `lib/` — Pure utilities. No React, no Zustand imports. Must NEVER import from store/, hooks/, components/, app/.
+- `content/` — Static card data and type definitions.
 
-**Layer structure (top → bottom):**
-- `app/` — Route pages (must stay ≤ 150 lines). COMPLIANT after Batch 3: `learn/page.tsx` (127 lines), `study/page.tsx` (148 lines), `settings/page.tsx` (150 lines). VIOLATION: `stats/page.tsx` (243 lines — Task #055).
-- `components/` — UI components with co-located `.test.tsx`. New from Batch 3: `UnitRow`, `LevelSection`, `Stat`, `StudyDoneScreen`, `StudyResumePrompt`, `settings/Section`, `settings/Toggle`. Key existing: `StudyCard.tsx`, `EntitlementValidator.tsx`, `InterruptHandler.tsx`.
-- `hooks/` — React hooks. New from Batch 3: `useStudySession`, `useExportImport`, `useLicenseActivation`. Key existing: `useLangPack.ts`.
-- `store/` — Zustand stores. Key: `srsStore.ts` (14 importers — HIGHEST blast radius as of 2026-06-27; up from 9), `settingsStore.ts`, `entitlementStore.ts`.
-- `lib/` — Pure utilities. New from Batch 3: `answerCheck.ts`, `cardLabels.ts`, `exportBackup.ts`, `featureFlags.ts`. Key existing: `srs.ts` (11 importers), `langRegistry.ts` (~12 importers), `storage.ts` (~9 importers), `language.ts` (~9 importers), `packLoader.ts`, `tauri.ts`, `queue.ts`, `entitlement.ts`, `constants.ts`, `licenseTypes.ts`.
-- `content/` — Card data and types. Key: `types.ts`.
-- `scripts/` — Build tooling (`exportPack.ts`, `validatePack.ts`).
-- `public/packs/` — Compiled language pack JSON files.
+## Key Files and Blast Radius
+High blast-radius (many importers — touch carefully):
+1. `store/srsStore.ts` — 20 files
+2. Entitlement cluster (`lib/entitlement.ts` + `lib/checkout.ts` + `store/entitlementStore.ts`) — 26 files combined
+3. `lib/langRegistry.ts` — 20 importers
+4. `lib/packLoader.ts` — 5 importers
+5. `lib/srs.ts` — 13 importers
+6. `lib/tauri.ts` — 8 importers (151 lines — 1 over route limit; within service limit 400; acceptable as gateway — note only)
+7. `lib/constants.ts` — 8 importers
 
-**Blast-radius ranking (updated 2026-06-27 — highest risk to change):**
-1. `store/srsStore.ts` — 14 importers (up from 9 in Batch 3; NEW #1 — flag any interface changes as HIGH risk)
-2. `lib/langRegistry.ts` — ~12 importers
-3. `lib/srs.ts` — 11 importers
-4. `lib/storage.ts` — ~9 importers
-5. `lib/language.ts` — ~9 importers
-6. `lib/packLoader.ts` — 2 direct, but transitively loaded by every route via `useLangPack.ts`
+## Specialty Pack Architecture (Batch 12 — CURRENT SPRINT)
+- `lib/langRegistry.ts` — now exports: `SpecialtyPack` interface (code, baseLang, name, ready:boolean), `SPECIALTY_PACKS` (frozen empty array), `getSpecialtyPacks(lang)` filter helper, `isSpecialtyPackCode(s)` type guard. Task #147 COMPLETE.
+- `lib/packLoader.ts:loadPack` guard — restructured to accept ready specialty packs (SPECIALTY_PACKS with ready:true) alongside base packs. No behavior change yet (registry empty). Task #147 COMPLETE.
+- Task #148 (COMPLETE 2026-06-30): Entitlement model extended — purchasedAddOns: string[] in EntitlementState, hasAddOn(code) store method + pure function in lib/entitlement.ts, purchaseAddOn(code) idempotent no-op stub, ENTITLEMENT_VERSION=3 + migration v3 (adds purchasedAddOns:[]).
+- Task #149 (COMPLETE 2026-06-30): packLoader merge logic for specialty packs alongside base pack. loadedAddOns:string[] module-level array; "base_pack_not_loaded" error variant; specialty path (isReadySpecialtyPack guard — unreachable while SPECIALTY_PACKS empty): baseLang check, download+verify+merge into memCache[baseLang], loadedAddOns.push; getLoadedAddOns() export; clearCacheForTesting reset; hooks/useLangPack.ts LOAD_PACK_ERROR_MESSAGES updated (exhaustiveness); +4 tests.
+- Task #150 (COMPLETE 2026-06-30): LanguageGrid.tsx specialty pack UI slot. Added hasAddOn prop; getSpecialtyPacks import; specialtyPacks computed from unlocked base langs; Add-ons section conditionally rendered (empty in production since SPECIALTY_PACKS=[]); 5 states tested: no section when empty, purchased+ready selectable, locked+pricing, hidden when base not unlocked, not-ready "Coming soon". Full data flow registry→loader→entitlement→UI exercised end-to-end. Batch 12 COMPLETE.
 
-**Compliant files (confirmed have correct `// =======` headers):** `lib/packLoader.ts`, `lib/storage.ts`, `lib/tauri.ts`, `lib/entitlement.ts`, `lib/langRegistry.ts`, `lib/importBackup.ts`, `store/entitlementStore.ts`, `store/migrations.ts`, `lib/featureFlags.ts` (Batch 3 addition — already compliant at creation).
+## Important Modules (as of Batch 9 COMPLETE)
+- `lib/utils.ts` — pure utilities; exports `localDateStr(d?)` for local-time ISO date strings. Used by useStudySession, lib/queue.ts.
+- `hooks/useStudySession.ts` — session management hook, 12-param contract. Manages queue, position, ratings, active session commit, session-start introduction auto-selection. Do not add business logic here.
+- `components/BuyModal.tsx` — primary conversion surface. Renders annual pricing ($34.99/yr) only — monthly option removed (Task #120). Opens checkout URL via `openExternalUrl`. Receives `onActivate` callback for key entry flow.
+- `components/LanguageGrid.tsx` — language picker on app/page.tsx. Implements Free/Unlock/In-development display states. Pro-gating UI.
+- `components/EntitlementValidator.tsx` — invisible component mounted in app/layout.tsx. Background license validation + update checking (via UpdateChecker.tsx).
+- `components/UpdateChecker.tsx` — (added Task #102) invisible component mounted inside EntitlementValidator.tsx. Calls `checkForUpdates()` on mount in Tauri environments; never auto-installs. Logs availability only.
+- `lib/featureFlags.ts` — feature flag framework. All flags are env-var booleans. Exports `isProEnabled(flagValue, licenseType)` — the single combinator all M2 Pro-gated call sites must use instead of inline `licenseType === "subscription"` checks. Currently used by: `components/InterruptHandler.tsx` only. Rule: all new Pro features route through isProEnabled. USED BY comment now correctly lists InterruptHandler.tsx (fixed Task #117).
+- `lib/checkout.ts` — (extracted Task #101) checkout URL constants, pricing, portal URL. Re-exported by lib/entitlement.ts. Used by BuyModal.tsx, app/settings/page.tsx, app/page.tsx, LanguageGrid.tsx.
+- `lib/licenseTypes.ts` — defines `LICENSE_TYPES` enumeration and `LicenseType` type ("free" | "subscription").
+- `store/entitlementStore.ts` — owns `licenseType: LicenseType` (NOT settingsStore — common brief error). Also owns `unlockedPacks`, `purchasedAddOns`, `licenseKey`, `validUntil`. isProEnabled pattern: `import { useEntitlementStore } from "@/store/entitlementStore"` then `const licenseType = useEntitlementStore(state => state.licenseType)`.
 
-## Recurring Patterns (updated)
+## Introduction Engine (M1 — COMPLETE and LIVE)
+`lib/introduction.ts` — pure-function module (no React, no Zustand). Six exports: getDayOfPhase, maxAppearancesToday, shouldAppearToday, recordResult, shouldGraduate, getNextCardType.
+Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
+Session-start activation: hooks/useStudySession.ts mount useEffect calls canIntroduceNewCard → introduces first qualifying card → appends to queue. LIVE since Task #085 (2026-06-29).
 
-**Oversized route files:** Route pages accumulate business logic and inline components rather than delegating to `hooks/` and `components/`. Batch 3 reduced 3 routes to compliant size. `stats/page.tsx` (243 lines) is the sole remaining violation.
+## Auto-Updater Architecture
+- `tauri-plugin-updater` registered in src-tauri/src/lib.rs and Cargo.toml.
+- `lib/tauri.ts:checkForUpdates()` — implemented, called by UpdateChecker.tsx on mount.
+- RESOLVED (Task #121 COMPLETE): `src-tauri/tauri.conf.json:46` now has a real ed25519 pubkey (base64 minisign key). No longer a placeholder.
+- PLACEHOLDER still: update endpoint = "https://github.com/REPLACE_WITH_REPO/releases/latest/download/latest.json". Task #123 (Batch 10).
+- No release workflow exists. No macOS signing. No notarization.
 
-**Silent catch blocks:** Error swallowing pattern found in at least 7 confirmed locations across `lib/`, `hooks/`, and `components/`. Each catch discards the error without logging or surfacing to the user. Violates SCTS Stop-the-Line rule. Partially remediated in Task #001/WorldClass; new instances confirmed in `lib/tauri.ts`, `lib/packLoader.ts`, and `components/InterruptHandler.tsx`.
+## M2 Readiness State (Batch 10 CURRENT SPRINT)
+- Quality hardening COMPLETE (Batch 9 done 2026-06-30).
+- LS store: LIVE — Task #120 COMPLETE. Real annual checkout URL in lib/checkout.ts:12. Monthly pricing ($4.99/mo) removed; annual-only ($34.99/yr). CHECKOUT_URLS.monthly removed; only CHECKOUT_URLS.annual exists.
+- Spanish pack: es.json exists (245KB, v0.9.0) but NOT ready — lib/langRegistry.ts:31 ready:false. Content still being authored.
+- M2 release scope: macOS first, then Windows/Linux in Batch 11.
+- CI hardening COMPLETE (Task #115): ci.yml now has lint + coverage + audit-level=high.
+- RULE 1 RESOLVED (Task #156 COMPLETE 2026-07-01): `lib/packLoader.ts` reduced 426→363 lines. Specialty pack logic extracted to `lib/specialtyPackLoader.ts` (116 lines, Rule 2 header). `getLoadedAddOns` re-exported from packLoader.ts via `export { getLoadedAddOns } from "@/lib/specialtyPackLoader"` — callers unchanged.
 
-**Inline data→UI mappings in render:** Dictionaries and classifier functions defined inside the render body rather than as named constants at module scope or in dedicated pure modules. Partially resolved in Batch 3 (study and learn routes). `stats/page.tsx` retains inline color mapping dictionaries (Task #055, Rule 15).
+## isProEnabled Audit (COMPLETE — Task #118)
+All production `licenseType === "subscription"` occurrences resolved:
+- `lib/featureFlags.ts:26` — isProEnabled body itself. Correct.
+- `app/settings/page.tsx:91` — display label. Comment added: `{/* display label — not a feature gate */}`.
+- `app/settings/page.tsx:100` — "Manage subscription →" button. Documented as intentional exception: no `manageSubscription` feature flag exists; button is correctly conditioned on licenseType alone.
 
-**Missing `// =======` human headers (Rule 2):** 39 files identified (26 pre-Batch 3 + 13 Batch 3 additions). `lib/featureFlags.ts` is the only Batch 3 file that shipped compliant. All tracked under Task #030.
+## Dead Zones (features mentioned in docs but no implementation)
+- `vacationMode` flag in featureFlags.ts — no store action, no UI, no scheduler logic. Intentional stub.
+- `analytics` flag — now connected to stats page Pro gate (Task #155 scheduled). Gate was missing; stats page was always visible regardless of Pro status.
+- Forecast ("B2 in ~7 months") — no code
+- Custom cards — no code
+- Sync — intentionally deferred to M4
+- On-lock/wake interrupt triggers — M3 scope
+- Push notification permission UI — Task #124 (Batch 10, UX only)
 
-**Brand copy violations (terminology):** UI strings using forbidden terms ("overdue", "due") instead of canonical terms ("ready"). Found in `app/stats/page.tsx` (lines 121, 131) and `components/UnitRow.tsx` (line 82). Tracked under Task #053.
+## Batch 13 — Quality Foundation (COMPLETE — 2026-06-30)
+All 3 tasks closed. Key outcomes:
 
-**No test co-location:** Zero route pages have test files. Batch 3 components (`UnitRow`, `LevelSection`, `Stat`, `StudyDoneScreen`, `StudyResumePrompt`, `settings/Section`, `settings/Toggle`) also have no `.test.tsx` siblings. `components/EntitlementValidator.tsx` is the sole compliant component (test added in WorldClass cycle).
+- Task #151 (COMPLETE): Content depth audit result: **unitCount=63, cardCount=3680**.
+  - A1 milestone (20 units, ~2,600 cards): COMPLETE ✓
+  - A2 milestone on units (50 total): COMPLETE ✓ (63 ≥ 50); card depth (3,680) lags A2 target (~8,300) — not a blocker
+  - B1 progress: 63 of 85 units (22 remaining). B2: 63 of 125 (62 remaining).
+  - No content tasks created — unitCount well above A1 trigger threshold.
+  - public/packs/it.json and manifest.json regenerated (935KB, v1.0.0, 63 units, 3,680 cards).
 
-## Known Blind Spots (updated)
+- Task #152 (COMPLETE): 3 tests added to `tests/packLoader.test.ts` in "specialty pack merge path" describe block. Mock strategy: `vi.hoisted<SpecialtyPack[]>(() => [])` creates mutable array referenced inside `vi.mock` factory. Global `beforeEach` clears it so all 28 existing packLoader tests continue to see `SPECIALTY_PACKS = []`. The isReadySpecialtyPack branch is no longer dead code (removing it causes 3 test failures).
 
-**Rule 1 compliance audit incomplete during Batch 3:** Line-count compliance was verified for 4 of 5 non-trivial routes (`learn`, `study`, `settings`, `page`). `app/stats/page.tsx` was not checked and shipped at 243 lines undetected. When performing Rule 1 audits, enumerate every file under `app/` explicitly using a directory listing — do not rely on a remembered partial list of routes.
+- Task #153 (COMPLETE): Playwright E2E smoke test added. Port 3099 (not 3000 — local "System 1701" auth portal runs on 3000). `test:e2e` script separate from `npm test`. 1 smoke test: language picker → /learn → A1 unit → StudyCard → card advance. Unit test count unchanged at 891.
 
-**Blast-radius drift after Batch 3:** `store/srsStore.ts` grew from 9 to 14 importers in a single batch without a corresponding architectural review. Importer counts should be re-verified after any batch that adds or reorganises files.
+## NEW FINDINGS RUN 9 (2026-07-01)
 
-## Past Findings — Open
+1. **RULE 1 VIOLATION** — `app/stats/page.tsx` is 158 lines; app route limit is ≤150. Task #155's Pro gate addition (lines 17-24) pushed it 8 lines over. Needs decomposition: the "not Pro" fallback (lines 17-24) should extract to a `<StatsProGate />` component in components/.
 
-| Task | Location | Description |
-|------|----------|-------------|
-| Task #055 | `app/stats/page.tsx` (243 lines) | Rule 1 violation: route exceeds 150-line limit. Also contains Rule 15 violations: inline color mapping dictionaries defined in render body. |
-| Task #053 | `app/stats/page.tsx:121` | BRAND.md violation: UI copy uses "overdue" — must use "ready". |
-| Task #053 | `app/stats/page.tsx:131` | BRAND.md violation: UI copy uses "{n}d overdue" — must use "ready". |
-| Task #053 | `components/UnitRow.tsx:82` | BRAND.md violation: badge reads "due" — must read "ready". |
-| Task #030 | (39 files) | Rule 2: 39 files missing `// =======` human headers. 26 original (including `lib/srs.ts`, `lib/queue.ts`, `lib/language.ts`, `content/types.ts`, `store/srsStore.ts`, `store/settingsStore.ts`, `hooks/useLangPack.ts`, `app/study/page.tsx`, `app/settings/page.tsx`, `app/learn/page.tsx`, `app/stats/page.tsx`, `components/StudyCard.tsx`, and others) plus 13 Batch 3 additions (all Batch 3 files except `lib/featureFlags.ts`). |
-| Task #002 — F003 | `hooks/useLangPack.ts:65` | `lang = getLanguageConfig(targetLang)` is unstable object reference in useEffect deps. Infinite re-render for non-static packs masked by static-pack early return on line 43. Latent bug when a second language ships. |
-| Task #003 standalone | `lib/packLoader.ts:283` | `writeCacheData`/`writeCacheMeta` no try/catch; `QuotaExceededError` propagates as wrong `"download_failed"` discriminant. |
-| — | `lib/tauri.ts:118` | Rule 8: silent catch — error discarded without log or user surface. |
-| — | `lib/packLoader.ts:91` | Rule 8: silent catch. |
-| — | `lib/packLoader.ts:103` | Rule 8: silent catch. |
-| — | `lib/packLoader.ts:139` | Rule 8: silent catch. |
-| New Task E | `lib/packLoader.ts:223-226` | Rule 8: silent catch {} block — third occurrence (lines 97–99 and 107–111 are covered separately above). |
-| — | `app/settings/page.tsx:49,155,186` | Rule 8: console.error calls missing MODULE_CODE-TIMESTAMP ref ID format — errors not correlatable to user incidents. |
-| — | `app/settings/page.tsx:154` | Rule 8: reader.onerror handler discards ProgressEvent — DOMException on target.error never read or logged. |
-| — | `app/settings/page.tsx:44-52` | Rule 8: silent background revalidation failure logged but not surfaced to user via licenseStatus update. |
-| — (sev:7) | `app/settings/page.tsx:handleActivate:59 + handleValidate:78` | No try/catch around invoke calls. licenseStatus gets stuck in `{type:"loading"}` on error; UI permanently disabled with no user feedback. Stop-the-line violation. |
-| — (sev:7) | `app/settings/page.tsx:handleLaunchAtLogin:102` | No try/catch. setLaunchAtLogin fires before Tauri call. If enableAutostart/disableAutostart throws, toggle is already flipped — permanently out of sync with OS, no feedback, no rollback. |
-| — (sev:6) | `app/settings/page.tsx:useEffect:44` | licenseKey/instanceId captured from Zustand at mount time. persist middleware may not have hydrated before first render in Next.js App Router. If component mounts before hydration, values are null and revalidation silently never runs. Should use `useEntitlementStore.getState()` inside the effect. |
-| — (sev:6) | `app/settings/page.tsx:useEffect:48` | If `markValidated()` throws during torn store state, exception propagates into `.then()` scope and is caught by `.catch()`, logging misleading "Silent license revalidation failed" when root cause is a store mutation error. |
-| — (sev:5) | `lib/entitlement.ts:deactivateLicense:105` | catch block uses `String(e)`, discarding stack trace. No `console.error` with `{MODULE}_{CODE}-{TIMESTAMP}` ref ID. Rule 8 violation. |
-| — (sev:5) | `app/settings/page.tsx:handleExportBackup:121` | `_version:2` is a magic number — should be `_version: CURRENT_BACKUP_VERSION`. If `CURRENT_BACKUP_VERSION` bumps, exported backups silently stay at version 2. |
-| — (sev:4) | `lib/importBackup.ts:93-95 + store/migrations.ts:70` | importBackup coerces unknown licenseType → "free"; migrations coerce unknown → "subscription". Neither file references the other. Developer reading either in isolation cannot infer why the same invalid input produces different outputs. |
-| — (sev:3) | `vitest.config.ts:15-18` | Functions coverage threshold set to actual-3%, explicitly permitting three uncovered entitlement functions (S001–S003) to pass CI without error. |
-| — | `store/migrations.ts:ENTITLEMENT_MIGRATIONS[2]:67` | Poka-yoke violation: inline untyped `new Set(["free","subscription"])` is a third parallel LicenseType definition. Frozen by migration immutability rule. No TypeScript enforcement. |
-| — | `store/migrations.ts:ENTITLEMENT_MIGRATIONS[2]:62` | Comment says "one-time purchase" — perpetuates a deleted pricing concept. Should say "legacy licenseType value from prior app version". |
-| — | `store/entitlementStore.ts:80` | persist key "entitlement-v1" does not reflect `ENTITLEMENT_VERSION=2`. Misleading to future developers. Needs a comment explaining the deliberate mismatch. |
-| — | `lib/tauri.ts:46,58,64` | Rule 8: `.catch(() => {})` silently swallows Tauri IPC errors. Severity varies by command: `update_tray_badge` (low), `update_interrupt_config` (high). |
-| — | `components/InterruptHandler.tsx:29` | Rule 8: `validateLicense` `.then()` has no `.catch()`. Unhandled rejection on IPC error. |
-| — | (codebase-wide) | Rule 12 violation: Zero modules expose typed agent tools. |
-| — | `components/StudyCard.tsx` | Rule 14: No co-located `.test.tsx`. |
-| — | `components/InterruptHandler.tsx` | Rule 14: No co-located `.test.tsx`. |
-| — | Batch 3 components | Rule 14: `UnitRow`, `LevelSection`, `Stat`, `StudyDoneScreen`, `StudyResumePrompt`, `settings/Section`, `settings/Toggle` — all missing `.test.tsx` siblings. |
-| — | `app/study/page.tsx` | Rule 14: No route test. |
-| — | `app/learn/page.tsx` | Rule 14: No route test. |
-| — | `app/settings/page.tsx` | Rule 14: No route test. |
-| — | `app/stats/page.tsx` | Rule 14: No route test. |
-| — | `app/decks/` | Empty directory — owner decided to delete. No files, no routes, no references. Remove the directory. |
-| Task #034 AUDIT-001 (sev:2) | `content/types.ts:IntroductionRecord:consecutiveWrongToday` | Field name implies daily reset boundary; BRAND.md rule is "consecutive wrongs in a row" (streak spans calendar days). `recordResult` (#040) must clarify whether this counter resets at midnight or only on correct answers. |
-| Task #034 AUDIT-002 (sev:2) | `lib/introduction.ts:MAX_APPEARANCES_BY_PHASE_DAY:8` | `Record<number, number>` types all index accesses as `number` at compile time; runtime returns `undefined` for days 23+. `maxAppearancesToday` (#038) must guard the `day >= 22` case before indexing. |
+2. **POKA-YOKE VIOLATION: duplicate sha256Hex** — `lib/packLoader.ts:94` and `lib/specialtyPackLoader.ts:21` define identical `sha256Hex(text)` implementations. Should be extracted to `lib/utils.ts` (already owns pure utilities). This is a Poka-yoke stop-the-line: a parallel implementation of the same function is wrong, not just messy.
 
-## Past Findings — Resolved
+3. **POKA-YOKE VIOLATION: duplicate packUrl** — `lib/packLoader.ts:141` and `lib/specialtyPackLoader.ts:17` define identical `packUrl(lang)` functions. Same fix: extract to a shared location (either `lib/utils.ts` or keep it in packLoader and export it for specialtyPackLoader to import).
 
-| Task | Location | Description |
-|------|----------|-------------|
-| Task #001 | `app/settings/page.tsx:178` | Rule 8: bare catch without binding. Fixed Cycle 2 — catch(e) + console.error added. |
-| Task #001 | `app/settings/page.tsx:46` | Rule 8: validateLicense no .catch(). Fixed Cycle 2 — .catch() with logging added. |
-| Task #001 | `app/settings/page.tsx:151` | Rule 8: FileReader.onerror never assigned. Fixed Cycle 2 — handler added. |
-| Task #001 | `lib/importBackup.ts:parseBackup:92` | VALID_LICENSE_TYPES Set created inside function body on every call. Fixed Cycle 2 — moved to module scope. |
-| Task #001 | `lib/entitlement.ts:parseVariant` | isSubscription misleading variable, unlocksAll single-word substring match. Fixed Cycle 2 — variable removed, uses "all languages" multi-word match. |
-| Task #001 WorldClass | `lib/entitlement.ts` | Missing `// ===` Rule 2 header. Fixed WorldClass cycle — header with DEPENDS ON / USED BY added. |
-| Task #001 WorldClass | `lib/langRegistry.ts` | Missing `// ===` Rule 2 header. Fixed WorldClass cycle. |
-| Task #001 WorldClass | `store/entitlementStore.ts` | Missing `// ===` Rule 2 header. Fixed WorldClass cycle. |
-| Task #001 WorldClass | `lib/importBackup.ts` | Missing `// ===` Rule 2 header. Fixed WorldClass cycle. |
-| Task #001 WorldClass | `store/migrations.ts` | JSDoc header replaced with canonical `// ===` header. Fixed WorldClass cycle. |
-| Task #001 WorldClass | `components/EntitlementValidator.tsx` | Rule 14: no co-located `.test.tsx`. Fixed WorldClass cycle — `EntitlementValidator.test.tsx` created with 8 behavioral tests for `runEntitlementValidation`. |
-| Task #001 WorldClass | `store/entitlementStore.ts:127,130` | "entitlement-v1" magic string duplicated in persist config. Fixed WC_CYCLE 3 — extracted to `const ENTITLEMENT_STORE_KEY`. |
-| Task #001 WorldClass | `lib/entitlement.ts:parseVariant` | LsValidateBody type reused LsActivateBody (lying type). Fixed WorldClass — `LsValidateBody` created as separate type. |
-| Task #001 WorldClass | `lib/entitlement.ts` | Missing try/catch on activateLicense invoke call. Fixed WorldClass — `ENTITLEMENT_ACTIVATE_FAIL` ref ID added. |
-| Task #001 WorldClass | `lib/licenseTypes.ts` | LicenseType lived in store layer — Rule 3 upward import. Fixed WorldClass — moved to `lib/licenseTypes.ts`, store re-exports. |
-| Task #002 (RESOLVED) | `store/srsStore.ts:7 → lib/constants.ts` | Upward import fixed. `LANG_PAIR_KEY`, `getTargetLangCode`, `setTargetLangCode` moved to `lib/constants.ts`. `hooks/useLangPack.ts` re-exports for backward compat. WorldClass 97/100. |
-| Task #053 WorldClass | `lib/entitlement.ts:17` | Section comment "Network error messages" was misleading (4 of 6 constants are not network errors). Fixed: renamed to "Error message constants". |
-| Task #053 WorldClass | `lib/entitlement.ts:24` | ERR_DEACTIVATE_DECLINED used passive voice ("was declined by the server") — BRAND.md violation. Fixed: "Deactivation declined." |
-| Task #053 WorldClass | `lib/entitlement.ts:158,162,182,187,190` | 5 remaining inline error strings not extracted to constants. Fixed: ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE added and used at all sites. |
-| Task #053 WorldClass | `tests/entitlement.test.ts:272` | activateLicense null-response test asserted only ok:false — split weak-guard + constants-block pattern. Fixed: single strong assertion, redundant describe block deleted. |
-| Task #053 WorldClass | `tests/entitlement.test.ts:379` | validateLicense license-key-absent test asserted only ok:false — ERR_LICENSE_NOT_ACTIVE path unpinned. Fixed: assertion added. |
-| Task #003 (RESOLVED) | `lib/packLoader.ts` | Validate lang param before use — DONE. |
-| Rule 4 (RESOLVED — Batch 3) | (codebase-wide) | No feature flag system existed anywhere. RESOLVED — `lib/featureFlags.ts` created in Batch 3 and ships with compliant Rule 2 header. |
-| CTO escalation #3 (RESOLVED 2026-06-27) | `lib/langRegistry.ts:31-33` | fr/de/pt entries used `config: SPANISH` as placeholders; `LANG_CONFIG_MAP` exported without ready filter causing data corruption for all consumers. RESOLVED — stub entries removed from registry. |
-| Task #003 standalone (RESOLVED 2026-06-27) | `lib/langRegistry.ts:PackCode:42` | `PackCode` resolved to `string` due to `as string[]` cast. RESOLVED — now `"it" | "es"` literal union. |
-| New Task A / Batch 3 (RESOLVED 2026-06-27) | `lib/importBackup.ts:14` | Rule 3 upward violation: utilities layer imported `@/store/migrations` (services layer). RESOLVED — shared type/constant extracted to `lib/`. |
-| Batch 3 (RESOLVED) | `app/settings/page.tsx` (509 lines) | Rule 1: 509 lines. RESOLVED — reduced to 150 lines. exportBackup logic extracted to `lib/exportBackup.ts`; Section/Toggle inline components extracted to `components/settings/`. |
-| Batch 3 (RESOLVED) | `app/study/page.tsx` (407 lines) | Rule 1: 407 lines. RESOLVED — reduced to 148 lines. Session resume state machine extracted to `hooks/useStudySession.ts`; Stat extracted to `components/`; tierLabel dict moved to module scope. |
-| Batch 3 (RESOLVED) | `app/learn/page.tsx` (333 lines) | Rule 1: 333 lines. RESOLVED — reduced to 127 lines. levelMastery/levelUnlocked/currentLevel moved to store selectors; UnitRow classname expression extracted to pure function. |
-| Batch 3 (RESOLVED) | `lib/srs.ts` (266 lines) | Rule 1: oversized. RESOLVED — `checkAnswer`, `levenshtein`, and `ITALIAN_ARTICLES` extracted to `lib/answerCheck.ts`, reducing `srs.ts` to ~170 lines. |
-| Batch 3 Rule 15 (RESOLVED) | `app/study/page.tsx:310-315` | `tierLabel` dict defined in render body. RESOLVED — moved to module scope in Batch 3 refactor. |
-| Batch 3 Rule 15 (RESOLVED) | `app/learn/page.tsx:258-329` | `UnitRow` multi-branch classname expression inline. RESOLVED — extracted to named pure function in Batch 3 refactor. |
-| Batch 3 Rule 15 (RESOLVED) | `app/learn/page.tsx:64-71` | `currentLevel` computation inline in component. RESOLVED — moved to store selector in Batch 3 refactor. |
-| Batch 3 Rule 15 (RESOLVED) | `app/learn/page.tsx:52-61` | `levelMastery()` closure defined inside component. RESOLVED — moved to store selector in Batch 3 refactor. |
+4. **TYPE-CIRCULAR DEPENDENCY** — `lib/specialtyPackLoader.ts:9` imports `Pack`, `LoadPackResult`, `Manifest` types from `lib/packLoader.ts`; `lib/packLoader.ts:32` imports functions from `lib/specialtyPackLoader.ts`. This is a circular module reference. TypeScript's `import type` prevents a runtime cycle but the design is architecturally fragile. Fix: extract `Pack`, `LoadPackResult`, `Manifest`, `PackMeta`, `CachedPackMeta` to `lib/packTypes.ts` — both files import from there; the cycle disappears.
+
+5. **STALE CLAUDE.md — checkout.ts description** — CLAUDE.md Architecture section bullet for `lib/checkout.ts` still reads "pricing ($4.99/mo, $34.99/yr)". After Task #120, monthly is removed; correct description is "pricing ($34.99/yr, annual-only)".
+
+6. **STALE CLAUDE.md — Pack Format section** — CLAUDE.md Section 6 says "`lib/packLoader.ts` handles the merge path: `loadedAddOns` tracks which add-ons are in memory; `getLoadedAddOns()` exposes this list." After Task #156, all of this lives in `lib/specialtyPackLoader.ts`. CLAUDE.md does not mention `lib/specialtyPackLoader.ts` at all.
+
+7. **TASK #121 RESOLVED** — `src-tauri/tauri.conf.json:46` has a real base64 minisign ed25519 pubkey. Remove from open findings. (Update already applied above.)
+
+## NEW FINDINGS RUN 8 (2026-07-01)
+
+1. **RULE 1 RESOLVED** — `lib/packLoader.ts` reduced to 363 lines (Task #156 COMPLETE). `lib/specialtyPackLoader.ts` created.
+
+2. **STOP-THE-LINE** — `components/InterruptHandler.tsx:39-56` duplicates license revalidation from `EntitlementValidator.tsx`. Two concurrent LS API calls on every app launch when validation is due. Task #154 scheduled (highest priority — first task in Batch 14).
+
+3. **RULE 2 VIOLATION (x3)** — `src-tauri/src/lib.rs`, `interrupt.rs`, `license.rs` have no plain English headers describing their role, inputs, and outputs. Task #159 scheduled.
+
+4. **BATCH 14 ACTUAL STATE CORRECTION** — Prior memory stated Batch 14 covers "the JS/React/Zustand layer ONLY." This is wrong. `interrupt.rs` (152 lines) and `InterruptHandler.tsx` (124 lines) already exist and are complete from M2 work. Batch 14 is macOS OS hooks + pre-extractions only. See updated Batch 14 scope in Strategic Roadmap below.
+
+5. **PRE-EXTRACTIONS REQUIRED FOR BATCH 14** — `setup_tray()` (~40 lines in `lib.rs`) must be extracted to `tray.rs` (Task #160) before OS hooks are added. Interrupt IPC must be extracted from `lib/tauri.ts` (151 lines) to `lib/tauriInterrupt.ts` (Task #161).
+
+## Strategic Roadmap — Agreed 2026-07-01 (owner decision — do not override)
+
+Infrastructure and shipping take priority over content. 63 units (3,680 cards) is sufficient
+to validate the product and retain early users. Content expansion comes after the full
+infrastructure stack is shipped.
+
+**Agreed milestone order:**
+
+### Milestone 1 — Mac shipping (Batch 10 — CURRENT)
+3 owner actions unblock everything: LS store (#120), signing keypair (#121), Apple Developer cert (#122).
+Tasks #123–#125 follow immediately once unblocked.
+Gate: signed, notarized .dmg downloadable by a stranger.
+
+### Milestone 2 — M3: Proactive Interruption Engine (Batch 14 — IN PROGRESS)
+The core product differentiator. Without this, plyglt is just another SRS app.
+Desktop mechanic: tray notification → mandatory overlay → 3–5 cards → dismiss.
+Triggers: schedule (every N hours), computer wake/unlock, idle time detection.
+
+**ACTUAL STATE (confirmed run 8 — 2026-07-01):**
+The JS/React layer and the core Rust engine are ALREADY COMPLETE from M2 work:
+- `src-tauri/src/interrupt.rs` (152 lines) — InterruptState, 30-second poll thread, 4 IPC commands. COMPLETE.
+- `components/InterruptHandler.tsx` (124 lines) — JS side handler. COMPLETE.
+
+**Batch 14 actual scope — macOS OS hooks + pre-extractions only:**
+- Add `src-tauri/src/os_events.rs` — wake/unlock/idle OS hooks for macOS (NSWorkspace/CGEventSource)
+- Pre-extract `setup_tray()` (~40 lines in lib.rs) → `src-tauri/src/tray.rs` (Task #160) before adding hooks
+- Pre-extract interrupt IPC from `lib/tauri.ts` → `lib/tauriInterrupt.ts` (Task #161)
+- Add OS trigger toggles to settingsStore + settings page
+
+**What is explicitly NOT in Batch 14:**
+- Windows system event hooks (WM_POWERBROADCAST, GetLastInputInfo) → Batch 15
+- Linux system event hooks (systemd-logind D-Bus, XScreenSaverQueryInfo) → Batch 15
+
+**Why:** Tauri does NOT abstract OS-level system events. Wake detection, unlock detection,
+and idle detection each require platform-specific Rust code (macOS: NSWorkspace/CGEventSource;
+Windows: WinAPI; Linux: D-Bus/X11). Writing and testing three platform implementations
+simultaneously adds risk. Mac ships first; Windows/Linux Rust implementations follow in
+Batch 15 once the Mac version is validated.
+
+Gate: interrupt fires on schedule on Mac, forces a 3-card session, dismisses cleanly.
+
+### Milestone 3 — Windows + Linux (new Batch 15 — NO TASKS YET)
+Packaging only — M3 interruption engine ports with minimal changes since it was built cross-platform.
+Work includes: Windows code signing (EV cert or Azure Trusted Signing), NSIS/MSI installer,
+auto-updater config for Windows. Linux: AppImage as primary format, optional .deb/Snap.
+The auto-updater endpoint (Task #123) must be live before this milestone.
+Gate: working signed installer on Windows 11 + AppImage on Ubuntu 22.04.
+
+### Milestone 4 — Sync backend: design + build (new Batch 16 — NO TASKS YET)
+This is a backend product, not a feature. Must be designed before mobile begins.
+What syncs: SRS card state (reviews, due dates, stability, streaks), settings, entitlement.
+Model: offline-first. All writes go local first; sync when online. Conflict resolution needed
+(user reviews on Mac and iPhone before sync — last-write-wins is wrong for SRS data).
+Backend decision pending: Supabase (Postgres + realtime, fast), Firebase, or custom server.
+Auth decision pending: Apple Sign In + Google Sign In minimum (required for App Store).
+Push notification infrastructure lives here too — a server that sends APNs (iOS) and FCM
+(Android) notifications on the interrupt schedule. This is required for mobile interruptions.
+Gate: SRS state syncs bidirectionally between two desktop instances with no data loss.
+
+### Milestone 5 — Mobile: iOS + Android (new Batch 17 — NO TASKS YET)
+Depends on Milestone 4 (sync) being live. Mobile without sync = two separate silos.
+Tauri 2 has mobile support (alpha/beta maturity). iOS requires Apple Developer account
+(already needed for Mac). Android requires Play Console account.
+Interruption mechanic on mobile = push notifications via APNs/FCM from the sync backend.
+The "mandatory overlay" desktop mechanic becomes a notification tap → in-app session.
+Gate: app installable from App Store + Play Store; progress syncs with desktop automatically.
+
+## What is missing from the task list (as of 2026-07-01)
+Batch 14 is now active (Tasks #154–#164 in .autocode/tasks.md). Remaining:
+- **Batch 15:** Windows + Linux packaging + signing + auto-updater (NO TASKS YET)
+- **Batch 16:** Sync backend (architecture, auth, API, push notification server) (NO TASKS YET)
+- **Batch 17:** Mobile (Tauri iOS/Android, App Store/Play Store, push notification client) (NO TASKS YET)
+
+## Open Findings (Batch 10 scope)
+- LS store LIVE — Task #120 COMPLETE (owner action done)
+- Auto-updater pubkey WRITTEN — Task #121 COMPLETE (owner action done)
+- macOS signing null — Task #122 (owner action — still pending)
+- No release workflow — Task #123 (blocked by #122; endpoint still placeholder)
+- Notification permission onboarding — Task #124
+- STATUS.md CVE documentation — Task #125
+
+## Open Findings (Batch 14 scope — run 9)
+- Task #154 COMPLETE: duplicate license revalidation removed from InterruptHandler.tsx (now 102 lines)
+- Task #155 COMPLETE: analytics Pro gate added to app/stats/page.tsx (isProEnabled at line 17) — BUT introduced Rule 1 violation (see New Findings Run 9)
+- lib/packLoader.ts Rule 1 violation (426 lines) — RESOLVED by Task #156 (specialtyPackLoader.ts, 116 lines)
+- Rust file headers missing (lib.rs, interrupt.rs, license.rs) — Task #159
+- Pre-extract setup_tray() → src-tauri/src/tray.rs — Task #160
+- Pre-extract interrupt IPC → lib/tauriInterrupt.ts — Task #161
+- Tasks #162–#164: macOS OS hooks (os_events.rs) — wake, unlock, idle detection
+
+## Past Findings — Resolved (do not re-report)
+- Task #120 (LS store creation): COMPLETE — real checkout URL live in lib/checkout.ts:12
+- Task #121 (ed25519 pubkey): COMPLETE — tauri.conf.json:46 has real key
+- Task #154 (duplicate license revalidation in InterruptHandler.tsx): COMPLETE — removed; file now 102 lines
+- Task #155 (analytics Pro gate): COMPLETE — isProEnabled gate at app/stats/page.tsx:17 (but introduced Rule 1 violation — see Run 9 findings)
+- lib/importBackup.ts upward import: RESOLVED (Task #013)
+- fr/de/pt stubs: REMOVED (Batch 3)
+- PackCode type widening: FIXED
+- app/page.tsx 253-line Rule 1 violation: RESOLVED (Task #087)
+- app/settings/page.tsx decomposition: RESOLVED (Task #026 + subsequent)
+- app/stats/page.tsx Rule 1: RESOLVED (Task #080)
+- lib/entitlement.ts raw LS errors to UI: RESOLVED (Task #089)
+- InterruptHandler listen() missing .catch(): RESOLVED (Task #083)
+- lib/featureFlags.ts Rule 2 USED BY comment: RESOLVED (Task #117)
+- isProEnabled combinator not at all call sites: RESOLVED (Task #118)
+- CI missing lint + coverage + audit: RESOLVED (Task #115)
+- CLAUDE.md 7 gaps from Batch 8: RESOLVED (Task #116)
+- 4 app page routes missing tests: RESOLVED (Tasks #111–#114)
+
+## Run History
+9 runs total. Blind spots: missed importBackup upward import (run 1); missed stats/page.tsx Rule 1 (run 2); missed app/page.tsx 253-line violation until run 4; missed Task #001 W-series stale checkboxes in tasks.md; missed featureFlags.ts Rule 2 comment until run 6; Batch 9 closed all open arch findings (run 7); run 8 — corrected Batch 14 actual state; new Rule 1 violation (packLoader 426 lines); stop-the-line duplicate revalidation; 3 Rust files missing headers. Run 9 — Task #154/#155/#121/#120 COMPLETE; new Rule 1 violation (stats/page.tsx 158 lines); duplicate sha256Hex/packUrl across packLoader+specialtyPackLoader; type-circular dependency; 2 stale CLAUDE.md entries.

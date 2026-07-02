@@ -30,6 +30,7 @@ import type { Unit } from "@/content/types";
 import { createPlatformStorage } from "@/lib/storage";
 import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } from "@/lib/langRegistry";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
 
 // ── Pack types ────────────────────────────────────────────────────────────────
@@ -89,16 +90,6 @@ function getStorage() {
 const CACHE_META_PREFIX = "pack-meta-v1-";
 const CACHE_DATA_PREFIX = "pack-data-v1-";
 
-// ── SHA-256 (Web Crypto API) ──────────────────────────────────────────────────
-
-async function sha256Hex(text: string): Promise<string> {
-  const encoded = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 // ── Async storage helpers ─────────────────────────────────────────────────────
 
 async function readCacheMeta(lang: string): Promise<CachedPackMeta | null> {
@@ -136,11 +127,6 @@ async function clearPackCache(lang: string): Promise<void> {
 }
 
 // ── Pack URL helpers ──────────────────────────────────────────────────────────
-
-// INTERNAL — lang must be validated via ALL_PACK_CODES before calling (see loadPack guard above)
-function packUrl(lang: string): string {
-  return `/packs/${lang}.json`;
-}
 
 function manifestUrl(): string {
   return `/packs/manifest.json`;

@@ -2,6 +2,7 @@
 // queue.ts — Builds the study queue from due and new cards respecting session limits
 // ============================================================
 import type { Card, Unit } from "@/content/types";
+import { localDateStr } from "@/lib/utils";
 
 const SESSION_NEW_LIMIT = 15;
 
@@ -22,8 +23,7 @@ export function buildQueue(
   // Deduplication below handles the case where a card appears in both lists.
   const introCards: Card[] = [];
   if (getIntroductionDueCardIds) {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = localDateStr();
     for (const id of getIntroductionDueCardIds(today)) {
       const c = cardMap[id];
       if (c) introCards.push(c);

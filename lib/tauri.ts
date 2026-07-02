@@ -121,18 +121,31 @@ export async function openExternalUrl(url: string): Promise<void> {
 
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
-/** Checks for a new version and, if found, prompts the user to install it. */
-export async function checkForUpdates(): Promise<void> {
-  if (!isTauri) return;
+export type UpdateCheckResult =
+  | { available: false }
+  | { available: true; version: string; install: () => Promise<void> };
+
+/**
+ * Checks for a new version. Returns an UpdateCheckResult — never auto-installs.
+ * When available=true, the caller must explicitly call result.install() after
+ * obtaining user confirmation. This is a supply-chain risk guard.
+ */
+export async function checkForUpdates(): Promise<UpdateCheckResult> {
+  if (!isTauri) return { available: false };
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();
     if (update?.available) {
-      // The update dialog is handled by the plugin; just download and install.
-      await update.downloadAndInstall();
+      return {
+        available: true,
+        version: update.version ?? "unknown",
+        install: () => update.downloadAndInstall(),
+      };
     }
+    return { available: false };
   } catch (err) {
     // Non-fatal — network may be offline. Log so manifest parse failures leave a trace.
     console.error(`[ERR-UPDATER-${Date.now()}] checkForUpdates failed:`, err);
+    return { available: false };
   }
 }

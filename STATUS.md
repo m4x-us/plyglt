@@ -12,12 +12,18 @@ The following features are complete and in production:
 - **Platform storage abstraction** — `lib/storage.ts:createPlatformStorage` routes persistence to Tauri Store (desktop) or localStorage (web). All Zustand stores use this factory.
 - **Feature flags** — `lib/featureFlags.ts` reads `NEXT_PUBLIC_FLAGS_*` environment variables. Flags are evaluated at runtime; no build step required to toggle.
 - **Answer checking** — `lib/answerCheck.ts` with Levenshtein distance and NFC normalization. Handles accented characters and minor typos without false positives.
+- **Introduction engine** — `lib/introduction.ts` + srsStore integration — fully live — lib/introduction.ts + srsStore integration + session-start activation (hooks/useStudySession.ts, 2026-06-29).
+- **auto-updater wired** — `components/UpdateChecker.tsx` calls `checkForUpdates()` on mount via `lib/tauri.ts`. Real ed25519 pubkey added to `src-tauri/tauri.conf.json` (Task #121 — complete). Full shipping pending signed macOS packaging (M2).
+- **Specialty pack add-on infrastructure** — `SpecialtyPack` interface, `SPECIALTY_PACKS`, `getSpecialtyPacks()`, `isSpecialtyPackCode()` in `lib/langRegistry.ts`. `store/entitlementStore.ts` tracks `purchasedAddOns: string[]` with `hasAddOn()` and `purchaseAddOn()` actions (schema at `ENTITLEMENT_VERSION = 3`). `lib/packLoader.ts` handles the merge path (`loadedAddOns`, `getLoadedAddOns()`, `"base_pack_not_loaded"` guard). `LanguageGrid.tsx` renders the Add-ons section when specialty packs exist. No specialty packs authored yet — infrastructure is ready, content is not.
+- **E2E Playwright smoke test** — `playwright.config.ts` at repo root; tests in `tests/e2e/`; runs on port 3099 via `npm run test:e2e`. Separate from the Vitest unit suite; not counted in coverage thresholds.
 
 ---
 
 ## 2. Planned (In Task List)
 
 Active development is tracked in `.autocode/tasks.md`. That file is the canonical list of in-progress and queued work, organized by batch and stream.
+
+**M2 — Desktop shipping:** Pro feature gating, Lemon Squeezy annual checkout flow end-to-end ($34.99/yr, Task #120 complete), macOS packaging (signed + notarised). Windows/Linux packaging deferred to Batch 9.
 
 ---
 
@@ -29,8 +35,11 @@ License verification is entirely client-side — there is no server round-trip t
 **68 curriculum units not yet authored.**
 57 of 125 planned units exist (A1 through B1). The remaining 68 (B2 level and some B1 consolidation units) are content authoring work, not engineering tasks. No code change is required to add them — the pipeline that converts unit TypeScript files into validated JSON packs is complete. Missing units are a content gap, not a software gap.
 
-**Placeholder language configurations for fr, de, pt.**
-`lib/langRegistry.ts` contains stub entries for French, German, and Portuguese. These languages are not user-visible — they are not in `READY_PACK_CODES` and no packs exist for them. The stubs exist as scaffolding for future language expansion. Do not reference them in user-facing copy or documentation as shipped languages.
+**Placeholder language registrations removed (2026-06-27).**
+Three placeholder registrations (French, German, Portuguese) with no real content or packs were cleaned out of lib/langRegistry.ts in Batch 3. Only `it` (Italian, ready) and `es` (Spanish, not yet ready) remain. Re-add a language only when a real LanguageConfig and pack exist — see CONTRIBUTING_LANGUAGE.md.
+
+**2 moderate npm vulnerabilities in the next/postcss dependency chain (known, unfixable without major Next.js downgrade).**
+`npm audit` reports two moderate-severity advisories (`next` and `postcss`). Both are build-time CSS ReDoS issues — not runtime vulnerabilities. They cannot be resolved without a major Next.js version downgrade, which is not worth the cost. CI gates on `--audit-level=high` so only new high/critical advisories block a build. Do not investigate or attempt to fix these two moderate entries — they are the accepted baseline.
 
 ---
 

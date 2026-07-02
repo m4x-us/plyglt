@@ -27,7 +27,7 @@ function StudyInner() {
   const isGlobal = mode === "global";
   const isInterrupt = mode === "interrupt";
 
-  const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds } = useSRSStore();
+  const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, loading: packLoading } = useLangPack();
 
@@ -59,7 +59,7 @@ function StudyInner() {
   );
 
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, unitId, getResumableSession, clearActiveSession, commitSession });
+    useStudySession({ initialQueue, allCardMap, isGlobal, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions });
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;

@@ -1,55 +1,78 @@
-/**
- * Tests for lib/storage.ts — createPlatformStorage (web/SSR paths) and
- * useIsHydrated (structural seam only; full React hook testing requires jsdom).
- *
- * The Tauri path (plugin-store) requires a live Tauri runtime and is not
- * covered here. All tests exercise the web/localStorage branch, which is
- * the code path used in the Next.js web build and CI.
- */
+// @vitest-environment jsdom
+// ============================================================
+// tests/storage.test.ts — Storage factory and useIsHydrated behavioral tests
+// ============================================================
+// jsdom environment: required for useIsHydrated (uses useState + useEffect)
+// and for Tauri path tests that need window.__TAURI_INTERNALS__ detection.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createPlatformStorage } from "@/lib/storage";
+import { act, renderHook } from "@testing-library/react";
+import { createPlatformStorage, useIsHydrated } from "@/lib/storage";
 
-// ── SSR guard (window undefined — default Node.js test environment) ───────────
+// ── Module mocks (hoisted — apply to all tests) ───────────────────────────────
 
-describe("createPlatformStorage — SSR guard", () => {
-  // No window stub — window is undefined in the default Node environment.
-  // safeLocalStorage() returns null; all operations degrade silently.
+// isTauri mock: default false (web mode). Tauri describe blocks set to true.
+vi.mock("@/lib/tauri", () => ({
+  isTauri: false,
+  invoke: vi.fn(),
+  listen: vi.fn(),
+}));
 
-  it("getItem returns null when window is undefined", async () => {
+import * as tauriLib from "@/lib/tauri";
+
+// Tauri plugin-store mock: behaves as an in-memory key-value store.
+// `load` returns the same mock store object each call (shared per mock lifecycle).
+const tauriData = new Map<string, unknown>();
+const mockTauriStore = {
+  get: vi.fn((key: string) => tauriData.get(key) ?? null),
+  set: vi.fn((key: string, value: unknown): void => { tauriData.set(key, value); }),
+  delete: vi.fn((key: string): void => { tauriData.delete(key); }),
+};
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn().mockResolvedValue(mockTauriStore),
+}));
+
+// ── SSR guard ─────────────────────────────────────────────────────────────────
+// In jsdom, window is defined. Simulate SSR by deleting localStorage.
+
+describe("createPlatformStorage — SSR guard (no localStorage)", () => {
+  let savedLocalStorage: Storage;
+
+  beforeEach(() => {
+    // Remove localStorage to simulate SSR / environments with no storage
+    savedLocalStorage = window.localStorage;
+    Object.defineProperty(window, "localStorage", { value: undefined, configurable: true, writable: true });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "localStorage", { value: savedLocalStorage, configurable: true, writable: true });
+  });
+
+  it("getItem returns null when localStorage is absent", async () => {
     const storage = createPlatformStorage("ssr-test");
     expect(await storage.getItem("any-key")).toBeNull();
   });
 
-  it("setItem is a no-op when window is undefined — does not throw", async () => {
+  it("setItem is a no-op when localStorage is absent — does not throw", async () => {
     const storage = createPlatformStorage("ssr-test");
     await expect(storage.setItem("k", "v")).resolves.toBeUndefined();
   });
 
-  it("removeItem is a no-op when window is undefined — does not throw", async () => {
+  it("removeItem is a no-op when localStorage is absent — does not throw", async () => {
     const storage = createPlatformStorage("ssr-test");
     await expect(storage.removeItem("k")).resolves.toBeUndefined();
   });
 });
 
-// ── Web path (mocked localStorage) ───────────────────────────────────────────
+// ── Web path (jsdom localStorage) ────────────────────────────────────────────
 
-describe("createPlatformStorage — web path (mocked localStorage)", () => {
-  let localData: Record<string, string>;
-
+describe("createPlatformStorage — web path (localStorage)", () => {
   beforeEach(() => {
-    localData = {};
-    vi.stubGlobal("window", {
-      localStorage: {
-        getItem: (k: string): string | null => localData[k] ?? null,
-        setItem: (k: string, v: string): void => { localData[k] = v; },
-        removeItem: (k: string): void => { delete localData[k]; },
-      },
-    });
+    localStorage.clear();
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    localStorage.clear();
   });
 
   it("setItem + getItem round-trip preserves the stored value", async () => {
@@ -84,35 +107,98 @@ describe("createPlatformStorage — web path (mocked localStorage)", () => {
   });
 
   it("getItem propagates localStorage errors rather than swallowing them", async () => {
-    vi.stubGlobal("window", {
-      localStorage: {
-        getItem: (): never => { throw new Error("quota exceeded"); },
-        setItem: (): void => {},
-        removeItem: (): void => {},
+    // Replace window.localStorage with a throwing stub for this test
+    const saved = Object.getOwnPropertyDescriptor(window, "localStorage");
+    Object.defineProperty(window, "localStorage", {
+      value: {
+        getItem: () => { throw new Error("quota exceeded"); },
+        setItem: () => {},
+        removeItem: () => {},
       },
+      configurable: true,
+      writable: true,
     });
-    const storage = createPlatformStorage("web-test");
+    const storage = createPlatformStorage("web-err-test");
     await expect(storage.getItem("k")).rejects.toThrow("quota exceeded");
+    if (saved) Object.defineProperty(window, "localStorage", saved);
   });
 
-  it("separate storeName instances do not share data through the mock", async () => {
+  it("separate storeName instances share underlying localStorage (web: no isolation)", async () => {
     const s1 = createPlatformStorage("store-a");
     const s2 = createPlatformStorage("store-b");
     await s1.setItem("key", "from-s1");
-    // In the web path both instances share the same underlying localStorage mock,
-    // so this verifies the key is set and retrievable — not isolation (Tauri provides that).
     expect(await s2.getItem("key")).toBe("from-s1");
   });
 });
 
-// ── useIsHydrated — structural seam ──────────────────────────────────────────
+// ── Tauri path (mocked plugin-store) ─────────────────────────────────────────
 
-describe("useIsHydrated — export seam", () => {
-  // Full renderHook testing (false → true lifecycle) requires jsdom.
-  // This seam test verifies the function exists and is exported correctly.
+describe("createPlatformStorage — Tauri path (mocked plugin-store)", () => {
+  beforeEach(() => {
+    (tauriLib as { isTauri: boolean }).isTauri = true;
+    tauriData.clear();
+    mockTauriStore.get.mockClear();
+    mockTauriStore.set.mockClear();
+    mockTauriStore.delete.mockClear();
+  });
 
-  it("useIsHydrated is exported from lib/storage", async () => {
-    const mod = await import("@/lib/storage");
-    expect(typeof mod.useIsHydrated).toBe("function");
+  afterEach(() => {
+    (tauriLib as { isTauri: boolean }).isTauri = false;
+  });
+
+  it("setItem calls store.set with the key and value (covers lines 66–67)", async () => {
+    const storage = createPlatformStorage("tauri-set-test");
+    await storage.setItem("tauri-key", "tauri-val");
+    expect(mockTauriStore.set).toHaveBeenCalledWith("tauri-key", "tauri-val");
+  });
+
+  it("removeItem calls store.delete with the key (covers lines 75–76)", async () => {
+    const storage = createPlatformStorage("tauri-del-test");
+    await storage.removeItem("tauri-key");
+    expect(mockTauriStore.delete).toHaveBeenCalledWith("tauri-key");
+  });
+
+  it("getItem reads from Tauri store — round-trip via set then get", async () => {
+    const storage = createPlatformStorage("tauri-rt-test");
+    await storage.setItem("rt-key", "rt-value");
+    const result = await storage.getItem("rt-key");
+    expect(result).toBe("rt-value");
+  });
+});
+
+// ── useIsHydrated — behavioral hook tests ────────────────────────────────────
+
+describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () => {
+  it("returns true immediately when store is already hydrated", () => {
+    const store = {
+      persist: {
+        hasHydrated: vi.fn().mockReturnValue(true),
+        onFinishHydration: vi.fn(),
+      },
+    };
+    const { result } = renderHook(() => useIsHydrated(store));
+    expect(result.current).toBe(true);
+    expect(store.persist.onFinishHydration).not.toHaveBeenCalled();
+  });
+
+  it("returns false initially and transitions to true when onFinishHydration fires", async () => {
+    let hydrateCallback: (() => void) | undefined;
+    const store = {
+      persist: {
+        hasHydrated: vi.fn().mockReturnValue(false),
+        onFinishHydration: vi.fn((fn: () => void) => {
+          hydrateCallback = fn;
+          return vi.fn(); // unsubscribe
+        }),
+      },
+    };
+
+    const { result } = renderHook(() => useIsHydrated(store));
+    expect(result.current).toBe(false);
+    expect(store.persist.onFinishHydration).toHaveBeenCalledTimes(1);
+
+    act(() => { hydrateCallback?.(); });
+
+    expect(result.current).toBe(true);
   });
 });

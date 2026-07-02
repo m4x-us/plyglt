@@ -4,9 +4,9 @@ Generated: 2026-06-24 | Method: /meet
 Last updated: 2026-07-01
 
 ## Summary
-172 tasks across 17 batches (Batches 1–9, 11–13 COMPLETE; Batch 10 CURRENT SPRINT; Batches 14–17 PLANNED)
-Critical (severity 8-9): 19 | High (6-7): 37 | Medium (4-5): 36 | Low (1-3): 19
-Current Sprint: Batch 10 (owner-blocked: #120–#122; immediately workable: #154–#158) · Next sprint: Batch 14 (M3 macOS OS Hooks)
+177 tasks across 17 batches (Batches 1–9, 11–13 COMPLETE; Batch 10 mostly COMPLETE — 2 tasks owner-blocked (#122, #123); Batch 14 CURRENT SPRINT; Batches 15–17 PLANNED)
+Critical (severity 8-9): 19 | High (6-7): 39 | Medium (4-5): 37 | Low (1-3): 22
+Current Sprint: Batch 14 (M3 macOS OS Hooks — stop-the-line pre-reqs first: #173–#177, then #159–#164)
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -2348,6 +2348,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** `grep "REPLACE_WITH" src-tauri/tauri.conf.json` returns 0 hits for the pubkey field; CI secret `TAURI_SIGNING_PRIVATE_KEY` is confirmed set in GitHub repository settings.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-01**
 
 ---
 
@@ -2926,16 +2927,84 @@ Theme: Three gaps identified in the world-class audit (2026-06-30) with no exist
 
 ---
 
-## Batch 14 — M3 macOS OS Hooks [NEXT SPRINT after Batch 10]
-Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire interrupts from real OS events — wake from sleep, unlock screen, and idle return — rather than the 30-second interval timer alone.
+## Batch 14 — M3 macOS OS Hooks [CURRENT SPRINT]
+Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire interrupts from real OS events — wake from sleep, unlock screen, and idle return — rather than the 30-second interval timer alone. Pre-req stop-the-line tasks (#173–#177) must close before OS hook tasks (#159–#164) begin.
+
+### Task #173 | architecture | severity 7
+**What:** Extract duplicated `sha256Hex()` and `packUrl()` helpers that exist identically in both `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` into `lib/utils.ts`. The `sha256Hex(text: string): Promise<string>` implementation at `packLoader.ts:94-100` and `specialtyPackLoader.ts:21-27` is byte-for-byte identical. The `packUrl(lang: string): string` at `packLoader.ts:141-143` and `specialtyPackLoader.ts:17-19` is byte-for-byte identical. Remove both from both source files and add one canonical copy to `lib/utils.ts`. Update all callers to import from `lib/utils.ts`.
+**Why:** SCTS Poka-Yoke — a security-critical sha256 hash function with two independent copies is a stop-the-line violation. Task #156 extracted the specialty pack logic but copied these helpers instead of consolidating them. Any future divergence between the two copies would be undetectable.
+**File:** `lib/utils.ts`, `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
+**Severity:** 7 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 3 files, extraction refactor
+**Blocked by:** Nothing | **Blocks:** #175
+**Test required:** Yes — `tests/packLoader.test.ts` must still pass (no behavior change). Add one test to `tests/utils.test.ts` or equivalent pinning that `sha256Hex("abc")` returns `"ba7816bf8f01cfea414140de5dae2ec73b00361bbef0469f490f9e673c3eca08"` (known-answer test vector) so the Web Crypto stub alignment is verified.
+**Done when:** `grep -n "sha256Hex\|packUrl" lib/packLoader.ts lib/specialtyPackLoader.ts` shows only import statements, not implementations. Both functions implemented exactly once in `lib/utils.ts`. All 897 tests pass. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #174 | architecture | severity 6
+**What:** `app/stats/page.tsx` is 158 lines — 8 lines over the ≤150 app route limit. Task #155 (analytics Pro gate) added an early-return block (lines 17–24) that pushed the file over the limit. Extract the "not Pro" fallback UI to a new component `components/StatsProGate.tsx` and render it from `app/stats/page.tsx` in place of the inline block.
+**Why:** Rule 1 — app routes must stay ≤150 lines. Stop-the-line. The stats page is the only app route currently over the limit.
+**File:** `app/stats/page.tsx`, `components/StatsProGate.tsx` (new)
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, component extraction
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** Yes — `app/stats/page.test.tsx` must still pass. Add a co-located `components/StatsProGate.test.tsx` with ≥1 test confirming the upgrade prompt renders when Pro is not active.
+**Done when:** `wc -l app/stats/page.tsx` ≤ 150. `components/StatsProGate.tsx` exists with a Rule 2 header. `components/StatsProGate.test.tsx` exists with ≥1 test. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #175 | architecture | severity 5
+**What:** Break the circular type dependency between `lib/packLoader.ts` and `lib/specialtyPackLoader.ts`. Currently `specialtyPackLoader.ts:9` does `import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader"` while `packLoader.ts:32` does `import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader"`. Extract the shared type definitions (`Pack`, `PackMeta`, `Manifest`, `LoadPackResult`, `CachedPackMeta`) to a new `lib/packTypes.ts` module. Update both files to import types from `lib/packTypes.ts` instead.
+**Why:** `import type` prevents a runtime cycle but the design is fragile — any refactor of the shared types requires coordinating both files. Extracting to `lib/packTypes.ts` eliminates the cycle completely and makes the type contract explicit.
+**File:** `lib/packTypes.ts` (new), `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 3 files, type extraction
+**Blocked by:** #173 | **Blocks:** Nothing
+**Test required:** No new tests needed — type extraction is structural. All 897 existing tests pass (no behavior change).
+**Done when:** `lib/packTypes.ts` exists with all 5 shared type definitions and a Rule 2 header. Neither `packLoader.ts` nor `specialtyPackLoader.ts` imports types from each other. Verification gate green.
+**Owner:** Architecture Agent
+
+---
+
+### Task #176 | docs | severity 3
+**What:** Update CLAUDE.md and STATUS.md with run 9 findings. CLAUDE.md: (1) `lib/checkout.ts` entry — already updated inline. (2) `components/BuyModal.tsx` — already updated inline. (3) §6 specialty pack merge path — already updated inline. (4) `lib/specialtyPackLoader.ts` notable module entry — already added inline. STATUS.md: (1) auto-updater wired entry — already updated. (2) M2 planned description — already updated. Remaining: update `lib/packLoader.ts` §6 description to reflect that the Pack interface is now defined in `lib/packTypes.ts` (after Task #175 ships).
+**Why:** SCTS Kaizen — docs must stay current after every batch.
+**File:** `CLAUDE.md`, `STATUS.md`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 2 files, doc edits only
+**Blocked by:** #175 | **Blocks:** Nothing
+**Test required:** No.
+**Done when:** `grep "packTypes" CLAUDE.md` returns ≥1 hit. No stale pricing references in docs. Verification gate green.
+**Owner:** Docs Agent
+
+---
+
+### Task #177 | tests | severity 2
+**What:** Remove stale monthly pricing mock references from 3 page test files. `app/page.test.tsx`, `app/settings/page.test.tsx`, and `app/study/page.test.tsx` still mock `CHECKOUT_URLS.monthly` and `PRICING.monthly` in their vi.mock setup blocks. These mocks are no longer needed since monthly was removed in Task #120. Clean them up to prevent future developer confusion.
+**Why:** Poka-Yoke — stale mocks assert that `monthly` exists as a key, which contradicts the annual-only checkout enforced in `tests/entitlement.test.ts` and `tests/checkout.test.ts`. A developer reading the mock would incorrectly assume monthly pricing still exists.
+**File:** `app/page.test.tsx`, `app/settings/page.test.tsx`, `app/study/page.test.tsx`
+**Severity:** 2 | **DoD Tier:** 1
+**Complexity:** 🔧 Full — 3 files, mock cleanup
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** No — removal of stale mocks. Existing tests must still pass.
+**Done when:** `grep -r "monthly" app/page.test.tsx app/settings/page.test.tsx app/study/page.test.tsx` returns zero hits. All 897 tests pass. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-07-01**
+
+---
 
 ### Task #159 | docs | severity 3
 **What:** Add Rule 2 plain English comment headers to 3 Rust source files currently missing them: `src-tauri/src/lib.rs` (main Tauri entry point — registers all plugins, sets up tray, wires IPC handlers), `src-tauri/src/interrupt.rs` (InterruptState struct + 30-second poll thread + 4 IPC commands: update_interrupt_config, snooze_interrupt, enter_mandatory_mode, exit_mandatory_mode), `src-tauri/src/license.rs` (Lemon Squeezy IPC commands: activate_license, deactivate_license, validate_license, open_url). Each header: 2–3 sentences describing what the file owns, its responsibilities, and what depends on it.
 **Why:** Rule 2 — every file starts with a plain English explanation. Rust files are not exempt. Batch 14 adds more Rust code; headers must be in place first.
 **File:** `src-tauri/src/lib.rs`, `src-tauri/src/interrupt.rs`, `src-tauri/src/license.rs`
 **Severity:** 3 | **DoD Tier:** 1
-**Complexity:** ⚡ Direct — 3 files, comment headers only
-**Blocked by:** Nothing | **Blocks:** #160, #161
+**Complexity:** 🔧 Full — 3 files, comment headers
+**Blocked by:** #173, #174 | **Blocks:** #160, #161
 **Test required:** No — Rule 2 is structural, not behavioral.
 **Done when:** Each of the 3 files starts with a `//` comment block (≥2 sentences). No code changed. `cargo build` still compiles.
 **Owner:** Architecture Agent

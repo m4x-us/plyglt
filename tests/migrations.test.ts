@@ -26,8 +26,8 @@ describe("version constants", () => {
   it("SRS_VERSION is 2", () => {
     expect(SRS_VERSION).toBe(2);
   });
-  it("ENTITLEMENT_VERSION is 2", () => {
-    expect(ENTITLEMENT_VERSION).toBe(2);
+  it("ENTITLEMENT_VERSION is 3", () => {
+    expect(ENTITLEMENT_VERSION).toBe(3);
   });
   it("SETTINGS_VERSION is 1", () => {
     expect(SETTINGS_VERSION).toBe(1);
@@ -183,6 +183,42 @@ describe("migrateEntitlementStore()", () => {
       1
     ) as Record<string, unknown>;
     expect(result.licenseType).toBe("subscription");
+  });
+
+  it("v2 → v3: adds purchasedAddOns: [] when field is absent", () => {
+    const result = migrateEntitlementStore(
+      { licenseKey: null, instanceId: null, licenseType: "free", unlockedPacks: ["it"], lastValidated: 0, validUntil: null },
+      2
+    ) as Record<string, unknown>;
+    expect(result.purchasedAddOns).toEqual([]);
+  });
+
+  it("v2 → v3: preserves existing purchasedAddOns if already populated (pre-release build)", () => {
+    const existing = ["it-medical"];
+    const result = migrateEntitlementStore(
+      { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: existing },
+      2
+    ) as Record<string, unknown>;
+    expect(result.purchasedAddOns).toEqual(["it-medical"]);
+  });
+
+  it("v2 → v3: preserves all other fields unchanged", () => {
+    const result = migrateEntitlementStore(
+      { licenseKey: "K", instanceId: "I", licenseType: "subscription", unlockedPacks: ["it", "es"], lastValidated: 12345, validUntil: 99999 },
+      2
+    ) as Record<string, unknown>;
+    expect(result.licenseKey).toBe("K");
+    expect(result.instanceId).toBe("I");
+    expect(result.licenseType).toBe("subscription");
+    expect(result.unlockedPacks).toEqual(["it", "es"]);
+    expect(result.lastValidated).toBe(12345);
+    expect(result.validUntil).toBe(99999);
+    expect(result.purchasedAddOns).toEqual([]);
+  });
+
+  it("v0 → v3: full chain output includes purchasedAddOns: []", () => {
+    const result = migrateEntitlementStore({}, 0) as Record<string, unknown>;
+    expect(result.purchasedAddOns).toEqual([]);
   });
 });
 

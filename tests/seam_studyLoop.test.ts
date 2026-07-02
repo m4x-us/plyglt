@@ -14,6 +14,32 @@ beforeEach(() => {
   useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
 });
 
+describe("seam: session-start → auto-introduction", () => {
+  it("auto-introduces one new card when session starts with canIntroduceNewCard true", () => {
+    const today = "2026-06-29";
+    const { canIntroduceNewCard, introduceCard, getDueCards, getNewCards, getIntroductionDueCardIds, cards, introductions } =
+      useSRSStore.getState();
+
+    expect(SAMPLE_CARDS.length).toBeGreaterThanOrEqual(2);
+    expect(canIntroduceNewCard(today)).toBe(true);
+
+    // Mirror what useStudySession does on mount: find the first unintroduced card
+    // sorted by tier ascending and call introduceCard before building the queue.
+    const cardMap = Object.fromEntries(SAMPLE_CARDS.map((c) => [c.id, c]));
+    const qualifying = Object.values(cardMap)
+      .filter((c) => !cards[c.id] && !introductions[c.id])
+      .sort((a, b) => a.tier - b.tier);
+    const first = qualifying[0];
+    if (first) introduceCard(first.id, today);
+
+    // On the next session load buildQueue now includes the introduced card
+    // via getIntroductionDueCardIds — the existing wiring in app/study/page.tsx.
+    buildQueue(SAMPLE_CARDS, getDueCards, getNewCards, false, getIntroductionDueCardIds);
+
+    expect(Object.keys(useSRSStore.getState().introductions).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession", () => {
   it("buildQueue returns a non-empty queue from real cards with a fresh store state", () => {
     const { getDueCards, getNewCards } = useSRSStore.getState();

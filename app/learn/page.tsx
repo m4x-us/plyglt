@@ -84,7 +84,7 @@ export default function Home() {
           <div className="w-px h-8 bg-gray-800" />
           <div className="text-center">
             <div className={`text-2xl font-bold ${totalDue > 0 ? "text-red-400" : "text-gray-400"}`}>{totalDue}</div>
-            <div className="text-xs text-gray-500">cards due</div>
+            <div className="text-xs text-gray-500">cards ready</div>
           </div>
           <div className="w-px h-8 bg-gray-800" />
           <div className="text-center">
@@ -94,7 +94,7 @@ export default function Home() {
         </div>
         {totalDue > 0 && (
           <Link href="/study?mode=global" className="mt-5 inline-flex items-center gap-2 bg-red-900 hover:bg-red-800 border border-red-700 text-red-200 font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
-            Review all {totalDue} due cards →
+            Review all {totalDue} ready cards →
           </Link>
         )}
       </div>

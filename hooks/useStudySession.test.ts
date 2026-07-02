@@ -5,10 +5,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useStudySession } from "./useStudySession";
-import type { Card } from "@/content/types";
+import type { Card, Tier } from "@/content/types";
 
-function makeCard(id: string): Card {
-  return { id, type: "recognize", prompt: `Prompt ${id}`, accepted: [`Answer ${id}`], tags: [], tier: 1 };
+function makeCard(id: string, tier: Tier = 1): Card {
+  return { id, type: "recognize", prompt: `Prompt ${id}`, accepted: [`Answer ${id}`], tags: [], tier };
 }
 
 const CARDS = [makeCard("c1"), makeCard("c2"), makeCard("c3")];
@@ -23,6 +23,10 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     getResumableSession: vi.fn(() => null),
     clearActiveSession: vi.fn(),
     commitSession: vi.fn(),
+    canIntroduceNewCard: vi.fn(() => false),
+    introduceCard: vi.fn(),
+    cards: {},
+    introductions: {},
     ...overrides,
   };
 }
@@ -133,5 +137,67 @@ describe("useStudySession — handleRate", () => {
     expect((session as { unitId: string }).unitId).toBe("it-a1u01");
     expect((session as { sessionTotal: number }).sessionTotal).toBeGreaterThanOrEqual(1);
     expect((session as { queueIds: string[] }).queueIds).toContain("solo");
+  });
+});
+
+describe("useStudySession — introduction auto-selection", () => {
+  it("calls introduceCard on mount when canIntroduceNewCard is true and unintroduced cards exist", () => {
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(defaultParams({ canIntroduceNewCard: vi.fn(() => true), introduceCard })),
+    );
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("c1", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+  });
+
+  it("does not call introduceCard when canIntroduceNewCard returns false", () => {
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(defaultParams({ canIntroduceNewCard: vi.fn(() => false), introduceCard })),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+  });
+
+  it("does not call introduceCard when all cards already have introduction records", () => {
+    const introduceCard = vi.fn();
+    const introductions = Object.fromEntries(CARDS.map((c) => [c.id, { cardId: c.id } as never]));
+    renderHook(() =>
+      useStudySession(defaultParams({ canIntroduceNewCard: vi.fn(() => true), introduceCard, introductions })),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+  });
+
+  it("selects the lowest-tier card when multiple unintroduced cards exist", () => {
+    const t1 = makeCard("t1", 1);
+    const t2 = makeCard("t2", 2);
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [t2, t1],
+          allCardMap: { t1, t2 },
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+    expect(introduceCard).toHaveBeenCalledWith("t1", expect.any(String));
+  });
+
+  it("appends the introduced card to the queue when it is not already present", () => {
+    const newCard = makeCard("new");
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: CARDS,
+          allCardMap: { ...CARD_MAP, new: newCard },
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+    // c1 is the lowest-tier qualifying card; it's already in the initial queue so no append
+    expect(result.current.queue).toHaveLength(3);
   });
 });

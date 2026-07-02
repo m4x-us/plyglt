@@ -1,12 +1,12 @@
 # Stream W1B Task State
 
-### Task #154 | code | severity 8
-**What:** Delete `components/InterruptHandler.tsx` lines 39–56 — the duplicate license revalidation block (`needsValidation()` check + `validateLicense()` call + `markValidated()`/`touchValidated()` branches). `EntitlementValidator.tsx` already runs identical logic on mount in `app/layout.tsx`. When both components mount simultaneously, Zustand reads `needsValidation()` as true for both before either effect's `touchValidated()` propagates — producing two concurrent Lemon Squeezy API calls on every app launch when validation is due.
-**Why:** SCTS Andon cord — two concurrent LS API calls on every launch when validation is due. Could exhaust LS rate limits, create duplicate validation events, and masks the responsibility boundary (`EntitlementValidator.tsx` owns revalidation). Stop-the-line.
-**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
-**Severity:** 8 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file (+ test), deletion only
+### Task #174 | architecture | severity 6
+**What:** `app/stats/page.tsx` is 158 lines — 8 lines over the ≤150 app route limit. Task #155 (analytics Pro gate) added an early-return block (lines 17–24) that pushed the file over the limit. Extract the "not Pro" fallback UI to a new component `components/StatsProGate.tsx` and render it from `app/stats/page.tsx` in place of the inline block.
+**Why:** Rule 1 — app routes must stay ≤150 lines. Stop-the-line. The stats page is the only app route currently over the limit.
+**File:** `app/stats/page.tsx`, `components/StatsProGate.tsx` (new)
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, component extraction
 **Blocked by:** Nothing | **Blocks:** Nothing
-**Test required:** Yes — `InterruptHandler.test.tsx` must add a test verifying the component does NOT call `validateLicense` on mount.
-**Done when:** `components/InterruptHandler.tsx` contains no `needsValidation`, `validateLicense`, `markValidated`, or `touchValidated` import or call. `components/InterruptHandler.test.tsx` has a new assertion that renders `<InterruptHandler />` and asserts `validateLicense` was NOT called. `npm test` passes.
+**Test required:** Yes — `app/stats/page.test.tsx` must still pass. Add a co-located `components/StatsProGate.test.tsx` with ≥1 test confirming the upgrade prompt renders when Pro is not active.
+**Done when:** `wc -l app/stats/page.tsx` ≤ 150. `components/StatsProGate.tsx` exists with a Rule 2 header. `components/StatsProGate.test.tsx` exists with ≥1 test. Verification gate green.
 **Owner:** Architecture Agent

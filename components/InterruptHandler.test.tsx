@@ -147,6 +147,9 @@ describe("InterruptHandler", () => {
 
   // ── Test 4: enterMandatoryMode IPC failure is caught — navigation still proceeds ─
   it("logs error and still navigates when enterMandatoryMode rejects", async () => {
+    // Disable DnD explicitly — beforeEach sets dndStart=22:00/dndEnd=08:00 which would
+    // cause isInDnd() to return true when tests run after 22:00, skipping the callback.
+    useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
     // Provide one unit with a card so totalDue > 0 (guard passes)
     mockUseLangPack.mockReturnValueOnce({
       units: [{ id: "u1", cards: [] }],

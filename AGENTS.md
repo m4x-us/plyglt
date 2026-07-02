@@ -38,6 +38,9 @@ npm test                # all tests pass + all coverage thresholds met
 npm run lint            # zero lint errors
 ```
 
+Current coverage thresholds (thresholds only ever increase — ratchet up, never down):
+  lines=84, funcs=79, branches=81, stmts=82
+
 ## Stop-the-Line Violations (no exceptions — stop and fix before continuing)
 - Any TypeScript error
 - Any failing test

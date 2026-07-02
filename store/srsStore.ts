@@ -9,13 +9,9 @@ import { getDayOfPhase, recordResult, shouldAppearToday } from "@/lib/introducti
 import { createPlatformStorage } from "@/lib/storage";
 import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
 import { LANG_PAIR_KEY } from "@/lib/constants";
+import { localDateStr } from "@/lib/utils";
 
-export function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+export { localDateStr };
 
 // Read lang pair at module initialization so the store is scoped to the
 // language pair the user selected. A full page reload is required when

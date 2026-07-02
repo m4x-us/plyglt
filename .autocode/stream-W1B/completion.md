@@ -2,6 +2,49 @@
 
 ---
 
+## Wave 1 — 2026-07-01 (#174) — Barry
+
+**Status: COMPLETE**
+**Date: 2026-07-01**
+**Files created: 2 | Lines: app/stats/page.tsx 158→150**
+
+### Tasks closed
+- **#174** — Extract StatsProGate component from app/stats/page.tsx — COMPLETE
+
+### What was built
+
+#### `components/StatsProGate.tsx` (new, 18 lines)
+- Extracted the 8-line "not Pro" early-return block from `app/stats/page.tsx` lines 17–24
+- Rule 2 header: 3-sentence description of what renders, when, and what props it receives
+- Receives no props — static UI, no context dependencies
+- Imports `Link` from `next/link` for the Home link
+
+#### `app/stats/page.tsx` (158 → 150 lines)
+- Added `import { StatsProGate } from "@/components/StatsProGate";`
+- Replaced 8-line inline JSX block + 2 surrounding blank lines with `if (!isProEnabled(...)) return <StatsProGate />;`
+- Net: +1 import, -9 lines from block/blank removal = **-8 lines total**
+
+#### `components/StatsProGate.test.tsx` (new, 1 test)
+- Renders `<StatsProGate />` with a mocked `next/link`
+- Asserts: heading tag is `h1`, upgrade message tag is `p`, Home link href matches `/`
+- Test does NOT use `.toBeDefined()` — asserts specific element types and href
+
+### Done-when verification
+- `wc -l app/stats/page.tsx` → 150 ✓
+- `components/StatsProGate.tsx` exists with Rule 2 header ✓
+- `components/StatsProGate.test.tsx` exists with 1 test asserting specific elements ✓
+- `npx tsc --noEmit` → 0 errors (in owned files) ✓
+- `npm test -- components/StatsProGate.test.tsx` → 1/1 passing ✓
+- `npm run lint` → 0 errors ✓
+
+### Cross-stream note
+`lib/packLoader.ts` (off-limits) has pre-existing TypeScript errors from another agent's parallel changes. Zero errors in files I own.
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 1 — 2026-07-01 (#154) — Barry
 
 **Status: COMPLETE**

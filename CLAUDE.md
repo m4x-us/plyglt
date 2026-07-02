@@ -18,6 +18,16 @@ store/        — Zustand stores (srsStore, settingsStore, entitlementStore).
 content/      — Static card data and type definitions. Imported by lib/packLoader.ts.
 ```
 
+Notable modules:
+- `lib/utils.ts` — pure utility functions; exports `localDateStr(d?)` for local-time ISO date strings. Used by `hooks/useStudySession.ts` and `lib/queue.ts`.
+- `lib/checkout.ts` — checkout URL constants and pricing ($34.99/yr — annual plan only), plus the customer portal URL. Re-exported by `lib/entitlement.ts`. Used by `components/BuyModal.tsx` and `app/settings/page.tsx`.
+- `lib/specialtyPackLoader.ts` — handles specialty pack download, sha256 verification, and unit merge into the base pack's in-memory cache. Exports `loadSpecialtyPack()`, `getLoadedAddOns()`, `clearSpecialtyCache()`. Re-exports `getLoadedAddOns` via `lib/packLoader.ts`. Must remain pure (no React, no Zustand).
+- `lib/featureFlags.ts` — feature flag reader (`getFeatureFlags()`); also exports `isProEnabled(flagValue, licenseType)`, a single combinator for all Pro-gated features. Returns `flagValue && licenseType === "subscription"`.
+- `hooks/useStudySession.ts` — session management hook; 12-param contract managing queue, position, ratings, active session commit, and session-start introduction auto-selection. Do not add business logic here.
+- `components/BuyModal.tsx` — primary conversion surface; renders pricing and opens the checkout URL via `openExternalUrl`. Receives `onActivate` callback for key entry flow.
+- `components/UpdateChecker.tsx` — invisible component mounted inside `EntitlementValidator.tsx`. Calls `checkForUpdates()` on mount in Tauri. Never auto-installs.
+- `components/LanguageGrid.tsx` — language picker on `app/page.tsx`; implements Free / Unlock / In-development display states. Also renders an Add-ons section (specialty packs) when any registered specialty packs exist for the selected language. Receives `hasAddOn(code)` callback to determine purchase state.
+
 **Rule:** `lib/` must never import from `store/`, `hooks/`, `components/`, or `app/`. `store/` must never import from `hooks/`, `components/`, or `app/`. Violations are a stop-the-line event.
 
 ---
@@ -29,6 +39,8 @@ content/      — Static card data and type definitions. Imported by lib/packLoa
 - `isTauri` — boolean, `false` during SSR and in any non-Tauri window.
 - `invoke(cmd, args)` — wraps `@tauri-apps/api/core`. Returns `null` in web; never throws.
 - `listen(event, handler)` — wraps `@tauri-apps/api/event`. Returns a no-op unlisten function in web.
+- `checkForUpdates()` — queries the Tauri updater plugin; no-ops in web. Never auto-installs.
+- `enableAutostart()` / `disableAutostart()` — Tauri autostart plugin; no-op in web.
 
 **Rule:** Never import `@tauri-apps/api` directly from any file outside `lib/tauri.ts`. All Tauri surface area flows through this module. This keeps the web build clean, keeps tests runnable without a Tauri context, and provides a single point to audit for platform-specific behaviour.
 
@@ -68,7 +80,9 @@ All three Zustand stores (`srsStore`, `settingsStore`, `entitlementStore`) pass 
 
 Entitlement is **client-only and honour-system**. There is no server-side license verification. This is an intentional, owner-confirmed trade-off (decision 2026-06-24): the product prioritises offline-first operation, zero backend dependency for core functionality, and user privacy over DRM enforcement.
 
-`lib/entitlement.ts` and `store/entitlementStore.ts` manage license state locally. `lib/licenseTypes.ts` defines the `LICENSE_TYPES` enumeration and the `LicenseType` type. Activation is handled by `hooks/useLicenseActivation.ts`.
+`lib/entitlement.ts` and `store/entitlementStore.ts` manage license state locally. `lib/licenseTypes.ts` defines the `LICENSE_TYPES` enumeration and the `LicenseType` type. Activation is handled by `hooks/useLicenseActivation.ts`. Pricing constants and checkout URLs live in `lib/checkout.ts` (re-exported by `lib/entitlement.ts` for backwards compatibility).
+
+**Specialty pack add-ons:** `store/entitlementStore.ts` also tracks purchased specialty packs via `purchasedAddOns: string[]`. Two store actions manage this: `hasAddOn(code)` returns whether a given specialty pack code has been purchased; `purchaseAddOn(code)` appends the code idempotently. `lib/entitlement.ts` exports a parallel pure function `hasAddOn(state, code)` for use outside React. The entitlement store schema is at `ENTITLEMENT_VERSION = 3` (see `store/migrations.ts`).
 
 **Do not treat this as a bug or a missing feature.** Document it as designed when writing tests, comments, or new features that touch entitlement.
 
@@ -85,4 +99,43 @@ Language packs are served as static JSON files at `public/packs/{lang}.json`. Th
 
 The manifest lives at `public/packs/manifest.json` and maps each language code to `{ version, sha256, size, name }`. `loadPack` validates the requested language code against `READY_PACK_CODES` before making any network request, preventing path traversal and storage key poisoning.
 
-Only `it` (Italian) and `es` (Spanish) are registered in `lib/langRegistry.ts`. Stubs for `fr`, `de`, and `pt` exist in the registry but are not user-visible.
+Only `it` (Italian) and `es` (Spanish) are registered in `lib/langRegistry.ts`.
+
+**Specialty packs (add-ons):** `lib/langRegistry.ts` also exports the `SpecialtyPack` interface, the `SPECIALTY_PACKS` array, `getSpecialtyPacks(lang)` (filters by base language), and `isSpecialtyPackCode(s)`. Specialty packs extend a base language pack with domain-specific vocabulary (e.g. `it-medical`). `lib/specialtyPackLoader.ts` handles the merge path: `loadedAddOns` tracks which add-ons are in memory; `getLoadedAddOns()` exposes this list (re-exported via `lib/packLoader.ts`); `loadSpecialtyPack(lang, memCache, manifest)` performs the fetch, sha256 check, and unit merge. `lib/packLoader.ts` delegates the specialty branch to `lib/specialtyPackLoader.ts`. Attempting to load a specialty pack before its base language pack returns `{ ok: false, error: "base_pack_not_loaded" }`. The base pack's cards are never duplicated — specialty packs are additive overlays.
+
+---
+
+### 7. Introduction Engine
+
+`lib/introduction.ts` is a pure-function module (no React, no Zustand) implementing the
+22-phase intensive introduction cadence from BRAND.md.
+
+Six exports: `getDayOfPhase`, `maxAppearancesToday`, `shouldAppearToday`, `recordResult`,
+`shouldGraduate`, `getNextCardType`.
+
+Integrates with `store/srsStore.ts` via four actions: `introduceCard`,
+`recordIntroductionResult`, `getIntroductionDueCardIds`, `canIntroduceNewCard`.
+These actions read/write `state.introductions: Record<string, IntroductionRecord>`.
+
+**Rule:** `lib/introduction.ts` must remain pure — no React, no Zustand imports.
+The store imports from lib/, not vice versa.
+
+Session-start activation: on mount, `hooks/useStudySession.ts` calls `canIntroduceNewCard` and, if true, introduces the first qualifying card and appends it to the queue. This means every study session begins with a new card when the daily cap permits (live since Task #085, 2026-06-29).
+
+Key invariants:
+- One new card per day maximum (`canIntroduceNewCard` enforces the cap)
+- Graduation requires 15 consecutive correct retrievals (not time-based)
+- Wrong 3× in a row resets `dayOfPhase` to 1, not just `consecutiveCorrect`
+- `recordResult` is immutable — always returns a new object, never mutates input
+
+---
+
+### 8. E2E Testing
+
+Playwright smoke tests live in `tests/e2e/`. The config is at `playwright.config.ts` (repo root). E2E tests run on port **3099** to avoid colliding with the default dev server on 3000. Run with:
+
+```bash
+npm run test:e2e
+```
+
+Unit and integration tests (Vitest) remain in `tests/` alongside source files and run with `npm test`. E2E tests are a separate suite and are not counted in coverage thresholds. Both suites must pass before any batch is considered done.

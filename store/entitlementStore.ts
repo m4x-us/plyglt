@@ -42,6 +42,7 @@ interface EntitlementState {
   instanceId: string | null;
   licenseType: LicenseType;
   unlockedPacks: PackCode[];
+  purchasedAddOns: string[];  // specialty pack codes purchased as add-ons (e.g. "it-medical")
   lastValidated: number;     // unix ms; 0 = never validated
   validUntil: number | null; // null = no expiry; ms timestamp for subscriptions with an end date
 
@@ -58,6 +59,8 @@ interface EntitlementState {
 
   isPackUnlocked: (lang: string) => boolean;
   needsValidation: () => boolean;
+  hasAddOn: (code: string) => boolean;
+  purchaseAddOn: (code: string) => void;
 }
 
 // ── Pure classification functions (Rule 15) ──────────────────────────────────
@@ -99,6 +102,7 @@ export const useEntitlementStore = create<EntitlementState>()(
       instanceId: null,
       licenseType: "free",
       unlockedPacks: [...FREE_PACK_CODES],
+      purchasedAddOns: [],
       lastValidated: 0,
       validUntil: null,
 
@@ -110,6 +114,7 @@ export const useEntitlementStore = create<EntitlementState>()(
           instanceId: null,
           licenseType: "free",
           unlockedPacks: [...FREE_PACK_CODES],
+          purchasedAddOns: [],
           lastValidated: 0,
           validUntil: null,
         }),
@@ -124,6 +129,17 @@ export const useEntitlementStore = create<EntitlementState>()(
       isPackUnlocked: (lang) => isPackUnlocked(get(), lang),
 
       needsValidation: () => needsValidation(get()),
+
+      hasAddOn: (code) => get().purchasedAddOns.includes(code),
+
+      // No-op stub — real payment integration (Lemon Squeezy add-on purchase) comes later.
+      // Adds the code optimistically so UI and packLoader can operate on it immediately.
+      purchaseAddOn: (code) =>
+        set((s) => ({
+          purchasedAddOns: s.purchasedAddOns.includes(code)
+            ? s.purchasedAddOns
+            : [...s.purchasedAddOns, code],
+        })),
     }),
     {
       name: ENTITLEMENT_STORE_KEY,

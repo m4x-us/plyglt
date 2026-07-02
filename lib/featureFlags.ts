@@ -1,9 +1,11 @@
 // ============================================================
 // lib/featureFlags.ts
 // ============================================================
-// DEPENDS ON: nothing (reads process.env only)
-// USED BY: grep -r "from \"@/lib/featureFlags\"" --include="*.ts" --include="*.tsx" .
+// DEPENDS ON: lib/licenseTypes (LicenseType)
+// USED BY: components/InterruptHandler.tsx
 // ============================================================
+
+import type { LicenseType } from "@/lib/licenseTypes";
 
 export interface FeatureFlags {
   interruptEngine: boolean; // NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE
@@ -11,12 +13,25 @@ export interface FeatureFlags {
   analytics: boolean;       // NEXT_PUBLIC_FLAGS_ANALYTICS
 }
 
+// Standard env-var falsy values — "false", "0", "off", "no" all disable a flag.
+const FALSY_FLAG_VALUES: string[] = ["false", "0", "off", "no"];
+
+function parseFlag(v: string | undefined): boolean {
+  return !FALSY_FLAG_VALUES.includes(v?.toLowerCase() ?? "");
+}
+
+/** True when the Pro feature flag is on AND the user has an active subscription.
+ *  All M2 Pro-gated call sites must use this combinator instead of inline logic. */
+export function isProEnabled(flagValue: boolean, licenseType: LicenseType): boolean {
+  return flagValue && licenseType === "subscription";
+}
+
 /** Returns feature flags read from NEXT_PUBLIC_FLAGS_* env vars.
- *  Default: true (feature on). Set to "false" to disable. */
+ *  Default: true (feature on). "false", "0", "off", or "no" disables. */
 export function getFeatureFlags(): FeatureFlags {
   return {
-    interruptEngine: process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE !== "false",
-    vacationMode: process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE !== "false",
-    analytics: process.env.NEXT_PUBLIC_FLAGS_ANALYTICS !== "false",
+    interruptEngine: parseFlag(process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE),
+    vacationMode:    parseFlag(process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE),
+    analytics:       parseFlag(process.env.NEXT_PUBLIC_FLAGS_ANALYTICS),
   };
 }

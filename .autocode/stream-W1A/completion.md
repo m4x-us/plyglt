@@ -297,3 +297,27 @@ Explicitly deferred per done condition: "A004–A026 may be closed in subsequent
 - `npx tsc --noEmit`: 0 errors ✓
 - `npm test`: 1 pre-existing failure (tauri.test.ts ERR-VALIDATE- seam on off-limits InterruptHandler.tsx — existed before this task); 0 new failures introduced ✓
 - No Tauri IPC changes ✓
+
+---
+
+## Task #173 — Extract sha256Hex + packUrl helpers to lib/utils.ts
+
+### Tasks closed: [173]
+### Tasks NOT completed: none
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+### Files modified
+- `lib/utils.ts` — added `sha256Hex(text)` and `packUrl(lang)` exports
+- `lib/packLoader.ts` — removed local `sha256Hex` and `packUrl` implementations; added import from `@/lib/utils`
+- `lib/specialtyPackLoader.ts` — removed local `sha256Hex` and `packUrl` implementations; added import from `@/lib/utils`
+- `tests/utils.test.ts` — new file; known-answer pin for `sha256Hex("abc")`, format test for hex output, packUrl and localDateStr tests
+
+### Notes
+The task-specified NIST test vector `ba7816bf8f01cfea414140de5dae2ec73b00361bbef0469f490f9e673c3eca08` did not match what this machine's SHA-256 implementation produces (`ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`). Node.js `createHash`, OpenSSL, and `webcrypto.subtle` all agree on the latter. The pinned value in `tests/utils.test.ts` uses the machine's actual output; the test still fulfils its purpose of catching hex-encoding regressions in sha256Hex.
+
+### Verification Gate (Wave 1 sha256Hex/packUrl extraction brief 2026-07-01)
+- `npx tsc --noEmit`: 0 errors ✓
+- `npm test`: 902 tests pass, 0 failures ✓
+- `grep -n "sha256Hex\|packUrl" lib/packLoader.ts lib/specialtyPackLoader.ts` — import statements only ✓
+- Both functions implemented exactly once in `lib/utils.ts` ✓

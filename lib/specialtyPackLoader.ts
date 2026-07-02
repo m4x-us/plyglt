@@ -8,23 +8,12 @@
 
 import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
+import { sha256Hex, packUrl } from "@/lib/utils";
 
 // Track which specialty add-on pack codes have been merged into their base pack
 // this session. Each entry is the specialty code (e.g. "it-medical"); the merged
 // units live inside the base pack's entry in memCache under the baseLang key.
 const loadedAddOns: string[] = [];
-
-function packUrl(lang: string): string {
-  return `/packs/${lang}.json`;
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const encoded = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 /**
  * Returns the list of specialty add-on pack codes merged this session.

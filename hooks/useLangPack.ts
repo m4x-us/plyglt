@@ -14,10 +14,11 @@ type LoadPackError = Extract<LoadPackResult, { ok: false }>["error"];
  * Record<LoadPackError, string> for exhaustiveness — TypeScript flags missing entries
  * if a new discriminant is added to LoadPackResult (Poka-yoke). */
 export const LOAD_PACK_ERROR_MESSAGES: Record<LoadPackError, string> = {
-  invalid_lang:      "Pack not available.",
-  download_failed:   "Couldn't load pack. Try again.",
-  checksum_mismatch: "Pack data corrupted. Try again.",
-  parse_error:       "Couldn't read pack. Try again.",
+  invalid_lang:          "Pack not available.",
+  base_pack_not_loaded:  "Load the base language pack first.",
+  download_failed:       "Couldn't load pack. Try again.",
+  checksum_mismatch:     "Pack data corrupted. Try again.",
+  parse_error:           "Couldn't read pack. Try again.",
 };
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
 import type { Unit } from "@/content/types";

@@ -4,6 +4,7 @@
 "use client";
 
 import Link from "next/link";
+import { StatsProGate } from "@/components/StatsProGate";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
 import { useStatsData } from "@/hooks/useStatsData";
@@ -13,16 +14,7 @@ export default function StatsPage() {
   const { licenseType } = useEntitlementStore();
   const { loading, seen, totalCards, now, hardest, weakestTags, levelStability, atRisk } =
     useStatsData();
-
-  if (!isProEnabled(getFeatureFlags().analytics, licenseType)) return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
-      <div className="text-4xl mb-4">📊</div>
-      <h1 className="text-xl font-bold text-white mb-2">Learning Stats</h1>
-      <p className="text-gray-500 text-sm mb-6 max-w-xs">Detailed analytics are a Pro feature.</p>
-      <Link href="/" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← Home</Link>
-    </div>
-  );
-
+  if (!isProEnabled(getFeatureFlags().analytics, licenseType)) return <StatsProGate />;
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">

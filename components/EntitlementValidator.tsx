@@ -14,6 +14,7 @@
 import { useEffect } from "react";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { validateLicense } from "@/lib/entitlement";
+import { UpdateChecker } from "@/components/UpdateChecker";
 
 // Source-level feature flag (satisfies Rule 4). Set to false and rebuild to disable all
 // background validation passes — useful during development or when debugging LS connectivity.
@@ -51,7 +52,8 @@ export function runEntitlementValidation(
   });
 }
 
-/** Silently re-validates subscription licenses on mount. No render output. */
+/** Silently re-validates subscription licenses on mount and checks for app updates.
+ *  Renders UpdateChecker as its only child — both produce no visible DOM output. */
 export function EntitlementValidator() {
   useEffect(() => {
     // getState() reads current store state without subscribing to future changes.
@@ -59,5 +61,5 @@ export function EntitlementValidator() {
     void runEntitlementValidation(useEntitlementStore.getState);
   }, []);
 
-  return null;
+  return <UpdateChecker />;
 }

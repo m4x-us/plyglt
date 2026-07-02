@@ -1,7 +1,7 @@
 ---
 agent: cto
-last-updated: 2026-06-29
-meets: 6
+last-updated: 2026-07-01
+meets: 9
 ---
 # CTO Memory — plyglt
 
@@ -18,16 +18,17 @@ meets: 6
 8. **Fresh task numbering** — `.autocode/tasks.md` canonical. Prior Wave 1 naming superseded.
 9. **Content generation is a separate track** — Missing 68 curriculum units are not engineering tasks.
 10. **Vacation mode / Forecast / Analytics: Batch 8+** — Confirmed deferred per /meet run 3 and 4.
+11. **Batch 14 scope CONFIRMED: macOS OS hooks only** — Owner decision 2026-07-01. Batch 14 = interrupt.rs OS hooks + notification triggers (Tasks #159–#164, 6 tasks). The JS/UI layer (InterruptHandler.tsx etc.) was already complete as of Batch 12. Prior memory describing "UI/JS layer" as Batch 14 work was incorrect. Do not rebuild what is already done.
 
 ## Team Health
 
 ### Agent Performance
 | Agent | Runs | Audit Reject Rate | Known Blind Spots | Last Updated |
 |-------|------|-------------------|-------------------|--------------|
-| security | 6 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; F7 raw LS errors to UI open run 3 (resolved #089); deactivation Ok(())/null bug missed until run 5; CI audit/lint gaps missed until run 6 | 2026-06-29 |
-| architect | 6 | — | Missed importBackup upward import run 1; missed stats/page.tsx Rule 1 run 2; missed app/page.tsx 253-line violation until run 4; missed W-series stale checkboxes run 5; missed featureFlags.ts Rule 2 comment run 6 | 2026-06-29 |
-| qa | 6 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid Rule 14 first flagged run 5; projected 908 tests wrong — actual 843 run 6 | 2026-06-29 |
-| docs | 6 | — | CONTRIBUTING_LANGUAGE.md stale file refs missed until run 3; introduction engine absent from CLAUDE.md until run 4; lib/utils.ts + useStudySession.ts + BuyModal.tsx + LanguageGrid.tsx missing until run 5; lib/checkout.ts, featureFlags.ts isProEnabled, UpdateChecker.tsx missing until run 6 | 2026-06-29 |
+| security | 9 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; F7 raw LS errors to UI open run 3 (resolved #089); deactivation Ok(())/null bug missed until run 5; CI audit/lint gaps missed until run 6; run 7: no new blind spots; run 9: confirmed Task #121 RESOLVED (pubkey verified via base64 decode), S1/S2 both dormant — clean pass | 2026-07-01 |
+| architect | 9 | — | Missed importBackup upward import run 1; missed stats/page.tsx Rule 1 run 2; missed app/page.tsx 253-line violation until run 4; missed W-series stale checkboxes run 5; missed featureFlags.ts Rule 2 comment run 6; run 7: duplicate license revalidation + Batch 14 scope corrected; run 8: sha256Hex/packUrl duplication after Task #156 extraction; run 9: circular type dep packLoader↔specialtyPackLoader; stats/page.tsx 158 lines (Rule 1 re-violation) | 2026-07-01 |
+| qa | 10 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid Rule 14 first flagged run 5; projected 908 tests wrong — actual 843 run 6; run 7: 2 minor kaizen items (redundant toBeDefined ×6, untested getSpecialtyPacks filter) — both resolved; run 10: 897 tests all green, 1 open minor (PRICING.annual exact value not pinned by real-constant test) | 2026-07-01 |
+| docs | 9 | — | CONTRIBUTING_LANGUAGE.md stale file refs missed until run 3; introduction engine absent from CLAUDE.md until run 4; lib/utils.ts etc. missing until run 5; lib/checkout.ts etc. missing until run 6; run 7: all 6 Batch 12-13 gaps fixed; run 9: 5 stale entries from Task #120/#121/#156 — all fixed inline | 2026-07-01 |
 
 ### Quality Trends
 | Task | WorldClass Score | Tests at Close | Coverage at Close |
@@ -38,8 +39,8 @@ meets: 6
 | Batch 3 | — (stream work) | ~515 | stmts=83.49%, branches=80.23%, funcs=80.82%, lines=85.37% |
 | Batches 4–6 | — (stream work, M1 complete) | 768 | branches=79.2%, stmts=84.03%, funcs=86%, lines=86.22% |
 
-**Current baseline (2026-06-29 — Batch 8 COMPLETE):**
-Tests: 843 (confirmed by actual run — prior projection of 908 was incorrect) | All thresholds met.
+**Current baseline (2026-07-01 — Batch 10 workable tasks COMPLETE):**
+Tests: 897 (confirmed run 9 — up from 891 with Tasks #155+#157) | All thresholds met.
 Thresholds: lines=84, funcs=79, branches=81, stmts=82 (ratcheted 2026-06-29 by Task #086)
 
 ### WorldClass Trend
@@ -59,11 +60,32 @@ Run 3 → Task #003: 98/100 (REOPENED on product grounds, not quality)
 
 5. ~~**Task #001 WorldClass — app/settings/page.tsx remaining gap**~~ — RESOLVED. Task #026 split the file (now 150 lines as of Task #103).
 
-6. **LS store creation (Task #120)** — Owner must create Lemon Squeezy store at dashboard.lemonsqueezy.com. Confirm slug ("plyglt" assumed). Every "Upgrade to Pro" click currently 404s. Prerequisite for M2. Owner action required. Added 2026-06-29.
+6. ~~**LS store creation (Task #120)**~~ — **RESOLVED 2026-07-01.** Real Lemon Squeezy checkout URL (`c541a459-fd38-4c81-94be-a4f2d6af3385`) wired in `lib/checkout.ts`. Annual-only pricing ($34.99/yr). Monthly plan removed.
 
-7. **Apple Developer Program membership (Task #122)** — Required for macOS signing and Gatekeeper notarization before M2 ships. Owner must have or obtain an Apple Developer ID Application certificate ($99/yr). Added 2026-06-29.
+7. **Apple Developer Program membership (Task #122)** — Required for macOS signing and Gatekeeper notarization before M2 ships. Enrollment in progress (~24-48h from 2026-07-01). Unblocks Tasks #122 and #123 when approved. Added 2026-06-29.
 
-8. **Spanish pack quality gate** — `es.json` (245KB, v0.9.0) exists but hidden by `ready: false` (owner confirmed 2026-06-29). No engineering task needed — when content authoring completes, flip `ready: true` in `lib/langRegistry.ts` and update manifest. Owner to set criteria. Added 2026-06-29.
+8. **Spanish pack quality gate** — `es.json` (245KB, v0.9.0) exists but hidden by `ready: false` (owner confirmed 2026-06-29). No engineering task needed — when content authoring completes, flip `ready: true` in `lib/langRegistry.ts` and update manifest. Owner to set criteria. Still open. Added 2026-06-29.
+
+9. **ALL_PACK_CODES vs READY_PACK_CODES split** — Should `loadPack` validate against all registered pack codes (including `es` with `ready: false`) or only ready-to-download packs? Still open. Added 2026-07-01.
+
+10. ~~**Sync backend technology choice**~~ — **RESOLVED 2026-07-01. Owner decision: Firebase** (Firestore + Auth). Firestore for SRS state, Firebase Auth for Apple Sign In + Google Sign In. Record in Batch 16 design (Task #168).
+
+11. **Auth providers for sync** — Owner confirmed Apple Sign In + Google Sign In minimum (required for App Store). Firebase Auth handles both. Pending Batch 16 implementation. Still open for specific API design decisions. Added 2026-07-01.
+
+12. **Sentence generator** — BRAND.md "under evaluation." Owner confirmed 2026-07-01: still deferred. No task created. Re-evaluate after M3 ships.
+
+## New Findings — 2026-07-01 /meet Run 9
+
+Findings surfaced by run 9 (Tasks #173–#177 added to Batch 14 as pre-reqs):
+
+- **[STL-1/STL-2] sha256Hex() + packUrl() duplicated** — `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` contain byte-for-byte copies of both helpers. Task #156 extracted specialty pack logic but copied instead of consolidating. Task #173 added.
+- **[STL-3] app/stats/page.tsx is 158 lines** — 8 over ≤150 app route limit. Task #155 Pro gate pushed it over. Extract fallback to `<StatsProGate />`. Task #174 added.
+- **[ARCH-1] Circular type dependency** — `lib/packLoader.ts` ↔ `lib/specialtyPackLoader.ts` import from each other. Fix: extract shared types to `lib/packTypes.ts`. Task #175 added.
+- **[DOCS] CLAUDE.md + STATUS.md 5 stale entries** — All fixed inline during run 9. Task #176 added for post-Task-#175 follow-up.
+- **[TEST] Monthly pricing mocks in 3 page test files** — `app/page.test.tsx`, `app/settings/page.test.tsx`, `app/study/page.test.tsx` still mock `CHECKOUT_URLS.monthly` / `PRICING.monthly`. Task #177 added.
+- **[PRODUCT] BuyModal.tsx aspirational copy** — "Spanish, French, German, Portuguese and every future language" — owner confirmed this is intentional aspirational positioning, not a bug. No task created.
+- **[OWNER] Firebase for sync** — Owner decision 2026-07-01. Batch 16 (Task #168) targets Firebase (Firestore + Auth).
+- **[OWNER] Sentence generator** — Still deferred. No task.
 
 ## New Findings — 2026-06-26 /meet Session
 
@@ -185,6 +207,7 @@ Task #001 deleted lifetime checkout URLs and pricing from code files but did not
 | 2026-06-28 | /meet run #4 | 0 new (Batches 4–6 confirmed complete, M1 complete) | — | 11 new tasks (#084–#094). Batch 7 = CURRENT SPRINT (Foundation Stabilization). Coverage CRITICAL (79.2% branches, 0.2pp floor). Introduction engine activation gap confirmed. app/page.tsx Rule 1 violation (253 lines) found. 4 owner decisions recorded (Q1: session-start intro, Q2: brand+reframe, Q3: Batch 7 before M2, Q4: fix both now). |
 | 2026-06-29 | /meet run #5 | 0 new (Batch 8 planning) | — | 16 new tasks (#095–#110). Batch 8 = Quality & Architecture Hardening. Critical: deactivation always-failure bug. Auto-install gate missing. isProEnabled combinator missing. LanguageGrid Rule 14. 4 Max decisions: fix quality first, interrupt ungated, macOS before Windows, deactivation stop-the-line. |
 | 2026-06-29 | /meet run #6 | 0 new (Batch 8 COMPLETE — all 16 tasks done) | — | 15 new tasks (#111–#125). Batch 9 = Quality Hardening [CURRENT SPRINT] (9 tasks). Batch 10 = M2 macOS Shipping Infrastructure [BACKLOG] (6 tasks). Key findings: 4 app page Rule 14 violations, CI missing lint+coverage+audit, 7 CLAUDE.md gaps, featureFlags.ts Rule 2 violation, isProEnabled audit needed. Actual test count confirmed 843 (prior projection 908 wrong). 3 new escalations: LS store creation, Apple Developer cert, Spanish pack gate. 4 Max decisions: quality first, LS store not created, Spanish not ready, macOS only for M2. |
+| 2026-07-01 | /meet run #7 | #125 closed (docs agent inline) | — | 19 new tasks (#154–#172). Batches 1–9, 11–13 COMPLETE; Batch 10 OWNER-BLOCKED (#120–#122); Batches 14–17 now have tasks. STOP-THE-LINE: InterruptHandler.tsx:39-56 duplicate license revalidation (Task #154 — first priority). Batch 14 scope correction: macOS OS hooks only (JS layer already complete). Analytics gated behind Pro (Task #155). lib/packLoader.ts 426 lines → Rule 1 violation (Task #156). 3 Rust files missing Rule 2 headers (Task #159). All 6 CLAUDE.md/STATUS.md gaps fixed inline by docs agent. Security: 2 monitor-level findings in specialty pack code (S1: unvalidated purchaseAddOn stub; S2: add-on SHA-256 skipped when manifest unavailable — both dormant). QA: clean. Owner decisions: ship Mac app as 90-day priority; stop-the-line Task #154 first; analytics behind Pro; Batch 14 tight (OS hooks only). |
 
 ### Task #001 | Delete all lifetime entitlement code + harden entitlement module
 Status: COMPLETE | Cycle 5 | Started: 2026-06-24 | Completed: 2026-06-25
@@ -739,3 +762,40 @@ Spot check: PASS — 3 A1 cards verified (produce "buenos días", recognize "lee
 Done-when: PASS — validatePack exits 0; grep -o '"es"' | wc -l = 1968 (≥ 1000; -c returns 1 due to minification — occurrence count used instead)
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task
+
+### Task #147 | Introduce SpecialtyPack type and registry in langRegistry + packLoader | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
+
+#### Cycle 1 — 2026-06-30 — Full Task
+Build approach: lib/langRegistry.ts:isValidPackCode:51+ — added SpecialtyPack interface (code, baseLang, name, ready:boolean), SPECIALTY_PACKS frozen empty array, getSpecialtyPacks(lang) filter helper, isSpecialtyPackCode(s) type guard; lib/packLoader.ts:loadPack:190 — imported SPECIALTY_PACKS, restructured guard to split isReadyBasePack + isReadySpecialtyPack checks (no behavioral change — empty registry); USED BY comment updated with lib/packLoader.ts
+Gate: tsc=PASS | 863 tests (was 856, +7 new) | lint=0 errors (1 pre-existing warning)
+Done-when: PASS — grep "SpecialtyPack" lib/langRegistry.ts → 4 hits; grep "SPECIALTY_PACKS" lib/langRegistry.ts → 3 hits; tsc=PASS; npm test=PASS
+WorldClass: PASS — 1 sev-2 finding (USED BY comment missing packLoader.ts) — fixed immediately in this cycle
+Fixed this cycle: USED BY comment stale | Still open: — | New findings: WC-1 sev:2 (fixed) | Regression signal: NO
+CTO diagnosis run: YES
+
+### Task #148 | Extend entitlement model for add-on purchases | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
+
+#### Cycle 1 — 2026-06-30 — Full Task
+Build approach: store/migrations.ts:ENTITLEMENT_VERSION — incremented 2→3; ENTITLEMENT_MIGRATIONS[3] added (adds purchasedAddOns:[] preserving existing); store/entitlementStore.ts:EntitlementState — added purchasedAddOns:string[], hasAddOn:(code)=>boolean, purchaseAddOn:(code)=>void; store default state: purchasedAddOns:[]; clearEntitlement: resets purchasedAddOns:[]; hasAddOn and purchaseAddOn (idempotent, no-op payment stub) added; lib/entitlement.ts:194 — added hasAddOn(state, code) pure selector
+Gate: tsc=PASS | 879 tests (was 863, +16 new) | lint=0 errors (1 pre-existing warning)
+Done-when: PASS — all 4 grep conditions met; npm test=PASS (879/879)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — first cycle, no prior history
+
+### Task #150 | Add specialty packs UI slot to LanguageGrid | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
+
+#### Cycle 1 — 2026-06-30 — Full Task
+Build approach: components/LanguageGrid.tsx — added getSpecialtyPacks import from @/lib/langRegistry; added hasAddOn:(code:string)=>boolean to Props interface; added specialtyPacks computed inside component (LANGUAGE_REGISTRY.filter(isPackUnlocked).flatMap(getSpecialtyPacks)); changed return from single div to fragment <></> with sibling Add-ons section (conditionally rendered when specialtyPacks.length>0); specialty tile states: purchased+ready→onSelect(sp.code), else→onUpgradeClick with "Coming soon" when !sp.ready or pricing when sp.ready; app/page.tsx — added hasAddOn to useEntitlementStore() destructure and passed as prop; components/LanguageGrid.test.tsx — updated @/lib/langRegistry mock to include getSpecialtyPacks:vi.fn(()=>[]); updated renderGrid() to accept optional hasAddOn param; added 5 specialty pack tests in new describe block
+Gate: tsc=PASS | 888 tests (was 883, +5 new) | lint=0 errors (1 pre-existing warning)
+Done-when: PASS — getSpecialtyPacks|SPECIALTY_PACKS grep ✓; hasAddOn grep ✓; tsc=PASS; npm test=PASS (888/888)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — first cycle, no prior history
+
+### Task #149 | Extend packLoader for specialty pack loading | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
+
+#### Cycle 1 — 2026-06-30 — Full Task
+Build approach: lib/packLoader.ts — added `const loadedAddOns: string[]` module-level array; added "base_pack_not_loaded" to LoadPackResult error union; added specialty pack code path inside loadPack (behind isReadySpecialtyPack guard — unreachable while SPECIALTY_PACKS is empty): base-pack check (spec.baseLang), session-dedup (loadedAddOns.includes), download+sha256-verify+parse+merge-units (additive, never removes base units), memCache.set(baseLang, merged), loadedAddOns.push; updated clearCacheForTesting to reset loadedAddOns.length=0; added getLoadedAddOns() export (copy of array); hooks/useLangPack.ts LOAD_PACK_ERROR_MESSAGES — added "base_pack_not_loaded" entry (poka-yoke exhaustiveness check required it); tests/packLoader.test.ts — added getLoadedAddOns import + 4 new tests in "loadedAddOns — in-memory specialty pack tracking" describe block
+Gate: tsc=PASS | 883 tests (was 879, +4 new) | lint=0 errors (1 pre-existing warning)
+Done-when: PASS — loadedAddOns grep ✓; it-medical|baseLang grep ✓; tsc=PASS; npm test=PASS (883/883)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — first cycle, no prior history

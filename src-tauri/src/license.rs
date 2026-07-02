@@ -35,7 +35,7 @@ pub async fn ls_validate_license(
 pub async fn ls_deactivate_license(
     license_key: String,
     instance_id: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let res = reqwest::Client::new()
         .post(format!("{LS_BASE}/deactivate"))
         .form(&[("license_key", license_key.as_str()), ("instance_id", instance_id.as_str())])
@@ -45,7 +45,7 @@ pub async fn ls_deactivate_license(
     if !res.status().is_success() {
         return Err(format!("Deactivation failed: HTTP {}", res.status()));
     }
-    Ok(())
+    Ok(true)
 }
 
 /// Open a URL in the system default browser. Only HTTPS URLs are accepted.

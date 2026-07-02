@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { getFeatureFlags } from "@/lib/featureFlags";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import type { LicenseType } from "@/lib/licenseTypes";
 
 afterEach(() => {
   delete process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE;
@@ -44,4 +45,28 @@ describe("getFeatureFlags", () => {
     process.env.NEXT_PUBLIC_FLAGS_ANALYTICS = "false";
     expect(getFeatureFlags().analytics).toBe(false);
   });
+
+  // #100 — isProEnabled combinator
+  describe("isProEnabled", () => {
+    it("returns true when flag=true and licenseType=subscription", () => {
+      expect(isProEnabled(true, "subscription" as LicenseType)).toBe(true);
+    });
+
+    it("returns false when flag=true but licenseType=free", () => {
+      expect(isProEnabled(true, "free" as LicenseType)).toBe(false);
+    });
+
+    it("returns false when flag=false even if licenseType=subscription", () => {
+      expect(isProEnabled(false, "subscription" as LicenseType)).toBe(false);
+    });
+  });
+
+  // #099 — false-string variants: "0", "off", "no", and mixed-case must all disable a flag
+  it.each(["0", "off", "False", "no", "NO"])(
+    "interruptEngine is false when env var is %j",
+    (value) => {
+      process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE = value;
+      expect(getFeatureFlags().interruptEngine).toBe(false);
+    }
+  );
 });

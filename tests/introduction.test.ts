@@ -135,6 +135,11 @@ describe("maxAppearancesToday", () => {
   it("day 22 → 0 (graduated to FSRS, never appears in introduction queue)", () => {
     expect(maxAppearancesToday(22)).toBe(0);
   });
+
+  it("day 25 → 0 (out-of-bounds day not in table — ?? 0 fallback)", () => {
+    // Covers the nullish-coalescing branch at line 49: undefined ?? 0
+    expect(maxAppearancesToday(25)).toBe(0);
+  });
 });
 
 // Helper to build a minimal valid IntroductionRecord for shouldAppearToday tests.
@@ -179,6 +184,14 @@ describe("shouldAppearToday", () => {
 
   it("day 13 (odd dayOfPhase), appearancesToday=0 → true (confirms odd parity rule beyond day 11)", () => {
     expect(shouldAppearToday(makeRecord({ dayOfPhase: 13, appearancesToday: 0 }), "2026-06-27")).toBe(true);
+  });
+
+  it("uses 0 as appearances when lastSeenDate is not today (date-reset ternary false branch)", () => {
+    // Card was seen yesterday with 3 appearances; today is a new day → treat as 0 appearances
+    // Covers line 60 ternary false branch: lastSeenDate !== today → 0
+    const record = makeRecord({ dayOfPhase: 8, lastSeenDate: "2026-06-26", appearancesToday: 3 });
+    // max=1 for day 8; date-reset sets appearances=0, so 0 < 1 → should appear
+    expect(shouldAppearToday(record, "2026-06-27")).toBe(true);
   });
 });
 
@@ -236,6 +249,15 @@ describe("recordResult", () => {
     expect(result.consecutiveCorrect).toBe(4);
   });
 
+  it("resets appearancesToday to 1 when lastSeenDate differs from today (date-reset path)", () => {
+    // Card was seen yesterday with 2 appearances. Recording today's result should
+    // treat appearances as 0 before incrementing to 1. Covers lines 78-79 ternary false branch.
+    const record = makeRecord({ lastSeenDate: "2026-06-26", appearancesToday: 2 });
+    const result = recordResult(record, true, "2026-06-27");
+    expect(result.appearancesToday).toBe(1);
+    expect(result.lastSeenDate).toBe("2026-06-27");
+  });
+
   it("second consecutive wrong increments consecutiveWrongToday to 2 without resetting dayOfPhase", () => {
     // Only 3rd wrong triggers Day 1 reset; 2nd wrong is an intermediate state
     const result = recordResult(makeRecord({ consecutiveWrongToday: 1, dayOfPhase: 8 }), false, "2026-06-27");
@@ -268,5 +290,9 @@ describe("getNextCardType", () => {
     const result = getNextCardType("fill_blank", ["recognize", "produce", "fill_blank"]);
     expect(result).not.toBe("fill_blank");
     expect(["recognize", "produce", "fill_blank"] as string[]).toContain(result);
+  });
+
+  it("throws when available is empty (line 120 guard — callers must not pass empty arrays)", () => {
+    expect(() => getNextCardType(null, [])).toThrow("getNextCardType: available must not be empty");
   });
 });

@@ -4,7 +4,7 @@ import type { Unit } from "./types";
 // All future languages use the namespaced format "{lang}-{level}u{unit}-t{tier}-{seq}" (e.g., "es-a1u01-t1-001").
 // Do NOT migrate Italian IDs — it would require a store migration that risks corrupting live user data.
 
-// A1 — Beginner (14 units)
+// A1 — Beginner (20 units)
 import a1Unit01 from "./cards/a1-unit-01-greetings";
 import a1Unit02 from "./cards/a1-unit-02-bar";
 import a1Unit03 from "./cards/a1-unit-03-family";
@@ -19,6 +19,12 @@ import a1Unit11 from "./cards/a1-unit-11-food";
 import a1Unit12 from "./cards/a1-unit-12-emotions";
 import a1Unit13 from "./cards/a1-unit-13-household";
 import a1Unit14 from "./cards/a1-unit-14-animals";
+import a1Unit15 from "./cards/a1-unit-15-numbers";
+import a1Unit16 from "./cards/a1-unit-16-shopping";
+import a1Unit17 from "./cards/a1-unit-17-weather";
+import a1Unit18 from "./cards/a1-unit-18-routine";
+import a1Unit19 from "./cards/a1-unit-19-work";
+import a1Unit20 from "./cards/a1-unit-20-clothes";
 
 // A2 — Elementary (16 units)
 import a2Unit10 from "./cards/a2-unit-10-past-avere";
@@ -74,6 +80,7 @@ export const ALL_UNITS: Unit[] = [
   a1Unit01, a1Unit02, a1Unit03, a1Unit04,
   a1Unit05, a1Unit06, a1Unit07, a1Unit08,
   a1Unit09, a1Unit10, a1Unit11, a1Unit12, a1Unit13, a1Unit14,
+  a1Unit15, a1Unit16, a1Unit17, a1Unit18, a1Unit19, a1Unit20,
   // A2
   a2Unit10, a2Unit11, a2Unit12, a2Unit13, a2Unit14,
   a2Unit15, a2Unit16, a2Unit17, a2Unit18,

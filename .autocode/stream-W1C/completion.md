@@ -1,3 +1,29 @@
+# Stream W1C — Wave 1 Completion (Task #177)
+**Date:** 2026-07-01
+**Agent:** Charles
+**Status:** COMPLETE
+**Verification gate at close:** `grep -r "monthly" app/page.test.tsx app/settings/page.test.tsx app/study/page.test.tsx` → zero hits. 10/10 tests pass in owned files.
+
+## Tasks closed
+- #177 — Remove stale monthly pricing mocks from 3 page test files
+
+## What was done
+
+Removed `monthly` key from `CHECKOUT_URLS` and `PRICING` mocks in three `vi.mock("@/lib/entitlement", ...)` blocks:
+
+| File | Before | After |
+|------|--------|-------|
+| `app/page.test.tsx` | `CHECKOUT_URLS: { monthly: "...", annual: "..." }` | `CHECKOUT_URLS: { annual: "..." }` |
+| `app/settings/page.test.tsx` | same pattern | same fix |
+| `app/study/page.test.tsx` | inline single-line `{ monthly: "...", annual: "..." }` | `{ annual: "..." }` |
+
+`PRICING` likewise stripped of `monthly: "$4.99/mo"` in all three files. `validateLicense` mock in settings kept intact (unrelated to pricing).
+
+## Debt entries logged: 0
+## Carry-forward tasks generated: 0
+
+---
+
 # Stream W1C — Wave 1 Completion (Tasks #155 #158)
 **Date:** 2026-07-01
 **Agent:** Charles

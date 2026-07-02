@@ -5,8 +5,10 @@
 
 import { useState, useRef, useMemo, useEffect } from "react";
 import type { Card } from "@/content/types";
-import type { Grade } from "@/lib/srs";
+import type { IntroductionRecord } from "@/content/types";
+import type { Grade, CardProgress } from "@/lib/srs";
 import type { ActiveSession } from "@/store/srsStore";
+import { localDateStr } from "@/lib/utils";
 
 type UseStudySessionParams = {
   initialQueue: Card[];
@@ -16,6 +18,10 @@ type UseStudySessionParams = {
   getResumableSession: () => ActiveSession | null;
   clearActiveSession: () => void;
   commitSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
+  canIntroduceNewCard: (today: string) => boolean;
+  introduceCard: (cardId: string, today: string) => void;
+  cards: Record<string, CardProgress>;
+  introductions: Record<string, IntroductionRecord>;
 };
 
 export function useStudySession({
@@ -26,6 +32,10 @@ export function useStudySession({
   getResumableSession,
   clearActiveSession,
   commitSession,
+  canIntroduceNewCard,
+  introduceCard,
+  cards,
+  introductions,
 }: UseStudySessionParams) {
   const [resumeDecision, setResumeDecision] = useState<"pending" | "accepted" | "declined" | null>(() => {
     const saved = getResumableSession();
@@ -58,6 +68,24 @@ export function useStudySession({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
 
+  // On mount: introduce the first qualifying new card if today's quota is open.
+  // Cards are sorted by tier ascending (tier 1 before tier 2 per BRAND.md).
+  // The introduced card is appended to the current queue so it appears this session;
+  // subsequent sessions pick it up via getIntroductionDueCardIds in buildQueue.
+  useEffect(() => {
+    const today = localDateStr();
+    if (!canIntroduceNewCard(today)) return;
+    const qualifying = Object.values(allCardMap)
+      .filter((c) => !cards[c.id] && !introductions[c.id])
+      .sort((a, b) => a.tier - b.tier);
+    const first = qualifying[0];
+    if (!first) return;
+    introduceCard(first.id, today);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount only — one introduction attempt per session
+
   // Apply resume when decision is made.
   // Multiple synchronous setState calls inside this effect are intentional —
   // React 18 batches them into a single re-render.
@@ -66,22 +94,15 @@ export function useStudySession({
       const saved = getResumableSession();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setQueue(resumedQueue);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPos(resumedPos);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSessionCorrect(saved?.sessionCorrect ?? 0);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSessionTotal(saved?.sessionTotal ?? 0);
       sessionStartedAtRef.current = saved?.startedAt ?? Date.now();
     } else if (resumeDecision === "declined") {
       clearActiveSession();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQueue(initialQueue);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPos(0);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSessionCorrect(0);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSessionTotal(0);
       sessionStartedAtRef.current = Date.now();
     } else if (resumeDecision === null) {

@@ -18,10 +18,17 @@ export function useLicenseActivation() {
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus>({ type: "idle" });
 
   async function handleActivate() {
-    if (!licenseInput.trim()) return;
+    const key = licenseInput.trim();
+    if (!key) return;
+    // Local validation before IPC — LS keys are alphanumeric+hyphens, max ~64 chars.
+    // 200 is a generous cap; rejects megabyte-scale inputs before a network round-trip.
+    if (key.length > 200 || !/^[A-Za-z0-9-]+$/.test(key)) {
+      setLicenseStatus({ type: "error", message: "Invalid license key format." });
+      return;
+    }
     setLicenseStatus({ type: "loading" });
     try {
-      const result = await activateLicense(licenseInput);
+      const result = await activateLicense(key);
       if (result.ok) {
         useEntitlementStore.getState().setEntitlement({
           licenseKey: result.licenseKey,

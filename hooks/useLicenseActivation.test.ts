@@ -74,6 +74,28 @@ describe("useLicenseActivation — handleActivate", () => {
     });
   });
 
+  // #098 — local validation before IPC
+  it("rejects keys longer than 200 characters without calling activateLicense", async () => {
+    const { result } = renderHook(() => useLicenseActivation());
+    act(() => { result.current.setLicenseInput("A".repeat(300)); });
+    await act(async () => { await result.current.handleActivate(); });
+
+    expect(mockActivateLicense).not.toHaveBeenCalled();
+    expect(result.current.licenseStatus).toMatchObject({
+      type: "error",
+      message: expect.stringContaining("format"),
+    });
+  });
+
+  it("rejects keys with invalid characters (spaces, symbols) without calling activateLicense", async () => {
+    const { result } = renderHook(() => useLicenseActivation());
+    act(() => { result.current.setLicenseInput("XXXX YYYY ZZZZ"); });
+    await act(async () => { await result.current.handleActivate(); });
+
+    expect(mockActivateLicense).not.toHaveBeenCalled();
+    expect(result.current.licenseStatus.type).toBe("error");
+  });
+
   it("error path: transitions to error with server message when activation returns ok:false", async () => {
     mockActivateLicense.mockResolvedValue({
       ok: false,

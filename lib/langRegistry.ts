@@ -8,8 +8,9 @@
 // ===========================================
 // DEPENDS ON: @/lib/language (LanguageConfig, ITALIAN, SPANISH)
 // USED BY: store/entitlementStore.ts, lib/entitlement.ts, lib/importBackup.ts,
-//          store/migrations.ts, app/settings/page.tsx, app/learn/page.tsx,
-//          app/study/page.tsx, LANG_CONFIG_MAP → (any component rendering language UI)
+//          store/migrations.ts, lib/packLoader.ts, app/settings/page.tsx,
+//          app/learn/page.tsx, app/study/page.tsx,
+//          LANG_CONFIG_MAP → (any component rendering language UI)
 // ===========================================
 
 import { ITALIAN, SPANISH, type LanguageConfig } from "@/lib/language";
@@ -51,4 +52,30 @@ export const LANG_CONFIG_MAP = Object.fromEntries(
 /** Type guard: returns true iff s is a registered PackCode (member of ALL_PACK_CODES). */
 export function isValidPackCode(s: string): s is PackCode {
   return ALL_PACK_CODES.some(code => code === s);
+}
+
+// ── Specialty pack registry ───────────────────────────────────────────────────
+// Specialty packs are paid add-ons within a base language (e.g. "it-medical").
+// They extend the base pack — loaded alongside it, not instead of it.
+// All current entries have ready:false. Set to true when a real pack file ships.
+
+export interface SpecialtyPack {
+  readonly code: string;       // e.g. "it-medical" — unique across all registries
+  readonly baseLang: PackCode; // base language this add-on extends
+  readonly name: string;       // e.g. "Medical Italian"
+  readonly ready: boolean;     // false until the pack file ships
+}
+
+// Empty until real specialty content exists. To register a future pack: append here
+// with ready:false, then set ready:true once the pack file and pricing are live.
+export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([]);
+
+/** Returns all specialty packs for a given base language code. */
+export function getSpecialtyPacks(lang: string): SpecialtyPack[] {
+  return SPECIALTY_PACKS.filter(sp => sp.baseLang === lang);
+}
+
+/** Returns true iff s is a registered specialty pack code (any readiness state). */
+export function isSpecialtyPackCode(s: string): boolean {
+  return SPECIALTY_PACKS.some(sp => sp.code === s);
 }

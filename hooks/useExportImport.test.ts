@@ -75,7 +75,9 @@ describe("useExportImport — handleExport", () => {
     const { result } = renderHook(() => useExportImport());
     act(() => { result.current.handleExport(); });
     expect(document.createElement).toHaveBeenCalledWith("a");
-    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    const objectUrl = vi.mocked(URL.createObjectURL).mock.results[0]!.value;
+    expect(createdElement!.getAttribute("href")).toBe(objectUrl);
     expect(URL.revokeObjectURL).toHaveBeenCalled();
   });
 
@@ -103,5 +105,24 @@ describe("useExportImport — handleImportFile", () => {
     });
 
     expect(parseBackup).toHaveBeenCalled();
+  });
+
+  it("sets dataStatus to error when parseBackup returns ok:false", async () => {
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockReturnValueOnce({ ok: false, error: "Invalid backup format." });
+
+    const { result } = renderHook(() => useExportImport());
+
+    const fileContent = JSON.stringify({ _version: 2 });
+    const file = new File([fileContent], "backup.json", { type: "application/json" });
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    expect(result.current.dataStatus.type).toBe("error");
+    expect((result.current.dataStatus as { type: "error"; message: string }).message).toBe(
+      "Invalid backup format.",
+    );
   });
 });

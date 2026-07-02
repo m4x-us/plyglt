@@ -30,6 +30,12 @@ vi.mock("@/lib/entitlement", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/entitlement")>();
   return { ...actual, validateLicense: vi.fn() };
 });
+
+// UpdateChecker is an invisible sibling mounted by EntitlementValidator.
+// Stub it out so these tests stay focused on validation logic only.
+vi.mock("@/components/UpdateChecker", () => ({
+  UpdateChecker: () => null,
+}));
 import { validateLicense } from "@/lib/entitlement";
 const mockValidateLicense = vi.mocked(validateLicense);
 
@@ -165,9 +171,11 @@ describe("EntitlementValidator", () => {
   describe("render-based mount wiring (Task #054)", () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it("render(<EntitlementValidator/>) returns null (invisible wrapper component)", () => {
+    it("render(<EntitlementValidator/>) mounts UpdateChecker as its invisible child (no DOM output)", () => {
       const result = EntitlementValidator();
-      expect(result).toBeNull();
+      // EntitlementValidator now renders <UpdateChecker /> (stubbed to null in this file).
+      // The returned element is non-null but produces no visible DOM output.
+      expect(result).not.toBeNull();
     });
 
     it("render(<EntitlementValidator/>) with subscription license triggers validateLicense via store getter", async () => {

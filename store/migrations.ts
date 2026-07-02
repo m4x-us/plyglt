@@ -55,7 +55,7 @@ export function migrateSrsStore(persisted: unknown, storedVersion: number): unkn
 
 // ── Entitlement store ─────────────────────────────────────────────────────────
 
-export const ENTITLEMENT_VERSION = 2;
+export const ENTITLEMENT_VERSION = 3;
 
 // Derived from LICENSE_TYPES (the single source of truth in lib/licenseTypes.ts).
 // Adding a new license type to lib/licenseTypes.ts automatically extends this Set.
@@ -85,6 +85,13 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       ...d,
       licenseType: MIGRATION_VALID_LICENSE_TYPES.has(raw as LicenseType) ? raw : "subscription",
     };
+  },
+  // v2 → v3: adds purchasedAddOns for specialty pack add-on tracking.
+  // Default [] — no existing user has purchased any add-ons.
+  // Preserves any data already written by a pre-release build (unlikely but safe).
+  3: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    return { ...d, purchasedAddOns: Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [] };
   },
 };
 
