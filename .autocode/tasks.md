@@ -3023,6 +3023,7 @@ Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire inter
 **Test required:** No behavior change — `cargo build` compiling is the test.
 **Done when:** `src-tauri/src/tray.rs` exists with `pub fn setup_tray(...)` and Rule 2 header. `src-tauri/src/lib.rs` ≤ 120 lines (makes room for Task #162 additions). `cargo build` compiles. App launches normally.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
 
 ---
 
@@ -3036,6 +3037,7 @@ Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire inter
 **Test required:** No behavior change — `npm test` passing is the test (all existing InterruptHandler + settings tests must pass).
 **Done when:** `lib/tauriInterrupt.ts` exists with Rule 2 header and all 5 exports. `lib/tauri.ts` ≤ 145 lines. No interrupt-specific imports from `lib/tauri.ts` in callers (or clearly marked re-exports). `npm test` passes.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
 
 ---
 

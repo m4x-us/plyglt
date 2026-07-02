@@ -1,17 +1,13 @@
 // lib.rs — Tauri application entry point for plyglt. Registers all plugins (store, notification,
-// autostart, updater), initialises the system tray with Study Now and Quit items, and wires all
-// IPC command handlers exposed by interrupt.rs and license.rs into the Tauri invoke handler.
+// autostart, updater), delegates tray setup to tray.rs, and wires all IPC command handlers
+// exposed by interrupt.rs and license.rs into the Tauri invoke handler.
 // Called by the Tauri runtime on startup; no other Rust file imports this module.
 
 mod interrupt;
 mod license;
+mod tray;
 
 use std::sync::{Arc, Mutex};
-use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
-};
 use interrupt::{
     enter_mandatory_mode, exit_mandatory_mode, snooze_interrupt, update_interrupt_config,
     InterruptState,
@@ -33,7 +29,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            setup_tray(app)?;
+            tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);
             Ok(())
         })
@@ -73,46 +69,4 @@ fn update_tray_badge(app: tauri::AppHandle, count: u32) {
             let _ = tray.set_title(title.as_deref());
         }
     }
-}
-
-fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
-    let study_item = MenuItem::with_id(app, "study", "Study Now  (5 cards)", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit plyglt", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&study_item, &sep, &quit_item])?;
-
-    TrayIconBuilder::with_id("main-tray")
-        .tooltip("plyglt")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-        })
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "study" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("tray:study", ());
-                }
-            }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
-        })
-        .build(app)?;
-
-    Ok(())
 }

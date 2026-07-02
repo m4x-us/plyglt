@@ -1,8 +1,8 @@
 ---
 status: done
 agent: adam
-stream: W2A
-wave: 2
+stream: W3A
+wave: 3
 ---
 
 # Adam — Stream W2A — Wave 2 — 2026-07-02

@@ -90,7 +90,7 @@ Entitlement is **client-only and honour-system**. There is no server-side licens
 
 ### 6. Pack Format
 
-Language packs are served as static JSON files at `public/packs/{lang}.json`. The shape of each file is defined by the `Pack` interface in `lib/packLoader.ts`.
+Language packs are served as static JSON files at `public/packs/{lang}.json`. The shape of each file is defined by the `Pack` interface in `lib/packTypes.ts`.
 
 `lib/packLoader.ts` manages a three-level cache (in-memory → platform storage → network) and performs sha256 integrity verification on every load:
 

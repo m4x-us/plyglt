@@ -12,7 +12,7 @@ import { useIsHydrated } from "@/lib/storage";
 import StudyCard from "@/components/StudyCard";
 import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
-import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauri";
+import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauriInterrupt";
 import { buildQueue, findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
 import { tierLabel } from "@/lib/cardLabels";

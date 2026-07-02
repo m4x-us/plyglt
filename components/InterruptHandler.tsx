@@ -5,7 +5,8 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { isTauri, listen, enterMandatoryMode, updateInterruptConfig } from "@/lib/tauri";
+import { isTauri, listen } from "@/lib/tauri";
+import { enterMandatoryMode, updateInterruptConfig } from "@/lib/tauriInterrupt";
 import { useSettingsStore, isInDnd } from "@/store/settingsStore";
 import { useSRSStore } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";

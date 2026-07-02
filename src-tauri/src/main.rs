@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    italiano_srs_lib::run();
+    plyglt_lib::run();
 }
