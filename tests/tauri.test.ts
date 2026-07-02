@@ -1,10 +1,11 @@
 /**
- * Tests for lib/tauri.ts.
+ * Tests for lib/tauri.ts and lib/tauriInterrupt.ts.
  *
  * What IS testable here: environment detection and web-mode no-ops.
  *
- * What IS testable via @tauri-apps/* mocks: updateInterruptConfig(), snoozeInterrupt(),
- * checkForUpdates() — these are tested via vi.doMock of the plugin modules below.
+ * What IS testable via @tauri-apps/* mocks: updateInterruptConfig(), snoozeInterrupt()
+ * (now in lib/tauriInterrupt.ts), checkForUpdates() — tested via vi.doMock of the
+ * plugin modules below.
  *
  * What is NOT testable without the Tauri runtime: invoke(), listen(), emit(),
  * updateTrayBadge(), enterMandatoryMode(), exitMandatoryMode(), enableAutostart(),
@@ -61,6 +62,7 @@ describe("web-mode no-ops", () => {
 // NOTE: Tauri void commands return JSON null on SUCCESS — the old null-check
 // pattern incorrectly fired on every successful call. The correct implementation
 // uses try/catch, so tests must mock invoke to THROW (not return null).
+// updateInterruptConfig now lives in lib/tauriInterrupt.ts (extracted from lib/tauri.ts).
 describe("updateInterruptConfig — IPC error surfacing", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -75,7 +77,7 @@ describe("updateInterruptConfig — IPC error surfacing", () => {
     }));
     // Make isTauri === true by adding __TAURI_INTERNALS__ to window
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
-    const { updateInterruptConfig } = await import("@/lib/tauri");
+    const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
     await expect(updateInterruptConfig(true, 1, false)).rejects.toThrow("IPC failed");
   });
 
@@ -86,19 +88,20 @@ describe("updateInterruptConfig — IPC error surfacing", () => {
       invoke: vi.fn().mockResolvedValue(null),
     }));
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
-    const { updateInterruptConfig } = await import("@/lib/tauri");
+    const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
     await expect(updateInterruptConfig(true, 1, false)).resolves.toBeUndefined();
   });
 
   it("returns void (no-op) in web mode — does not throw", async () => {
     // In web mode (no __TAURI_INTERNALS__), updateInterruptConfig must be silent
-    const { updateInterruptConfig } = await import("@/lib/tauri");
+    const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
     await expect(updateInterruptConfig(true, 1, false)).resolves.toBeUndefined();
   });
 });
 
 // #005 — snoozeInterrupt must throw when the Tauri IPC layer throws.
 // Same note as #004: mock invoke to THROW, not return null.
+// snoozeInterrupt now lives in lib/tauriInterrupt.ts (extracted from lib/tauri.ts).
 describe("snoozeInterrupt — IPC error surfacing", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -111,7 +114,7 @@ describe("snoozeInterrupt — IPC error surfacing", () => {
       invoke: vi.fn().mockRejectedValue(new Error("Tauri IPC error")),
     }));
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
-    const { snoozeInterrupt } = await import("@/lib/tauri");
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
     await expect(snoozeInterrupt(30)).rejects.toThrow("IPC failed");
   });
 
@@ -121,12 +124,12 @@ describe("snoozeInterrupt — IPC error surfacing", () => {
       invoke: vi.fn().mockResolvedValue(null),
     }));
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
-    const { snoozeInterrupt } = await import("@/lib/tauri");
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
     await expect(snoozeInterrupt(30)).resolves.toBeUndefined();
   });
 
   it("returns void (no-op) in web mode — does not throw", async () => {
-    const { snoozeInterrupt } = await import("@/lib/tauri");
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
     await expect(snoozeInterrupt(30)).resolves.toBeUndefined();
   });
 });

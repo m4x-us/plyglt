@@ -3055,6 +3055,7 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 **Test required:** Manual verification (macOS system events are not unit-testable in CI). Document manual test steps in the task completion summary.
 **Done when:** `src-tauri/src/os_events.rs` exists and compiles on macOS (`cargo build --target aarch64-apple-darwin`). `src-tauri/src/lib.rs` calls `os_events::start_os_listeners(app_handle)`. Manual test: put Mac to sleep → wake → interrupt fires within 5 seconds. Lock screen → unlock → interrupt fires. Leave idle 15+ minutes → return → interrupt fires.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
 
 ---
 

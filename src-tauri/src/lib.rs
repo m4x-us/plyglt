@@ -1,10 +1,12 @@
 // lib.rs — Tauri application entry point for plyglt. Registers all plugins (store, notification,
 // autostart, updater), delegates tray setup to tray.rs, and wires all IPC command handlers
-// exposed by interrupt.rs and license.rs into the Tauri invoke handler.
+// exposed by interrupt.rs and license.rs into the Tauri invoke handler. Also starts os_events.rs
+// listeners (wake, unlock, idle→active) on macOS after the main interrupt poll thread.
 // Called by the Tauri runtime on startup; no other Rust file imports this module.
 
 mod interrupt;
 mod license;
+mod os_events;
 mod tray;
 
 use std::sync::{Arc, Mutex};
@@ -18,6 +20,7 @@ use license::{ls_activate_license, ls_deactivate_license, ls_validate_license, o
 pub fn run() {
     let interrupt_state = Arc::new(Mutex::new(InterruptState::default()));
     let state_for_thread = Arc::clone(&interrupt_state);
+    let state_for_os = Arc::clone(&interrupt_state);
 
     tauri::Builder::default()
         .manage(interrupt_state)
@@ -31,6 +34,7 @@ pub fn run() {
         .setup(|app| {
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);
+            os_events::start_os_listeners(app.handle().clone(), state_for_os);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

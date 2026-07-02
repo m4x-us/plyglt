@@ -34,12 +34,19 @@ vi.mock("@/lib/tauri", () => ({
     tauriState.listeners.set(event, cb);
     return Promise.resolve(() => { tauriState.listeners.delete(event); });
   }),
-  updateInterruptConfig: mockUpdateInterruptConfig,
-  enterMandatoryMode: mockEnterMandatoryMode,
   enableAutostart: vi.fn(),
   disableAutostart: vi.fn(),
   openExternalUrl: vi.fn(),
   invoke: vi.fn(),
+}));
+
+// ── tauriInterrupt mock — interrupt and tray badge IPC wrappers ───────────────
+vi.mock("@/lib/tauriInterrupt", () => ({
+  updateInterruptConfig: mockUpdateInterruptConfig,
+  enterMandatoryMode: mockEnterMandatoryMode,
+  snoozeInterrupt: vi.fn().mockResolvedValue(undefined),
+  exitMandatoryMode: vi.fn().mockResolvedValue(undefined),
+  updateTrayBadge: vi.fn(),
 }));
 
 // ── next/navigation ───────────────────────────────────────────────────────────

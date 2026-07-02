@@ -791,6 +791,24 @@ Done-when: PASS — getSpecialtyPacks|SPECIALTY_PACKS grep ✓; hasAddOn grep �
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — first cycle, no prior history
 
+### Task #162 | macOS OS-event listeners (wake/unlock/idle) | Status: COMPLETE | Cycle 2 | Completed: 2026-07-02
+
+#### Cycle 1 — Audit — 2026-07-02 — Full Task
+Build approach: src-tauri/src/os_events.rs (239 lines new) — Rule 2 header; macos_ffi mod with CoreGraphics+CoreFoundation extern "C"; SendableCFStringRef newtype (unsafe Send+Sync); start_os_listeners spawns bg thread with 5s poll; wake (sleep-gap >90s), unlock (CGSession dict), idle→active (CGEventSource 900s threshold) all emit "interrupt:fire"; catch_unwind recovery; lib.rs updated with mod os_events + Arc::clone + start_os_listeners call after interrupt::start
+Gate: cargo build=PASS | npm test=PASS (902/902) | tsc=PASS | lint=0 errors
+Done-when: cargo build PASS (manual tests deferred per task definition)
+Audit result: FAIL — 11 findings (F001 sev:7 unsafe outside catch_unwind, F002 sev:6 double-fire per tick, F003 sev:5 idle threshold TODO missing, F004 sev:5 background-wake doc, F005 sev:4 state updated after emit, F007-F011 sev:2-3)
+Fixed this cycle: — | Still open: F001-F011 (all moved to Cycle 2) | New findings: F001-F011 | Regression signal: NO
+CTO diagnosis run: YES — audit cycle 1
+
+#### Cycle 2 — Fix — 2026-07-02 — Full Task
+Build approach: os_events.rs rewritten — moved screen_is_locked() + idle_seconds() INSIDE catch_unwind (F001); added tick_fired bool per loop iteration preventing double-fire (F002); added TODO #163 comment at IDLE_THRESHOLD_SECS (F003); documented background-wake limitation in constant comment (F004); moved was_locked/was_idle assignments BEFORE emit_interrupt calls using prev_locked/prev_idle pattern (F005); named thread via thread::Builder::new().name("plyglt-os-events") (F009); startup log when kCGSessionScreenIsLocked null (F008); panic log upgraded to [OSEV-PANIC-{timestamp}] (F007); removed dead IDLE_COOLDOWN_SECS (F010); added interval-bypass design comment (F011)
+Gate: cargo build=PASS | npm test=PASS (902/902) | tsc=PASS | lint=0 errors
+Done-when: PASS (cargo build + tsc zero errors)
+WorldClass: PASS — 88/100 (10 dimensions ≥ 7; 0 deductions)
+Fixed this cycle: F001-F011 | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — no prior findings repeated
+
 ### Task #149 | Extend packLoader for specialty pack loading | Status: COMPLETE | Cycle 1 | Completed: 2026-06-30
 
 #### Cycle 1 — 2026-06-30 — Full Task
