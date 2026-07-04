@@ -20,6 +20,10 @@ interface SettingsState {
   dndStart: string; // "HH:MM" 24-hour, e.g. "22:00"
   dndEnd: string;   // "HH:MM" 24-hour, e.g. "08:00"
   snoozeMinutes: SnoozeMinutes;
+  wakeEnabled: boolean;
+  unlockEnabled: boolean;
+  idleEnabled: boolean;
+  idleThresholdMinutes: number;
 
   setLaunchAtLogin: (v: boolean) => void;
   setInterruptEnabled: (v: boolean) => void;
@@ -28,6 +32,10 @@ interface SettingsState {
   setDndStart: (v: string) => void;
   setDndEnd: (v: string) => void;
   setSnoozeMinutes: (v: SnoozeMinutes) => void;
+  setWakeEnabled: (v: boolean) => void;
+  setUnlockEnabled: (v: boolean) => void;
+  setIdleEnabled: (v: boolean) => void;
+  setIdleThresholdMinutes: (v: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -40,6 +48,10 @@ export const useSettingsStore = create<SettingsState>()(
       dndStart: "22:00",
       dndEnd: "08:00",
       snoozeMinutes: 30,
+      wakeEnabled: true,
+      unlockEnabled: true,
+      idleEnabled: true,
+      idleThresholdMinutes: 15,
 
       setLaunchAtLogin: (v) => set({ launchAtLogin: v }),
       setInterruptEnabled: (v) => set({ interruptEnabled: v }),
@@ -48,6 +60,10 @@ export const useSettingsStore = create<SettingsState>()(
       setDndStart: (v) => set({ dndStart: v }),
       setDndEnd: (v) => set({ dndEnd: v }),
       setSnoozeMinutes: (v) => set({ snoozeMinutes: v }),
+      setWakeEnabled: (v) => set({ wakeEnabled: v }),
+      setUnlockEnabled: (v) => set({ unlockEnabled: v }),
+      setIdleEnabled: (v) => set({ idleEnabled: v }),
+      setIdleThresholdMinutes: (v) => set({ idleThresholdMinutes: v }),
     }),
     {
       name: "settings-v1",

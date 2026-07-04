@@ -78,7 +78,7 @@ describe("updateInterruptConfig — IPC error surfacing", () => {
     // Make isTauri === true by adding __TAURI_INTERNALS__ to window
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false)).rejects.toThrow("IPC failed");
+    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).rejects.toThrow("IPC failed");
   });
 
   it("resolves successfully when invoke returns null (void command success in Tauri)", async () => {
@@ -89,13 +89,13 @@ describe("updateInterruptConfig — IPC error surfacing", () => {
     }));
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false)).resolves.toBeUndefined();
+    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).resolves.toBeUndefined();
   });
 
   it("returns void (no-op) in web mode — does not throw", async () => {
     // In web mode (no __TAURI_INTERNALS__), updateInterruptConfig must be silent
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false)).resolves.toBeUndefined();
+    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).resolves.toBeUndefined();
   });
 });
 

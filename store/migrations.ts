@@ -109,7 +109,7 @@ export function migrateEntitlementStore(persisted: unknown, storedVersion: numbe
 
 // ── Settings store ────────────────────────────────────────────────────────────
 
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 
 const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
@@ -122,6 +122,18 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       dndStart:         typeof d.dndStart === "string" ? d.dndStart : "22:00",
       dndEnd:           typeof d.dndEnd === "string" ? d.dndEnd : "08:00",
       snoozeMinutes:    typeof d.snoozeMinutes === "number" ? d.snoozeMinutes : 30,
+    };
+  },
+  // v1 → v2: adds OS trigger controls. Defaults to true/true/true/15 — opt-out model
+  // so existing users keep all triggers active until they explicitly disable them.
+  2: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    return {
+      ...d,
+      wakeEnabled:          typeof d.wakeEnabled === "boolean" ? d.wakeEnabled : true,
+      unlockEnabled:        typeof d.unlockEnabled === "boolean" ? d.unlockEnabled : true,
+      idleEnabled:          typeof d.idleEnabled === "boolean" ? d.idleEnabled : true,
+      idleThresholdMinutes: typeof d.idleThresholdMinutes === "number" ? d.idleThresholdMinutes : 15,
     };
   },
 };

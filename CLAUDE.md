@@ -19,7 +19,8 @@ content/      — Static card data and type definitions. Imported by lib/packLoa
 ```
 
 Notable modules:
-- `lib/utils.ts` — pure utility functions; exports `localDateStr(d?)` for local-time ISO date strings. Used by `hooks/useStudySession.ts` and `lib/queue.ts`.
+- `lib/utils.ts` — pure utility functions; exports `localDateStr(d?)`, `sha256Hex(text)`, and `packUrl(lang)`. Used by `hooks/useStudySession.ts`, `lib/queue.ts`, `lib/packLoader.ts`, and `lib/specialtyPackLoader.ts`.
+- `lib/packTypes.ts` — shared type definitions for the pack subsystem: `Pack`, `PackMeta`, `Manifest`, `LoadPackResult`. Single source of truth — both `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` import types from here. No React, no Zustand.
 - `lib/checkout.ts` — checkout URL constants and pricing ($34.99/yr — annual plan only), plus the customer portal URL. Re-exported by `lib/entitlement.ts`. Used by `components/BuyModal.tsx` and `app/settings/page.tsx`.
 - `lib/specialtyPackLoader.ts` — handles specialty pack download, sha256 verification, and unit merge into the base pack's in-memory cache. Exports `loadSpecialtyPack()`, `getLoadedAddOns()`, `clearSpecialtyCache()`. Re-exports `getLoadedAddOns` via `lib/packLoader.ts`. Must remain pure (no React, no Zustand).
 - `lib/featureFlags.ts` — feature flag reader (`getFeatureFlags()`); also exports `isProEnabled(flagValue, licenseType)`, a single combinator for all Pro-gated features. Returns `flagValue && licenseType === "subscription"`.

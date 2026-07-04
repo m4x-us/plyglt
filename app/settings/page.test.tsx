@@ -121,13 +121,17 @@ import SettingsPage from "./page";
 
 function resetStores() {
   useSettingsStore.setState({
-    launchAtLogin:    false,
-    interruptEnabled: false,
-    intervalHours:    2,
-    mandatory:        false,
-    dndStart:         "22:00",
-    dndEnd:           "08:00",
-    snoozeMinutes:    15,
+    launchAtLogin:        false,
+    interruptEnabled:     false,
+    intervalHours:        2,
+    mandatory:            false,
+    dndStart:             "22:00",
+    dndEnd:               "08:00",
+    snoozeMinutes:        15,
+    wakeEnabled:          true,
+    unlockEnabled:        true,
+    idleEnabled:          true,
+    idleThresholdMinutes: 15,
   });
   useEntitlementStore.setState({
     licenseKey:    null,
@@ -195,6 +199,34 @@ describe("SettingsPage", () => {
     fireEvent.click(activateBtn);
 
     expect(mockActivation.handleActivate).toHaveBeenCalledTimes(1);
+  });
+
+  // Test 4: OS Triggers section renders all 3 toggles when interruptEnabled=true and isTauri=true
+  it("OS Triggers section renders 3 toggles when interruptEnabled and isTauri are true", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, wakeEnabled: true, unlockEnabled: true, idleEnabled: true });
+
+    render(<SettingsPage />);
+
+    expect(getSwitchByLabel("Remind on wake").getAttribute("aria-checked")).toBe("true");
+    expect(getSwitchByLabel("Remind on unlock").getAttribute("aria-checked")).toBe("true");
+    expect(getSwitchByLabel("Remind when idle").getAttribute("aria-checked")).toBe("true");
+  });
+
+  // Test 5: Clicking the wake toggle updates wakeEnabled in settingsStore
+  it("clicking 'Remind on wake' toggle updates wakeEnabled in settingsStore", async () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, wakeEnabled: true });
+
+    render(<SettingsPage />);
+
+    const wakeSwitch = getSwitchByLabel("Remind on wake");
+    expect(wakeSwitch.getAttribute("aria-checked")).toBe("true");
+
+    await act(async () => { fireEvent.click(wakeSwitch); });
+
+    expect(useSettingsStore.getState().wakeEnabled).toBe(false);
+    expect(wakeSwitch.getAttribute("aria-checked")).toBe("false");
   });
 
   // Test 3: Interrupt engine toggle → interruptEnabled flips to true in store

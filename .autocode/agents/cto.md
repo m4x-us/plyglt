@@ -817,3 +817,24 @@ Gate: tsc=PASS | 883 tests (was 879, +4 new) | lint=0 errors (1 pre-existing war
 Done-when: PASS — loadedAddOns grep ✓; it-medical|baseLang grep ✓; tsc=PASS; npm test=PASS (883/883)
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — first cycle, no prior history
+
+### Task #176 | Update CLAUDE.md and STATUS.md with packTypes.ts reference | Status: COMPLETE | Cycle 1 | Completed: 2026-07-04
+
+#### Cycle 1 — 2026-07-04 — Direct Task (Builder path, /advance Wave 1, Stream W1A — Adam)
+Build approach: CLAUDE.md — added lib/packTypes.ts to Notable modules; updated lib/utils.ts entry to include sha256Hex/packUrl. §6 Pack Format already referenced lib/packTypes.ts from a prior wave — no change needed there. STATUS.md — no stale references found, no changes needed.
+Scripts: PASS
+Spot check: PASS
+Done-when: PASS — `grep "packTypes" CLAUDE.md` → 2 hits
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #163 | Add OS trigger toggle controls to interrupt settings | Status: COMPLETE | Cycle 1 | Completed: 2026-07-04
+
+#### Cycle 1 — 2026-07-04 — Full Task (/advance Wave 1, Stream W1B — Barry)
+Build approach: store/migrations.ts (SETTINGS_VERSION 1→2, SETTINGS_MIGRATIONS[2] fills wakeEnabled/unlockEnabled/idleEnabled=true, idleThresholdMinutes=15); store/settingsStore.ts (4 new fields + setters); lib/tauriInterrupt.ts (updateInterruptConfig extended to 7 required params); src-tauri/src/interrupt.rs (4 new InterruptState fields + update_interrupt_config params); components/InterruptHandler.tsx (wired new fields into the IPC call); app/settings/page.tsx (OS Triggers section — 3 toggles + conditional idle-threshold input); tests/migrations.test.ts (+6 v1→v2 migration tests); app/settings/page.test.tsx (+2 tests: OS Triggers renders, wake toggle click).
+Gate (as reported by Barry): tsc=PASS | 917/917 tests | cargo check=clean
+CTO verification (orchestrating session, post-wave): re-ran `npx tsc --noEmit` → FOUND 3 errors in tests/tauri.test.ts (3 call sites still using the old 3-arg updateInterruptConfig signature — not in Barry's declared file scope, missed because his signature change was breaking and tests/tauri.test.ts wasn't touched). ROOT-CAUSE FIXED: updated all 3 call sites to pass the 4 new required args (true, true, true, 15). Re-verified: tsc clean, 917/917 tests, lint 0 errors (1 pre-existing unrelated warning).
+Coverage check: `vitest run --coverage` → branches 78.57% vs 81% threshold (SHORT — global gate FAIL). Concentrated in app/settings/page.tsx (49.2% branches — OS Triggers section largely behind `interruptEnabled && isTauri`, several sub-branches like unlock-toggle-click and idle-threshold-input untested) and lib/tauriInterrupt.ts (50% branches). NOT fixed in this cycle — this is exactly the scope of the already-planned, already-deferred Task #164 (blocked-by #163, now unblocked). Coverage gate will be re-verified after #164 closes, before Batch 14 audit.
+Done-when: PASS (all #163-specific criteria met — InterruptConfig fields, migration, UI, IPC payload, npm test, cargo build, migration tests). Global coverage threshold is a batch-level gate (AGENTS.md), not a per-task done-when — deferred to #164 per existing task split.
+Fixed this cycle: tests/tauri.test.ts 3-arg call-site break (found + fixed by orchestrating CTO, not Barry) | Still open: global branch coverage 78.57%→needs 81% (Task #164 owns this) | New findings: TS-01 (sev:5, scope gap — breaking signature change without updating all call sites) | Regression signal: NO
+CTO diagnosis run: NO — first cycle, root cause fixed same cycle

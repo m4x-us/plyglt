@@ -29,8 +29,8 @@ describe("version constants", () => {
   it("ENTITLEMENT_VERSION is 3", () => {
     expect(ENTITLEMENT_VERSION).toBe(3);
   });
-  it("SETTINGS_VERSION is 1", () => {
-    expect(SETTINGS_VERSION).toBe(1);
+  it("SETTINGS_VERSION is 2", () => {
+    expect(SETTINGS_VERSION).toBe(2);
   });
 });
 
@@ -257,5 +257,54 @@ describe("migrateSettingsStore()", () => {
     const result = migrateSettingsStore(state, SETTINGS_VERSION) as typeof state;
     expect(result.intervalHours).toBe(4);
     expect(result.mandatory).toBe(true);
+  });
+
+  it("v1 → v2: adds OS trigger fields with correct defaults when absent", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.wakeEnabled).toBe(true);
+    expect(result.unlockEnabled).toBe(true);
+    expect(result.idleEnabled).toBe(true);
+    expect(result.idleThresholdMinutes).toBe(15);
+  });
+
+  it("v1 → v2: preserves existing wakeEnabled=false (pre-release build opt-out)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: true, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: false },
+      1
+    ) as Record<string, unknown>;
+    expect(result.wakeEnabled).toBe(false);
+  });
+
+  it("v1 → v2: preserves custom idleThresholdMinutes if already set", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: true, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: 45 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.idleThresholdMinutes).toBe(45);
+  });
+
+  it("v1 → v2: preserves all existing v1 fields unchanged", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: true, interruptEnabled: true, intervalHours: 4, mandatory: true, dndStart: "23:00", dndEnd: "07:00", snoozeMinutes: 60 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.launchAtLogin).toBe(true);
+    expect(result.interruptEnabled).toBe(true);
+    expect(result.intervalHours).toBe(4);
+    expect(result.mandatory).toBe(true);
+    expect(result.dndStart).toBe("23:00");
+    expect(result.dndEnd).toBe("07:00");
+    expect(result.snoozeMinutes).toBe(60);
+  });
+
+  it("v0 → v2 (full chain): all new fields present with correct defaults", () => {
+    const result = migrateSettingsStore({}, 0) as Record<string, unknown>;
+    expect(result.wakeEnabled).toBe(true);
+    expect(result.unlockEnabled).toBe(true);
+    expect(result.idleEnabled).toBe(true);
+    expect(result.idleThresholdMinutes).toBe(15);
   });
 });

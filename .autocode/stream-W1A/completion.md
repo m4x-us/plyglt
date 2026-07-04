@@ -321,3 +321,20 @@ The task-specified NIST test vector `ba7816bf8f01cfea414140de5dae2ec73b00361bbef
 - `npm test`: 902 tests pass, 0 failures ✓
 - `grep -n "sha256Hex\|packUrl" lib/packLoader.ts lib/specialtyPackLoader.ts` — import statements only ✓
 - Both functions implemented exactly once in `lib/utils.ts` ✓
+
+---
+
+## Task #176 — Update CLAUDE.md and STATUS.md with packTypes.ts reference
+
+### Tasks closed: [176]
+### Tasks NOT completed: none
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+### Files modified
+- `CLAUDE.md` — added `lib/packTypes.ts` to Notable modules section; updated `lib/utils.ts` entry to include `sha256Hex` and `packUrl` exports. §6 Pack Format already referenced `lib/packTypes.ts` (done by a prior wave) — no change needed there.
+- `STATUS.md` — no stale references found; no changes needed.
+
+### Verification Gate (Wave 1 docs update brief 2026-07-04)
+- `grep "packTypes" CLAUDE.md`: 2 hits ✓ (≥1 required)
+- No stale pricing references in CLAUDE.md or STATUS.md ✓

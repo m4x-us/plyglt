@@ -1,125 +1,77 @@
 ---
 status: done
 agent: adam
-stream: W3A
-wave: 3
+stream: W1A
+wave: 1
 ---
 
-# Adam — Stream W2A — Wave 2 — 2026-07-02
+# Adam — Stream W1A — Wave 1 — 2026-07-03
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W2A | #175
+— Adam | W1A | #176
 
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
+You are Adam, a CTO working on one task in parallel with another window (Barry).
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #175  — Extract shared pack types to lib/packTypes.ts (break circular dependency)
+1. /task #176  — Update CLAUDE.md and STATUS.md with packTypes.ts reference
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
+STATUS BOARD RULE — MANDATORY: After the completed /task, print your status board:
 
-Adam — W2A
-[→] #175 — Extract shared pack types to lib/packTypes.ts   ← starting now
+Adam — W1A
+[✓] #176 — Update CLAUDE.md + STATUS.md   ← done
 
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+Then tell Max in this window: "Adam is done."
 
 ## Files You Own (edit ONLY these)
-lib/packTypes.ts  (new — create this file)
-lib/packLoader.ts
-lib/specialtyPackLoader.ts
+CLAUDE.md
+STATUS.md
 
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-src-tauri/src/lib.rs
+## Off-Limits Files (DO NOT MODIFY — owned by Barry in parallel)
+store/settingsStore.ts
+store/migrations.ts
+app/settings/page.tsx
+lib/tauriInterrupt.ts
 src-tauri/src/interrupt.rs
-src-tauri/src/license.rs
 
 ## Task Definitions
 
-### Task #175 | architecture | severity 5
-**What:** Break the circular type dependency between `lib/packLoader.ts` and `lib/specialtyPackLoader.ts`. Currently `specialtyPackLoader.ts:9` does `import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader"` while `packLoader.ts:32` does `import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader"`. Extract the shared type definitions (`Pack`, `PackMeta`, `Manifest`, `LoadPackResult`, `CachedPackMeta`) to a new `lib/packTypes.ts` module. Update both files to import types from `lib/packTypes.ts` instead.
-**Why:** `import type` prevents a runtime cycle but the design is fragile — any refactor of the shared types requires coordinating both files. Extracting to `lib/packTypes.ts` eliminates the cycle completely and makes the type contract explicit.
-**File:** `lib/packTypes.ts` (new), `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
-**Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 3 files, type extraction
-**Blocked by:** #173 | **Blocks:** Nothing
-**Test required:** No new tests needed — type extraction is structural. All 902 existing tests pass (no behavior change).
-**Done when:** `lib/packTypes.ts` exists with all 5 shared type definitions and a Rule 2 header. Neither `packLoader.ts` nor `specialtyPackLoader.ts` imports types from each other. Verification gate green.
-**Owner:** Architecture Agent
+### Task #176 | docs | severity 3
+**What:** Update CLAUDE.md and STATUS.md with run 9 findings. Most items were applied inline already. Remaining: update `lib/packLoader.ts` §6 description to reflect that the Pack interface is now defined in `lib/packTypes.ts` (Task #175 extracted Pack, PackMeta, Manifest, LoadPackResult, CachedPackMeta to lib/packTypes.ts).
+**Why:** SCTS Kaizen — docs must stay current after every batch.
+**File:** `CLAUDE.md`, `STATUS.md`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 2 files, doc edits only
+**Blocked by:** #175 (COMPLETE) | **Blocks:** Nothing
+**Test required:** No.
+**Done when:** `grep "packTypes" CLAUDE.md` returns ≥1 hit. No stale pricing references in docs. Verification gate green.
+**Owner:** Docs Agent
 
 ## Agent Memories
 
-## Architecture Agent Memory (first 150 lines)
-# Architecture Agent Memory — plyglt
+# Docs Agent Memory — plyglt
 
-## Stack
-Next.js 16.2.9, React 19, Zustand 5, Tauri 2 (desktop + web). TypeScript throughout.
+## Canonical Docs
+- CLAUDE.md — architecture reference. §6 Pack Format currently attributes Pack interface to lib/packLoader.ts; needs update to lib/packTypes.ts after Task #175.
+- STATUS.md — at-a-glance project state. Current as of run 9 (2026-07-01).
 
-## Layer Structure (dependencies flow strictly down)
-- `app/` — Next.js routes. LIMIT: ≤150 lines. All pages within limit.
-- `components/` — React UI components.
-- `hooks/` — Custom React hooks.
-- `store/` — Zustand stores. Imports from lib/.
-- `lib/` — Pure utilities. No React, no Zustand imports. Must NEVER import from store/, hooks/, components/, app/.
-- `content/` — Static card data and type definitions.
+## What Task #175 Did
+Extracted 5 shared types (Pack, PackMeta, Manifest, LoadPackResult, CachedPackMeta) from lib/packLoader.ts to new lib/packTypes.ts. Both packLoader.ts and specialtyPackLoader.ts now import from packTypes.ts. The circular type dependency is gone.
 
-## Key Files
-High blast-radius (touch carefully):
-1. `store/srsStore.ts` — 20 importers
-2. Entitlement cluster — 26 files combined
-3. `lib/langRegistry.ts` — 20 importers
-4. `lib/packLoader.ts` — 5 importers
-5. `lib/srs.ts` — 13 importers
-6. `lib/tauri.ts` — 8 importers
-7. `lib/constants.ts` — 8 importers
+## What Task #176 Needs to Update
+CLAUDE.md §6 Pack Format: any mention of "Pack interface" or type definitions being in lib/packLoader.ts should reference lib/packTypes.ts instead. Add lib/packTypes.ts as a notable file if not already listed.
 
-## Important Modules
-- `lib/utils.ts` — pure utilities; exports `localDateStr(d?)`, `sha256Hex(text)`, `packUrl(lang)`.
-  After Task #173 (W1A, Wave 1), sha256Hex and packUrl were extracted here from packLoader.ts
-  and specialtyPackLoader.ts. Both packLoader.ts:33 and specialtyPackLoader.ts:11 now
-  import from "@/lib/utils".
-
-## Prior Wave Changes — Read Before Starting
-
-W1A (Wave 1, Adam) modified these files while closing Task #173:
-
-lib/utils.ts — ADDED sha256Hex(text: string): Promise<string> and packUrl(lang: string): string.
-  These were previously defined identically in both packLoader.ts and specialtyPackLoader.ts.
-  They now exist only in lib/utils.ts.
-
-lib/packLoader.ts — line 33: changed from `import { packUrl }` (local impl) to
-  `import { sha256Hex, packUrl } from "@/lib/utils"`. Removed the local sha256Hex
-  and packUrl function bodies. Types still defined here: PackMeta (line 38),
-  Manifest (line 47), Pack (line 53), CachedPackMeta (line 66), LoadPackResult (line 154).
-
-lib/specialtyPackLoader.ts — line 9: still imports `Pack, LoadPackResult, Manifest`
-  from "@/lib/packLoader". Line 11: imports `sha256Hex, packUrl` from "@/lib/utils".
-
-Your task (#175) is to move the 5 type definitions OUT of packLoader.ts and INTO
-the new lib/packTypes.ts file. After you're done:
-  - packLoader.ts should import its own types from "@/lib/packTypes"
-  - specialtyPackLoader.ts should import types from "@/lib/packTypes" instead of "@/lib/packLoader"
-  - CachedPackMeta can remain private (unexported) in packLoader.ts if you prefer,
-    OR move it to packTypes.ts — your judgment; it's only used in packLoader.ts.
-
-The 5 types to extract (current locations in packLoader.ts):
-  PackMeta    — line 38–45 (exported)
-  Manifest    — line 47–51 (exported)
-  Pack        — line 53–64 (exported)
-  CachedPackMeta — line 66–70 (unexported — used only inside packLoader.ts)
-  LoadPackResult — line 154–165 (exported union type)
-
-Rule 2 header required on lib/packTypes.ts (2–3 sentences describing ownership).
+## Done When
+grep "packTypes" CLAUDE.md returns ≥1 hit. Verification gate green.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W2A/completion.md:
-  Tasks closed: [list task numbers]
-  Tasks NOT completed: [list + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
+Write your completion summary to .autocode/stream-W1A/completion.md:
+  Tasks closed: [#176 or empty]
+  Tasks NOT completed: [list + reason]
+  Debt entries logged: 0
+  Carry-forward tasks generated: 0
 
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
+Then tell Max: "Adam is done."
 
-— Adam | W2A | #175
+— Adam | W1A | #176

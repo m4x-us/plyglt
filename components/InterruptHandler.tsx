@@ -24,15 +24,15 @@ function InterruptHandlerCore() {
   const router = useRouter();
   const { units } = useLangPack();
   const pathname = usePathname();
-  const { interruptEnabled, intervalHours, mandatory, dndStart, dndEnd } =
+  const { interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes } =
     useSettingsStore();
 
   // Keep the Rust thread in sync whenever relevant settings change.
   useEffect(() => {
-    updateInterruptConfig(interruptEnabled, intervalHours, mandatory).catch((err) => {
+    updateInterruptConfig(interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes).catch((err) => {
       console.error(`[ERR-IPC-CONFIG-${Date.now()}] Failed to sync interrupt config:`, err);
     });
-  }, [interruptEnabled, intervalHours, mandatory]);
+  }, [interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes]);
 
   // Subscribe to interrupt:fire events.
   useEffect(() => {

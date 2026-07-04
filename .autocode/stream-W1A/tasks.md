@@ -1,12 +1,13 @@
 # Stream W1A Task State
 
-### Task #173 | architecture | severity 7
-**What:** Extract duplicated `sha256Hex()` and `packUrl()` helpers that exist identically in both `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` into `lib/utils.ts`. The `sha256Hex(text: string): Promise<string>` implementation at `packLoader.ts:94-100` and `specialtyPackLoader.ts:21-27` is byte-for-byte identical. The `packUrl(lang: string): string` at `packLoader.ts:141-143` and `specialtyPackLoader.ts:17-19` is byte-for-byte identical. Remove both from both source files and add one canonical copy to `lib/utils.ts`. Update all callers to import from `lib/utils.ts`.
-**Why:** SCTS Poka-Yoke — a security-critical sha256 hash function with two independent copies is a stop-the-line violation. Task #156 extracted the specialty pack logic but copied these helpers instead of consolidating them. Any future divergence between the two copies would be undetectable.
-**File:** `lib/utils.ts`, `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
-**Severity:** 7 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 3 files, extraction refactor
-**Blocked by:** Nothing | **Blocks:** #175
-**Test required:** Yes — `tests/packLoader.test.ts` must still pass (no behavior change). Add one test to `tests/utils.test.ts` or equivalent pinning that `sha256Hex("abc")` returns `"ba7816bf8f01cfea414140de5dae2ec73b00361bbef0469f490f9e673c3eca08"` (known-answer test vector) so the Web Crypto stub alignment is verified.
-**Done when:** `grep -n "sha256Hex\|packUrl" lib/packLoader.ts lib/specialtyPackLoader.ts` shows only import statements, not implementations. Both functions implemented exactly once in `lib/utils.ts`. All 897 tests pass. Verification gate green.
-**Owner:** Architecture Agent
+### Task #176 | docs | severity 3
+**What:** Update CLAUDE.md and STATUS.md with run 9 findings. CLAUDE.md: (1) `lib/checkout.ts` entry — already updated inline. (2) `components/BuyModal.tsx` — already updated inline. (3) §6 specialty pack merge path — already updated inline. (4) `lib/specialtyPackLoader.ts` notable module entry — already added inline. STATUS.md: (1) auto-updater wired entry — already updated. (2) M2 planned description — already updated. Remaining: update `lib/packLoader.ts` §6 description to reflect that the Pack interface is now defined in `lib/packTypes.ts` (after Task #175 ships).
+**Why:** SCTS Kaizen — docs must stay current after every batch.
+**File:** `CLAUDE.md`, `STATUS.md`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 2 files, doc edits only
+**Blocked by:** #175 | **Blocks:** Nothing
+**Test required:** No.
+**Done when:** `grep "packTypes" CLAUDE.md` returns ≥1 hit. No stale pricing references in docs. Verification gate green.
+**Owner:** Docs Agent
+

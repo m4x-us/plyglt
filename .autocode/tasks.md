@@ -2982,6 +2982,7 @@ Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire inter
 **Test required:** No.
 **Done when:** `grep "packTypes" CLAUDE.md` returns ≥1 hit. No stale pricing references in docs. Verification gate green.
 **Owner:** Docs Agent
+**Status: COMPLETE — 2026-07-04**
 
 ---
 
@@ -3069,6 +3070,7 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 **Test required:** Yes — settings store migration test for new fields, component tests for new toggle rows.
 **Done when:** `InterruptConfig` has 4 new fields with correct defaults. `SETTINGS_VERSION` bumped + migration adds them. Settings page renders 3 toggles + idle threshold input. `update_interrupt_config` payload includes new fields. `npm test` passes. `cargo build` compiles. `store/migrations.ts` tests cover v→v+1 migration for the new fields.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-04**
 
 ---
 
@@ -3077,7 +3079,7 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 **Why:** Rule 5 + Kaizen — new store schema fields need migration tests (invariant: old data is not corrupted). New settings UI elements need Rule 14 component tests.
 **File:** `tests/migrations.test.ts`, `app/settings/page.test.tsx`
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 2 files, new tests
+**Complexity:** ⚡ Direct — 2 files, test additions only (no Full trigger keywords)
 **Blocked by:** #163 | **Blocks:** Nothing
 **Test required:** This task IS the tests.
 **Done when:** `tests/migrations.test.ts` has a new test for the SETTINGS_VERSION migration adding OS trigger defaults. `app/settings/page.test.tsx` has ≥3 new test cases for OS trigger toggles. `npm test` passes. Coverage thresholds maintained.

@@ -16,7 +16,7 @@ import { useExportImport } from "@/hooks/useExportImport";
 import { useLicenseActivation } from "@/hooks/useLicenseActivation";
 
 export default function SettingsPage() {
-  const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, setLaunchAtLogin, setInterruptEnabled, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes } = useSettingsStore();
+  const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes, setLaunchAtLogin, setInterruptEnabled, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes, setWakeEnabled, setUnlockEnabled, setIdleEnabled, setIdleThresholdMinutes } = useSettingsStore();
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
   useEffect(() => { runEntitlementValidation(useEntitlementStore.getState); }, []);
   const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "default" | "unsupported">("unsupported");
@@ -97,6 +97,19 @@ export default function SettingsPage() {
                   <input type="time" value={dndEnd} onChange={(e) => setDndEnd(e.target.value)} className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-yellow-600" />
                 </div>
               </div>
+            </Section>
+          )}
+          {interruptEnabled && isTauri && (
+            <Section title="OS Triggers">
+              <Toggle label="Remind on wake" description="Interrupt when your Mac wakes from sleep" checked={wakeEnabled} onChange={setWakeEnabled} />
+              <Toggle label="Remind on unlock" description="Interrupt when you unlock your screen" checked={unlockEnabled} onChange={setUnlockEnabled} />
+              <Toggle label="Remind when idle" description="Interrupt after your computer has been idle" checked={idleEnabled} onChange={setIdleEnabled} />
+              {idleEnabled && (
+                <div className="pt-2">
+                  <label className="text-sm text-gray-400 block mb-2">Idle threshold (minutes)</label>
+                  <input type="number" min={5} max={120} value={idleThresholdMinutes} onChange={(e) => setIdleThresholdMinutes(Number(e.target.value))} className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-1.5 text-sm w-24 focus:outline-none focus:border-yellow-600" />
+                </div>
+              )}
             </Section>
           )}
           <Section title="License">

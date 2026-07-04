@@ -22,11 +22,15 @@ export function updateTrayBadge(dueCount: number): void {
 export async function updateInterruptConfig(
   enabled: boolean,
   intervalHours: number,
-  mandatory: boolean
+  mandatory: boolean,
+  wakeEnabled: boolean,
+  unlockEnabled: boolean,
+  idleEnabled: boolean,
+  idleThresholdMinutes: number
 ): Promise<void> {
   if (!isTauri) return;
   try {
-    await invoke("update_interrupt_config", { enabled, intervalHours, mandatory });
+    await invoke("update_interrupt_config", { enabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes });
   } catch (err) {
     const ref = `ERR-IPC-${Date.now()}`;
     console.error(`[${ref}] update_interrupt_config IPC failed — Rust scheduler not updated`, err);

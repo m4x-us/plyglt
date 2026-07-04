@@ -23,6 +23,10 @@ pub struct InterruptState {
     pub last_triggered_secs: u64,
     /// True when the window was raised automatically by an interrupt (hide on exit).
     pub auto_opened: bool,
+    pub wake_enabled: bool,
+    pub unlock_enabled: bool,
+    pub idle_enabled: bool,
+    pub idle_threshold_secs: u64,
 }
 
 pub fn now_secs() -> u64 {
@@ -42,6 +46,10 @@ impl Default for InterruptState {
             // Start far in the past so first check fires immediately once enabled.
             last_triggered_secs: now_secs().saturating_sub(3600 * 24),
             auto_opened: false,
+            wake_enabled: true,
+            unlock_enabled: true,
+            idle_enabled: true,
+            idle_threshold_secs: 15 * 60,
         }
     }
 }
@@ -95,11 +103,19 @@ pub fn update_interrupt_config(
     enabled: bool,
     interval_hours: f32,
     mandatory: bool,
+    wake_enabled: bool,
+    unlock_enabled: bool,
+    idle_enabled: bool,
+    idle_threshold_minutes: u32,
 ) {
     if let Ok(mut st) = state.lock() {
         st.enabled = enabled;
         st.interval_secs = (interval_hours * 3600.0) as u64;
         st.mandatory = mandatory;
+        st.wake_enabled = wake_enabled;
+        st.unlock_enabled = unlock_enabled;
+        st.idle_enabled = idle_enabled;
+        st.idle_threshold_secs = u64::from(idle_threshold_minutes) * 60;
     }
 }
 

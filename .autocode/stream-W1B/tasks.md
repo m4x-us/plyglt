@@ -1,12 +1,13 @@
 # Stream W1B Task State
 
-### Task #174 | architecture | severity 6
-**What:** `app/stats/page.tsx` is 158 lines — 8 lines over the ≤150 app route limit. Task #155 (analytics Pro gate) added an early-return block (lines 17–24) that pushed the file over the limit. Extract the "not Pro" fallback UI to a new component `components/StatsProGate.tsx` and render it from `app/stats/page.tsx` in place of the inline block.
-**Why:** Rule 1 — app routes must stay ≤150 lines. Stop-the-line. The stats page is the only app route currently over the limit.
-**File:** `app/stats/page.tsx`, `components/StatsProGate.tsx` (new)
-**Severity:** 6 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 2 files, component extraction
-**Blocked by:** Nothing | **Blocks:** Nothing
-**Test required:** Yes — `app/stats/page.test.tsx` must still pass. Add a co-located `components/StatsProGate.test.tsx` with ≥1 test confirming the upgrade prompt renders when Pro is not active.
-**Done when:** `wc -l app/stats/page.tsx` ≤ 150. `components/StatsProGate.tsx` exists with a Rule 2 header. `components/StatsProGate.test.tsx` exists with ≥1 test. Verification gate green.
+### Task #163 | feature | severity 5
+**What:** Add OS trigger toggle controls to interrupt settings. Extend `InterruptConfig` in `store/settingsStore.ts` with 4 new fields: `wakeEnabled: boolean` (default true), `unlockEnabled: boolean` (default true), `idleEnabled: boolean` (default true), `idleThresholdMinutes: number` (default 15). Bump `SETTINGS_VERSION` and add migration. Wire all 4 through the `update_interrupt_config` IPC command (extend its payload type in `src-tauri/src/interrupt.rs` and `lib/tauriInterrupt.ts`). Add 3 toggle rows and an idle-threshold number input to the interrupt section in `app/settings/page.tsx`.
+**Why:** Users need control over which triggers fire. Some may not want interruptions on every wake; others may prefer only scheduled interruptions. Without controls, all 3 new OS triggers fire permanently with no opt-out.
+**File:** `store/settingsStore.ts`, `store/migrations.ts`, `app/settings/page.tsx`, `lib/tauriInterrupt.ts`, `src-tauri/src/interrupt.rs`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 5 files, new settings + migration
+**Blocked by:** #162 | **Blocks:** #164
+**Test required:** Yes — settings store migration test for new fields, component tests for new toggle rows.
+**Done when:** `InterruptConfig` has 4 new fields with correct defaults. `SETTINGS_VERSION` bumped + migration adds them. Settings page renders 3 toggles + idle threshold input. `update_interrupt_config` payload includes new fields. `npm test` passes. `cargo build` compiles. `store/migrations.ts` tests cover v→v+1 migration for the new fields.
 **Owner:** Architecture Agent
+

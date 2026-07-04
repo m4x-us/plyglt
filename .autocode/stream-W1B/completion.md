@@ -2,6 +2,46 @@
 
 ---
 
+## Wave 1 — 2026-07-04 (#163) — Barry
+
+**Status: COMPLETE**
+**Files modified: 8**
+
+### Tasks closed
+- **#163** — Add OS trigger toggle controls to interrupt settings — COMPLETE
+
+### What was built
+
+**`store/migrations.ts`** — Bumped `SETTINGS_VERSION` 1→2. Added `SETTINGS_MIGRATIONS[2]` filling `wakeEnabled: true`, `unlockEnabled: true`, `idleEnabled: true`, `idleThresholdMinutes: 15` with opt-out defaults (existing users keep all triggers active until explicitly disabled).
+
+**`store/settingsStore.ts`** — Added 4 new fields to `SettingsState` interface and store factory: `wakeEnabled`, `unlockEnabled`, `idleEnabled`, `idleThresholdMinutes`. Added 4 corresponding setter actions.
+
+**`lib/tauriInterrupt.ts`** — Extended `updateInterruptConfig` signature to include `wakeEnabled`, `unlockEnabled`, `idleEnabled`, `idleThresholdMinutes`. All 4 included in the `invoke` payload.
+
+**`src-tauri/src/interrupt.rs`** — Added `wake_enabled`, `unlock_enabled`, `idle_enabled`, `idle_threshold_secs` to `InterruptState`. Defaults: true/true/true/15min. Extended `update_interrupt_config` command to accept and store all 4 new parameters.
+
+**`components/InterruptHandler.tsx`** — Destructured 4 new fields from `useSettingsStore`. Passes them to `updateInterruptConfig`. Added to effect dependency array.
+
+**`app/settings/page.tsx`** — Destructured 4 new fields + setters. Added `{interruptEnabled && isTauri && ...}` OS Triggers section with 3 toggle rows (Remind on wake, Remind on unlock, Remind when idle) and a conditional idle threshold number input (min 5, max 120).
+
+**`tests/migrations.test.ts`** — Updated `SETTINGS_VERSION is 1` → `SETTINGS_VERSION is 2`. Added 6 migration tests covering v1→v2: defaults when absent, preserves existing wakeEnabled=false, preserves custom idleThresholdMinutes, all v1 fields unchanged, and full v0→v2 chain.
+
+**`app/settings/page.test.tsx`** — Updated `resetStores` to include 4 new fields. Added 2 tests: OS Triggers section renders 3 toggles (with `aria-checked` assertions), clicking wake toggle updates store.
+
+### Done-when verification
+- `InterruptConfig` has 4 new fields with correct defaults ✓
+- `SETTINGS_VERSION` bumped + migration adds all 4 fields ✓
+- Settings page renders 3 toggles + idle threshold input ✓
+- `update_interrupt_config` payload includes all new fields (TS + Rust) ✓
+- `npm test` → 917/917 (15 new tests) ✓
+- `cargo check --lib` → `Finished dev profile` clean ✓
+- `store/migrations.ts` tests cover v1→v2 for all 4 new fields ✓
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 1 — 2026-07-01 (#174) — Barry
 
 **Status: COMPLETE**
