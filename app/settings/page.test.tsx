@@ -13,7 +13,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useEntitlementStore } from "@/store/entitlementStore";
+import { useEntitlementStore, ALL_KNOWN_PACKS } from "@/store/entitlementStore";
+import { openExternalUrl } from "@/lib/tauri";
+import type { LicenseStatus } from "@/hooks/useLicenseActivation";
 
 // ── vi.hoisted: any value closed over by a vi.mock factory must be hoisted ────
 // vi.mock factories are hoisted before module imports; outer-scope variables are
@@ -30,7 +32,7 @@ const { mockActivation } = vi.hoisted(() => ({
   mockActivation: {
     licenseInput: "" as string,
     setLicenseInput: vi.fn(),
-    licenseStatus: { type: "idle" as const },
+    licenseStatus: { type: "idle" } as LicenseStatus,
     setLicenseStatus: vi.fn(),
     handleActivate: vi.fn(),
     handleValidate: vi.fn(),
@@ -146,12 +148,13 @@ function resetStores() {
 beforeEach(() => {
   tauriState.isTauri = false;
   mockActivation.licenseInput = "";
+  mockActivation.licenseStatus = { type: "idle" };
   // clearAllMocks resets call counts but preserves mock implementations
   vi.clearAllMocks();
   resetStores();
 });
 
-afterEach(() => { cleanup(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 // ── Helper: find the role="switch" button within the group labelled by `label` ─
 // Toggle renders the label in a sibling <div>, not inside the <button>, so
@@ -162,6 +165,14 @@ function getSwitchByLabel(label: string): HTMLElement {
   const btn = groupDiv!.querySelector('button[role="switch"]') as HTMLElement;
   if (!btn) throw new Error(`No switch found in group labelled "${label}"`);
   return btn;
+}
+
+// ── Helper: the idle-threshold <input> has no htmlFor/id association with its
+// <label> — find it via the label text's parent container instead.
+function queryIdleThresholdInput(): HTMLInputElement | null {
+  const labelEl = screen.queryByText("Idle threshold (minutes)");
+  if (!labelEl) return null;
+  return labelEl.parentElement!.querySelector("input") as HTMLInputElement | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,5 +253,276 @@ describe("SettingsPage", () => {
 
     expect(useSettingsStore.getState().interruptEnabled).toBe(true);
     expect(interruptSwitch.getAttribute("aria-checked")).toBe("true");
+  });
+
+  // Test 6: OS Triggers section is absent in web mode even when interruptEnabled=true
+  it("OS Triggers section does not render when isTauri is false", () => {
+    tauriState.isTauri = false;
+    useSettingsStore.setState({ interruptEnabled: true });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByText("OS Triggers")).toBeNull();
+    expect(screen.queryByText("Remind on wake")).toBeNull();
+  });
+
+  // Test 7: OS Triggers section is absent when interruptEnabled=false, even on Tauri
+  it("OS Triggers section does not render when interruptEnabled is false", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByText("OS Triggers")).toBeNull();
+  });
+
+  // Test 8: Clicking the unlock toggle updates unlockEnabled in settingsStore
+  it("clicking 'Remind on unlock' toggle updates unlockEnabled in settingsStore", async () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, unlockEnabled: true });
+
+    render(<SettingsPage />);
+
+    const unlockSwitch = getSwitchByLabel("Remind on unlock");
+    expect(unlockSwitch.getAttribute("aria-checked")).toBe("true");
+
+    await act(async () => { fireEvent.click(unlockSwitch); });
+
+    expect(useSettingsStore.getState().unlockEnabled).toBe(false);
+    expect(unlockSwitch.getAttribute("aria-checked")).toBe("false");
+  });
+
+  // Test 9: Clicking the idle toggle updates idleEnabled and hides the threshold input
+  it("clicking 'Remind when idle' toggle updates idleEnabled and hides the threshold input", async () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    expect(queryIdleThresholdInput()).not.toBeNull();
+    const idleSwitch = getSwitchByLabel("Remind when idle");
+    expect(idleSwitch.getAttribute("aria-checked")).toBe("true");
+
+    await act(async () => { fireEvent.click(idleSwitch); });
+
+    expect(useSettingsStore.getState().idleEnabled).toBe(false);
+    expect(queryIdleThresholdInput()).toBeNull();
+  });
+
+  // Test 10: Idle threshold input is not rendered when idleEnabled is false
+  it("idle threshold input is not rendered when idleEnabled is false", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: false });
+
+    render(<SettingsPage />);
+
+    expect(getSwitchByLabel("Remind when idle").getAttribute("aria-checked")).toBe("false");
+    expect(queryIdleThresholdInput()).toBeNull();
+  });
+
+  // Test 11: Changing the idle threshold input updates idleThresholdMinutes in settingsStore
+  it("changing the idle threshold input updates idleThresholdMinutes in settingsStore", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    const input = queryIdleThresholdInput();
+    expect(input?.value).toBe("15");
+
+    fireEvent.change(input!, { target: { value: "45" } });
+
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(45);
+  });
+
+  // Test 12: Active subscription license renders label, Active badge, all-languages message,
+  // validUntil date, and a Manage subscription button
+  it("renders active subscription license with all-languages unlocked and validUntil date", () => {
+    const validUntil = new Date("2027-03-01T00:00:00Z").getTime();
+    useEntitlementStore.setState({
+      licenseKey: "PLYGLT-ABCD-1234-EFGH",
+      instanceId: "inst-1",
+      licenseType: "subscription",
+      unlockedPacks: [...ALL_KNOWN_PACKS],
+      lastValidated: Date.now(),
+      validUntil,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText("Subscription license")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("All languages unlocked", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(`· active until ${new Date(validUntil).toLocaleDateString()}`, { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Manage subscription →" })).toBeInTheDocument();
+  });
+
+  // Test 13: Free license (licenseType !== "subscription") shows "Free license" and hides
+  // the Manage subscription button; partial unlockedPacks lists specific codes
+  it("renders free license type without a Manage subscription button, listing specific unlocked packs", () => {
+    useEntitlementStore.setState({
+      licenseKey: "PLYGLT-FREE-0000-0000",
+      instanceId: "inst-2",
+      licenseType: "free",
+      unlockedPacks: ["it"],
+      lastValidated: 0,
+      validUntil: null,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText("Free license")).toBeInTheDocument();
+    expect(screen.getByText("IT unlocked")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Manage subscription →" })).toBeNull();
+  });
+
+  // Test 14: Clicking Manage subscription calls openExternalUrl with the customer portal URL
+  it("clicking 'Manage subscription' calls openExternalUrl with the customer portal URL", () => {
+    useEntitlementStore.setState({ licenseKey: "PLYGLT-ABCD-1234-EFGH", licenseType: "subscription" });
+
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Manage subscription →" }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith("https://pay.example.com/portal");
+  });
+
+  // Test 15: Clicking Re-validate and Deactivate call their respective handlers
+  it("clicking Re-validate and Deactivate call handleValidate and handleDeactivate", () => {
+    useEntitlementStore.setState({ licenseKey: "PLYGLT-ABCD-1234-EFGH", licenseType: "subscription" });
+
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Re-validate" }));
+    expect(mockActivation.handleValidate).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    expect(mockActivation.handleDeactivate).toHaveBeenCalledTimes(1);
+  });
+
+  // Test 16: Error and success licenseStatus messages render with their exact text
+  // in the licenseKey-set (active license) branch
+  it("renders licenseStatus error and success messages when a license is active", () => {
+    useEntitlementStore.setState({ licenseKey: "PLYGLT-ABCD-1234-EFGH", licenseType: "subscription" });
+    mockActivation.licenseStatus = { type: "error", message: "Validation failed — check your connection." };
+
+    const { unmount } = render(<SettingsPage />);
+    expect(screen.getByText("Validation failed — check your connection.")).toBeInTheDocument();
+    unmount();
+
+    mockActivation.licenseStatus = { type: "success", message: "License re-validated." };
+    render(<SettingsPage />);
+    expect(screen.getByText("License re-validated.")).toBeInTheDocument();
+  });
+
+  // Test 17: Error and success licenseStatus messages render in the no-license (activation form) branch
+  it("renders licenseStatus error and success messages on the license activation form", () => {
+    mockActivation.licenseStatus = { type: "error", message: "Activation failed." };
+
+    const { unmount } = render(<SettingsPage />);
+    expect(screen.getByText("Activation failed.")).toBeInTheDocument();
+    unmount();
+
+    mockActivation.licenseStatus = { type: "success", message: "License activated." };
+    render(<SettingsPage />);
+    expect(screen.getByText("License activated.")).toBeInTheDocument();
+  });
+
+  // Test 18: handleInterruptToggle returns early (does not enable) when notification
+  // permission is already "denied"
+  it("does not enable review reminders when notification permission is denied", async () => {
+    vi.stubGlobal("Notification", { permission: "denied", requestPermission: vi.fn() });
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    render(<SettingsPage />);
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    expect(useSettingsStore.getState().interruptEnabled).toBe(false);
+  });
+
+  // Test 19: handleInterruptToggle requests permission when "default", then enables on grant
+  it("requests notification permission and enables review reminders when granted", async () => {
+    const requestPermission = vi.fn().mockResolvedValue("granted");
+    vi.stubGlobal("Notification", { permission: "default", requestPermission });
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    render(<SettingsPage />);
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().interruptEnabled).toBe(true);
+  });
+
+  // Test 20: handleInterruptToggle requests permission when "default", stays disabled on refusal
+  it("requests notification permission and leaves review reminders disabled when refused", async () => {
+    const requestPermission = vi.fn().mockResolvedValue("denied");
+    vi.stubGlobal("Notification", { permission: "default", requestPermission });
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    render(<SettingsPage />);
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().interruptEnabled).toBe(false);
+  });
+
+  // Test 21: Mandatory mode toggle reveals snooze duration buttons; clicking one updates snoozeMinutes
+  it("enabling mandatory mode reveals snooze duration options and updates snoozeMinutes on click", () => {
+    useSettingsStore.setState({ interruptEnabled: true, mandatory: true, snoozeMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    const thirtyMinBtn = screen.getByRole("button", { name: "30 min" });
+    expect(useSettingsStore.getState().snoozeMinutes).toBe(15);
+
+    fireEvent.click(thirtyMinBtn);
+
+    expect(useSettingsStore.getState().snoozeMinutes).toBe(30);
+  });
+
+  // Test 22: Snooze duration options are absent when mandatory mode is off
+  it("does not render snooze duration options when mandatory mode is off", () => {
+    useSettingsStore.setState({ interruptEnabled: true, mandatory: false });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByText("Snooze duration")).toBeNull();
+  });
+
+  // Test 23: License activation button shows the loading indicator and is disabled while loading
+  it("disables the Activate button and shows a loading indicator while licenseStatus is loading", () => {
+    mockActivation.licenseStatus = { type: "loading" };
+    mockActivation.licenseInput = "PLYGLT-TEST-1234-ABCD";
+
+    render(<SettingsPage />);
+
+    const activateBtn = screen.getByRole("button", { name: "…" });
+    expect(activateBtn).toBeDisabled();
+  });
+
+  // Test 24: Pressing Enter in the license key input triggers handleActivate
+  it("pressing Enter in the license key input calls handleActivate", () => {
+    render(<SettingsPage />);
+
+    const input = screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(mockActivation.handleActivate).toHaveBeenCalledTimes(1);
+  });
+
+  // Test 25: Pressing a non-Enter key in the license key input does not trigger handleActivate
+  it("pressing a non-Enter key in the license key input does not call handleActivate", () => {
+    render(<SettingsPage />);
+
+    const input = screen.getByPlaceholderText("XXXX-XXXX-XXXX-XXXX");
+    fireEvent.keyDown(input, { key: "Tab" });
+
+    expect(mockActivation.handleActivate).not.toHaveBeenCalled();
   });
 });
