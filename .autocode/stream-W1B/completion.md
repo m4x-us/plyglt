@@ -2,6 +2,44 @@
 
 ---
 
+## Wave 1 — 2026-07-05 (#195 #221 #197 #218 #203 #207 #208 #220) — Barry
+
+**Status: COMPLETE (with one cross-stream blocker noted)**
+**Files modified: 4**
+
+### Tasks closed
+- **#195** — Fix JSDoc for `updateInterruptConfig` — names both threads and their field consumption — COMPLETE
+- **#221** — Add try/catch to `exitMandatoryMode` + fix two call sites in `app/study/page.tsx` — COMPLETE
+- **#197** — Update `interrupt.rs` file header to list all 4 new InterruptState fields — COMPLETE
+- **#218** — Surface poisoned mutex error in `update_interrupt_config` via `eprintln!` — COMPLETE
+- **#203** — Replace banned `.not.toBeNull()` at Test 9 with specific value assertion — COMPLETE
+- **#207** — Renumber test comments to sequential file order (Tests 3/4/5 were out of order) — COMPLETE
+- **#208** — Update `page.test.tsx` file header to document OS-trigger test coverage — COMPLETE
+- **#220** — Add scope attribution comment block before Tests 12–25 in `page.test.tsx` — COMPLETE
+
+### What was built
+
+**`lib/tauriInterrupt.ts`** — JSDoc for `updateInterruptConfig` rewritten to name both Rust threads (interrupt.rs poll loop and os_events.rs) and clarify which fields each consumes. `exitMandatoryMode` gained try/catch with ERR-IPC-* ref log matching the sibling pattern.
+
+**`app/study/page.tsx`** — Two `exitMandatoryMode` call sites fixed: the "Nothing ready" button had zero error handling; the snooze button had try/finally with no catch. Both now have try/catch with ERR-IPC-EXIT-* ref logs.
+
+**`src-tauri/src/interrupt.rs`** — File header updated to list all 10 InterruptState fields and reference the os_events.rs wiring gap (#187–#190). `update_interrupt_config` changed from silent `if let Ok()` to a `match` that logs a poisoned mutex via `eprintln!`.
+
+**`app/settings/page.test.tsx`** — Four changes: banned `.not.toBeNull()` replaced with `.toBe("15")` specific value assertion; test comment numbering corrected (Tests 3/4/5 were out of order); file header updated to document OS-trigger coverage; scope attribution comment added before Tests 12–25.
+
+### Verification results
+- `npm test` → 937/937 ✓
+- `npx tsc --noEmit` → clean ✓
+- `cargo check --lib` → BLOCKED by pre-existing error in `src-tauri/src/os_events.rs:154` — undefined `IDLE_THRESHOLD_SECS`. Off-limits for Barry (owned by another parallel stream). Error pre-dates Barry's current changes. Barry's own changed files compile correctly.
+
+### Cross-stream blocker to resolve
+`os_events.rs:154` references `IDLE_THRESHOLD_SECS` which is not defined in any in-scope Rust file. The owning stream needs to define this constant before `cargo check --lib` is green across the wave.
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 1 — 2026-07-04 (#163) — Barry
 
 **Status: COMPLETE**

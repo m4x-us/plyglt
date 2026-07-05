@@ -11,7 +11,10 @@ import { useLangPack } from "@/hooks/useLangPack";
 import { LANG_PAIR_KEY } from "@/lib/constants";
 import { listen } from "@/lib/tauri";
 import { updateTrayBadge } from "@/lib/tauriInterrupt";
-import { useIsHydrated } from "@/lib/storage";
+import { createPlatformStorage, useIsHydrated } from "@/lib/storage";
+
+// Route through the platform storage abstraction — never call localStorage directly (CLAUDE.md).
+const _langPairStore = createPlatformStorage("lang");
 import type { Unit } from "@/content/types";
 import LevelSection from "@/components/LevelSection";
 
@@ -124,7 +127,7 @@ export default function Home() {
         <p className="text-gray-700 text-xs">{lang.uiStrings.curriculumCredit} · {ALL_UNITS.length} units</p>
         <Link href="/stats" className="text-gray-700 hover:text-gray-400 text-xs transition-colors">Stats →</Link>
         <Link href="/settings" className="text-gray-700 hover:text-gray-400 text-xs transition-colors">Settings →</Link>
-        <Link href="/" onClick={() => { window.localStorage.removeItem(LANG_PAIR_KEY); }} className="text-gray-700 hover:text-gray-400 text-xs transition-colors">Switch language →</Link>
+        <Link href="/" onClick={() => { void _langPairStore.removeItem(LANG_PAIR_KEY); }} className="text-gray-700 hover:text-gray-400 text-xs transition-colors">Switch language →</Link>
       </div>
     </div>
   );

@@ -1,3 +1,56 @@
+# Stream W1C — Batch 19 Remediation (Tasks #200 #202 #201 #205 #204 #206 #211 #212)
+**Date:** 2026-07-05
+**Agent:** Charles
+**Status:** COMPLETE
+**Verification gate at close:** tsc=0 errors · 950/950 tests pass · lint=0 errors (1 pre-existing warning in unowned file)
+
+## Tasks closed
+- #200 — `components/InterruptHandler.test.tsx`: assert all 7 args of `updateInterruptConfig` with distinct OS-trigger values
+- #201 — `tests/tauri.test.ts`: distinct bool values for args 4-6; assert exact `invoke` call shape in resolves test
+- #202 — `tests/settingsStore.test.ts`: OS-trigger defaults test + setter tests + range validation tests for `setIdleThresholdMinutes`
+- #204 — `tests/migrations.test.ts`: add `.toBe(state)` reference-equality guard to all 4 "no-op at current version" tests
+- #205 — `tests/tauri.test.ts`: add `checkSpy` asserting `check()` never called in web-mode `checkForUpdates` test
+- #206 — `tests/migrations.test.ts`: add gap-free migration chain guard tests for srsStore and settingsStore
+- #211 — `store/settingsStore.ts`: add `IDLE_THRESHOLD_MIN=5`, `IDLE_THRESHOLD_MAX=120`; clamp `setIdleThresholdMinutes` to [5,120]
+- #212 — `store/migrations.ts`: clamp `idleThresholdMinutes` to [5,120] in `SETTINGS_MIGRATIONS[2]`; add two clamping tests in migrations.test.ts
+
+## What was done
+
+### Task #212 — `store/migrations.ts`
+Added range clamping to `SETTINGS_MIGRATIONS[2]` for `idleThresholdMinutes`. A persisted value of -50 or 99999 now clamps to 5 or 120 respectively. Added `rawThreshold` local to avoid inline ternary nesting.
+
+### Task #211 — `store/settingsStore.ts`
+Exported `IDLE_THRESHOLD_MIN = 5` and `IDLE_THRESHOLD_MAX = 120` constants. Updated `setIdleThresholdMinutes` setter to `Math.min(IDLE_THRESHOLD_MAX, Math.max(IDLE_THRESHOLD_MIN, v))` — consistent with the pattern used by bounded sibling setters.
+
+### Task #202 — `tests/settingsStore.test.ts`
+- Updated `beforeEach` to include all 4 new OS trigger fields (wakeEnabled/unlockEnabled/idleEnabled/idleThresholdMinutes) for full state determinism.
+- Added "has expected OS trigger defaults" test in the defaults describe block.
+- Added setter tests: `setWakeEnabled`, `setUnlockEnabled`, `setIdleEnabled`, `setIdleThresholdMinutes` (in-range, clamp-low, clamp-high).
+
+### Task #200 — `components/InterruptHandler.test.tsx`
+Updated `beforeEach` to include the 4 new fields. Updated the "calls updateInterruptConfig when interruptEnabled changes" test to set distinct values (`wakeEnabled=false, unlockEnabled=true, idleEnabled=false, idleThresholdMinutes=45`) and assert `calls[1]` equals all 7 args via `toEqual(...)`.
+
+### Task #201 — `tests/tauri.test.ts`
+Changed all three `updateInterruptConfig(true, 1, false, true, true, true, 15)` calls to `(true, 1, false, true, false, true, 20)` — `unlockEnabled=false` makes the 3 bool fields distinguishable. In the "resolves successfully" test, captured `mockInvoke` outside the factory and asserted `toHaveBeenCalledWith("update_interrupt_config", { enabled: true, intervalHours: 1, mandatory: false, wakeEnabled: true, unlockEnabled: false, idleEnabled: true, idleThresholdMinutes: 20 })`.
+
+### Task #205 — `tests/tauri.test.ts`
+Added `vi.resetModules()` + `checkSpy = vi.fn()` + `vi.doMock("@tauri-apps/plugin-updater", () => ({ check: checkSpy }))` to the web-mode `checkForUpdates` test. Asserts `expect(checkSpy).not.toHaveBeenCalled()` — test now fails if the `isTauri` guard is deleted.
+
+### Task #204 — `tests/migrations.test.ts`
+Added `expect(result).toBe(state)` to all 4 "no-op at current version" tests (srsStore ×2, entitlement ×1, settings ×1). Reference equality fails if any migration step ran (each migration creates a new object via spread or fresh object literal).
+
+### Task #206 — `tests/migrations.test.ts`
+Added two gap-free chain guard tests each for srsStore and settingsStore, matching the existing entitlement pattern: "migrating from v0 does not throw" + "last step (VERSION-1 → current) does not throw". Added two clamping behavior tests for the settings v1→v2 migration (Kaizen for Task #212).
+
+## Test count
+- Before: ~897 (baseline after previous batch)
+- After: 950 (+53 new tests)
+
+## Debt entries logged: 0
+## Carry-forward tasks generated: 0
+
+---
+
 # Stream W1C — Wave 1 Completion (Task #177)
 **Date:** 2026-07-01
 **Agent:** Charles

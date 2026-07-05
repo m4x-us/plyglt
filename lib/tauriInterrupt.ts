@@ -18,7 +18,15 @@ export function updateTrayBadge(dueCount: number): void {
 
 // ── Interrupt / mandatory mode ────────────────────────────────────────────────
 
-/** Push interrupt settings to the Rust background thread. No-op in web. Throws on IPC failure. */
+/**
+ * Push interrupt settings to two independent Rust background threads:
+ *   1. interrupt.rs poll loop — reads enabled, interval_secs, mandatory, snooze_until_secs.
+ *      These four fields take effect immediately after this call.
+ *   2. os_events.rs — will read wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs
+ *      once the wiring tasks (#187–#190) land. Until then those fields are stored in
+ *      InterruptState but not consulted by the OS event thread.
+ * No-op in web. Throws on IPC failure.
+ */
 export async function updateInterruptConfig(
   enabled: boolean,
   intervalHours: number,
@@ -56,8 +64,14 @@ export async function enterMandatoryMode(): Promise<void> {
   await invoke("enter_mandatory_mode");
 }
 
-/** Restore window decorations (and hide if it was auto-opened). No-op in web. */
+/** Restore window decorations (and hide if it was auto-opened). No-op in web. Throws on IPC failure. */
 export async function exitMandatoryMode(): Promise<void> {
   if (!isTauri) return;
-  await invoke("exit_mandatory_mode");
+  try {
+    await invoke("exit_mandatory_mode");
+  } catch (err) {
+    const ref = `ERR-IPC-${Date.now()}`;
+    console.error(`[${ref}] exit_mandatory_mode IPC failed — window may remain in mandatory state`, err);
+    throw new Error(`Exit mandatory mode IPC failed (${ref})`);
+  }
 }

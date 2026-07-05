@@ -1,25 +1,94 @@
 # Stream W1D Task State
 
-### Task #156 | architecture | severity 5
-**What:** Extract specialty-pack handling from `lib/packLoader.ts` (currently 426 lines — 26 over Rule 1 service ceiling of 400) into new `lib/specialtyPackLoader.ts`. Move: `isReadySpecialtyPack` guard logic, specialty pack download + sha256 verify + merge into `memCache[baseLang]`, `loadedAddOns` array, `getLoadedAddOns()` export, `"base_pack_not_loaded"` error path. `lib/packLoader.ts` calls `lib/specialtyPackLoader.ts` for the specialty branch. Keep `clearCacheForTesting` exports accessible to tests (either re-export or expose from both modules). Add Rule 2 header to `lib/specialtyPackLoader.ts`.
-**Why:** Rule 1 — service files cap at 400 lines. `lib/packLoader.ts` is at 426 lines and will grow as specialty packs ship. Extract now avoids a larger refactor later.
-**File:** `lib/packLoader.ts`, `lib/specialtyPackLoader.ts` (new), `tests/packLoader.test.ts`
-**Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 2 files + 1 new, refactor (keyword: extract)
-**Blocked by:** Nothing | **Blocks:** Nothing
-**Test required:** Yes — all 28+ existing packLoader tests must continue passing, including the 3 specialty pack merge path tests.
-**Done when:** `lib/packLoader.ts` ≤ 400 lines. `lib/specialtyPackLoader.ts` exists with Rule 2 header. All existing packLoader tests pass (no regressions). `npm test` passes. No coverage regression.
+### Task #217: Fix reliability: config-sync effect has no debounce, allowing rapid toggles to race and silently revert.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The config-sync effect (lines 31-35) has no debounce or request sequencing. Rapid toggle clicks can race — an older in-flight update_interrupt_config call resolving after a newer one could silently revert a toggle in Rust-side state with no user-visible indication, at components/InterruptHandler.tsx:config-sync effect:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix reliability issue at components/InterruptHandler.tsx:config-sync effect:31
+- [ ] Add a debounce or sequence-number guard so only the latest config write wins
+
+**Source:** Audit finding F032 — severity 5 — reliability
 
 ---
 
-### Task #157 | tests | severity 4
-**What:** Add a test describe block to `tests/langRegistry.test.ts` exercising `getSpecialtyPacks(lang)` with a non-empty `SPECIALTY_PACKS` registry. Use `vi.mock`/`vi.hoisted` to temporarily replace `SPECIALTY_PACKS` with a 3-pack mock (2 with `baseLang: "it"`, 1 with `baseLang: "es"`). Assert: `getSpecialtyPacks("it")` returns exactly the 2 Italian packs; `getSpecialtyPacks("es")` returns exactly the 1 Spanish pack; `getSpecialtyPacks("fr")` returns [].
-**Why:** The `sp.baseLang === lang` filter predicate in `getSpecialtyPacks()` has no test with a non-empty registry. LanguageGrid tests mock the function entirely. If someone adds specialty packs and misspells `baseLang`, no test catches it.
-**File:** `tests/langRegistry.test.ts`
-**Severity:** 4 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, tests only
-**Blocked by:** Nothing | **Blocks:** Nothing
-**Test required:** This task IS the test.
-**Done when:** `tests/langRegistry.test.ts` has a new describe block "getSpecialtyPacks with non-empty registry" with ≥3 test cases. `npm test` passes.
-**Owner:** QA Agent
+---
+
+### Task #222: Fix architecture: InterruptHandler.tsx imports directly from store/, violating the components/ layer rule.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Imports directly from store/ (settingsStore, srsStore), contradicting CLAUDE.md's layer rule: "components/ — Import from hooks/ and lib/ only." Pre-existing pattern, not introduced by this task, at components/InterruptHandler.tsx:module imports:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at components/InterruptHandler.tsx:module imports:1
+- [ ] Consider a hook wrapper (e.g. useInterruptConfig) to restore the documented layer boundary
+
+**Source:** Audit finding F037 — severity 4 — architecture
+
+---
+
+---
+
+### Task #223: Fix brand-voice: tray tooltip strings use a forbidden exclamation mark and non-canonical "due" terminology.
+
+**File:** src-tauri/src/lib.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Tray tooltips at lines 59 and 61 violate BRAND.md voice rules: "all caught up!" uses a forbidden exclamation mark, and "due" is used instead of the canonical terminology "ready". Pre-existing code, not touched by the #163/#164 diff, at src-tauri/src/lib.rs:tray tooltip strings:59.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix brand-voice issue at src-tauri/src/lib.rs:tray tooltip strings:59
+- [ ] Rewrite tooltip strings to match BRAND.md voice and terminology
+
+**Source:** Audit finding F038 — severity 2 — brand-voice
+
+---
+
+---
+
+### Task #224: Fix architecture: app/learn/page.tsx calls localStorage directly, bypassing the storage abstraction.
+
+**File:** app/learn/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Direct localStorage call at line 127, bypassing the lib/storage.ts platform-storage abstraction required by CLAUDE.md ("Never call localStorage directly from any file outside lib/storage.ts"). Pre-existing/systemic issue, not introduced by this task, at app/learn/page.tsx:n/a:127.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at app/learn/page.tsx:n/a:127
+- [ ] Route through lib/storage.ts or a dedicated helper
+
+**Source:** Audit finding F039 — severity 2 — architecture
+
+---
+
+---
+

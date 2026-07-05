@@ -126,14 +126,17 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   },
   // v1 → v2: adds OS trigger controls. Defaults to true/true/true/15 — opt-out model
   // so existing users keep all triggers active until they explicitly disable them.
+  // idleThresholdMinutes is clamped to [5, 120] to reject corrupt persisted values
+  // (e.g. -50 or 99999) that would produce nonsensical OS idle detection thresholds.
   2: (data: unknown) => {
     const d = data as Record<string, unknown>;
+    const rawThreshold = typeof d.idleThresholdMinutes === "number" ? d.idleThresholdMinutes : 15;
     return {
       ...d,
       wakeEnabled:          typeof d.wakeEnabled === "boolean" ? d.wakeEnabled : true,
       unlockEnabled:        typeof d.unlockEnabled === "boolean" ? d.unlockEnabled : true,
       idleEnabled:          typeof d.idleEnabled === "boolean" ? d.idleEnabled : true,
-      idleThresholdMinutes: typeof d.idleThresholdMinutes === "number" ? d.idleThresholdMinutes : 15,
+      idleThresholdMinutes: Math.min(120, Math.max(5, rawThreshold)),
     };
   },
 };

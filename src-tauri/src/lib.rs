@@ -56,9 +56,9 @@ pub fn run() {
 fn update_tray_badge(app: tauri::AppHandle, count: u32) {
     if let Some(tray) = app.tray_by_id("main-tray") {
         let tooltip = if count == 0 {
-            "plyglt — all caught up!".to_string()
+            "plyglt — nothing ready".to_string()
         } else {
-            format!("plyglt — {} card{} due", count, if count == 1 { "" } else { "s" })
+            format!("plyglt — {} card{} ready", count, if count == 1 { "" } else { "s" })
         };
         let _ = tray.set_tooltip(Some(tooltip));
         #[cfg(target_os = "macos")]

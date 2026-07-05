@@ -108,6 +108,10 @@ beforeEach(() => {
     mandatory: false,
     dndStart: "22:00",
     dndEnd: "08:00",
+    wakeEnabled: true,
+    unlockEnabled: true,
+    idleEnabled: true,
+    idleThresholdMinutes: 15,
   });
 });
 
@@ -187,7 +191,17 @@ describe("InterruptHandler", () => {
 
   // ── Test 3: updateInterruptConfig called when interruptEnabled changes ─────────
   it("calls updateInterruptConfig when interruptEnabled changes", async () => {
-    useSettingsStore.setState({ interruptEnabled: false, intervalHours: 2, mandatory: false });
+    // Use distinct values for the 4 new OS trigger fields so any argument-order swap
+    // between them (wakeEnabled/unlockEnabled/idleEnabled/idleThresholdMinutes) is detectable.
+    useSettingsStore.setState({
+      interruptEnabled: false,
+      intervalHours: 2,
+      mandatory: false,
+      wakeEnabled: false,
+      unlockEnabled: true,
+      idleEnabled: false,
+      idleThresholdMinutes: 45,
+    });
 
     await act(async () => {
       render(<InterruptHandler />);
@@ -201,7 +215,16 @@ describe("InterruptHandler", () => {
     });
     expect(mockUpdateInterruptConfig).toHaveBeenCalledTimes(2);
     // toHaveBeenCalledTimes(2) guarantees calls[1] exists — non-null assertion is safe.
-    expect(mockUpdateInterruptConfig.mock.calls[1]![0]).toBe(true);
+    // Assert all 7 arguments to catch any positional swap among the OS trigger fields.
+    expect(mockUpdateInterruptConfig.mock.calls[1]).toEqual([
+      true,   // enabled
+      2,      // intervalHours
+      false,  // mandatory
+      false,  // wakeEnabled
+      true,   // unlockEnabled
+      false,  // idleEnabled
+      45,     // idleThresholdMinutes
+    ]);
   });
 
   // ── Test: validateLicense NOT called on mount — EntitlementValidator.tsx owns revalidation ─

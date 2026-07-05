@@ -3,12 +3,11 @@
 // ============================================================
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { isTauri, listen } from "@/lib/tauri";
 import { enterMandatoryMode, updateInterruptConfig } from "@/lib/tauriInterrupt";
-import { useSettingsStore, isInDnd } from "@/store/settingsStore";
-import { useSRSStore } from "@/store/srsStore";
+import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
 import { useLangPack } from "@/hooks/useLangPack";
 import { getFeatureFlags } from "@/lib/featureFlags";
 
@@ -24,12 +23,37 @@ function InterruptHandlerCore() {
   const router = useRouter();
   const { units } = useLangPack();
   const pathname = usePathname();
-  const { interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes } =
-    useSettingsStore();
+  const {
+    interruptEnabled,
+    intervalHours,
+    mandatory,
+    dndStart,
+    dndEnd,
+    wakeEnabled,
+    unlockEnabled,
+    idleEnabled,
+    idleThresholdMinutes,
+    computeDue,
+  } = useInterruptConfig();
+
+  // Sequence counter: each effect run claims a new seq. If a stale IPC call resolves
+  // after a newer one has started, its resolution is ignored — only the latest write wins.
+  // Guards against rapid toggle races where an older in-flight call could revert Rust state.
+  const configSeqRef = useRef(0);
 
   // Keep the Rust thread in sync whenever relevant settings change.
   useEffect(() => {
-    updateInterruptConfig(interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes).catch((err) => {
+    const seq = ++configSeqRef.current;
+    updateInterruptConfig(
+      interruptEnabled,
+      intervalHours,
+      mandatory,
+      wakeEnabled,
+      unlockEnabled,
+      idleEnabled,
+      idleThresholdMinutes,
+    ).catch((err) => {
+      if (seq !== configSeqRef.current) return; // stale — a newer write is in flight
       console.error(`[ERR-IPC-CONFIG-${Date.now()}] Failed to sync interrupt config:`, err);
     });
   }, [interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes]);
@@ -47,11 +71,7 @@ function InterruptHandlerCore() {
       // Don't interrupt a study session already in progress.
       if (pathname.startsWith("/study")) return;
 
-      // units.length === 0 means the language pack hasn't loaded yet — skip interrupt
-      const totalDue = units.length === 0 ? 0 : units.reduce(
-        (sum, u) => sum + useSRSStore.getState().getStats(u.cards).due,
-        0
-      );
+      const totalDue = computeDue(units);
       if (totalDue === 0) return;
 
       if (isMandatory) {
@@ -87,7 +107,7 @@ function InterruptHandlerCore() {
     }).catch((err) => console.error(`[ERR-LISTEN-INTERRUPT-${Date.now()}] Failed to subscribe to interrupt:fire:`, err));
 
     return () => unlisten?.();
-  }, [interruptEnabled, dndStart, dndEnd, pathname, router, units]);
+  }, [interruptEnabled, dndStart, dndEnd, pathname, router, units, computeDue]);
 
   // Tray "Study Now" menu item → navigate to a global study session
   useEffect(() => {

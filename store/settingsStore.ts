@@ -8,6 +8,8 @@ import { SETTINGS_VERSION, migrateSettingsStore } from "@/store/migrations";
 
 export const INTERVAL_OPTIONS = [2, 3, 4, 6] as const;
 export const SNOOZE_OPTIONS = [15, 30, 60] as const;
+export const IDLE_THRESHOLD_MIN = 5;
+export const IDLE_THRESHOLD_MAX = 120;
 
 export type IntervalHours = (typeof INTERVAL_OPTIONS)[number];
 export type SnoozeMinutes = (typeof SNOOZE_OPTIONS)[number];
@@ -63,7 +65,7 @@ export const useSettingsStore = create<SettingsState>()(
       setWakeEnabled: (v) => set({ wakeEnabled: v }),
       setUnlockEnabled: (v) => set({ unlockEnabled: v }),
       setIdleEnabled: (v) => set({ idleEnabled: v }),
-      setIdleThresholdMinutes: (v) => set({ idleThresholdMinutes: v }),
+      setIdleThresholdMinutes: (v) => set({ idleThresholdMinutes: Math.min(IDLE_THRESHOLD_MAX, Math.max(IDLE_THRESHOLD_MIN, v)) }),
     }),
     {
       name: "settings-v1",

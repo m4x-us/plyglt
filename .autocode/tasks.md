@@ -3084,6 +3084,48 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 **Test required:** This task IS the tests.
 **Done when:** `tests/migrations.test.ts` has a new test for the SETTINGS_VERSION migration adding OS trigger defaults. `app/settings/page.test.tsx` has ≥3 new test cases for OS trigger toggles. `npm test` passes. Coverage thresholds maintained.
 **Owner:** QA Agent
+**Audit findings — 2026-07-04** (39 issues pending fix, verdict FAIL, severity 9 — promoted to Batch 19 as Tasks #187-#225):
+- [F001] functional-defect wake_enabled written but never read — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172
+- [F002] functional-defect unlock_enabled written but never read — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181
+- [F003] functional-defect idle_enabled written but never read — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191
+- [F004] functional-defect IDLE_THRESHOLD_SECS hardcoded to 900.0, ignores configurable value — severity 8 | src-tauri/src/os_events.rs:31
+- [F005] process unresolved TODO proves the wiring gap was known at write time — severity 7 | src-tauri/src/os_events.rs:29
+- [F006] test-quality zero Rust #[test] blocks exist in src-tauri/src/ — severity 7 | src-tauri/src/
+- [F007] documentation-trust migrations.ts comment claims a functioning opt-out that doesn't exist — severity 9 | store/migrations.ts:158
+- [F008] documentation-trust toggle descriptions claim control that isn't honored — severity 9 | app/settings/page.tsx:104
+- [F009] documentation-trust JSDoc says "the Rust background thread" (singular), obscuring 2 threads — severity 8 | lib/tauriInterrupt.ts:21
+- [F010] documentation-trust "Keep the Rust thread in sync" comment is false for the 4 new fields — severity 7 | components/InterruptHandler.tsx:30
+- [F011] documentation interrupt.rs header not updated — severity 4 | src-tauri/src/interrupt.rs:1
+- [F012] documentation os_events.rs header hides the gap — severity 4 | src-tauri/src/os_events.rs:4
+- [F014] functional-defect OS Triggers UI has no platform gate (renders inertly on Win/Linux) — severity 8 | app/settings/page.tsx:102
+- [F015] test-quality InterruptHandler.test.tsx not updated for 7-arg signature — severity 7 | components/InterruptHandler.test.tsx:188
+- [F016] test-quality tauri.test.ts uses identical bools, masks swap bugs — severity 5 | tests/tauri.test.ts:81
+- [F017] test-quality settingsStore.test.ts has zero coverage for 4 new setters — severity 6 | tests/settingsStore.test.ts
+- [F018] test-quality banned .not.toBeNull() with no existence-check comment — severity 3 | app/settings/page.test.tsx:302
+- [F019] test-quality 3 migration "no-op" tests pass even if version-guard deleted (pre-existing) — severity 4 | tests/migrations.test.ts:40
+- [F020] test-quality web-mode updater test passes by coincidence (pre-existing) — severity 3 | tests/tauri.test.ts
+- [F021] test-quality only entitlement store has a gap-free migration-chain guard test — severity 3 | tests/migrations.test.ts
+- [F022] documentation test numbering out of order — severity 2 | app/settings/page.test.tsx
+- [F023] documentation file header not updated for new tests — severity 3 | app/settings/page.test.tsx:1
+- [F024] input-validation idle-threshold input has no clamp — severity 5 | app/settings/page.tsx:110
+- [F025] reliability out-of-range value can fail IPC deserialization, dropping the whole config update — severity 6 | app/settings/page.tsx:110
+- [F026] input-validation setIdleThresholdMinutes has no range validation — severity 4 | store/settingsStore.ts:38
+- [F027] input-validation migration validates type only, not range — severity 6 | store/migrations.ts:167
+- [F028] test-quality no test for out-of-range idleThresholdMinutes — severity 3 | tests/
+- [F029] code-quality magic literals 5/120 not named constants — severity 2 | app/settings/page.tsx:110
+- [F030] code-quality "15 minutes" default hardcoded in 4 places, no shared constant — severity 6 | multiple:31
+- [F031] architecture 7-positional-param contract duplicated across 5 files — severity 6 | multiple
+- [F032] reliability config-sync effect has no debounce, can race — severity 5 | components/InterruptHandler.tsx:31
+- [F033] reliability update_interrupt_config silently no-ops on poisoned mutex — severity 5 | src-tauri/src/interrupt.rs:111
+- [F034] accessibility idle-threshold label has no htmlFor/id — severity 2 | app/settings/page.tsx:109
+- [F035] scope unrelated license/notification tests bled into this task (user-authorized) — severity 2 | app/settings/page.test.tsx
+- [F036] reliability exitMandatoryMode has no try/catch, inconsistent handling (pre-existing) — severity 4 | lib/tauriInterrupt.ts:60
+- [F037] architecture InterruptHandler.tsx imports directly from store/ (pre-existing) — severity 4 | components/InterruptHandler.tsx:1
+- [F038] brand-voice tray tooltips use "!" and "due" (pre-existing) — severity 2 | src-tauri/src/lib.rs:59
+- [F039] architecture app/learn/page.tsx calls localStorage directly (pre-existing) — severity 2 | app/learn/page.tsx:127
+- [F040] test-quality new toggle tests create appearance of coverage for an inert feature — severity 5 | app/settings/page.test.tsx
+- [SP001] process-systemic 7 independent auditors, 7 methodologies, zero disagreement on the central defect's existence — severity 9 | CROSS-CUTTING
+
 
 ---
 
@@ -3189,6 +3231,828 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 **Blocked by:** #171 | **Blocks:** Nothing (Batch 17 complete)
 **Done when:** App installable from Play Store (or internal testing track). FCM notifications fire on schedule. Tap → in-app session works. SRS state syncs with desktop.
 **Owner:** Architecture Agent
+
+---
+
+## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 39 tasks | [CURRENT SPRINT]
+Dependency: None (standalone remediation batch). Theme: /audit #164 (2026-07-04, verdict FAIL, severity 9, 39 findings) found that Task #163's OS trigger toggle controls (wake/unlock/idle + idle threshold) are entirely non-functional — `os_events.rs` never reads the settings it was built to expose. F001-F006 are the stop-the-line core; everything else is downstream test/doc/hardening debt discovered in the same audit. Fix order: F001-F004 (wiring) → F006 (Rust test coverage) → F015-F017/F040 (JS test hardening) → remainder.
+
+### Task #187: Fix functional-defect: wake_enabled is written by update_interrupt_config but never read anywhere else in the crate.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+wake_enabled is written by update_interrupt_config (interrupt.rs:115-118) but never read anywhere else in the crate. The wake-detection branch fires on `elapsed>WAKE_THRESHOLD_SECS && enabled && now>=snooze_until` — it omits the wake_enabled check entirely, so toggling 'Wake' off in Settings has zero runtime effect at src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172
+- [ ] Add `wake_enabled` to the guard-state destructure at os_events.rs:165-168 and gate the wake-detection branch on it
+- [ ] Add a regression test tracing update_interrupt_config(wake_enabled: false) → no interrupt:fire on simulated wake
+
+**Source:** Audit finding F001 — severity 9 — functional-defect
+
+---
+
+### Task #188: Fix functional-defect: unlock_enabled is written but never read.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+unlock_enabled is written but never read. The unlock-detection branch fires on `prev_locked && !is_locked && enabled && now>=snooze_until`, omitting unlock_enabled at src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181
+- [ ] Gate the unlock-detection branch on unlock_enabled
+- [ ] Add a regression test tracing update_interrupt_config(unlock_enabled: false) → no interrupt:fire on simulated unlock
+
+**Source:** Audit finding F002 — severity 9 — functional-defect
+
+---
+
+### Task #189: Fix functional-defect: idle_enabled is written but never read.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+idle_enabled is written but never read. The idle-detection branch fires on `prev_idle && !is_idle && enabled && now>=snooze_until`, omitting idle_enabled at src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191
+- [ ] Gate the idle-detection branch on idle_enabled
+- [ ] Add a regression test tracing update_interrupt_config(idle_enabled: false) → no interrupt:fire on simulated idle-return
+
+**Source:** Audit finding F003 — severity 9 — functional-defect
+
+---
+
+### Task #190: Fix functional-defect: IDLE_THRESHOLD_SECS is hardcoded to 900.0 instead of the configurable st.idle_threshold_secs.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+IDLE_THRESHOLD_SECS is hardcoded to 900.0 (line 31) and used at line 160 instead of the configurable st.idle_threshold_secs field. Changing the idle-threshold UI input in Settings has zero effect on runtime behavior at src-tauri/src/os_events.rs:module const IDLE_THRESHOLD_SECS / start_os_listeners:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:module const IDLE_THRESHOLD_SECS / start_os_listeners:31
+- [ ] Read st.idle_threshold_secs from the guard-state destructure and use it in place of the hardcoded constant
+- [ ] Add a test asserting a custom idle_threshold_secs value changes the actual idle-detection wait time
+
+**Source:** Audit finding F004 — severity 8 — functional-defect
+
+---
+
+### Task #191: Fix process: unresolved TODO proves the team knew the wake/unlock/idle wiring was incomplete when Task #163 was marked COMPLETE.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+A self-authored, unresolved TODO reads: "TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable field is added to InterruptState. The state lock block already reads the guard fields; just add idle_threshold_secs to that destructure." Its stated precondition has since been satisfied but the follow-up was never done. Remove the TODO once #187-#190 close it out, at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix process issue at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29
+- [ ] Remove the stale TODO comment once the wiring lands
+
+**Source:** Audit finding F005 — severity 7 — process
+
+---
+
+### Task #192: Fix test-quality: zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs.
+
+**File:** src-tauri/src/
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs. The exact layer containing the critical defect (F001-F004) has no test harness at all, so Task #164's added tests — which all stop at the JS/IPC-call boundary — had no way to catch it, at src-tauri/src/:n/a — entire crate:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Add a #[cfg(test)] module to os_events.rs and/or interrupt.rs covering the wake/unlock/idle gating logic
+- [ ] Audit passes: bash scripts/deep-audit.sh src-tauri/src/os_events.rs
+
+**Source:** Audit finding F006 — severity 7 — test-quality
+
+---
+
+### Task #193: Fix documentation-trust: store/migrations.ts comment claims a functioning OS-trigger opt-out that does not exist at runtime.
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+Comment at lines 158-159 claims a functioning opt-out for OS triggers that does not exist at runtime (per F001-F004), at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158
+- [ ] Update the comment once #187-#190 make the opt-out real, or soften the claim until then
+
+**Source:** Audit finding F007 — severity 9 — documentation-trust
+
+---
+
+### Task #194: Fix documentation-trust: Wake/Unlock/Idle toggle descriptions claim independent control that runtime code never honors.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The Wake/Unlock/Idle toggle descriptions (lines 104-111) claim these triggers can be independently disabled; runtime code never honors any of the three (F001-F003). Conflicts with BRAND.md's stress-free/trust principle, at app/settings/page.tsx:OS Triggers section JSX:104.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at app/settings/page.tsx:OS Triggers section JSX:104
+- [ ] Verify UI copy matches real behavior once #187-#190 land
+
+**Source:** Audit finding F008 — severity 9 — documentation-trust
+
+---
+
+### Task #195: Fix documentation-trust: updateInterruptConfig JSDoc says "the Rust background thread" (singular), obscuring two threads exist.
+
+**File:** lib/tauriInterrupt.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+JSDoc states 'the Rust background thread' (singular), obscuring that there are two independent Rust threads (interrupt.rs's own loop and os_events.rs) and that neither of them consumes wake_enabled/unlock_enabled/idle_enabled/idle_threshold_secs as the singular-thread framing implies, at lib/tauriInterrupt.ts:JSDoc above updateInterruptConfig:21.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/tauriInterrupt.ts:JSDoc above updateInterruptConfig:21
+- [ ] Rewrite JSDoc to name both threads and their actual field consumption
+
+**Source:** Audit finding F009 — severity 8 — documentation-trust
+
+---
+
+### Task #196: Fix documentation-trust: InterruptHandler.tsx comment "Keep the Rust thread in sync" is false for the 4 new fields.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Comment 'Keep the Rust thread in sync' is false with respect to the 4 new fields — nothing keeps os_events.rs in sync with them (F001-F004), at components/InterruptHandler.tsx:config-sync effect comment:30.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at components/InterruptHandler.tsx:config-sync effect comment:30
+- [ ] Update comment once #187-#190 land
+
+**Source:** Audit finding F010 — severity 7 — documentation-trust
+
+---
+
+### Task #197: Fix documentation: interrupt.rs file header not updated to list the 4 new InterruptState fields.
+
+**File:** src-tauri/src/interrupt.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+File header (lines 1-6) describing InterruptState has not been updated to list the 4 new fields (wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs), at src-tauri/src/interrupt.rs:file header:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation issue at src-tauri/src/interrupt.rs:file header:1
+
+**Source:** Audit finding F011 — severity 4 — documentation
+
+---
+
+### Task #198: Fix documentation: os_events.rs file header documents current behavior as complete rather than disclosing the unread/hardcoded fields.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+File header (lines 4-6) documents current listener behavior as normal/complete rather than disclosing that 3 of 4 new settings fields are currently unread and one is hardcoded-overridden, at src-tauri/src/os_events.rs:file header:4.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation issue at src-tauri/src/os_events.rs:file header:4
+
+**Source:** Audit finding F012 — severity 4 — documentation
+
+---
+
+### Task #199: Fix functional-defect: OS Triggers UI section has no platform gate — renders non-functionally on Windows/Linux.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+The OS Triggers section (lines 102-114) is gated only on interruptEnabled && isTauri, with no platform check. It renders (non-functionally) on Windows/Linux Tauri builds where os_events.rs is a documented total no-op for these fields, compounding F001-F004, at app/settings/page.tsx:OS Triggers section:102.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix functional-defect issue at app/settings/page.tsx:OS Triggers section:102
+- [ ] Gate the section on a platform capability check (e.g. macOS-only) until Batch 15 Windows/Linux support lands
+
+**Source:** Audit finding F014 — severity 8 — functional-defect
+
+---
+
+### Task #200: Fix test-quality: InterruptHandler.test.tsx not updated for the 3-to-7-arg updateInterruptConfig signature change.
+
+**File:** components/InterruptHandler.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Not updated by Task #164 despite InterruptHandler.tsx's call signature changing from 3 to 7 arguments (lines 27, 32). Only asserts calls[1]![0] (enabled); args 4-7 (wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes) are never inspected, at components/InterruptHandler.test.tsx:config-sync test block:188.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at components/InterruptHandler.test.tsx:config-sync test block:188
+- [ ] Assert the full 7-argument call, including all 4 new fields, with distinct values per field to catch a swap bug
+
+**Source:** Audit finding F015 — severity 7 — test-quality
+
+---
+
+### Task #201: Fix test-quality: tests/tauri.test.ts uses identical boolean values for wakeEnabled/unlockEnabled/idleEnabled, masking swap bugs.
+
+**File:** tests/tauri.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Lines 81, 92, 98 all use identical true values for wakeEnabled/unlockEnabled/idleEnabled, and none assert the exact object shape passed to invoke('update_interrupt_config', ...). An argument-order swap or mis-cased key would silently break Rust deserialization undetected, at tests/tauri.test.ts:update_interrupt_config test cases:81.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/tauri.test.ts:update_interrupt_config test cases:81
+- [ ] Use distinct values per field and assert invoke's exact call argument object shape
+
+**Source:** Audit finding F016 — severity 5 — test-quality
+
+---
+
+### Task #202: Fix test-quality: tests/settingsStore.test.ts has zero coverage for the 4 new OS-trigger setters.
+
+**File:** tests/settingsStore.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Zero tests exist for setWakeEnabled/setUnlockEnabled/setIdleEnabled/setIdleThresholdMinutes or their defaults, unlike every sibling setter in this file, at tests/settingsStore.test.ts:n/a — missing coverage:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/settingsStore.test.ts:n/a — missing coverage:0
+- [ ] Add defaults test + one setter test per new field, matching the existing sibling pattern
+
+**Source:** Audit finding F017 — severity 6 — test-quality
+
+---
+
+### Task #203: Fix test-quality: banned .not.toBeNull() assertion with no existence-check comment.
+
+**File:** app/settings/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+expect(queryIdleThresholdInput()).not.toBeNull() is a banned assertion form per AGENTS.md's Stop-the-Line list, with no inline `// existence-check: [reason]` comment. The value under test is not non-deterministic, so the documented exception does not apply, at app/settings/page.test.tsx:idle-threshold input presence test:302.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at app/settings/page.test.tsx:idle-threshold input presence test:302
+- [ ] Either add a specific-value assertion in place of .not.toBeNull(), or justify with an inline existence-check comment
+
+**Source:** Audit finding F018 — severity 3 — test-quality
+
+---
+
+### Task #204: Fix test-quality: three "no-op at current version" migration tests would pass even if the version-guard were deleted.
+
+**File:** tests/migrations.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Three tests (migrateSrsStore:40, migrateEntitlementStore:256, migrateSettingsStore:355) would still pass if the version-guard were deleted, because they only assert a narrow subset of fields that happen to survive an unconditional re-run of the migration chain. Predates the #163/#164 diff — background debt, at tests/migrations.test.ts:'is a no-op when already at current version' tests (srsStore, entitlementStore, settingsStore):40.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/migrations.test.ts:'is a no-op when already at current version' tests:40
+- [ ] Broaden assertions to a field set that would fail if the version-guard were removed
+
+**Source:** Audit finding F019 — severity 4 — test-quality
+
+---
+
+### Task #205: Fix test-quality: web-mode updater test passes by coincidence with no spy on the plugin's check().
+
+**File:** tests/tauri.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+The "returns available:false in web mode without consulting the updater plugin" test passes by coincidence — there is no spy on the updater plugin's check(), so it would also pass via the catch-block side effect alone. Pre-existing test, not part of the #163/#164 diff, at tests/tauri.test.ts:'returns available:false in web mode...' test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/tauri.test.ts:'returns available:false in web mode...' test:0
+- [ ] Add a spy asserting the plugin's check() is never called in web mode
+
+**Source:** Audit finding F020 — severity 3 — test-quality
+
+---
+
+### Task #206: Fix test-quality: only the entitlement store has an explicit gap-free migration-chain guard test.
+
+**File:** tests/migrations.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Only the entitlement store has an explicit gap-free migration-chain guard test; srsStore and settingsStore lack an equivalent test, at tests/migrations.test.ts:n/a — inconsistent coverage across stores:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/migrations.test.ts:n/a — inconsistent coverage across stores:0
+- [ ] Add an equivalent "migrating from v0 does not throw" guard test for migrateSrsStore and migrateSettingsStore
+
+**Source:** Audit finding F021 — severity 3 — test-quality
+
+---
+
+### Task #207: Fix documentation: new Task #164 tests inserted out of numeric order in page.test.tsx.
+
+**File:** app/settings/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+New Task #164 tests were inserted labeled 'Test 4'/'Test 5' ahead of the pre-existing 'Test 3' comment block, producing non-sequential numbering, at app/settings/page.test.tsx:n/a — test ordering:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation issue at app/settings/page.test.tsx:n/a — test ordering:0
+- [ ] Renumber the "Test N" comments to match file order
+
+**Source:** Audit finding F022 — severity 2 — documentation
+
+---
+
+### Task #208: Fix documentation: page.test.tsx file header not updated for new OS-trigger test coverage.
+
+**File:** app/settings/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+File header comment was not updated to reflect the newly added OS-trigger test coverage, at app/settings/page.test.tsx:file header comment:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation issue at app/settings/page.test.tsx:file header comment:1
+
+**Source:** Audit finding F023 — severity 3 — documentation
+
+---
+
+### Task #209: Fix input-validation: idle-threshold number input has no clamp/validation logic.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+The idle-threshold number input's onChange has no clamp/validation logic; native min/max HTML attributes are UI-only and not enforced by any JS or Rust code path, at app/settings/page.tsx:idle-threshold number input onChange:110.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix input-validation issue at app/settings/page.tsx:idle-threshold number input onChange:110
+- [ ] Clamp to [5,120] in the onChange handler
+
+**Source:** Audit finding F024 — severity 5 — input-validation
+
+---
+
+### Task #210: Fix reliability: out-of-range idleThresholdMinutes can fail Rust u32 deserialization and silently drop the entire bundled IPC call.
+
+**File:** app/settings/page.test.tsx (verification only — root cause is fixed by #209's clamp; see note)
+**Complexity:** ⚡ Direct — 1 file, regression test only, no Full trigger keywords
+**Owner:** Architecture Agent
+**Blocked by:** #209
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+A NaN or fractional idleThresholdMinutes value would fail Rust's u32 deserialization and reject the entire bundled 7-parameter update_interrupt_config IPC call, silently dropping other unrelated valid changes (e.g. wakeEnabled) submitted in the same call, at onChange handler → updateInterruptConfig → update_interrupt_config:110. Root cause is closed by #209's input clamp (app/settings/page.tsx) — this task is the regression-test verification that the clamp actually prevents the blast-radius failure, not a separate 3-file implementation.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix reliability issue at onChange handler → updateInterruptConfig → update_interrupt_config:110
+- [ ] Add a regression test proving a NaN/negative typed value never reaches updateInterruptConfig/invoke once #209 lands
+
+**Source:** Audit finding F025 — severity 6 — reliability
+
+---
+
+### Task #211: Fix input-validation: setIdleThresholdMinutes has no range validation unlike sibling bounded setters.
+
+**File:** store/settingsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+setIdleThresholdMinutes has no range validation, unlike intervalHours/snoozeMinutes in the same store, which use literal-union bounded types, at store/settingsStore.ts:setIdleThresholdMinutes:38.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix input-validation issue at store/settingsStore.ts:setIdleThresholdMinutes:38
+- [ ] Consider a bounded type or runtime clamp consistent with sibling setters
+
+**Source:** Audit finding F026 — severity 4 — input-validation
+
+---
+
+### Task #212: Fix input-validation: settings migration validates idleThresholdMinutes type only, not range.
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Validates type only, not range, for idleThresholdMinutes. A corrupted persisted value of -50 or 99999 passes through migration unchanged, tracing an unprotected chain end-to-end, at store/migrations.ts:SETTINGS_MIGRATIONS[2]:167.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix input-validation issue at store/migrations.ts:SETTINGS_MIGRATIONS[2]:167
+- [ ] Clamp to [5,120] during migration, matching the UI-declared range
+
+**Source:** Audit finding F027 — severity 6 — input-validation
+
+---
+
+### Task #213: Fix test-quality: no test exercises an out-of-range or invalid idleThresholdMinutes value.
+
+**File:** tests/
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** #209, #211, #212
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+No test anywhere in the diff exercises an out-of-range or invalid idleThresholdMinutes value (e.g. negative, fractional, or > 120), at tests/:n/a — missing test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at tests/:n/a — missing test:0
+- [ ] Add tests covering negative, fractional, and >120 idleThresholdMinutes inputs once #209/#211/#212 land
+
+**Source:** Audit finding F028 — severity 3 — test-quality
+
+---
+
+### Task #214: Fix code-quality: idle-threshold min/max are inlined magic literals instead of named constants.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Magic literals 5 and 120 are inlined as min/max rather than named constants. AGENTS.md: "any hardcoded string that belongs in a named constant" is a Stop-the-Line violation, at app/settings/page.tsx:idle-threshold number input:110.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/settings/page.tsx:idle-threshold number input:110
+- [ ] Extract IDLE_THRESHOLD_MIN_MINUTES / IDLE_THRESHOLD_MAX_MINUTES constants (e.g. in settingsStore.ts, matching INTERVAL_OPTIONS/SNOOZE_OPTIONS convention)
+
+**Source:** Audit finding F029 — severity 2 — code-quality
+
+---
+
+### Task #215: Fix code-quality: "15 minutes" idle default hardcoded independently in four places with no shared constant.
+
+**File:** src-tauri/src/os_events.rs, src-tauri/src/interrupt.rs, store/settingsStore.ts, store/migrations.ts
+**Complexity:** 🔧 Full — 4 files, cross-cutting constant extraction
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The '15 minutes' idle default is hardcoded independently in four places (os_events.rs:31, interrupt.rs:52, settingsStore.ts:54, migrations.ts:167) with no shared constant. One copy is already permanently out of sync since it is the unread hardcoded override (F004), at idle-default constants:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at idle-default constants:31
+- [ ] Extract a single shared default-minutes constant consumed by all four sites (via a shared TS/Rust boundary or documented single source of truth)
+
+**Source:** Audit finding F030 — severity 6 — code-quality
+
+---
+
+### Task #216: Fix architecture: 7-positional-parameter interrupt-config contract duplicated identically across 5 files with no shared schema.
+
+**File:** app/settings/page.tsx, lib/tauriInterrupt.ts, components/InterruptHandler.tsx, store/settingsStore.ts, src-tauri/src/interrupt.rs
+**Complexity:** 🔧 Full — 5 files, contract redesign
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The 7-positional-parameter interrupt-config contract is duplicated identically across 5 files with no shared type/schema forcing sync. This exact coupling is the structural root cause that let os_events.rs silently fall out of sync with the other 4 files' understanding of the config shape (F001-F004), at update_interrupt_config parameter contract.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at update_interrupt_config parameter contract
+- [ ] Consider a shared config object/struct (TS interface + matching Rust struct) instead of positional params, so adding a field forces every consumer to acknowledge it
+
+**Source:** Audit finding F031 — severity 6 — architecture
+
+---
+
+### Task #217: Fix reliability: config-sync effect has no debounce, allowing rapid toggles to race and silently revert.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+The config-sync effect (lines 31-35) has no debounce or request sequencing. Rapid toggle clicks can race — an older in-flight update_interrupt_config call resolving after a newer one could silently revert a toggle in Rust-side state with no user-visible indication, at components/InterruptHandler.tsx:config-sync effect:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix reliability issue at components/InterruptHandler.tsx:config-sync effect:31
+- [ ] Add a debounce or sequence-number guard so only the latest config write wins
+
+**Source:** Audit finding F032 — severity 5 — reliability
+
+---
+
+### Task #218: Fix reliability: update_interrupt_config silently no-ops on a poisoned mutex with no error surfaced.
+
+**File:** src-tauri/src/interrupt.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Silently no-ops on a poisoned mutex (lines 111-119); the JS caller receives a resolved promise and believes the config was applied even though nothing was written, at src-tauri/src/interrupt.rs:update_interrupt_config:111.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix reliability issue at src-tauri/src/interrupt.rs:update_interrupt_config:111
+- [ ] Log or surface an error when the lock cannot be acquired, per Rule 8 (Log Everything)
+
+**Source:** Audit finding F033 — severity 5 — reliability
+
+---
+
+### Task #219: Fix accessibility: idle-threshold label has no htmlFor/id association with its input.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+The idle-threshold label has no htmlFor/id association. Task #164 worked around this in tests via DOM traversal instead of fixing the markup. Pre-existing pattern elsewhere in the file, but a missed opportunity to fix while touching this exact markup, at app/settings/page.tsx:idle-threshold label/input:109.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix accessibility issue at app/settings/page.tsx:idle-threshold label/input:109
+- [ ] Add htmlFor/id association; simplify the test's queryIdleThresholdInput() helper to use getByLabelText once fixed
+
+**Source:** Audit finding F034 — severity 2 — accessibility
+
+---
+
+### Task #220: Fix scope: license/notification/mandatory-mode tests in page.test.tsx are unrelated to Task #163's OS-trigger feature.
+
+**File:** app/settings/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+License/notification/mandatory-mode tests (12-25) are unrelated to Task #163's OS-trigger feature — scope bleed into Task #164, though separately authorized by the user mid-task to close a coverage gap, at app/settings/page.test.tsx:tests 12-25:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Review whether these tests should be documented as their own coverage initiative rather than attributed to Task #164's scope
+
+**Source:** Audit finding F035 — severity 2 — scope
+
+---
+
+### Task #221: Fix reliability: exitMandatoryMode has no try/catch and its call sites handle failure inconsistently.
+
+**File:** lib/tauriInterrupt.ts, app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+exitMandatoryMode() (tauriInterrupt.ts:60-63) has no try/catch, unlike sibling updateInterruptConfig/snoozeInterrupt in the same file. app/study/page.tsx:73 has zero error handling around its call (unhandled-rejection risk, user could be stuck in a locked window); app/study/page.tsx:121 uses try/finally but no catch. Predates the #163/#164 diff — pre-existing debt, at exitMandatoryMode and call sites:60.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix reliability issue at exitMandatoryMode and call sites:60
+- [ ] Add try/catch with an ERR-* ref log matching the sibling pattern in the same file
+
+**Source:** Audit finding F036 — severity 4 — reliability
+
+---
+
+### Task #222: Fix architecture: InterruptHandler.tsx imports directly from store/, violating the components/ layer rule.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Imports directly from store/ (settingsStore, srsStore), contradicting CLAUDE.md's layer rule: "components/ — Import from hooks/ and lib/ only." Pre-existing pattern, not introduced by this task, at components/InterruptHandler.tsx:module imports:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at components/InterruptHandler.tsx:module imports:1
+- [ ] Consider a hook wrapper (e.g. useInterruptConfig) to restore the documented layer boundary
+
+**Source:** Audit finding F037 — severity 4 — architecture
+
+---
+
+### Task #223: Fix brand-voice: tray tooltip strings use a forbidden exclamation mark and non-canonical "due" terminology.
+
+**File:** src-tauri/src/lib.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Tray tooltips at lines 59 and 61 violate BRAND.md voice rules: "all caught up!" uses a forbidden exclamation mark, and "due" is used instead of the canonical terminology "ready". Pre-existing code, not touched by the #163/#164 diff, at src-tauri/src/lib.rs:tray tooltip strings:59.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix brand-voice issue at src-tauri/src/lib.rs:tray tooltip strings:59
+- [ ] Rewrite tooltip strings to match BRAND.md voice and terminology
+
+**Source:** Audit finding F038 — severity 2 — brand-voice
+
+---
+
+### Task #224: Fix architecture: app/learn/page.tsx calls localStorage directly, bypassing the storage abstraction.
+
+**File:** app/learn/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-05
+
+**What:**
+Direct localStorage call at line 127, bypassing the lib/storage.ts platform-storage abstraction required by CLAUDE.md ("Never call localStorage directly from any file outside lib/storage.ts"). Pre-existing/systemic issue, not introduced by this task, at app/learn/page.tsx:n/a:127.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at app/learn/page.tsx:n/a:127
+- [ ] Route through lib/storage.ts or a dedicated helper
+
+**Source:** Audit finding F039 — severity 2 — architecture
+
+---
+
+### Task #225: Fix test-quality: 6 new OS-trigger toggle tests create an appearance of coverage for a feature whose backing implementation is inert.
+
+**File:** app/settings/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** #187, #188, #189, #190, #192
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The 6 new OS-trigger toggle tests create an appearance of solid test coverage for a feature whose backing Rust implementation never consumes the settings at all (F001-F004). The tests prove only Zustand state updates and IPC-call invocation, never the actual OS-trigger behavior the toggles name, at app/settings/page.test.tsx:OS-trigger toggle tests (6 new tests):0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix test-quality issue at app/settings/page.test.tsx:OS-trigger toggle tests (6 new tests):0
+- [ ] Once #187-#190/#192 land, add an integration-style note or seam test cross-referencing the new Rust test coverage so the JS tests' scope is honestly documented
+
+**Source:** Audit finding F040 — severity 5 — test-quality
 
 ---
 

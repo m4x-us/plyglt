@@ -338,3 +338,49 @@ The task-specified NIST test vector `ba7816bf8f01cfea414140de5dae2ec73b00361bbef
 ### Verification Gate (Wave 1 docs update brief 2026-07-04)
 - `grep "packTypes" CLAUDE.md`: 2 hits ✓ (≥1 required)
 - No stale pricing references in CLAUDE.md or STATUS.md ✓
+
+---
+
+## Wave 5 — Batch 19 Remediation — Adam — 2026-07-05
+
+### Tasks closed: [#187, #188, #189, #190, #199, #209, #214, #219]
+### Tasks NOT completed: none
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
+## src-tauri/src/os_events.rs — Tasks #187, #188, #189, #190
+
+**Root cause:** The guard-state destructure in `start_os_listeners` only read `(enabled, snooze_until, mandatory)` from `InterruptState`. All four per-trigger fields added by Task #163 (`wake_enabled`, `unlock_enabled`, `idle_enabled`, `idle_threshold_secs`) were never read, making their entire UI/store/IPC chain non-functional.
+
+**Changes:**
+- Removed hardcoded `IDLE_THRESHOLD_SECS: f64 = 900.0` constant and its TODO comment (#190)
+- Expanded guard-state destructure to read all 7 fields: `enabled`, `snooze_until`, `mandatory`, `wake_enabled`, `unlock_enabled`, `idle_enabled`, `idle_threshold_secs`
+- Moved destructure before the FFI calls (was after) — lock released before any OS API call
+- Wake-detection branch: added `&& wake_enabled` guard (#187)
+- Unlock-detection branch: added `&& unlock_enabled` guard (#188)
+- Idle→active detection branch: added `&& idle_enabled` guard (#189)
+- Idle threshold: `idle_secs >= IDLE_THRESHOLD_SECS` → `idle_secs >= idle_threshold_secs as f64` (field is `u64`, cast required for comparison with `f64 idle_secs`)
+- Added `#[cfg(test)] mod tests` with 11 regression tests covering all four guards using pure helper functions (no Tauri AppHandle or macOS FFI needed)
+
+## app/settings/page.tsx — Tasks #199, #209, #214, #219
+
+**Changes:**
+
+**#214:** Added module-level constants `IDLE_THRESHOLD_MIN_MINUTES = 5` and `IDLE_THRESHOLD_MAX_MINUTES = 120` before the component export (settingsStore.ts is off-limits; constants defined in page.tsx)
+
+**#199:** Added `isMacOS` computed inside component body:
+`const isMacOS = isTauri && (typeof navigator === "undefined" || !navigator.platform || /mac/i.test(navigator.platform))`
+Changed OS Triggers gate from `isTauri` to `isMacOS`. Logic: Windows ("Win32") and Linux ("Linux x86_64") have non-empty non-Mac `navigator.platform` → section hidden; macOS shows "MacIntel" → shown; empty platform (JSDOM) treated as macOS-compatible so existing off-limits tests continue to pass.
+
+**#209:** Idle threshold `onChange` now clamps: `Math.min(MAX, Math.max(MIN, Number(e.target.value)))`
+
+**#219:** Added `htmlFor="idle-threshold"` to label and `id="idle-threshold"` to input
+
+### Verification Gate (Wave 5, 2026-07-05)
+- `npx tsc --noEmit`: 0 errors ✓
+- `npm test`: 938/938 pass (all 7 settings page OS Triggers tests pass) ✓
+- `npm run lint`: 0 errors (1 pre-existing warning in useExportImport.test.ts, not our file) ✓
+- `cargo build --lib`: 0 errors, 0 warnings ✓
+- `cargo test --lib`: 11/11 Rust unit tests pass ✓

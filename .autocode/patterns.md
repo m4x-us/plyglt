@@ -95,3 +95,34 @@
 
 ## 2026-07-04 | Task: Batch 14 Wave 1 (#163)
 - correctness [updateInterruptConfig extended from 3 to 7 required params in lib/tauriInterrupt.ts. tests/tauri.test.ts (not in the builder's declared file scope) still called the old 3-arg signature at 3 call sites — a real tsc break that shipped past the builder's own "npm test" pass because vitest's default run does not type-check the whole program. Fix: added the 4 new args to all 3 call sites. Poka-yoke: any breaking signature change to an exported function must grep all call sites project-wide before closing, not just files in the task's declared File: scope.] -- severity 5 | tests/tauri.test.ts:81,92,98 | NEW
+
+## 2026-07-04 | Task: #164
+- functional-defect wake_enabled is written by update_interrupt_config but never read anywhere else in the crate — toggling "Remind on wake" has zero runtime effect — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172 | NEW
+- functional-defect unlock_enabled is written but never read — toggling "Remind on unlock" has zero runtime effect — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181 | NEW
+- functional-defect idle_enabled is written but never read — toggling "Remind when idle" has zero runtime effect — severity 9 | src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191 | NEW
+- functional-defect IDLE_THRESHOLD_SECS hardcoded to 900.0 instead of configurable st.idle_threshold_secs — changing the idle-threshold UI input has zero effect — severity 8 | src-tauri/src/os_events.rs:module const IDLE_THRESHOLD_SECS / start_os_listeners:31 | NEW
+- process self-authored unresolved TODO proves the team knew the wake/unlock/idle wiring was incomplete when Task #163 was marked COMPLETE — severity 7 | src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29 | NEW
+- test-quality zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs — the layer containing the critical defect has no test harness at all — severity 7 | src-tauri/src/:n/a — entire crate:0 | NEW
+- documentation-trust store/migrations.ts comment claims a functioning OS-trigger opt-out that does not exist at runtime — severity 9 | store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158 | NEW
+- documentation-trust Wake/Unlock/Idle toggle descriptions claim independent control that runtime code never honors — severity 9 | app/settings/page.tsx:OS Triggers section JSX:104 | NEW
+- documentation-trust updateInterruptConfig JSDoc says "the Rust background thread" (singular), obscuring that two threads exist and neither consumes the new fields — severity 8 | lib/tauriInterrupt.ts:JSDoc above updateInterruptConfig:21 | NEW
+- documentation-trust InterruptHandler.tsx comment "Keep the Rust thread in sync" is false for the 4 new fields — severity 7 | components/InterruptHandler.tsx:config-sync effect comment:30 | NEW
+- documentation interrupt.rs file header not updated to list the 4 new InterruptState fields — severity 4 | src-tauri/src/interrupt.rs:file header:1 | NEW
+- documentation os_events.rs file header documents current behavior as complete rather than disclosing the unread/hardcoded fields — severity 4 | src-tauri/src/os_events.rs:file header:4 | NEW
+- functional-defect OS Triggers UI section has no platform gate — renders non-functionally on Windows/Linux — severity 8 | app/settings/page.tsx:OS Triggers section:102 | NEW
+- test-quality InterruptHandler.test.tsx not updated for the 3-to-7-arg updateInterruptConfig signature change — severity 7 | components/InterruptHandler.test.tsx:config-sync test block:188 | NEW
+- test-quality tests/settingsStore.test.ts has zero coverage for the 4 new OS-trigger setters — severity 6 | tests/settingsStore.test.ts:n/a — missing coverage:0 | NEW
+- test-quality tests/tauri.test.ts uses identical boolean values for wakeEnabled/unlockEnabled/idleEnabled, masking swap bugs — severity 5 | tests/tauri.test.ts:update_interrupt_config test cases:81 | NEW
+- test-quality three "no-op at current version" migration tests would pass even if the version-guard were deleted — severity 4 | tests/migrations.test.ts:'is a no-op when already at current version' tests:40 | NEW
+- input-validation idle-threshold number input has no clamp/validation logic — severity 5 | app/settings/page.tsx:idle-threshold number input onChange:110 | NEW
+- reliability out-of-range idleThresholdMinutes can fail Rust u32 deserialization and silently drop the entire bundled IPC call — severity 6 | onChange handler → updateInterruptConfig → update_interrupt_config:110 | NEW
+- input-validation setIdleThresholdMinutes has no range validation unlike sibling bounded setters — severity 4 | store/settingsStore.ts:setIdleThresholdMinutes:38 | NEW
+- input-validation settings migration validates idleThresholdMinutes type only, not range — severity 6 | store/migrations.ts:SETTINGS_MIGRATIONS[2]:167 | NEW
+- code-quality "15 minutes" idle default hardcoded independently in four places with no shared constant — severity 6 | idle-default constants:31 | NEW
+- architecture 7-positional-parameter interrupt-config contract duplicated identically across 5 files with no shared schema — severity 6 | update_interrupt_config parameter contract | NEW
+- reliability config-sync effect has no debounce, allowing rapid toggles to race and silently revert — severity 5 | components/InterruptHandler.tsx:config-sync effect:31 | NEW
+- reliability update_interrupt_config silently no-ops on a poisoned mutex with no error surfaced — severity 5 | src-tauri/src/interrupt.rs:update_interrupt_config:111 | NEW
+- reliability exitMandatoryMode has no try/catch and its call sites handle failure inconsistently (pre-existing) — severity 4 | exitMandatoryMode and call sites:60 | NEW
+- architecture InterruptHandler.tsx imports directly from store/, violating the components/ layer rule (pre-existing) — severity 4 | components/InterruptHandler.tsx:module imports:1 | NEW
+- tests 6 new OS-trigger toggle tests create an appearance of coverage for a feature whose backing implementation is inert — severity 5 | app/settings/page.test.tsx:OS-trigger toggle tests (6 new tests):0 | NEW
+- process-systemic Seven independent auditors across seven methodologies converged on the identical root defect with zero disagreement on its existence — a systemic process failure (unit-level plumbing verified end-to-end, final consumption step one file away never traced by a single test), not an isolated coding mistake — severity 9 | CROSS-CUTTING | SYNTHESIS

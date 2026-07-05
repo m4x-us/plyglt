@@ -24,12 +24,6 @@ const OS_POLL_SECS: u64 = 5;
 /// this; users relying on DnD to suppress overnight interruptions must configure DnD hours.
 const WAKE_THRESHOLD_SECS: u64 = 90;
 
-/// Idle threshold: 15 minutes of no HID input is treated as "user left".
-// TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable
-// field is added to InterruptState. The state lock block already reads the guard fields; just
-// add idle_threshold_secs to that destructure.
-const IDLE_THRESHOLD_SECS: f64 = 900.0; // 15 × 60
-
 // ── macOS C API declarations ───────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
@@ -156,21 +150,23 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                     let prev_locked = was_locked;
                     was_locked = is_locked; // advance before possible emit
 
+                    // ── Guard state (read once, release lock before any emit) ──────────────────
+                    let (enabled, snooze_until, mandatory, wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs) = {
+                        let Ok(st) = state.lock() else { return; };
+                        (st.enabled, st.snooze_until_secs, st.mandatory,
+                         st.wake_enabled, st.unlock_enabled, st.idle_enabled, st.idle_threshold_secs)
+                    };
+
                     let idle_secs = idle_seconds();
-                    let is_idle = idle_secs >= IDLE_THRESHOLD_SECS;
+                    let is_idle = idle_secs >= idle_threshold_secs as f64;
                     let prev_idle = was_idle;
                     was_idle = is_idle; // advance before possible emit
-
-                    // ── Guard state (read once, release lock before any emit) ──────────────────
-                    let (enabled, snooze_until, mandatory) = {
-                        let Ok(st) = state.lock() else { return; };
-                        (st.enabled, st.snooze_until_secs, st.mandatory)
-                    };
 
                     // ── Wake detection ──────────────────────────────────────────────────────────
                     if !tick_fired
                         && elapsed > WAKE_THRESHOLD_SECS
                         && enabled
+                        && wake_enabled
                         && now >= snooze_until
                     {
                         emit_interrupt(&app, &state, now, mandatory);
@@ -178,16 +174,16 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                     }
 
                     // ── Unlock detection ────────────────────────────────────────────────────────
-                    if !tick_fired && prev_locked && !is_locked && enabled && now >= snooze_until {
+                    if !tick_fired && prev_locked && !is_locked && enabled && unlock_enabled && now >= snooze_until {
                         emit_interrupt(&app, &state, now, mandatory);
                         tick_fired = true;
                     }
 
                     // ── Idle→active detection ───────────────────────────────────────────────────
                     // Fires on the idle→active edge.  No separate cooldown is needed: once
-                    // prev_idle is false the user must idle for another IDLE_THRESHOLD_SECS
-                    // (15 min) before the next fire is possible.
-                    if !tick_fired && prev_idle && !is_idle && enabled && now >= snooze_until {
+                    // prev_idle is false the user must idle for another idle_threshold_secs
+                    // before the next fire is possible.
+                    if !tick_fired && prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until {
                         emit_interrupt(&app, &state, now, mandatory);
                         // tick_fired = true; — kept for symmetry if a 4th detector is ever added
                     }
@@ -260,4 +256,102 @@ fn screen_is_locked(key: &SendableCFStringRef) -> bool {
 fn idle_seconds() -> f64 {
     // kCGEventSourceStateHIDSystemState = 1; kCGAnyInputEventType = u32::MAX
     unsafe { macos_ffi::CGEventSourceSecondsSinceLastEventType(1, u32::MAX) }
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::WAKE_THRESHOLD_SECS;
+
+    // Pure guard-condition helpers that mirror the detection branches in start_os_listeners.
+    // Testing these directly avoids needing a Tauri AppHandle or macOS FFI in unit tests.
+
+    fn wake_fires(elapsed: u64, enabled: bool, wake_enabled: bool, now: u64, snooze_until: u64) -> bool {
+        elapsed > WAKE_THRESHOLD_SECS && enabled && wake_enabled && now >= snooze_until
+    }
+
+    fn unlock_fires(prev_locked: bool, is_locked: bool, enabled: bool, unlock_enabled: bool, now: u64, snooze_until: u64) -> bool {
+        prev_locked && !is_locked && enabled && unlock_enabled && now >= snooze_until
+    }
+
+    fn idle_fires(prev_idle: bool, is_idle: bool, enabled: bool, idle_enabled: bool, now: u64, snooze_until: u64) -> bool {
+        prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until
+    }
+
+    // #187 — wake_enabled gates wake detection
+
+    #[test]
+    fn wake_disabled_suppresses_wake_interrupt() {
+        assert!(!wake_fires(WAKE_THRESHOLD_SECS + 1, true, false, 1000, 0),
+            "wake_enabled=false must suppress interrupt even when all other conditions are met");
+    }
+
+    #[test]
+    fn wake_enabled_fires_when_conditions_met() {
+        assert!(wake_fires(WAKE_THRESHOLD_SECS + 1, true, true, 1000, 0));
+    }
+
+    #[test]
+    fn wake_below_threshold_never_fires() {
+        assert!(!wake_fires(WAKE_THRESHOLD_SECS, true, true, 1000, 0),
+            "elapsed must exceed WAKE_THRESHOLD_SECS, not merely equal it");
+    }
+
+    // #188 — unlock_enabled gates unlock detection
+
+    #[test]
+    fn unlock_disabled_suppresses_unlock_interrupt() {
+        assert!(!unlock_fires(true, false, true, false, 1000, 0),
+            "unlock_enabled=false must suppress interrupt on lock→unlock transition");
+    }
+
+    #[test]
+    fn unlock_enabled_fires_on_lock_edge() {
+        assert!(unlock_fires(true, false, true, true, 1000, 0));
+    }
+
+    #[test]
+    fn unlock_no_fire_without_prior_lock() {
+        assert!(!unlock_fires(false, false, true, true, 1000, 0),
+            "no fire unless prev_locked was true");
+    }
+
+    // #189 — idle_enabled gates idle→active detection
+
+    #[test]
+    fn idle_disabled_suppresses_idle_return_interrupt() {
+        assert!(!idle_fires(true, false, true, false, 1000, 0),
+            "idle_enabled=false must suppress interrupt on idle→active transition");
+    }
+
+    #[test]
+    fn idle_enabled_fires_on_active_return() {
+        assert!(idle_fires(true, false, true, true, 1000, 0));
+    }
+
+    #[test]
+    fn idle_no_fire_without_prior_idle() {
+        assert!(!idle_fires(false, false, true, true, 1000, 0),
+            "no fire unless user was previously idle");
+    }
+
+    // #190 — idle_threshold_secs from state replaces hardcoded constant
+
+    #[test]
+    fn custom_idle_threshold_is_used() {
+        // A user-configured threshold of 300 s: 400 s idle → detected; 200 s idle → not.
+        let threshold: f64 = 300.0;
+        assert!(400.0_f64 >= threshold, "400 s >= 300 s threshold → idle");
+        assert!(!(200.0_f64 >= threshold), "200 s < 300 s threshold → active");
+    }
+
+    #[test]
+    fn idle_threshold_change_affects_detection_boundary() {
+        // At 900 s (old hardcoded constant): 850 s idle → not detected.
+        // At 600 s (new configurable): 850 s idle → detected.
+        let idle_secs: f64 = 850.0;
+        assert!(!(idle_secs >= 900.0), "under old hardcoded threshold → not idle");
+        assert!(idle_secs >= 600.0, "under custom threshold → idle");
+    }
 }

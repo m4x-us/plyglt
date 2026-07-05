@@ -1,7 +1,10 @@
-// interrupt.rs — Owns the proactive interrupt engine. Defines InterruptState (enabled,
-// interval_secs, mandatory, snooze_until_secs, last_triggered_secs, auto_opened) and a
-// 30-second background poll thread that emits "interrupt:fire" events to the JS frontend when
-// the interval has elapsed and no snooze is active. Exposes four Tauri IPC commands:
+// interrupt.rs — Owns the proactive interrupt engine. Defines InterruptState with fields:
+//   enabled, interval_secs, mandatory, snooze_until_secs, last_triggered_secs, auto_opened,
+//   wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs.
+// Runs a 30-second background poll thread that emits "interrupt:fire" to the JS frontend when
+// the interval has elapsed and no snooze is active. The four OS-trigger fields (wake_enabled,
+// unlock_enabled, idle_enabled, idle_threshold_secs) are stored here but consumed by
+// os_events.rs — wiring lands in Tasks #187–#190. Exposes four Tauri IPC commands:
 // update_interrupt_config, snooze_interrupt, enter_mandatory_mode, exit_mandatory_mode.
 // Registered by lib.rs; called from the JS side by components/InterruptHandler.tsx via invoke().
 
@@ -108,14 +111,19 @@ pub fn update_interrupt_config(
     idle_enabled: bool,
     idle_threshold_minutes: u32,
 ) {
-    if let Ok(mut st) = state.lock() {
-        st.enabled = enabled;
-        st.interval_secs = (interval_hours * 3600.0) as u64;
-        st.mandatory = mandatory;
-        st.wake_enabled = wake_enabled;
-        st.unlock_enabled = unlock_enabled;
-        st.idle_enabled = idle_enabled;
-        st.idle_threshold_secs = u64::from(idle_threshold_minutes) * 60;
+    match state.lock() {
+        Ok(mut st) => {
+            st.enabled = enabled;
+            st.interval_secs = (interval_hours * 3600.0) as u64;
+            st.mandatory = mandatory;
+            st.wake_enabled = wake_enabled;
+            st.unlock_enabled = unlock_enabled;
+            st.idle_enabled = idle_enabled;
+            st.idle_threshold_secs = u64::from(idle_threshold_minutes) * 60;
+        }
+        Err(e) => {
+            eprintln!("[plyglt] update_interrupt_config: mutex poisoned — config NOT applied: {e}");
+        }
     }
 }
 

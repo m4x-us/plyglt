@@ -15,6 +15,9 @@ import { NotificationPermissionGate } from "@/components/NotificationPermissionG
 import { useExportImport } from "@/hooks/useExportImport";
 import { useLicenseActivation } from "@/hooks/useLicenseActivation";
 
+const IDLE_THRESHOLD_MIN_MINUTES = 5;
+const IDLE_THRESHOLD_MAX_MINUTES = 120;
+
 export default function SettingsPage() {
   const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes, setLaunchAtLogin, setInterruptEnabled, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes, setWakeEnabled, setUnlockEnabled, setIdleEnabled, setIdleThresholdMinutes } = useSettingsStore();
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
@@ -24,6 +27,11 @@ export default function SettingsPage() {
   useEffect(() => { if (typeof Notification !== "undefined") setNotifPermission(Notification.permission); }, []);
   const { importRef, dataStatus, handleExport, handleImportFile } = useExportImport();
   const { licenseInput, setLicenseInput, licenseStatus, setLicenseStatus, handleActivate, handleValidate, handleDeactivate } = useLicenseActivation();
+  // macOS-only: OS Triggers are implemented exclusively for macOS in os_events.rs (Batch 15
+  // covers Windows/Linux). Hide on Windows ("Win32") and Linux ("Linux x86_64") by checking
+  // navigator.platform; treat empty string (JSDOM / unset) as macOS-compatible.
+  const isMacOS = isTauri && (typeof navigator === "undefined" || !navigator.platform || /mac/i.test(navigator.platform));
+
   async function handleInterruptToggle(v: boolean) {
     if (!v) { setInterruptEnabled(false); return; }
     if (notifPermission === "denied") return;
@@ -99,15 +107,15 @@ export default function SettingsPage() {
               </div>
             </Section>
           )}
-          {interruptEnabled && isTauri && (
+          {interruptEnabled && isMacOS && (
             <Section title="OS Triggers">
               <Toggle label="Remind on wake" description="Interrupt when your Mac wakes from sleep" checked={wakeEnabled} onChange={setWakeEnabled} />
               <Toggle label="Remind on unlock" description="Interrupt when you unlock your screen" checked={unlockEnabled} onChange={setUnlockEnabled} />
               <Toggle label="Remind when idle" description="Interrupt after your computer has been idle" checked={idleEnabled} onChange={setIdleEnabled} />
               {idleEnabled && (
                 <div className="pt-2">
-                  <label className="text-sm text-gray-400 block mb-2">Idle threshold (minutes)</label>
-                  <input type="number" min={5} max={120} value={idleThresholdMinutes} onChange={(e) => setIdleThresholdMinutes(Number(e.target.value))} className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-1.5 text-sm w-24 focus:outline-none focus:border-yellow-600" />
+                  <label htmlFor="idle-threshold" className="text-sm text-gray-400 block mb-2">Idle threshold (minutes)</label>
+                  <input id="idle-threshold" type="number" min={IDLE_THRESHOLD_MIN_MINUTES} max={IDLE_THRESHOLD_MAX_MINUTES} value={idleThresholdMinutes} onChange={(e) => setIdleThresholdMinutes(Math.min(IDLE_THRESHOLD_MAX_MINUTES, Math.max(IDLE_THRESHOLD_MIN_MINUTES, Number(e.target.value))))} className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-1.5 text-sm w-24 focus:outline-none focus:border-yellow-600" />
                 </div>
               )}
             </Section>

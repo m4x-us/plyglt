@@ -3,7 +3,10 @@
 // page.test.tsx — Behavioural tests for app/settings/page.tsx (Task #106)
 // ============================================================
 // Covers: handleLaunchAtLogin → enableAutostart, Activate button wiring,
-// and interrupt engine toggle → settingsStore.interruptEnabled.
+// interrupt engine toggle → settingsStore.interruptEnabled, OS trigger
+// toggles (wake/unlock/idle) and idle threshold input (#163/#164), plus
+// license section, notification permission flow, mandatory mode, and snooze
+// duration controls.
 // ============================================================
 // NOTE: Toggle renders role="switch" with the label text in a sibling div (not
 // inside the button), so aria accessible-name queries don't work. Tests use
@@ -212,7 +215,7 @@ describe("SettingsPage", () => {
     expect(mockActivation.handleActivate).toHaveBeenCalledTimes(1);
   });
 
-  // Test 4: OS Triggers section renders all 3 toggles when interruptEnabled=true and isTauri=true
+  // Test 3: OS Triggers section renders all 3 toggles when interruptEnabled=true and isTauri=true
   it("OS Triggers section renders 3 toggles when interruptEnabled and isTauri are true", () => {
     tauriState.isTauri = true;
     useSettingsStore.setState({ interruptEnabled: true, wakeEnabled: true, unlockEnabled: true, idleEnabled: true });
@@ -224,7 +227,7 @@ describe("SettingsPage", () => {
     expect(getSwitchByLabel("Remind when idle").getAttribute("aria-checked")).toBe("true");
   });
 
-  // Test 5: Clicking the wake toggle updates wakeEnabled in settingsStore
+  // Test 4: Clicking the wake toggle updates wakeEnabled in settingsStore
   it("clicking 'Remind on wake' toggle updates wakeEnabled in settingsStore", async () => {
     tauriState.isTauri = true;
     useSettingsStore.setState({ interruptEnabled: true, wakeEnabled: true });
@@ -240,7 +243,7 @@ describe("SettingsPage", () => {
     expect(wakeSwitch.getAttribute("aria-checked")).toBe("false");
   });
 
-  // Test 3: Interrupt engine toggle → interruptEnabled flips to true in store
+  // Test 5: Interrupt engine toggle → interruptEnabled flips to true in store
   it("clicking 'Enable review reminders' toggle updates interruptEnabled in settingsStore", () => {
     useSettingsStore.setState({ interruptEnabled: false });
 
@@ -299,7 +302,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
 
-    expect(queryIdleThresholdInput()).not.toBeNull();
+    expect(queryIdleThresholdInput()?.value).toBe("15");
     const idleSwitch = getSwitchByLabel("Remind when idle");
     expect(idleSwitch.getAttribute("aria-checked")).toBe("true");
 
@@ -334,6 +337,11 @@ describe("SettingsPage", () => {
 
     expect(useSettingsStore.getState().idleThresholdMinutes).toBe(45);
   });
+
+  // ── Tests 12–25: License section, notification flow, mandatory mode, snooze ──────────────
+  // These tests cover features outside Task #163's OS-trigger scope. They were separately
+  // authorized during Task #164 to close a settings-page coverage gap that predated that task.
+  // ─────────────────────────────────────────────────────────────────────────────────────────
 
   // Test 12: Active subscription license renders label, Active badge, all-languages message,
   // validUntil date, and a Manage subscription button

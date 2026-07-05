@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS } from "@/store/settingsStore";
+import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS, IDLE_THRESHOLD_MIN, IDLE_THRESHOLD_MAX } from "@/store/settingsStore";
 
 beforeEach(() => {
   useSettingsStore.setState({
@@ -10,6 +10,10 @@ beforeEach(() => {
     dndStart: "22:00",
     dndEnd: "08:00",
     snoozeMinutes: 30,
+    wakeEnabled: true,
+    unlockEnabled: true,
+    idleEnabled: true,
+    idleThresholdMinutes: 15,
   });
 });
 
@@ -23,6 +27,14 @@ describe("useSettingsStore — default values", () => {
     expect(s.dndStart).toBe("22:00");
     expect(s.dndEnd).toBe("08:00");
     expect(s.snoozeMinutes).toBe(30);
+  });
+
+  it("has expected OS trigger defaults", () => {
+    const s = useSettingsStore.getState();
+    expect(s.wakeEnabled).toBe(true);
+    expect(s.unlockEnabled).toBe(true);
+    expect(s.idleEnabled).toBe(true);
+    expect(s.idleThresholdMinutes).toBe(15);
   });
 });
 
@@ -66,6 +78,50 @@ describe("useSettingsStore — setters", () => {
       useSettingsStore.getState().setSnoozeMinutes(mins);
       expect(useSettingsStore.getState().snoozeMinutes).toBe(mins);
     }
+  });
+
+  it("setWakeEnabled toggles the flag", () => {
+    useSettingsStore.getState().setWakeEnabled(false);
+    expect(useSettingsStore.getState().wakeEnabled).toBe(false);
+    useSettingsStore.getState().setWakeEnabled(true);
+    expect(useSettingsStore.getState().wakeEnabled).toBe(true);
+  });
+
+  it("setUnlockEnabled toggles the flag", () => {
+    useSettingsStore.getState().setUnlockEnabled(false);
+    expect(useSettingsStore.getState().unlockEnabled).toBe(false);
+    useSettingsStore.getState().setUnlockEnabled(true);
+    expect(useSettingsStore.getState().unlockEnabled).toBe(true);
+  });
+
+  it("setIdleEnabled toggles the flag", () => {
+    useSettingsStore.getState().setIdleEnabled(false);
+    expect(useSettingsStore.getState().idleEnabled).toBe(false);
+    useSettingsStore.getState().setIdleEnabled(true);
+    expect(useSettingsStore.getState().idleEnabled).toBe(true);
+  });
+
+  it("setIdleThresholdMinutes accepts in-range values", () => {
+    useSettingsStore.getState().setIdleThresholdMinutes(30);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(30);
+    useSettingsStore.getState().setIdleThresholdMinutes(IDLE_THRESHOLD_MIN);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MIN);
+    useSettingsStore.getState().setIdleThresholdMinutes(IDLE_THRESHOLD_MAX);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MAX);
+  });
+
+  it("setIdleThresholdMinutes clamps below-minimum values to IDLE_THRESHOLD_MIN", () => {
+    useSettingsStore.getState().setIdleThresholdMinutes(0);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MIN);
+    useSettingsStore.getState().setIdleThresholdMinutes(-50);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MIN);
+  });
+
+  it("setIdleThresholdMinutes clamps above-maximum values to IDLE_THRESHOLD_MAX", () => {
+    useSettingsStore.getState().setIdleThresholdMinutes(200);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MAX);
+    useSettingsStore.getState().setIdleThresholdMinutes(99999);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MAX);
   });
 });
 

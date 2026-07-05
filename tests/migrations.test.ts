@@ -43,6 +43,9 @@ describe("migrateSrsStore()", () => {
     expect(result.streak).toBe(5);
     expect(result.lastStudiedDate).toBe("2026-01-01");
     expect(result.cards).toEqual(state.cards);
+    // Reference equality proves the migration loop never ran — any migration step
+    // creates a new object, so toBe fails if the version-guard was deleted.
+    expect(result).toBe(state);
   });
 
   it("v0 → v1: fills empty object with all defaults", () => {
@@ -82,9 +85,11 @@ describe("migrateSrsStore()", () => {
 
   it("is a no-op when storedVersion already equals current version", () => {
     const cards = { "a1-01": { reps: 7 } };
-    const result = migrateSrsStore({ cards, streak: 2 }, SRS_VERSION) as Record<string, unknown>;
+    const state = { cards, streak: 2 };
+    const result = migrateSrsStore(state, SRS_VERSION) as Record<string, unknown>;
     expect((result.cards as typeof cards)?.["a1-01"]?.reps).toBe(7);
     expect(result.streak).toBe(2);
+    expect(result).toBe(state);
   });
 
   it("v1 → v2: adds introductions: {} and preserves all existing fields", () => {
@@ -106,6 +111,23 @@ describe("migrateSrsStore()", () => {
       1,
     ) as Record<string, unknown>;
     expect(result.introductions).toEqual(existingIntros);
+  });
+
+  // Migration chain guard — verify every step from v0 to SRS_VERSION is defined.
+  // If SRS_VERSION is bumped without adding the migration step, migrateSrsStore throws
+  // at runtime. This test catches that at CI time: migrating from v0 will throw if any
+  // step in the chain is missing.
+  it("migration chain is gap-free: migrating from v0 does not throw (all steps defined)", () => {
+    expect(() => migrateSrsStore({}, 0)).not.toThrow();
+  });
+
+  it("migration chain: last step (SRS_VERSION - 1 -> current) does not throw", () => {
+    expect(() =>
+      migrateSrsStore(
+        { cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} },
+        SRS_VERSION - 1
+      )
+    ).not.toThrow();
   });
 });
 
@@ -157,6 +179,7 @@ describe("migrateEntitlementStore()", () => {
     const state = { licenseKey: "X", licenseType: "subscription" };
     const result = migrateEntitlementStore(state, ENTITLEMENT_VERSION) as typeof state;
     expect(result.licenseKey).toBe("X");
+    expect(result).toBe(state);
   });
 
   // V7: migration guard — verify every step from v0 to ENTITLEMENT_VERSION is defined.
@@ -244,6 +267,7 @@ describe("migrateSettingsStore()", () => {
   it("preserves existing mandatory flag", () => {
     const result = migrateSettingsStore({ mandatory: true }, 0) as Record<string, unknown>;
     expect(result.mandatory).toBe(true);
+    expect(result).toBe(state);
   });
 
   it("preserves custom DND hours", () => {
@@ -268,6 +292,36 @@ describe("migrateSettingsStore()", () => {
     expect(result.unlockEnabled).toBe(true);
     expect(result.idleEnabled).toBe(true);
     expect(result.idleThresholdMinutes).toBe(15);
+  });
+
+  it("v1 -> v2: clamps idleThresholdMinutes below 5 to 5 (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: -50 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.idleThresholdMinutes).toBe(5);
+  });
+
+  it("v1 -> v2: clamps idleThresholdMinutes above 120 to 120 (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: 99999 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.idleThresholdMinutes).toBe(120);
+  });
+
+  // Migration chain guard — verify every step from v0 to SETTINGS_VERSION is defined.
+  it("migration chain is gap-free: migrating from v0 does not throw (all steps defined)", () => {
+    expect(() => migrateSettingsStore({}, 0)).not.toThrow();
+  });
+
+  it("migration chain: last step (SETTINGS_VERSION - 1 -> current) does not throw", () => {
+    expect(() =>
+      migrateSettingsStore(
+        { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30 },
+        SETTINGS_VERSION - 1
+      )
+    ).not.toThrow();
   });
 
   it("v1 → v2: preserves existing wakeEnabled=false (pre-release build opt-out)", () => {

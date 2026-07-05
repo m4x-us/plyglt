@@ -70,7 +70,12 @@ function StudyInner() {
       <h1 className="text-2xl font-bold text-green-400 mb-2">Nothing ready.</h1>
       <p className="text-gray-500 mb-8">Check back later.</p>
       <button
-        onClick={async () => { if (isInterrupt) await exitMandatoryMode(); router.push("/learn"); }}
+        onClick={async () => {
+          if (isInterrupt) {
+            try { await exitMandatoryMode(); } catch (err) { console.error(`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:`, err); }
+          }
+          router.push("/learn");
+        }}
         className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
       >
         ← Home
@@ -118,7 +123,7 @@ function StudyInner() {
           <button
             onClick={async () => {
               try { await snoozeInterrupt(snoozeMinutes); } catch (err) { console.error(`[ERR-IPC-SNOOZE-${Date.now()}] Snooze failed:`, err); }
-              try { await exitMandatoryMode(); } finally { router.push("/learn"); }
+              try { await exitMandatoryMode(); } catch (err) { console.error(`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:`, err); } finally { router.push("/learn"); }
             }}
             className="text-yellow-600 hover:text-yellow-400 text-sm font-medium transition-colors"
           >

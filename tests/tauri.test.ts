@@ -78,24 +78,35 @@ describe("updateInterruptConfig — IPC error surfacing", () => {
     // Make isTauri === true by adding __TAURI_INTERNALS__ to window
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).rejects.toThrow("IPC failed");
+    // Use distinct values for args 4-6 (wakeEnabled/unlockEnabled/idleEnabled) so any
+    // positional swap between the new OS trigger parameters is detectable.
+    await expect(updateInterruptConfig(true, 1, false, true, false, true, 20)).rejects.toThrow("IPC failed");
   });
 
   it("resolves successfully when invoke returns null (void command success in Tauri)", async () => {
     vi.resetModules();
     // Void commands return null on success — must NOT throw
-    vi.doMock("@tauri-apps/api/core", () => ({
-      invoke: vi.fn().mockResolvedValue(null),
-    }));
+    const mockInvoke = vi.fn().mockResolvedValue(null);
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: mockInvoke }));
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).resolves.toBeUndefined();
+    await expect(updateInterruptConfig(true, 1, false, true, false, true, 20)).resolves.toBeUndefined();
+    // Assert exact invoke call shape — catches argument-order swaps between OS trigger fields.
+    expect(mockInvoke).toHaveBeenCalledWith("update_interrupt_config", {
+      enabled: true,
+      intervalHours: 1,
+      mandatory: false,
+      wakeEnabled: true,
+      unlockEnabled: false,
+      idleEnabled: true,
+      idleThresholdMinutes: 20,
+    });
   });
 
   it("returns void (no-op) in web mode — does not throw", async () => {
     // In web mode (no __TAURI_INTERNALS__), updateInterruptConfig must be silent
     const { updateInterruptConfig } = await import("@/lib/tauriInterrupt");
-    await expect(updateInterruptConfig(true, 1, false, true, true, true, 15)).resolves.toBeUndefined();
+    await expect(updateInterruptConfig(true, 1, false, true, false, true, 20)).resolves.toBeUndefined();
   });
 });
 
@@ -189,9 +200,14 @@ describe("checkForUpdates — security gate: never auto-installs", () => {
   });
 
   it("returns { available: false } in web mode without consulting the updater plugin", async () => {
+    vi.resetModules();
+    const checkSpy = vi.fn();
+    vi.doMock("@tauri-apps/plugin-updater", () => ({ check: checkSpy }));
+    // No __TAURI_INTERNALS__ → isTauri is false → check() must never be called
     const { checkForUpdates } = await import("@/lib/tauri");
     const result = await checkForUpdates();
     expect(result).toEqual({ available: false });
+    expect(checkSpy).not.toHaveBeenCalled();
   });
 
   it("returns { available: false } when check() throws (network / manifest error)", async () => {
