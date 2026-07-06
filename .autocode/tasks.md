@@ -3126,6 +3126,9 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 - [F040] test-quality new toggle tests create appearance of coverage for an inert feature — severity 5 | app/settings/page.test.tsx
 - [SP001] process-systemic 7 independent auditors, 7 methodologies, zero disagreement on the central defect's existence — severity 9 | CROSS-CUTTING
 
+**Audit resolution — 2026-07-06:** All 39 findings remediated via Batch 19 (Tasks #187–#225, 2 waves + 1 direct follow-up), all 39 confirmed COMPLETE. Task #164's own done-when (tests added, coverage maintained) was always satisfied; the FAIL verdict concerned the broader #163 feature, not this task's deliverable.
+**Status: COMPLETE — 2026-07-06**
+
 ---
 
 ## Batch 15 — Windows + Linux Packaging
