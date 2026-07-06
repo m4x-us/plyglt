@@ -338,6 +338,48 @@ describe("SettingsPage", () => {
     expect(useSettingsStore.getState().idleThresholdMinutes).toBe(45);
   });
 
+  // ── Tests 26–28: Task #210 regression — idle threshold input clamp (#209 gate) ───────────
+  // These three tests prove the onChange handler in page.tsx clamps out-of-range and
+  // NaN-producing values before calling setIdleThresholdMinutes, so update_interrupt_config
+  // never receives a value outside [5, 120] from UI interaction.
+  // ─────────────────────────────────────────────────────────────────────────────────────────
+
+  // Test 26: negative value typed → clamped to minimum (5)
+  it("idle threshold input clamps a negative typed value to the minimum (5)", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    fireEvent.change(queryIdleThresholdInput()!, { target: { value: "-10" } });
+
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(5);
+  });
+
+  // Test 27: value above 120 typed → clamped to maximum (120)
+  it("idle threshold input clamps a typed value above 120 to the maximum (120)", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    fireEvent.change(queryIdleThresholdInput()!, { target: { value: "200" } });
+
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(120);
+  });
+
+  // Test 28: empty string (Number("") = 0 < 5) → clamped to minimum (5); proves NaN blast radius blocked
+  it("idle threshold input clamps an empty string value to the minimum (5)", () => {
+    tauriState.isTauri = true;
+    useSettingsStore.setState({ interruptEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 });
+
+    render(<SettingsPage />);
+
+    fireEvent.change(queryIdleThresholdInput()!, { target: { value: "" } });
+
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(5);
+  });
+
   // ── Tests 12–25: License section, notification flow, mandatory mode, snooze ──────────────
   // These tests cover features outside Task #163's OS-trigger scope. They were separately
   // authorized during Task #164 to close a settings-page coverage gap that predated that task.

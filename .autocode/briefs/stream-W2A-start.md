@@ -1,118 +1,241 @@
-# Adam — Stream W2A — Wave 2 — 2026-07-02
+# Adam — Stream W2A — Wave 2 (Batch 19) — 2026-07-05
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W2A | #175
+— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216
 
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
-Work exclusively on the files listed under "Files You Own". Do not touch anything else.
+You are Adam, a CTO working on a specific set of Batch 19 remediation tasks in parallel
+with 1 other window. Wave 1 already fixed the core defect (os_events.rs now reads all 4
+OS-trigger config fields). These remaining tasks are deferred cleanup that was blocked on
+Wave 1 landing. Work exclusively on the files listed under "Files You Own".
+
+NOTE before you start #191 and #198: check the current state of the file first — some of
+this task's Done-When may already be satisfied as a side effect of Wave 1's fix (e.g. the
+TODO comment #191 asks you to remove may already be gone). If so, verify quickly and close
+it rather than redoing the work.
 
 ## Your Tasks (run in this exact order)
-1. /task #175  — Extract shared pack types to lib/packTypes.ts (break circular dependency)
+1. /task #191
+2. /task #198
+3. /task #193
+4. /task #196
+5. /task #194
+6. /task #192
+7. /task #215
+8. /task #216
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
+STATUS BOARD RULE — MANDATORY: After every completed /task, print your status board:
 
 Adam — W2A
-[→] #175 — Extract shared pack types to lib/packTypes.ts   ← starting now
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+[ ] #191
+[ ] #198
+[ ] #193
+[ ] #196
+[ ] #194
+[ ] #192
+[ ] #215
+[ ] #216
 
 ## Files You Own (edit ONLY these)
-lib/packTypes.ts  (new — create this file)
-lib/packLoader.ts
-lib/specialtyPackLoader.ts
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-src-tauri/src/lib.rs
+src-tauri/src/os_events.rs
 src-tauri/src/interrupt.rs
-src-tauri/src/license.rs
+store/migrations.ts
+components/InterruptHandler.tsx
+app/settings/page.tsx
+lib/tauriInterrupt.ts
+store/settingsStore.ts
+
+## Off-Limits Files (DO NOT MODIFY — owned by the other window)
+app/settings/page.test.tsx
+tests/
 
 ## Task Definitions
 
-### Task #175 | architecture | severity 5
-**What:** Break the circular type dependency between `lib/packLoader.ts` and `lib/specialtyPackLoader.ts`. Currently `specialtyPackLoader.ts:9` does `import type { Pack, LoadPackResult, Manifest } from "@/lib/packLoader"` while `packLoader.ts:32` does `import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader"`. Extract the shared type definitions (`Pack`, `PackMeta`, `Manifest`, `LoadPackResult`, `CachedPackMeta`) to a new `lib/packTypes.ts` module. Update both files to import types from `lib/packTypes.ts` instead.
-**Why:** `import type` prevents a runtime cycle but the design is fragile — any refactor of the shared types requires coordinating both files. Extracting to `lib/packTypes.ts` eliminates the cycle completely and makes the type contract explicit.
-**File:** `lib/packTypes.ts` (new), `lib/packLoader.ts`, `lib/specialtyPackLoader.ts`
-**Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 3 files, type extraction
-**Blocked by:** #173 | **Blocks:** Nothing
-**Test required:** No new tests needed — type extraction is structural. All 902 existing tests pass (no behavior change).
-**Done when:** `lib/packTypes.ts` exists with all 5 shared type definitions and a Rule 2 header. Neither `packLoader.ts` nor `specialtyPackLoader.ts` imports types from each other. Verification gate green.
+### Task #191: Fix process: unresolved TODO proves the team knew the wake/unlock/idle wiring was incomplete when Task #163 was marked COMPLETE.
+
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
 
-## Agent Memories
+**What:**
+A self-authored, unresolved TODO reads: "TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable field is added to InterruptState. The state lock block already reads the guard fields; just add idle_threshold_secs to that destructure." Its stated precondition has since been satisfied but the follow-up was never done. Remove the TODO once #187-#190 close it out, at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29.
+NEW
 
-## Architecture Agent Memory (first 150 lines)
-# Architecture Agent Memory — plyglt
+**Acceptance Criteria:**
+- [ ] Fix process issue at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29
+- [ ] Remove the stale TODO comment once the wiring lands
 
-## Stack
-Next.js 16.2.9, React 19, Zustand 5, Tauri 2 (desktop + web). TypeScript throughout.
+**Source:** Audit finding F005 — severity 7 — process
 
-## Layer Structure (dependencies flow strictly down)
-- `app/` — Next.js routes. LIMIT: ≤150 lines. All pages within limit.
-- `components/` — React UI components.
-- `hooks/` — Custom React hooks.
-- `store/` — Zustand stores. Imports from lib/.
-- `lib/` — Pure utilities. No React, no Zustand imports. Must NEVER import from store/, hooks/, components/, app/.
-- `content/` — Static card data and type definitions.
+---
 
-## Key Files
-High blast-radius (touch carefully):
-1. `store/srsStore.ts` — 20 importers
-2. Entitlement cluster — 26 files combined
-3. `lib/langRegistry.ts` — 20 importers
-4. `lib/packLoader.ts` — 5 importers
-5. `lib/srs.ts` — 13 importers
-6. `lib/tauri.ts` — 8 importers
-7. `lib/constants.ts` — 8 importers
+---
 
-## Important Modules
-- `lib/utils.ts` — pure utilities; exports `localDateStr(d?)`, `sha256Hex(text)`, `packUrl(lang)`.
-  After Task #173 (W1A, Wave 1), sha256Hex and packUrl were extracted here from packLoader.ts
-  and specialtyPackLoader.ts. Both packLoader.ts:33 and specialtyPackLoader.ts:11 now
-  import from "@/lib/utils".
+### Task #198: Fix documentation: os_events.rs file header documents current behavior as complete rather than disclosing the unread/hardcoded fields.
 
-## Prior Wave Changes — Read Before Starting
+**File:** src-tauri/src/os_events.rs
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P3
+**Status:** OPEN
 
-W1A (Wave 1, Adam) modified these files while closing Task #173:
+**What:**
+File header (lines 4-6) documents current listener behavior as normal/complete rather than disclosing that 3 of 4 new settings fields are currently unread and one is hardcoded-overridden, at src-tauri/src/os_events.rs:file header:4.
+NEW
 
-lib/utils.ts — ADDED sha256Hex(text: string): Promise<string> and packUrl(lang: string): string.
-  These were previously defined identically in both packLoader.ts and specialtyPackLoader.ts.
-  They now exist only in lib/utils.ts.
+**Acceptance Criteria:**
+- [ ] Fix documentation issue at src-tauri/src/os_events.rs:file header:4
 
-lib/packLoader.ts — line 33: changed from `import { packUrl }` (local impl) to
-  `import { sha256Hex, packUrl } from "@/lib/utils"`. Removed the local sha256Hex
-  and packUrl function bodies. Types still defined here: PackMeta (line 38),
-  Manifest (line 47), Pack (line 53), CachedPackMeta (line 66), LoadPackResult (line 154).
+**Source:** Audit finding F012 — severity 4 — documentation
 
-lib/specialtyPackLoader.ts — line 9: still imports `Pack, LoadPackResult, Manifest`
-  from "@/lib/packLoader". Line 11: imports `sha256Hex, packUrl` from "@/lib/utils".
+---
 
-Your task (#175) is to move the 5 type definitions OUT of packLoader.ts and INTO
-the new lib/packTypes.ts file. After you're done:
-  - packLoader.ts should import its own types from "@/lib/packTypes"
-  - specialtyPackLoader.ts should import types from "@/lib/packTypes" instead of "@/lib/packLoader"
-  - CachedPackMeta can remain private (unexported) in packLoader.ts if you prefer,
-    OR move it to packTypes.ts — your judgment; it's only used in packLoader.ts.
+---
 
-The 5 types to extract (current locations in packLoader.ts):
-  PackMeta    — line 38–45 (exported)
-  Manifest    — line 47–51 (exported)
-  Pack        — line 53–64 (exported)
-  CachedPackMeta — line 66–70 (unexported — used only inside packLoader.ts)
-  LoadPackResult — line 154–165 (exported union type)
+### Task #193: Fix documentation-trust: store/migrations.ts comment claims a functioning OS-trigger opt-out that does not exist at runtime.
 
-Rule 2 header required on lib/packTypes.ts (2–3 sentences describing ownership).
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+Comment at lines 158-159 claims a functioning opt-out for OS triggers that does not exist at runtime (per F001-F004), at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158
+- [ ] Update the comment once #187-#190 make the opt-out real, or soften the claim until then
+
+**Source:** Audit finding F007 — severity 9 — documentation-trust
+
+---
+
+---
+
+### Task #196: Fix documentation-trust: InterruptHandler.tsx comment "Keep the Rust thread in sync" is false for the 4 new fields.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Comment 'Keep the Rust thread in sync' is false with respect to the 4 new fields — nothing keeps os_events.rs in sync with them (F001-F004), at components/InterruptHandler.tsx:config-sync effect comment:30.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at components/InterruptHandler.tsx:config-sync effect comment:30
+- [ ] Update comment once #187-#190 land
+
+**Source:** Audit finding F010 — severity 7 — documentation-trust
+
+---
+
+---
+
+### Task #194: Fix documentation-trust: Wake/Unlock/Idle toggle descriptions claim independent control that runtime code never honors.
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The Wake/Unlock/Idle toggle descriptions (lines 104-111) claim these triggers can be independently disabled; runtime code never honors any of the three (F001-F003). Conflicts with BRAND.md's stress-free/trust principle, at app/settings/page.tsx:OS Triggers section JSX:104.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at app/settings/page.tsx:OS Triggers section JSX:104
+- [ ] Verify UI copy matches real behavior once #187-#190 land
+
+**Source:** Audit finding F008 — severity 9 — documentation-trust
+
+---
+
+---
+
+### Task #192: Fix test-quality: zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs.
+
+**File:** src-tauri/src/
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs. The exact layer containing the critical defect (F001-F004) has no test harness at all, so Task #164's added tests — which all stop at the JS/IPC-call boundary — had no way to catch it, at src-tauri/src/:n/a — entire crate:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Add a #[cfg(test)] module to os_events.rs and/or interrupt.rs covering the wake/unlock/idle gating logic
+- [ ] Audit passes: bash scripts/deep-audit.sh src-tauri/src/os_events.rs
+
+**Source:** Audit finding F006 — severity 7 — test-quality
+
+---
+
+---
+
+### Task #215: Fix code-quality: "15 minutes" idle default hardcoded independently in four places with no shared constant.
+
+**File:** src-tauri/src/os_events.rs, src-tauri/src/interrupt.rs, store/settingsStore.ts, store/migrations.ts
+**Complexity:** 🔧 Full — 4 files, cross-cutting constant extraction
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The '15 minutes' idle default is hardcoded independently in four places (os_events.rs:31, interrupt.rs:52, settingsStore.ts:54, migrations.ts:167) with no shared constant. One copy is already permanently out of sync since it is the unread hardcoded override (F004), at idle-default constants:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at idle-default constants:31
+- [ ] Extract a single shared default-minutes constant consumed by all four sites (via a shared TS/Rust boundary or documented single source of truth)
+
+**Source:** Audit finding F030 — severity 6 — code-quality
+
+---
+
+---
+
+### Task #216: Fix architecture: 7-positional-parameter interrupt-config contract duplicated identically across 5 files with no shared schema.
+
+**File:** app/settings/page.tsx, lib/tauriInterrupt.ts, components/InterruptHandler.tsx, store/settingsStore.ts, src-tauri/src/interrupt.rs
+**Complexity:** 🔧 Full — 5 files, contract redesign
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The 7-positional-parameter interrupt-config contract is duplicated identically across 5 files with no shared type/schema forcing sync. This exact coupling is the structural root cause that let os_events.rs silently fall out of sync with the other 4 files' understanding of the config shape (F001-F004), at update_interrupt_config parameter contract.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at update_interrupt_config parameter contract
+- [ ] Consider a shared config object/struct (TS interface + matching Rust struct) instead of positional params, so adding a field forces every consumer to acknowledge it
+
+**Source:** Audit finding F031 — severity 6 — architecture
+
+---
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W2A/completion.md:
-  Tasks closed: [list task numbers]
-  Tasks NOT completed: [list + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
+Write your completion summary to .autocode/stream-W2A/completion.md (append):
+  Tasks closed / NOT completed / Debt entries logged / Carry-forward tasks generated
 
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
+Then tell Max in this window: "Adam is done."
 
-— Adam | W2A | #175
+— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216

@@ -123,6 +123,24 @@ describe("useSettingsStore — setters", () => {
     useSettingsStore.getState().setIdleThresholdMinutes(99999);
     expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MAX);
   });
+
+  it("setIdleThresholdMinutes stores fractional in-range values unchanged (no implicit rounding)", () => {
+    // The setter uses Math.min/max but does not round. Fractional values within [IDLE_THRESHOLD_MIN,
+    // IDLE_THRESHOLD_MAX] are stored as-is. The UI number input and its onChange clamp guard
+    // prevent fractional values from being submitted via normal user interaction.
+    useSettingsStore.getState().setIdleThresholdMinutes(15.7);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(15.7);
+  });
+
+  it("setIdleThresholdMinutes clamps a fractional below-minimum value to IDLE_THRESHOLD_MIN", () => {
+    useSettingsStore.getState().setIdleThresholdMinutes(4.9);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MIN);
+  });
+
+  it("setIdleThresholdMinutes clamps a fractional above-maximum value to IDLE_THRESHOLD_MAX", () => {
+    useSettingsStore.getState().setIdleThresholdMinutes(120.1);
+    expect(useSettingsStore.getState().idleThresholdMinutes).toBe(IDLE_THRESHOLD_MAX);
+  });
 });
 
 describe("useSettingsStore — setters are independent", () => {

@@ -121,7 +121,7 @@ describe("migrateSrsStore()", () => {
     expect(() => migrateSrsStore({}, 0)).not.toThrow();
   });
 
-  it("migration chain: last step (SRS_VERSION - 1 -> current) does not throw", () => {
+  it("migration chain: last step (SRS_VERSION - 1 → current) does not throw", () => {
     expect(() =>
       migrateSrsStore(
         { cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} },
@@ -267,7 +267,6 @@ describe("migrateSettingsStore()", () => {
   it("preserves existing mandatory flag", () => {
     const result = migrateSettingsStore({ mandatory: true }, 0) as Record<string, unknown>;
     expect(result.mandatory).toBe(true);
-    expect(result).toBe(state);
   });
 
   it("preserves custom DND hours", () => {
@@ -281,6 +280,7 @@ describe("migrateSettingsStore()", () => {
     const result = migrateSettingsStore(state, SETTINGS_VERSION) as typeof state;
     expect(result.intervalHours).toBe(4);
     expect(result.mandatory).toBe(true);
+    expect(result).toBe(state);
   });
 
   it("v1 → v2: adds OS trigger fields with correct defaults when absent", () => {
@@ -292,36 +292,6 @@ describe("migrateSettingsStore()", () => {
     expect(result.unlockEnabled).toBe(true);
     expect(result.idleEnabled).toBe(true);
     expect(result.idleThresholdMinutes).toBe(15);
-  });
-
-  it("v1 -> v2: clamps idleThresholdMinutes below 5 to 5 (corrupt persisted value)", () => {
-    const result = migrateSettingsStore(
-      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: -50 },
-      1
-    ) as Record<string, unknown>;
-    expect(result.idleThresholdMinutes).toBe(5);
-  });
-
-  it("v1 -> v2: clamps idleThresholdMinutes above 120 to 120 (corrupt persisted value)", () => {
-    const result = migrateSettingsStore(
-      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: 99999 },
-      1
-    ) as Record<string, unknown>;
-    expect(result.idleThresholdMinutes).toBe(120);
-  });
-
-  // Migration chain guard — verify every step from v0 to SETTINGS_VERSION is defined.
-  it("migration chain is gap-free: migrating from v0 does not throw (all steps defined)", () => {
-    expect(() => migrateSettingsStore({}, 0)).not.toThrow();
-  });
-
-  it("migration chain: last step (SETTINGS_VERSION - 1 -> current) does not throw", () => {
-    expect(() =>
-      migrateSettingsStore(
-        { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30 },
-        SETTINGS_VERSION - 1
-      )
-    ).not.toThrow();
   });
 
   it("v1 → v2: preserves existing wakeEnabled=false (pre-release build opt-out)", () => {
@@ -360,5 +330,35 @@ describe("migrateSettingsStore()", () => {
     expect(result.unlockEnabled).toBe(true);
     expect(result.idleEnabled).toBe(true);
     expect(result.idleThresholdMinutes).toBe(15);
+  });
+
+  it("v1 → v2: clamps idleThresholdMinutes below 5 to 5 (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: -50 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.idleThresholdMinutes).toBe(5);
+  });
+
+  it("v1 → v2: clamps idleThresholdMinutes above 120 to 120 (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, idleThresholdMinutes: 99999 },
+      1
+    ) as Record<string, unknown>;
+    expect(result.idleThresholdMinutes).toBe(120);
+  });
+
+  // Migration chain guard — verify every step from v0 to SETTINGS_VERSION is defined.
+  it("migration chain is gap-free: migrating from v0 does not throw (all steps defined)", () => {
+    expect(() => migrateSettingsStore({}, 0)).not.toThrow();
+  });
+
+  it("migration chain: last step (SETTINGS_VERSION - 1 → current) does not throw", () => {
+    expect(() =>
+      migrateSettingsStore(
+        { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30 },
+        SETTINGS_VERSION - 1
+      )
+    ).not.toThrow();
   });
 });

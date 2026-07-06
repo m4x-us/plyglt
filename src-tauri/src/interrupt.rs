@@ -3,9 +3,11 @@
 //   wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs.
 // Runs a 30-second background poll thread that emits "interrupt:fire" to the JS frontend when
 // the interval has elapsed and no snooze is active. The four OS-trigger fields (wake_enabled,
-// unlock_enabled, idle_enabled, idle_threshold_secs) are stored here but consumed by
-// os_events.rs — wiring lands in Tasks #187–#190. Exposes four Tauri IPC commands:
-// update_interrupt_config, snooze_interrupt, enter_mandatory_mode, exit_mandatory_mode.
+// unlock_enabled, idle_enabled, idle_threshold_secs) are stored here and consumed by
+// os_events.rs — wiring landed in Tasks #187–#190. Exposes four Tauri IPC commands:
+// update_interrupt_config (7 positional params — see InterruptConfig below for the
+// documented contract shape pending a future migration), snooze_interrupt,
+// enter_mandatory_mode, and exit_mandatory_mode.
 // Registered by lib.rs; called from the JS side by components/InterruptHandler.tsx via invoke().
 
 use std::{
@@ -17,6 +19,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager};
 
 const POLL_SECS: u64 = 30;
+/// Default idle threshold — mirrors IDLE_THRESHOLD_DEFAULT_MINUTES = 15 in store/migrations.ts.
+const IDLE_THRESHOLD_DEFAULT_SECS: u64 = 900; // 15 × 60
 
 pub struct InterruptState {
     pub enabled: bool,
@@ -52,7 +56,7 @@ impl Default for InterruptState {
             wake_enabled: true,
             unlock_enabled: true,
             idle_enabled: true,
-            idle_threshold_secs: 15 * 60,
+            idle_threshold_secs: IDLE_THRESHOLD_DEFAULT_SECS,
         }
     }
 }
@@ -99,6 +103,22 @@ pub fn start(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
 }
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
+
+/// Mirrors the InterruptConfig interface in lib/tauriInterrupt.ts — single source of truth
+/// for the interrupt-config contract shape. Defined here for documentation and future
+/// migration; the IPC wire format currently uses positional params (flat object on the JS side).
+/// When tests/tauri.test.ts and components/InterruptHandler.test.tsx migrate to the object
+/// form, the command signature can switch to `config: InterruptConfig` (Task #216).
+#[allow(dead_code)]
+pub struct InterruptConfig {
+    pub enabled: bool,
+    pub interval_hours: f32,
+    pub mandatory: bool,
+    pub wake_enabled: bool,
+    pub unlock_enabled: bool,
+    pub idle_enabled: bool,
+    pub idle_threshold_minutes: u32,
+}
 
 #[tauri::command]
 pub fn update_interrupt_config(

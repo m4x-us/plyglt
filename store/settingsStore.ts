@@ -4,7 +4,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
-import { SETTINGS_VERSION, migrateSettingsStore } from "@/store/migrations";
+import { SETTINGS_VERSION, migrateSettingsStore, IDLE_THRESHOLD_DEFAULT_MINUTES } from "@/store/migrations";
 
 export const INTERVAL_OPTIONS = [2, 3, 4, 6] as const;
 export const SNOOZE_OPTIONS = [15, 30, 60] as const;
@@ -53,7 +53,7 @@ export const useSettingsStore = create<SettingsState>()(
       wakeEnabled: true,
       unlockEnabled: true,
       idleEnabled: true,
-      idleThresholdMinutes: 15,
+      idleThresholdMinutes: IDLE_THRESHOLD_DEFAULT_MINUTES,
 
       setLaunchAtLogin: (v) => set({ launchAtLogin: v }),
       setInterruptEnabled: (v) => set({ interruptEnabled: v }),

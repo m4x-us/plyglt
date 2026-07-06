@@ -3126,7 +3126,6 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 - [F040] test-quality new toggle tests create appearance of coverage for an inert feature — severity 5 | app/settings/page.test.tsx
 - [SP001] process-systemic 7 independent auditors, 7 methodologies, zero disagreement on the central defect's existence — severity 9 | CROSS-CUTTING
 
-
 ---
 
 ## Batch 15 — Windows + Linux Packaging
@@ -3332,7 +3331,7 @@ NEW
 **Owner:** Architecture Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 A self-authored, unresolved TODO reads: "TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable field is added to InterruptState. The state lock block already reads the guard fields; just add idle_threshold_secs to that destructure." Its stated precondition has since been satisfied but the follow-up was never done. Remove the TODO once #187-#190 close it out, at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29.
@@ -3353,7 +3352,7 @@ NEW
 **Owner:** QA Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 Zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs. The exact layer containing the critical defect (F001-F004) has no test harness at all, so Task #164's added tests — which all stop at the JS/IPC-call boundary — had no way to catch it, at src-tauri/src/:n/a — entire crate:0.
@@ -3374,7 +3373,7 @@ NEW
 **Owner:** Docs Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 Comment at lines 158-159 claims a functioning opt-out for OS triggers that does not exist at runtime (per F001-F004), at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158.
@@ -3395,7 +3394,7 @@ NEW
 **Owner:** Docs Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 The Wake/Unlock/Idle toggle descriptions (lines 104-111) claim these triggers can be independently disabled; runtime code never honors any of the three (F001-F003). Conflicts with BRAND.md's stress-free/trust principle, at app/settings/page.tsx:OS Triggers section JSX:104.
@@ -3437,7 +3436,7 @@ NEW
 **Owner:** Docs Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 Comment 'Keep the Rust thread in sync' is false with respect to the 4 new fields — nothing keeps os_events.rs in sync with them (F001-F004), at components/InterruptHandler.tsx:config-sync effect comment:30.
@@ -3478,7 +3477,7 @@ NEW
 **Owner:** Docs Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 File header (lines 4-6) documents current listener behavior as normal/complete rather than disclosing that 3 of 4 new settings fields are currently unread and one is hardcoded-overridden, at src-tauri/src/os_events.rs:file header:4.
@@ -3728,7 +3727,7 @@ NEW
 **Owner:** Architecture Agent
 **Blocked by:** #209
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 A NaN or fractional idleThresholdMinutes value would fail Rust's u32 deserialization and reject the entire bundled 7-parameter update_interrupt_config IPC call, silently dropping other unrelated valid changes (e.g. wakeEnabled) submitted in the same call, at onChange handler → updateInterruptConfig → update_interrupt_config:110. Root cause is closed by #209's input clamp (app/settings/page.tsx) — this task is the regression-test verification that the clamp actually prevents the blast-radius failure, not a separate 3-file implementation.
@@ -3791,7 +3790,7 @@ NEW
 **Owner:** QA Agent
 **Blocked by:** #209, #211, #212
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 No test anywhere in the diff exercises an out-of-range or invalid idleThresholdMinutes value (e.g. negative, fractional, or > 120), at tests/:n/a — missing test:0.
@@ -3833,7 +3832,7 @@ NEW
 **Owner:** Architecture Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 The '15 minutes' idle default is hardcoded independently in four places (os_events.rs:31, interrupt.rs:52, settingsStore.ts:54, migrations.ts:167) with no shared constant. One copy is already permanently out of sync since it is the unread hardcoded override (F004), at idle-default constants:31.
@@ -3854,7 +3853,7 @@ NEW
 **Owner:** Architecture Agent
 **Blocked by:** #187, #188, #189, #190
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 The 7-positional-parameter interrupt-config contract is duplicated identically across 5 files with no shared type/schema forcing sync. This exact coupling is the structural root cause that let os_events.rs silently fall out of sync with the other 4 files' understanding of the config shape (F001-F004), at update_interrupt_config parameter contract.

@@ -13,6 +13,8 @@
 // DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES),
 //             @/lib/licenseTypes (LICENSE_TYPES, LicenseType)
 // USED BY: store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts
+// EXPORTS: IDLE_THRESHOLD_DEFAULT_MINUTES — single source of truth for the idle default;
+//          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
 // ===========================================
 
 import { FREE_PACK_CODES } from "@/lib/langRegistry";
@@ -110,6 +112,9 @@ export function migrateEntitlementStore(persisted: unknown, storedVersion: numbe
 // ── Settings store ────────────────────────────────────────────────────────────
 
 export const SETTINGS_VERSION = 2;
+/** Single source of truth for the idle-threshold default (minutes).
+ *  Mirrored as IDLE_THRESHOLD_DEFAULT_SECS = 900 in src-tauri/src/interrupt.rs. */
+export const IDLE_THRESHOLD_DEFAULT_MINUTES = 15;
 
 const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
@@ -130,7 +135,7 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // (e.g. -50 or 99999) that would produce nonsensical OS idle detection thresholds.
   2: (data: unknown) => {
     const d = data as Record<string, unknown>;
-    const rawThreshold = typeof d.idleThresholdMinutes === "number" ? d.idleThresholdMinutes : 15;
+    const rawThreshold = typeof d.idleThresholdMinutes === "number" ? d.idleThresholdMinutes : IDLE_THRESHOLD_DEFAULT_MINUTES;
     return {
       ...d,
       wakeEnabled:          typeof d.wakeEnabled === "boolean" ? d.wakeEnabled : true,

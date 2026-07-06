@@ -126,3 +126,6 @@
 - architecture InterruptHandler.tsx imports directly from store/, violating the components/ layer rule (pre-existing) — severity 4 | components/InterruptHandler.tsx:module imports:1 | NEW
 - tests 6 new OS-trigger toggle tests create an appearance of coverage for a feature whose backing implementation is inert — severity 5 | app/settings/page.test.tsx:OS-trigger toggle tests (6 new tests):0 | NEW
 - process-systemic Seven independent auditors across seven methodologies converged on the identical root defect with zero disagreement on its existence — a systemic process failure (unit-level plumbing verified end-to-end, final consumption step one file away never traced by a single test), not an isolated coding mistake — severity 9 | CROSS-CUTTING | SYNTHESIS
+
+## 2026-07-06 | Task: Batch 19 Wave 2
+- documentation-trust Wave 2's own fix to src-tauri/src/interrupt.rs's header introduced a NEW false claim ("accepts InterruptConfig struct") while the function still takes 7 positional params — caught by the orchestrating CTO's post-wave verification, not by the builder. Poka-yoke: header/comment updates describing a design-in-progress must be re-read against the actual function signature before closing, not just against the intent of the task. — severity 5 | src-tauri/src/interrupt.rs:8 | NEW

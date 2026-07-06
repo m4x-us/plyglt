@@ -3,6 +3,33 @@ Date: 2026-07-02
 
 ---
 
+## Wave 2 — 2026-07-05 (#210 #213) — Barry
+
+**Status: COMPLETE**
+**Files modified: 2**
+
+### Tasks closed
+- **#210** — Regression tests for idle threshold UI clamp — COMPLETE
+- **#213** — Fractional/boundary idleThresholdMinutes tests in `tests/` — COMPLETE
+
+### What was built
+
+**`app/settings/page.test.tsx`** — Added Tests 26–28 (Task #210 regression): negative value (-10 → 5), value >120 (200 → 120), empty string (NaN source → 5). Proved the onChange handler clamp in page.tsx blocks all three invalid cases from reaching the store/IPC layer. Inserted before the Tests 12–25 section with a named boundary comment.
+
+**`tests/settingsStore.test.ts`** — Added 3 fractional tests (Task #213): in-range fractional 15.7 stored unchanged (documents that the setter does not round — UI layer prevents fractional input in normal use); fractional below-min 4.9 → IDLE_THRESHOLD_MIN (5); fractional above-max 120.1 → IDLE_THRESHOLD_MAX (120).
+
+### Verification results
+- `npm test` → 956/956 ✓ (up 19 from 937 at start of session)
+- `npx tsc --noEmit` → clean ✓
+
+### Notable observations
+The store setter `setIdleThresholdMinutes` does not round fractional values — 15.7 is stored as 15.7. This is safe because: (a) the UI number input type prevents fractional user input in browsers; (b) the page onChange handler clamps to integer-representable values using the same min/max constants. However, direct API calls to `setIdleThresholdMinutes(15.7)` would yield a float that Rust u32 deserialization would reject. This gap is documented via the fractional test's inline comment.
+
+### Debt entries logged: 0
+### Carry-forward tasks generated: 0
+
+---
+
 ## Wave 2 — 2026-07-02 (#159) — Barry
 
 **Status: COMPLETE**

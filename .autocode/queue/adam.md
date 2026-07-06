@@ -1,280 +1,248 @@
 ---
 status: done
 agent: adam
-stream: W1A
-wave: 1
+stream: W2A
+wave: 2
 ---
 
-# Adam — Stream W1A — Wave 1 — 2026-07-04
+# Adam — Stream W2A — Wave 2 (Batch 19) — 2026-07-05
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W1A | #187 #188 #189 #190 #199 #209 #214 #219
+— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216
 
 You are Adam, a CTO working on a specific set of Batch 19 remediation tasks in parallel
-with 3 other windows (this wave has 4 streams). These tasks all came from the /audit #164
-verdict (FAIL, severity 9): Task #163's OS trigger settings feature (wake/unlock/idle toggles
-+ idle threshold) is entirely non-functional because src-tauri/src/os_events.rs — the only
-Rust code that fires wake/unlock/idle interrupts — never reads the config fields Task #163
-built the whole UI/store/IPC chain to expose. Work exclusively on the files listed under
-"Files You Own". Do not touch anything else.
+with 1 other window. Wave 1 already fixed the core defect (os_events.rs now reads all 4
+OS-trigger config fields). These remaining tasks are deferred cleanup that was blocked on
+Wave 1 landing. Work exclusively on the files listed under "Files You Own".
+
+NOTE before you start #191 and #198: check the current state of the file first — some of
+this task's Done-When may already be satisfied as a side effect of Wave 1's fix (e.g. the
+TODO comment #191 asks you to remove may already be gone). If so, verify quickly and close
+it rather than redoing the work.
 
 ## Your Tasks (run in this exact order)
-1. /task #187
-2. /task #188
-3. /task #189
-4. /task #190
-5. /task #199
-6. /task #209
-7. /task #214
-8. /task #219
+1. /task #191
+2. /task #198
+3. /task #193
+4. /task #196
+5. /task #194
+6. /task #192
+7. /task #215
+8. /task #216
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
+STATUS BOARD RULE — MANDATORY: After every completed /task, print your status board:
 
-Adam — W1A
-[ ] #187
-[ ] #188
-[ ] #189
-[ ] #190
-[ ] #199
-[ ] #209
-[ ] #214
-[ ] #219
-
-Update to [✓] as each completes. This lets Max glance at any window and know exactly
-where you are.
+Adam — W2A
+[ ] #191
+[ ] #198
+[ ] #193
+[ ] #196
+[ ] #194
+[ ] #192
+[ ] #215
+[ ] #216
 
 ## Files You Own (edit ONLY these)
 src-tauri/src/os_events.rs
-app/settings/page.tsx
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-app/learn/page.tsx
-app/settings/page.test.tsx
-app/study/page.tsx
-components/InterruptHandler.test.tsx
-components/InterruptHandler.tsx
-lib/tauriInterrupt.ts
 src-tauri/src/interrupt.rs
-src-tauri/src/lib.rs
 store/migrations.ts
+components/InterruptHandler.tsx
+app/settings/page.tsx
+lib/tauriInterrupt.ts
 store/settingsStore.ts
-tests/migrations.test.ts
-tests/settingsStore.test.ts
-tests/tauri.test.ts
+
+## Off-Limits Files (DO NOT MODIFY — owned by the other window)
+app/settings/page.test.tsx
+tests/
 
 ## Task Definitions
 
-### Task #187: Fix functional-defect: wake_enabled is written by update_interrupt_config but never read anywhere else in the crate.
+### Task #191: Fix process: unresolved TODO proves the team knew the wake/unlock/idle wiring was incomplete when Task #163 was marked COMPLETE.
 
 **File:** src-tauri/src/os_events.rs
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
 **Status:** OPEN
 
 **What:**
-wake_enabled is written by update_interrupt_config (interrupt.rs:115-118) but never read anywhere else in the crate. The wake-detection branch fires on `elapsed>WAKE_THRESHOLD_SECS && enabled && now>=snooze_until` — it omits the wake_enabled check entirely, so toggling 'Wake' off in Settings has zero runtime effect at src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172.
+A self-authored, unresolved TODO reads: "TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable field is added to InterruptState. The state lock block already reads the guard fields; just add idle_threshold_secs to that destructure." Its stated precondition has since been satisfied but the follow-up was never done. Remove the TODO once #187-#190 close it out, at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (wake-detection branch):172
-- [ ] Add `wake_enabled` to the guard-state destructure at os_events.rs:165-168 and gate the wake-detection branch on it
-- [ ] Add a regression test tracing update_interrupt_config(wake_enabled: false) → no interrupt:fire on simulated wake
+- [ ] Fix process issue at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29
+- [ ] Remove the stale TODO comment once the wiring lands
 
-**Source:** Audit finding F001 — severity 9 — functional-defect
-
----
+**Source:** Audit finding F005 — severity 7 — process
 
 ---
 
-### Task #188: Fix functional-defect: unlock_enabled is written but never read.
+---
+
+### Task #198: Fix documentation: os_events.rs file header documents current behavior as complete rather than disclosing the unread/hardcoded fields.
 
 **File:** src-tauri/src/os_events.rs
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-unlock_enabled is written but never read. The unlock-detection branch fires on `prev_locked && !is_locked && enabled && now>=snooze_until`, omitting unlock_enabled at src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (unlock-detection branch):181
-- [ ] Gate the unlock-detection branch on unlock_enabled
-- [ ] Add a regression test tracing update_interrupt_config(unlock_enabled: false) → no interrupt:fire on simulated unlock
-
-**Source:** Audit finding F002 — severity 9 — functional-defect
-
----
-
----
-
-### Task #189: Fix functional-defect: idle_enabled is written but never read.
-
-**File:** src-tauri/src/os_events.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-idle_enabled is written but never read. The idle-detection branch fires on `prev_idle && !is_idle && enabled && now>=snooze_until`, omitting idle_enabled at src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:start_os_listeners (idle-detection branch):191
-- [ ] Gate the idle-detection branch on idle_enabled
-- [ ] Add a regression test tracing update_interrupt_config(idle_enabled: false) → no interrupt:fire on simulated idle-return
-
-**Source:** Audit finding F003 — severity 9 — functional-defect
-
----
-
----
-
-### Task #190: Fix functional-defect: IDLE_THRESHOLD_SECS is hardcoded to 900.0 instead of the configurable st.idle_threshold_secs.
-
-**File:** src-tauri/src/os_events.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-IDLE_THRESHOLD_SECS is hardcoded to 900.0 (line 31) and used at line 160 instead of the configurable st.idle_threshold_secs field. Changing the idle-threshold UI input in Settings has zero effect on runtime behavior at src-tauri/src/os_events.rs:module const IDLE_THRESHOLD_SECS / start_os_listeners:31.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix functional-defect issue at src-tauri/src/os_events.rs:module const IDLE_THRESHOLD_SECS / start_os_listeners:31
-- [ ] Read st.idle_threshold_secs from the guard-state destructure and use it in place of the hardcoded constant
-- [ ] Add a test asserting a custom idle_threshold_secs value changes the actual idle-detection wait time
-
-**Source:** Audit finding F004 — severity 8 — functional-defect
-
----
-
----
-
-### Task #199: Fix functional-defect: OS Triggers UI section has no platform gate — renders non-functionally on Windows/Linux.
-
-**File:** app/settings/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-The OS Triggers section (lines 102-114) is gated only on interruptEnabled && isTauri, with no platform check. It renders (non-functionally) on Windows/Linux Tauri builds where os_events.rs is a documented total no-op for these fields, compounding F001-F004, at app/settings/page.tsx:OS Triggers section:102.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix functional-defect issue at app/settings/page.tsx:OS Triggers section:102
-- [ ] Gate the section on a platform capability check (e.g. macOS-only) until Batch 15 Windows/Linux support lands
-
-**Source:** Audit finding F014 — severity 8 — functional-defect
-
----
-
----
-
-### Task #209: Fix input-validation: idle-threshold number input has no clamp/validation logic.
-
-**File:** app/settings/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
 **Priority:** P3
 **Status:** OPEN
 
 **What:**
-The idle-threshold number input's onChange has no clamp/validation logic; native min/max HTML attributes are UI-only and not enforced by any JS or Rust code path, at app/settings/page.tsx:idle-threshold number input onChange:110.
+File header (lines 4-6) documents current listener behavior as normal/complete rather than disclosing that 3 of 4 new settings fields are currently unread and one is hardcoded-overridden, at src-tauri/src/os_events.rs:file header:4.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix input-validation issue at app/settings/page.tsx:idle-threshold number input onChange:110
-- [ ] Clamp to [5,120] in the onChange handler
+- [ ] Fix documentation issue at src-tauri/src/os_events.rs:file header:4
 
-**Source:** Audit finding F024 — severity 5 — input-validation
-
----
+**Source:** Audit finding F012 — severity 4 — documentation
 
 ---
 
-### Task #214: Fix code-quality: idle-threshold min/max are inlined magic literals instead of named constants.
+---
 
-**File:** app/settings/page.tsx
+### Task #193: Fix documentation-trust: store/migrations.ts comment claims a functioning OS-trigger opt-out that does not exist at runtime.
+
+**File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
 **Status:** OPEN
 
 **What:**
-Magic literals 5 and 120 are inlined as min/max rather than named constants. AGENTS.md: "any hardcoded string that belongs in a named constant" is a Stop-the-Line violation, at app/settings/page.tsx:idle-threshold number input:110.
+Comment at lines 158-159 claims a functioning opt-out for OS triggers that does not exist at runtime (per F001-F004), at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at app/settings/page.tsx:idle-threshold number input:110
-- [ ] Extract IDLE_THRESHOLD_MIN_MINUTES / IDLE_THRESHOLD_MAX_MINUTES constants (e.g. in settingsStore.ts, matching INTERVAL_OPTIONS/SNOOZE_OPTIONS convention)
+- [ ] Fix documentation-trust issue at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158
+- [ ] Update the comment once #187-#190 make the opt-out real, or soften the claim until then
 
-**Source:** Audit finding F029 — severity 2 — code-quality
+**Source:** Audit finding F007 — severity 9 — documentation-trust
+
+---
+
+---
+
+### Task #196: Fix documentation-trust: InterruptHandler.tsx comment "Keep the Rust thread in sync" is false for the 4 new fields.
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Comment 'Keep the Rust thread in sync' is false with respect to the 4 new fields — nothing keeps os_events.rs in sync with them (F001-F004), at components/InterruptHandler.tsx:config-sync effect comment:30.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at components/InterruptHandler.tsx:config-sync effect comment:30
+- [ ] Update comment once #187-#190 land
+
+**Source:** Audit finding F010 — severity 7 — documentation-trust
 
 ---
 
 ---
 
-### Task #219: Fix accessibility: idle-threshold label has no htmlFor/id association with its input.
+### Task #194: Fix documentation-trust: Wake/Unlock/Idle toggle descriptions claim independent control that runtime code never honors.
 
 **File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Docs Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The Wake/Unlock/Idle toggle descriptions (lines 104-111) claim these triggers can be independently disabled; runtime code never honors any of the three (F001-F003). Conflicts with BRAND.md's stress-free/trust principle, at app/settings/page.tsx:OS Triggers section JSX:104.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at app/settings/page.tsx:OS Triggers section JSX:104
+- [ ] Verify UI copy matches real behavior once #187-#190 land
+
+**Source:** Audit finding F008 — severity 9 — documentation-trust
+
+---
+
+---
+
+### Task #192: Fix test-quality: zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs.
+
+**File:** src-tauri/src/
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** QA Agent
-**Blocked by:** Nothing
-**Priority:** P3
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
 **Status:** OPEN
 
 **What:**
-The idle-threshold label has no htmlFor/id association. Task #164 worked around this in tests via DOM traversal instead of fixing the markup. Pre-existing pattern elsewhere in the file, but a missed opportunity to fix while touching this exact markup, at app/settings/page.tsx:idle-threshold label/input:109.
+Zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs. The exact layer containing the critical defect (F001-F004) has no test harness at all, so Task #164's added tests — which all stop at the JS/IPC-call boundary — had no way to catch it, at src-tauri/src/:n/a — entire crate:0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix accessibility issue at app/settings/page.tsx:idle-threshold label/input:109
-- [ ] Add htmlFor/id association; simplify the test's queryIdleThresholdInput() helper to use getByLabelText once fixed
+- [ ] Add a #[cfg(test)] module to os_events.rs and/or interrupt.rs covering the wake/unlock/idle gating logic
+- [ ] Audit passes: bash scripts/deep-audit.sh src-tauri/src/os_events.rs
 
-**Source:** Audit finding F034 — severity 2 — accessibility
+**Source:** Audit finding F006 — severity 7 — test-quality
 
 ---
 
-## Context You Need
+---
 
-This wave fixes findings from a 7-agent independent audit (/audit #164, verdict FAIL,
-severity 9, 39 findings). The central defect: `update_interrupt_config` in
-`src-tauri/src/interrupt.rs` correctly writes `wake_enabled`, `unlock_enabled`,
-`idle_enabled`, `idle_threshold_secs` into shared `InterruptState`, but
-`src-tauri/src/os_events.rs`'s guard-state destructure (around line 165) only reads
-`(enabled, snooze_until, mandatory)` — never the 4 new fields. Every wake/unlock/idle
-detection branch in that file gates only on the master `enabled` flag. A self-authored
-TODO comment in os_events.rs (around line 29) already documents this exact gap.
+### Task #215: Fix code-quality: "15 minutes" idle default hardcoded independently in four places with no shared constant.
 
-11 further tasks in Batch 19 (#191,#192,#193,#194,#196,#198,#210,#213,#215,#216,#225) are
-DEFERRED — blocked by the P1 wiring tasks (#187-#190) landing first. They will surface in
-Wave 2 once this wave closes.
+**File:** src-tauri/src/os_events.rs, src-tauri/src/interrupt.rs, store/settingsStore.ts, store/migrations.ts
+**Complexity:** 🔧 Full — 4 files, cross-cutting constant extraction
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The '15 minutes' idle default is hardcoded independently in four places (os_events.rs:31, interrupt.rs:52, settingsStore.ts:54, migrations.ts:167) with no shared constant. One copy is already permanently out of sync since it is the unread hardcoded override (F004), at idle-default constants:31.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at idle-default constants:31
+- [ ] Extract a single shared default-minutes constant consumed by all four sites (via a shared TS/Rust boundary or documented single source of truth)
+
+**Source:** Audit finding F030 — severity 6 — code-quality
+
+---
+
+---
+
+### Task #216: Fix architecture: 7-positional-parameter interrupt-config contract duplicated identically across 5 files with no shared schema.
+
+**File:** app/settings/page.tsx, lib/tauriInterrupt.ts, components/InterruptHandler.tsx, store/settingsStore.ts, src-tauri/src/interrupt.rs
+**Complexity:** 🔧 Full — 5 files, contract redesign
+**Owner:** Architecture Agent
+**Blocked by:** #187, #188, #189, #190
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The 7-positional-parameter interrupt-config contract is duplicated identically across 5 files with no shared type/schema forcing sync. This exact coupling is the structural root cause that let os_events.rs silently fall out of sync with the other 4 files' understanding of the config shape (F001-F004), at update_interrupt_config parameter contract.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at update_interrupt_config parameter contract
+- [ ] Consider a shared config object/struct (TS interface + matching Rust struct) instead of positional params, so adding a field forces every consumer to acknowledge it
+
+**Source:** Audit finding F031 — severity 6 — architecture
+
+---
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1A/completion.md (append, do not
-overwrite prior wave history in that file):
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
+Write your completion summary to .autocode/stream-W2A/completion.md (append):
+  Tasks closed / NOT completed / Debt entries logged / Carry-forward tasks generated
 
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
+Then tell Max in this window: "Adam is done."
 
-— Adam | W1A | #187 #188 #189 #190 #199 #209 #214 #219
+— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216

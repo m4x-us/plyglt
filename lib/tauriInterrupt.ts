@@ -19,13 +19,26 @@ export function updateTrayBadge(dueCount: number): void {
 // ── Interrupt / mandatory mode ────────────────────────────────────────────────
 
 /**
- * Push interrupt settings to two independent Rust background threads:
- *   1. interrupt.rs poll loop — reads enabled, interval_secs, mandatory, snooze_until_secs.
- *      These four fields take effect immediately after this call.
- *   2. os_events.rs — will read wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs
- *      once the wiring tasks (#187–#190) land. Until then those fields are stored in
- *      InterruptState but not consulted by the OS event thread.
- * No-op in web. Throws on IPC failure.
+ * Typed contract shared between the TS call site and the Rust `update_interrupt_config`
+ * command (struct InterruptConfig in interrupt.rs). Single source of truth for the
+ * interrupt-config shape — adding a field here flags all callers that need updating.
+ *
+ * Note: the IPC wire format remains positional (flat object) for backward compat with
+ * existing tests. Migration to an object parameter is tracked in Task #216.
+ */
+export interface InterruptConfig {
+  enabled: boolean;
+  intervalHours: number;
+  mandatory: boolean;
+  wakeEnabled: boolean;
+  unlockEnabled: boolean;
+  idleEnabled: boolean;
+  idleThresholdMinutes: number;
+}
+
+/**
+ * Push interrupt settings to two Rust background threads (interrupt.rs poll loop and
+ * os_events.rs OS-event listeners). No-op in web. Throws on IPC failure.
  */
 export async function updateInterruptConfig(
   enabled: boolean,
