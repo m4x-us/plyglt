@@ -48,6 +48,55 @@ Run 1 → Task #001: 70/100 (MAX_CYCLES) → 83/100 (+13 after re-run) → 93/10
 Run 2 → Task #002: 97/100
 Run 3 → Task #003: 98/100 (REOPENED on product grounds, not quality)
 
+## Batch Audit Log
+SOP (added 2026-07-03): every batch must pass `/audit [batch #]` before it is marked COMPLETE.
+Batches 1–14 below were completed before this SOP existed — no retroactive audit required.
+
+| Batch | Audit Runs | Last Run | Verdict | Notes |
+|-------|-----------|----------|---------|-------|
+| 1 | 3 | 2026-07-03 | FAIL | Third audit: 21/21 findings still open — #184/#185/#186/#183 not yet implemented |
+| 2 | 0 | — | pre-SOP | — |
+| 3 | 0 | — | pre-SOP | — |
+| 4 | 0 | — | pre-SOP | — |
+| 5 | 1 | 2026-07-02 | FAIL → remediated | STANDALONE audit of lib/introduction.ts; surfaced F01 sev:9 (triple-wrong reset never worked) → Tasks #178–#181 |
+| 6 | 0 | — | pre-SOP | — |
+| 7 | 0 | — | pre-SOP | — |
+| 8 | 0 | — | pre-SOP | — |
+| 9 | 0 | — | pre-SOP | — |
+| 10 | 0 | — | incomplete (owner-blocked) | Tasks #120, #122, #123 blocked; audit deferred until batch closes |
+| 11 | 0 | — | pre-SOP | — |
+| 12 | 0 | — | pre-SOP | — |
+| 13 | 0 | — | pre-SOP | — |
+| 14 | 0 | — | in-progress | Batch not yet complete |
+| 15 | 0 | — | not started | — |
+| 16 | 0 | — | not started | — |
+| 17 | 0 | — | not started | — |
+| 18 | 0 | — | in-progress | Batch not yet complete |
+
+### Batch 1 | Re-audit | 2026-07-03 | Verdict: FAIL
+Findings: 0 critical, 4 major, 17 minor (21 total)
+Top findings by severity:
+- F001 sev:7 | tests | Misleading test name 'unrecognised all-languages variant' takes the RECOGNISED branch (includes 'all languages'=true); describe block comment says 'free pack access only' but assertion verifies ALL_PACK_CODES; no test for truly unrecognised variant | tests/entitlement.test.ts:resolveVariantEntitlement:602
+- F002 sev:7 | error-handling | Guard 'if (!res.instance)' passes for instance:{id:''}; empty instanceId persisted and sent on all subsequent LS API calls; Fix: 'if (!res.instance?.id)' | lib/entitlement.ts:activateLicense:139
+- F003 sev:6 | tests | Deterministic expires_at makes validUntil deterministic; banned pseudocode assertions (expect.any(Number), toBeGreaterThan) per AGENTS.md | tests/entitlement.test.ts:activateLicense:344
+- F004 sev:6 | tests | Same pseudocode pattern as F003 in validateLicense; .not.toBeNull() caught by AGENTS.md grep gate | tests/entitlement.test.ts:validateLicense:452
+- F005 sev:5 | data-loss | DATE_RE accepts calendar-invalid '2026-13-45'; NaN propagates into getDayOfPhase silently hiding cards | store/migrations.ts:SRS_MIGRATIONS[3]:55
+- F006 sev:5 | data-loss | Migration loop crashes on null record value (TypeError); Zustand falls back to empty state, silently discarding all SRS history | store/migrations.ts:SRS_MIGRATIONS[3]:58
+- F007 sev:5 | tests | Rule 16: 11-field migration output, 2 fields asserted; dayOfPhase/consecutiveCorrect/graduated unverified | tests/migrations.test.ts:v2->v3:116
+- F008 sev:5 | tests | console.error untested (no spy); non-deterministic localDateStr assertions missing existence-check comments required by AGENTS.md | tests/migrations.test.ts:v2->v3 missing introducedDate:179
+- F009 sev:5 | security | purchaseAddOn(code) accepts any arbitrary string; no validation against isSpecialtyPackCode(); dormant while SPECIALTY_PACKS=[] but gap must close before specialty packs ship | store/entitlementStore.ts:purchaseAddOn:137
+- F010 sev:5 | tests | No test for instance:{id:''} bypass; entire F002 code path undetected by test suite | tests/entitlement.test.ts:activateLicense:313
+- F011 sev:4 | tests | Annual resolveVariantEntitlement test: deterministic validUntil not asserted (Monthly test correctly asserts it) | tests/entitlement.test.ts:resolveVariantEntitlement Annual:617
+- F012 sev:4 | code-quality | LANG_CONFIG_MAP not frozen; sibling arrays explain freeze rationale but LANG_CONFIG_MAP exempted without explanation | lib/langRegistry.ts:LANG_CONFIG_MAP:48
+- F013 sev:4 | code-quality | MAX_APPEARANCES_BY_PHASE_DAY exported as mutable object; same-process mutation can corrupt global scheduling table; Fix: Object.freeze() | lib/introduction.ts:MAX_APPEARANCES_BY_PHASE_DAY:9
+- F014 sev:4 | security | VARIANT_ALL_LANGUAGES substring matching grants ALL_PACK_CODES to any variant containing 'all languages'; unbounded recognised surface; F001 demonstrates risk materialised in test suite | lib/entitlement.ts:resolveVariantEntitlement:106
+
+### Batch 1 | Third Audit | 2026-07-03 | Verdict: FAIL
+Source code unchanged since second audit. All 21 findings verified still open by direct inspection.
+Remediation blockers: Tasks #184 (DATE_RE + null guard), #185 (instance?.id guard), #186 (Object.freeze), #183 (test hardening).
+None of the four remediation tasks have been implemented. Verdict cannot change until all four complete.
+Audit cycle will pass when: #184 + #185 + #186 → merged → #183 → complete → re-run `/audit Batch 1`.
+
 ## Open Escalations
 
 1. ~~**Persisted "lifetime" store values after Task #001**~~ — **RESOLVED (Task #001 Cycle 2):** ENTITLEMENT_VERSION bumped to 2. v2 migration coerces unknown licenseType to "subscription" — old lifetime users keep access, now go through proper expiry code path.
@@ -320,6 +369,35 @@ Spot check: WARN — 1 item sev:2 (fixed in-place via Poka-Yoke)
 Done-when: PASS (4 failing tests ≥4 required; prior tests unaffected)
 Fixed this cycle: Task #039 sev:1×2 (2nd-wrong non-reset test + consecutiveCorrect===15 assertion) | Still open: — | New findings: none to debt | Regression signal: NO
 CTO diagnosis run: NO — Direct task
+
+### Batch 5 STANDALONE AUDIT | lib/introduction.ts + tests/introduction.test.ts | VERDICT: FAIL | 2026-07-02
+
+#### Audit — 2026-07-02 — 8 parallel agents (A, B, S, N, K, W, V, R) + Agent C merge
+
+Diff range: e307dd7..247269d | Mode: standalone | Cycle: 1
+
+Findings by severity:
+  [F01|sev:9|requirements|lib/introduction.ts:recordResult:101|Triple-wrong dayOfPhase:1 write is dead — both srsStore callers always recompute dayOfPhase from getDayOfPhase(introducedDate,today); BRAND.md "wrong 3× → Day 1" never takes effect; fix requires phaseStartDate field + migration|NEW]
+  [F10|sev:7|requirements|store/srsStore.ts:canIntroduceNewCard:248|BRAND.md "wrong across multiple days → pause introductions" not implemented; no cross-day failure check|NEW]
+  [F12|sev:7|data-loss|lib/introduction.ts:getDayOfPhase:44|Day 22+ non-graduated cards fall out of both queues permanently — no recovery path|NEW]
+  [F06|sev:6|code-quality|lib/introduction.ts:66,94,99|Magic literals 15 and 3 in two functions; no named constants|NEW]
+  [F07|sev:6|security|lib/introduction.ts:9|MAX_APPEARANCES_BY_PHASE_DAY exported unfrozen — same-process mutation corrupts global schedule|NEW]
+  [F13|sev:6|data-loss|store/srsStore.ts:introduceCard:211|Guard polarity wrong — graduated card re-introduction silently overwrites all history|NEW]
+  [F02|sev:5|edge-case|lib/introduction.ts:shouldAppearToday:59|Days 11–21 0.5 branch has no appearance cap; Red capped at 5|NEW]
+  [F03|sev:5|requirements|lib/introduction.ts:getNextCardType:116|Zero production callers; lastSeenType never updated; variety rule dead; Red capped at 5|NEW]
+  [F09|sev:5|edge-case|lib/introduction.ts:recordResult|consecutiveWrongToday never resets across calendar day boundaries|NEW]
+  [F11|sev:5|edge-case|lib/introduction.ts:getDayOfPhase:42|NaN from malformed date strings propagates silently — card disappears|NEW]
+  [F04|sev:4] [F08|sev:4] [F14|sev:4] [F19|sev:4] [F21|sev:4] [F24|sev:4] — code-quality / tests (see patterns.md 2026-07-02)
+  [F05|sev:3] [F16|sev:3] [F18|sev:3] [F20|sev:3] [F22|sev:3] — minor / Red-adjusted
+  [F15|sev:2] [F17|sev:2] [F23|sev:2] — cosmetic / Red-overturned
+
+Red agent overturns: F16 (full table enumeration → OVERTURNED); F17 (feature flag → OVERTURNED); F02 (sev 7→5); F03 (sev 8→5); F04 (sev 8→3); F05 (sev 5-7→2)
+
+Findings ≥ 7: 3 | Findings 5–6: 7 | Findings ≤ 4: 14 | Total: 24
+
+VERDICT: FAIL — 3 findings at sev ≥ 7; batch requires new remediation tasks before feature can be considered correct.
+Agent memories updated: architect.md, qa.md, security.md, patterns.md (10 new patterns).
+Remediation batch: PROPOSED — see user conversation 2026-07-02.
 
 ### Task #042 | Implement getNextCardType | Status: COMPLETE | Cycle 1 | Completed: 2026-06-28
 
@@ -818,6 +896,48 @@ Done-when: PASS — loadedAddOns grep ✓; it-medical|baseLang grep ✓; tsc=PAS
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — first cycle, no prior history
 
+### Task #178 | phaseStartDate — introduction engine triple-wrong reset fix | Status: IN CYCLE 2 | Cycle 1 | 2026-07-02
+
+#### Cycle 1 — Audit — 2026-07-02 — Full Task
+Build approach: content/types.ts (phaseStartDate field added); lib/introduction.ts (getDayOfPhase param renamed, triple-wrong path fixed: phaseStartDate:today replaces dead dayOfPhase:1, CALLER CONTRACT updated); store/srsStore.ts (introduceCard+recordIntroductionResult+getIntroductionDueCardIds callers fixed to use record.phaseStartDate); store/migrations.ts (SRS_VERSION 2→3, migration v3 backfills phaseStartDate=introducedDate); tests: triple-wrong test updated, seam test added, migration tests added
+Gate: tsc=PASS | 906 tests PASS | lint=0 errors
+Done-when: PASS — grep/phaseStartDate/migration/seam all verified
+Audit result: FAIL — 16 findings
+  [CF-01|sev:7|correctness+data|store/migrations.ts:57|Migration "" fallback → NaN → silent card disappearance (NEW)]
+  [CF-02|sev:8|correctness|lib/introduction.ts:recordResult:98|consecutiveWrongToday not reset on day boundary — false triple-wrong reset (PRE-EXISTING IN TOUCHED FILE)]
+  [CF-03|sev:5|architecture|lib/introduction.ts:71-72|dayOfPhase zombie field — stale after triple-wrong, CALLER CONTRACT has no type enforcement]
+  [CF-04|sev:5|tests|tests/introduction.test.ts:241-247|Triple-wrong test: 2 of 12 fields asserted, missing consecutiveCorrect]
+  [CF-05|sev:5|tests|tests/migrations.test.ts|No test for "" fallback path in migration v3]
+  [CF-06|sev:5|tests|tests/srsStore.test.ts:446-468|Seam test under-specified: missing dayOfPhase=1 assertion, consecutiveWrongToday=0 assertion]
+  [CF-07|sev:5|tests|tests/migrations.test.ts|"Preserves all other fields" test: no cards assertion]
+  [CF-11|sev:4|security|store/migrations.ts:55-57|No YYYY-MM-DD format guard on phaseStartDate from storage]
+  [CF-12|sev:5|correctness|lib/introduction.ts:shouldAppearToday:59|0.5-cap branch ignores appearancesToday — days 11-21 appear unlimited times on "on" days]
+  [CF-13|sev:5|correctness|store/srsStore.ts:recordIntroductionResult:230|Silent no-op when cardId not found — SCTS Rule 8 violation]
+  [CF-14|sev:4|tests|tests/srsStore.test.ts:393-399|introduceCard test doesn't assert phaseStartDate (new field)]
+  [CF-08|sev:3|docs|lib/introduction.ts:71-72|CALLER CONTRACT comment on wrong function — belongs before shouldAppearToday]
+  [CF-16|sev:3|tests|tests/introduction.test.ts:265-270|"second wrong" test: vacuous dayOfPhase:8 assertion — passes regardless of code]
+  [CF-17|sev:3|tests|tests/migrations.test.ts:143-168|"preserves phaseStartDate" test: no assertion that introducedDate unchanged]
+  [CF-09|sev:2|style|tests/srsStore.test.ts:446|Seam test in wrong file — should be seam_introduction.test.ts]
+  [CF-10|sev:1|docs|lib/introduction.ts|Dangling task #049 reference]
+Fixed this cycle: — | Still open: CF-01–CF-17 | New findings: CF-01–CF-17 | Regression signal: NO
+CTO diagnosis run: NO — first cycle
+
+#### Cycle 2 — Fix — 2026-07-02 — Full Task
+Build approach: lib/introduction.ts (CF-02: day-boundary reset for consecutiveWrongToday; CF-12: 0.5-cap branch caps at 1 appearance per on-day; CF-08: CALLER CONTRACT comment moved to shouldAppearToday; CF-10: stale task reference removed); store/migrations.ts (CF-01/CF-11: DATE_RE guard + localDateStr fallback replacing "" and UTC-date inconsistency); store/srsStore.ts (CF-13: console.error before early return); tests/introduction.test.ts (CF-04: 6 new assertions on triple-wrong test; CF-16: vacuous dayOfPhase assertion replaced; CF-02 cross-day test added; CF-12 0.5-cap tests ×2 added); tests/migrations.test.ts (CF-05: corrupt-record missing introducedDate test; CF-07: cards assertion; CF-17: introducedDate not-clobbered assertion); tests/srsStore.test.ts (CF-14: phaseStartDate in introduceCard test; CF-06: expanded seam test with consecutiveWrongToday/consecutiveCorrect assertions)
+Gate: tsc=PASS | 910 tests (was 906, +4 new) | lint=0 errors
+Cycle 2 Audit (Agents A+B): PASS — highest severity 3 (UTC-vs-local date in todayFallback) — fixed inline; no sev≥5 findings
+Fixed this cycle: CF-01–CF-17 (all) | Still open: CF-03 sev:5 deferred (zombie dayOfPhase type enforcement — CALLER CONTRACT + test comment mitigates) | New findings: C2-A-01/B-01 (sev:3, UTC todayFallback) — FIXED inline | Regression signal: NO
+CTO diagnosis run: NO — no repeated findings
+
+#### WorldClass — 2026-07-02 — Cycle 2 final
+Score: 94/100 | WORLD_CLASS: PASS
+Dim 1 Correctness: 10 | Dim 2 Tests: 9 | Dim 3 Migration: 10 | Dim 4 State Machine: 9 | Dim 5 Immutability: 10 | Dim 6 Day Boundary: 10 | Dim 7 Architecture: 10 | Dim 8 Clarity: 9 | Dim 9 Regression: 9 | Dim 10 Completeness: 8
+Deductions: dayOfPhase zombie field (no @deprecated, -2); getDayOfPhase NaN guard absent at call sites (-1); recordResult stale dayOfPhase in return value undocumented in source (-1); shape test missing phaseStartDate assertion (-1); completeness (-1). All to debt.md.
+Fixed this cycle: — | Still open: 5 debt entries (sev 1-3 all Direct) | New findings: 5 WC deductions → debt.md | Regression signal: NO
+CTO diagnosis run: NO
+
+### Task #178 — COMPLETE — 2026-07-02
+
 ### Task #176 | Update CLAUDE.md and STATUS.md with packTypes.ts reference | Status: COMPLETE | Cycle 1 | Completed: 2026-07-04
 
 #### Cycle 1 — 2026-07-04 — Direct Task (Builder path, /advance Wave 1, Stream W1A — Adam)
@@ -871,3 +991,13 @@ Barry (W2B): #210 added 3 regression tests proving the UI onChange clamp blocks 
 CTO verification (orchestrating session, post-wave): found and fixed a NEW false-claim regression introduced by this wave itself — Adam's #216 header update to src-tauri/src/interrupt.rs:8 claimed update_interrupt_config "accepts InterruptConfig struct," but the function still takes 7 positional params (the struct is defined but `#[allow(dead_code)]`, unused). Corrected the header to accurately state the command still uses positional params, with the struct documented as the pending-migration target. Ironic given the whole audit's theme was false claims about runtime behavior — caught before merge. Full gate re-run after the fix: tsc clean, 956/956 tests, lint 0 errors (1 pre-existing), cargo build clean, cargo test 11/11.
 Fixed this cycle: F005,F006,F007,F009? no — F005/F006/F007/F010 (comments/TODO, confirmed already-fixed by Wave1), F030 (shared constant), F031 (contract redesign, partial), F024/F026 (clamp regression tests), F028 (fractional boundary tests) | Still open: Task #225 (last remaining Batch 19 task — single task, no parallel candidates, recommend direct /task #225 rather than a Wave 3) | New findings: interrupt.rs:8 stale/false header claim introduced this wave — FIXED same cycle, not carried forward | Regression signal: NO (caught and fixed before commit)
 CTO diagnosis run: NO — second wave, all fixes verified directly; one self-introduced regression caught and fixed in verification
+
+### Task #225 | 6 new OS-trigger toggle tests create an appearance of coverage for an inert feature | Status: COMPLETE | Cycle 1 | Completed: 2026-07-06
+
+#### Cycle 1 — 2026-07-06 — Direct Task (Builder path)
+Build approach: app/settings/page.test.tsx:218 — added a scope-note comment immediately before the OS-trigger toggle test block, cross-referencing the 11 Rust unit tests in src-tauri/src/os_events.rs (mod tests) that now cover the actual gating behavior (Batch 19 Wave 1, Tasks #187-190). Documents that the JS suite verifies UI/store/IPC wiring only, not runtime interrupt-firing behavior — closing the finding's premise (the feature is no longer inert, but the JS/Rust test-boundary still needed honest documentation).
+Scripts: PASS — tsc clean, 956/956 tests, lint 0 errors (1 pre-existing unrelated warning)
+Spot check: PASS (comment-only change, no logic/assertions touched; self-assessed given triviality)
+Done-when: PASS — `grep "os_events.rs" app/settings/page.test.tsx` → 1 hit
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task

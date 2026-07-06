@@ -3233,6 +3233,187 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 9 tasks
+Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
+
+### Task #178 | architecture | severity 9
+**What:** Add `phaseStartDate: string` to `IntroductionRecord` in `content/types.ts`. Update `lib/introduction.ts:getDayOfPhase` to compute from `phaseStartDate` instead of `introducedDate` (introducedDate becomes calendar metadata only). Update `recordResult` triple-wrong path to set `phaseStartDate: today` instead of the dead-write `dayOfPhase: 1`. Remove the redundant `getDayOfPhase(record.introducedDate, today)` recomputation from both store callers in `store/srsStore.ts` (`recordIntroductionResult:230` and `getIntroductionDueCardIds:239`) — the stored phaseStartDate is now authoritative. Bump `SRS_VERSION`, add migration populating `phaseStartDate = introducedDate` for existing records.
+**Why:** F01 (sev:9) — the triple-wrong Day 1 reset has never worked. Both store callers always recompute dayOfPhase from `introducedDate`, discarding whatever recordResult writes. BRAND.md "Wrong 3× → resets to Day 1" is dead code. This is the root architectural cause; all other scheduling fixes depend on it being correct first.
+**File:** `content/types.ts`, `lib/introduction.ts`, `store/srsStore.ts`, `store/migrations.ts`
+**Severity:** 9 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 4 files, schema change + migration
+**Blocked by:** Nothing | **Blocks:** #179, #180, #181
+**Test required:** Yes — seam test in `tests/srsStore.test.ts` tracing the full path: `introduceCard → recordIntroductionResult (3 consecutive wrong answers) → getIntroductionDueCardIds` must return the card with `dayOfPhase = 1` (not whatever calendar-computed value would come from introducedDate).
+**Done when:** `grep -n "getDayOfPhase.*introducedDate" store/srsStore.ts` returns no lines. `phaseStartDate` field present in `IntroductionRecord`. Migration exists for SRS_VERSION bump. Seam test passes. Verification gate green.
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-02**
+
+---
+
+### Task #179 | correctness | severity 6
+**What:** Fix remaining behavior bugs and code quality gaps in `lib/introduction.ts`:
+- ~~F02: `shouldAppearToday` 0.5 branch~~ — DONE in Task #178 Cycle 2 (CF-12 fix)
+- ~~F09: `recordResult` cross-day consecutiveWrongToday reset~~ — DONE in Task #178 Cycle 2 (CF-02 fix)
+- F11: `getDayOfPhase`: validate date string format (`/^\d{4}-\d{2}-\d{2}$/`) before calling `new Date(str)`, throw with ref ID on invalid input — NaN propagation currently causes silent card disappearance (migration has DATE_RE guard at persistence boundary but getDayOfPhase itself is still unguarded)
+- F07: `export const MAX_APPEARANCES_BY_PHASE_DAY = Object.freeze({...})` with `Readonly<Record<number, number>>` type — currently exported unfrozen, mutable by any importer
+- F06: Extract `export const GRADUATION_THRESHOLD = 15` and `export const CONSECUTIVE_WRONG_RESET = 3` as named constants; replace all magic literals in `recordResult` and `shouldGraduate`
+- F18: Add Rule 2 header to `lib/introduction.ts` (DEPENDS ON / USED BY missing)
+- F19: Add ref ID to `throw new Error("getNextCardType: available must not be empty")` (currently no Error Reference System ID)
+**Why:** F07 (sev:6) — unfrozen scheduling table corruptible by injected card content in Tauri webview. F11 — getDayOfPhase produces NaN silently on invalid input. F06 prevents silent divergence if thresholds change.
+**File:** `lib/introduction.ts`, `tests/introduction.test.ts`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, multiple behavior fixes
+**Blocked by:** #178 | **Blocks:** #181
+**Test required:** Yes — add test for `getDayOfPhase` with malformed date string (must throw). Tests for F02/F09 cross-day behavior were added in Task #178.
+**Done when:** `grep -n "Object.freeze" lib/introduction.ts` shows `MAX_APPEARANCES_BY_PHASE_DAY`. `grep -n "GRADUATION_THRESHOLD\|CONSECUTIVE_WRONG_RESET" lib/introduction.ts` shows constant declarations. Rule 2 header present. All new tests pass. Verification gate green.
+**Owner:** Architecture Agent
+
+---
+
+### Task #180 | correctness | severity 7
+**What:** Wire variety rule, close spec gaps, and add rescue path in `store/srsStore.ts`:
+- F03: Import `getNextCardType` from `@/lib/introduction`. Call it at the end of `recordIntroductionResult`, passing `record.lastSeenType` and the available card types for this card. Write the returned CardType back to `record.lastSeenType` before persisting. This wires the variety rule (BRAND.md: "each encounter uses a different retrieval angle") which currently has zero runtime enforcement.
+- F10: `canIntroduceNewCard`: add cross-day failure check — if any `IntroductionRecord` has `consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET` and `lastSeenDate !== today`, return false. This implements the BRAND.md spec "wrong across multiple days → pause new card introductions until this one stabilizes" which is currently absent.
+- F12: `getIntroductionDueCardIds`: add rescue branch — if `getDayOfPhase(record.phaseStartDate, today) >= 22` and `!record.graduated`, include the card with `shouldAppearToday` returning true (1 appearance/day). Without this, cards reaching day 22 without 15 consecutive correct answers disappear from both queues permanently.
+- F13: `introduceCard`: change guard from `if (existing && !existing.graduated) return` to `if (existing) return` — a graduated card must not be silently re-introduced with reset history.
+**Why:** F10 (sev:7) and F12 (sev:7) are stop-the-line spec gaps. F03 (sev:5) — variety rule is fully implemented in lib but has zero runtime callers. F13 (sev:6) — graduated card re-introduction destroys all historical progress silently.
+**File:** `store/srsStore.ts`, `tests/srsStore.test.ts`
+**Severity:** 7 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 2 files, 4 behavior fixes
+**Blocked by:** #178 | **Blocks:** #181
+**Test required:** Yes — one test per fix: (1) `lastSeenType` updates after `recordIntroductionResult`; (2) `canIntroduceNewCard` returns false when cross-day wrong streak exists; (3) `getIntroductionDueCardIds` includes a day-22+ non-graduated card; (4) `introduceCard` does not overwrite a graduated card.
+**Done when:** `grep -n "getNextCardType" store/srsStore.ts` shows an import and a call site. All 4 new tests pass and assert specific values. Verification gate green.
+**Owner:** Architecture Agent
+
+---
+
+### Task #181 | tests | severity 4
+**What:** Pin test assertions and close coverage gaps in `tests/introduction.test.ts`:
+- F15: Change `expect(["recognize", "produce"]).toContain(result)` at line 278 to `expect(result).toBe("recognize")` — the function is deterministic and the current assertion passes with any broken implementation
+- F16: Replace the partial `MAX_APPEARANCES_BY_PHASE_DAY` test with a parameterized test covering all 22 entries explicitly — currently only 7 of 22 phase days are asserted
+- F21: Add a full 10-field assertion test for a `recordResult` correct-path return — currently no test asserts more than 5 of 10 fields
+- F22: Add `consecutiveCorrect=0` (should return false) and `consecutiveCorrect=16` (should return true) cases to the `shouldGraduate` suite — currently only boundary values 14 and 15 are tested
+- F14: Add a seam test tracing the end-to-end triple-wrong path through the store, confirming Task #178's fix is observable (`getIntroductionDueCardIds` must schedule the card at day 1 after 3 consecutive wrong answers)
+- If file exceeds 250 lines after additions: split into `tests/introduction.test.ts` (lib unit tests) and `tests/seam_introduction.test.ts` (cross-module seam tests)
+**Why:** F16 (sev:3) — 15 untested phase-day entries means the scheduling table can silently corrupt without a test failing. F14 (sev:4) — the dead-write bug that caused audit FAIL was invisible to all unit tests because none trace the recordResult → store → scheduling path. Rule 16: enumerate every member before asserting.
+**File:** `tests/introduction.test.ts`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — test file only, assertion fixes and new test cases
+**Blocked by:** #178, #179, #180 | **Blocks:** Nothing
+**Test required:** The task IS tests — all 22 phase-day entries individually asserted, seam test passes, green gate.
+**Done when:** `grep -c "phaseDay\|phase_day\|phase day" tests/introduction.test.ts` ≥ 22 (or equivalent parameterized coverage). 10-field assertion test exists. `toBe("recognize")` replaces `toContain`. File ≤ 250 lines (or split into two files each ≤ 250). Verification gate green.
+**Owner:** QA Agent
+
+---
+
+### Task #182 | code-quality | severity 3
+**What:** Remove all misleading "lifetime" product references from comments and test descriptions. Zero logic changes.
+- `lib/entitlement.ts` lines 41-44: remove backward-compat comment block; replace with `// Unrecognised variant names return subscription licenseType and free pack access only.`
+- `lib/entitlement.ts` line 95 (JSDoc): remove "All Languages Lifetime" from example variant name list
+- `tests/entitlement.test.ts` line 63: replace `"Italian Lifetime"` / `"All Languages Lifetime"` in variantNames array with `"Unrecognised Single"` / `"Unrecognised All"`
+- `tests/entitlement.test.ts` lines 587-590: update comment to "Unrecognised variant names from historical Lemon Squeezy webhook payloads."; rename it() descriptions to remove product-tier naming
+- `tests/entitlement.test.ts` lines 252/264: change mock `variant_name: "Italian Lifetime"` to `"Unknown Variant"`
+- `tests/entitlement.test.ts` line 593: change input to `"Legacy Single Language"` (any unrecognised string)
+- `tests/entitlement.test.ts` line 603: change input to `"All Languages Extended"` (preserves "all languages" substring for correct code-path testing)
+- `tests/migrations.test.ts` line 279-280: rename description from "lifetime → subscription" to "unrecognised → subscription"
+BuyModal.test.tsx negative regression guard and store/migrations.ts stay unchanged.
+**Why:** F052 Batch 1 audit — no lifetime plan exists (BRAND.md). Comments and test names document non-existent intent.
+**File:** `lib/entitlement.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity: Direct**
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** No new tests — behavior unchanged, descriptions renamed.
+**Done when:** `grep -rE "Italian Lifetime|All Languages Lifetime|backward.compat.*lifetime|lifetime.*backward" lib/ tests/ --include="*.ts"` returns zero hits. Verification gate green.
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-07-03**
+
+---
+
+### Task #183 | tests | severity 5
+**What:** Harden 50 existence-only test assertions to specific-value assertions across 11 test files, eliminating pseudocode coverage. This activates the hard assertion-quality gate in the Verification Gate (AGENTS.md). Extended by Batch 1 re-audit (2026-07-03) to absorb 12 additional test quality findings (F001, F003, F004, F007, F008, F010, F011, F015, F017, F019, F020).
+
+Mandatory rewrites — suppression comment NOT permitted (reason: deterministic outputs):
+- `tests/introduction.test.ts:64` — `expect(MAX_APPEARANCES_BY_PHASE_DAY).not.toBeNull()` → rewrite to assert specific phase/day values (day 1 → Infinity appearances, day 22 → 0).
+- `tests/packLoader.test.ts:118-119` — localStorage key not-null → parse stored JSON, assert `sha256` or `version` field matches manifest.
+- `tests/importBackup.test.ts:74` — card existence after import → assert `dueDate`, `stability`, `state` fields.
+- `tests/seam_importRestore.test.ts:85-86,159` — card existence in seam tests → same field-level assertions.
+- `tests/exportBackup.test.ts:49-50` — `parsed.srs` / `parsed.srs.cards` exist → assert card count or specific field values.
+- `tests/entitlement.test.ts:453` — `result.validUntil` not-null with deterministic `expires_at: '2027-01-01T00:00:00Z'` input → assert exact timestamp: `toBe(new Date("2027-01-01T00:00:00Z").getTime())`. (F004)
+- `tests/entitlement.test.ts:344-345` — activateLicense ok:true path: `toEqual(expect.any(Number))` and `toBeGreaterThan(Date.now())` are banned pseudocode forms; same expires_at makes validUntil deterministic → assert exact timestamp. (F003)
+- `tests/entitlement.test.ts:602` — test name "unrecognised all-languages variant" is factually wrong: input "All Languages Extended" contains "all languages" and exercises the RECOGNISED branch returning ALL_PACK_CODES. Change input to a genuinely unrecognised string (e.g. "Omnilinguistic Bundle") and add a separate named test for the recognised all-languages path. Fix describe-block comment at lines 587-589 which says "free pack access only" — that only describes the first test, not the block. (F001, F015)
+- `tests/entitlement.test.ts:617` — Annual variant test: 3-field output (licenseType, unlockedPacks, validUntil); only 2 asserted. Input expiresAt is deterministic; assert validUntil exact value. (F011)
+- `tests/entitlement.test.ts` — Add test for `activateLicense` when Lemon Squeezy returns `instance: { id: '' }` — assert `ok: false` with `error: ERR_ACTIVATE_NO_INSTANCE`. This path is unguarded until Task #185 closes; write the failing test first (red-green). (F010)
+- `tests/migrations.test.ts:116` — v2→v3 migration test: spread is `{ ...record, phaseStartDate }` producing 11 output fields; test asserts 2. Extend to assert all 11 fields including dayOfPhase, consecutiveCorrect, and graduated. Same gap at line 143. (F007)
+- `tests/migrations.test.ts:179` — Corrupt-record test: add `vi.spyOn(console, 'error')` assertion verifying the log fires matching `/migration v3: corrupt record card-corrupt/`. Add `// existence-check: localDateStr() returns today's date at test execution time — genuinely non-deterministic` comments to the three assertions at lines 205-208. (F008)
+- `tests/migrations.test.ts:319` — v0→v3 full-chain test: asserts 1 of 7 output fields; add a comment citing line 215 where the other 6 are covered, or extend the assertions here. (F017)
+- `tests/migrations.test.ts` — Add a multi-card v2→v3 migration test: one record with valid introducedDate and one corrupt record (missing both date fields) in the same introductions map. Verifies the for-loop processes cards independently and corrupt fallback doesn't contaminate valid neighbours. (F019)
+- `tests/commitSession.test.ts:27,41-42` — card/activeSession existence → assert specific post-commit state fields.
+- `tests/srsStore.test.ts:363,383` — card existence → assert specific fields.
+
+Suppression permitted (non-deterministic only — document the specific reason):
+- `tests/langRegistry.test.ts:37`, `tests/language.test.ts:173,239`, `tests/session.test.ts:70,93` — first try rewriting to specific values; only use suppression if the value is genuinely non-deterministic.
+
+Anti-gaming rule: `// existence-check: this is fine` without a specific non-deterministic reason is a Stop-the-Line violation.
+
+After this task COMPLETES: remove the `# Hard gate — activates after Task #183 completes` comment from the Verification Gate code block in `AGENTS.md`.
+**Why:** 50+ existence-only assertions = pseudocode coverage that passes even when behavior is broken. Systemic finding across Batch 1 audits. AGENTS.md Test Assertion Quality Gate and Rule 16 both require specific-value assertions for deterministic outputs.
+**File:** Multiple — `tests/introduction.test.ts`, `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts` + `AGENTS.md` (remove TODO comment)
+**Severity:** 7 | **DoD Tier:** 2
+**Complexity: Direct**
+**Blocked by:** #184, #185 (some tests reference production code fixed there — write them red first, they turn green when those tasks close) | **Blocks:** Batch 1 audit PASS
+**Test required:** The task IS tests — assertions become more specific; a small number of new it() blocks added.
+**Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. Verification gate green.
+**Owner:** QA Agent
+
+---
+
+### Task #184 | data-loss | severity 5
+**What:** Fix two safety gaps in the SRS v3 migration introduced by Task #178. (1) `DATE_RE = /^\d{4}-\d{2}-\d{2}$/` accepts calendar-invalid strings like `"2026-13-45"`; these pass the regex, become `phaseStartDate`, and produce `NaN` in `getDayOfPhase` — silently hiding the card forever. The migration comment explicitly warns about this risk for empty strings but does not address it for invalid dates. Fix: add `&& !isNaN(new Date(v).getTime())` after each `DATE_RE.test()` call. (2) The for-loop at line 58 iterates over `Object.entries(introductions)` but does not guard against a stored null value (e.g. `{ "card-1": null }`); accessing `record.phaseStartDate` throws `TypeError`, which Zustand's persist middleware catches and resolves by resetting to default empty state — silently wiping all SRS card history.
+
+Add two tests: (a) introductions map containing a null record — must not throw and must produce a valid phaseStartDate; (b) record with `introducedDate: "2026-13-45"` (calendar-invalid) — must fall back to today's date, not preserve the invalid string.
+**Why:** Both bugs can silently corrupt or destroy user SRS progress. The NaN risk is the same failure mode the migration comment already warns about; the null-record risk causes silent data loss via the Zustand fallback path.
+**File:** `store/migrations.ts`, `tests/migrations.test.ts`
+**Severity:** 5 | **DoD Tier:** 1
+**Complexity: Direct**
+**Blocked by:** Nothing | **Blocks:** #183 (F007/F008 tests reference the corrected migration behaviour)
+**Test required:** Two new it() blocks as described above.
+**Done when:** New tests pass. `node -e "console.log(/^\d{4}-\d{2}-\d{2}$/.test('2026-13-45') && !isNaN(new Date('2026-13-45').getTime()))"` prints `false`. Verification gate green.
+**Owner:** Architecture Agent
+
+---
+
+### Task #185 | security | severity 7
+**What:** Guard `activateLicense` against an empty `instanceId`. The current guard `if (!res.instance)` at `lib/entitlement.ts:139` is falsy only for `null` and `undefined`. A Lemon Squeezy API response with `instance: { id: '' }` is truthy; the guard passes, and `instanceId: ''` is persisted to the entitlement store. Every subsequent `validateLicense(key, '')` and `deactivateLicense(key, '')` call sends an empty instance ID, producing API errors that surface to users as generic network failures with no indication of root cause.
+
+Fix: change line 139 to `if (!res.instance?.id)`. This is a one-character change — the existing `console.error` and return statement stay unchanged.
+
+Note: the corresponding test (`instance: { id: '' }` → ok:false) lives in Task #183. This task is the production code fix only.
+**Why:** Users who activate on a degraded Lemon Squeezy response end up stuck — license appears active but every subsequent validation fails — with no recovery path other than re-entering their license key. Open as F011 across two consecutive audits with no task.
+**File:** `lib/entitlement.ts`
+**Severity:** 7 | **DoD Tier:** 1
+**Complexity: Direct**
+**Blocked by:** Nothing | **Blocks:** #183 (the F010 test turns green once this fix is in place)
+**Test required:** Covered by Task #183 (F010). Run the full test suite to confirm no regressions.
+**Done when:** `grep "instance?.id" lib/entitlement.ts` has a hit at line 139. Verification gate green.
+**Owner:** Security Agent
+
+---
+
+### Task #186 | security | severity 4
+**What:** Wrap two mutable exported objects in `Object.freeze()`. (1) `LANG_CONFIG_MAP` in `lib/langRegistry.ts` is created via `Object.fromEntries()` but not frozen; any importer can write `LANG_CONFIG_MAP['it'] = maliciousConfig` without a TypeError, silently replacing a security-relevant language configuration. The existing frozen arrays (`ALL_PACK_CODES`, `READY_PACK_CODES`, `FREE_PACK_CODES`) all have a comment explaining why they are frozen — the asymmetric treatment of `LANG_CONFIG_MAP` is unexplained. (2) `MAX_APPEARANCES_BY_PHASE_DAY` in `lib/introduction.ts` is the introduction engine's central scheduling table; any importer can write `MAX_APPEARANCES_BY_PHASE_DAY[1] = 0` to suppress day-1 flooding without a TypeError.
+
+Fix: `Object.freeze(LANG_CONFIG_MAP)` at point of declaration; `Object.freeze(MAX_APPEARANCES_BY_PHASE_DAY)` at point of declaration.
+**Why:** Both are known-open findings across two consecutive Batch 1 audits. They are latent rather than immediately exploitable (no live callers mutate these today), but the correct time to close a latent mutable-export gap is before the code ships to users, not after.
+**File:** `lib/langRegistry.ts`, `lib/introduction.ts`
+**Severity:** 4 | **DoD Tier:** 1
+**Complexity: Direct**
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** TypeScript compiler enforces freeze at compile time for typed callers; no new test needed beyond verifying tsc passes.
+**Done when:** `grep "Object.freeze(LANG_CONFIG_MAP)" lib/langRegistry.ts` and `grep "Object.freeze(MAX_APPEARANCES_BY_PHASE_DAY)" lib/introduction.ts` both return hits. `npx tsc --noEmit` clean. Verification gate green.
+**Owner:** Security Agent
+
+---
+
 ## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 39 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: /audit #164 (2026-07-04, verdict FAIL, severity 9, 39 findings) found that Task #163's OS trigger toggle controls (wake/unlock/idle + idle threshold) are entirely non-functional — `os_events.rs` never reads the settings it was built to expose. F001-F006 are the stop-the-line core; everything else is downstream test/doc/hardening debt discovered in the same audit. Fix order: F001-F004 (wiring) → F006 (Rust test coverage) → F015-F017/F040 (JS test hardening) → remainder.
 
@@ -4041,7 +4222,7 @@ NEW
 **Owner:** QA Agent
 **Blocked by:** #187, #188, #189, #190, #192
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-06
 
 **What:**
 The 6 new OS-trigger toggle tests create an appearance of solid test coverage for a feature whose backing Rust implementation never consumes the settings at all (F001-F004). The tests prove only Zustand state updates and IPC-call invocation, never the actual OS-trigger behavior the toggles name, at app/settings/page.test.tsx:OS-trigger toggle tests (6 new tests):0.
