@@ -215,6 +215,14 @@ describe("SettingsPage", () => {
     expect(mockActivation.handleActivate).toHaveBeenCalledTimes(1);
   });
 
+  // OS Triggers scope note (Task #225): the tests below (through the idle-threshold clamp
+  // tests) verify only the UI/store/IPC layer — that toggles flip settingsStore fields and
+  // that updateInterruptConfig is called with the right values. They do NOT and cannot verify
+  // that the Rust background thread actually gates wake/unlock/idle interrupts on these flags.
+  // That behavior is covered separately by 11 Rust unit tests in
+  // src-tauri/src/os_events.rs (mod tests) — run via `cargo test --lib` in src-tauri/.
+  // Both suites must be green for the OS trigger feature to be considered verified end-to-end.
+
   // Test 3: OS Triggers section renders all 3 toggles when interruptEnabled=true and isTauri=true
   it("OS Triggers section renders 3 toggles when interruptEnabled and isTauri are true", () => {
     tauriState.isTauri = true;
