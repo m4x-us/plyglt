@@ -1036,3 +1036,13 @@ Spot check: PASS — independently verified APOSTROPHE_RE matches distinct codep
 Done-when: PASS — new curly-apostrophe tests pass, language.test.ts regex-source assertion updated, verification gate green
 Fixed this cycle: root cause (dead regex + a deeper, same-class bug in normalize/normalizeStripped) | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task, first cycle
+
+### Task #227 | Extend assertion-quality gate to cover toBeGreaterThan(0) | Status: COMPLETE | Cycle 1 | Completed: 2026-07-07
+
+#### Cycle 1 — 2026-07-07 — Direct Task (Builder path)
+Build approach: AGENTS.md:39 — extended the grep pattern to also match `\.toBeGreaterThan\(0\)`. Tightened all 6 flagged instances to exact-value assertions after independently re-deriving each expected value from production code: tests/mastery.test.ts:55 (MASTERY_STABILITY_DAYS -> toBe(7), store/srsStore.ts:37), tests/checkout.test.ts:34 (PRICING.annual -> toBe("$34.99/yr"), lib/checkout.ts:19), tests/study_loop.test.ts:34 (post-rating stability -> toBe(3.1262), FSRS W[2] in lib/srs.ts, verified via a live scheduleCard() call), tests/seam_studyLoop.test.ts:47 (buildQueue length/order -> toBe(SAMPLE_CARDS.length) + exact id toEqual, verified empirically), tests/seam_studyLoop.test.ts (atomicity test) snapshot count -> toBe(1) (verified exactly one Zustand set() fires), tests/useLangPack.test.ts:102 (per-discriminant length check -> exact string match against a new EXPECTED_MESSAGES fixture mirroring hooks/useLangPack.ts). Folded in 3 owner-approved debt items: tests/exportBackup.test.ts:47-54 and tests/importBackup.test.ts:62-81 extended from 3-4 to all 7 CardProgress fields; tests/entitlement.test.ts's 4 recomputed `new Date(str).getTime()` validUntil assertions replaced with the literal epoch `1798761600000`; tests/importBackup.test.ts:35-41 renamed from a mislabeled "v0 backup... migration chain" test to "accepts a backup with an empty cards map."
+Scripts: PASS — tsc clean, 999/999 tests, coverage 87.21%/81.57%/86.23%/90.21% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Spot check: PASS — independently re-derived all 6 tightened values from source, confirmed buildQueue ordering via tier-stable-sort reasoning, confirmed rateCardAndSaveSession's single set() call
+Done-when: PASS — extended grep gate returns zero output project-wide, verification gate green
+Fixed this cycle: all 6 toBeGreaterThan(0) gaps + 3 folded-in Task #183 debt items | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
