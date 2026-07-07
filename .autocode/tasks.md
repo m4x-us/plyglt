@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 11 tasks | [CURRENT SPRINT]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 11 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3481,6 +3481,7 @@ Debt items batched in by owner approval (2026-07-07):
 - `tests/importBackup.test.ts:35-41` — "handles v0 backup (no activeSession field) via migration chain" test name/comment describes behavior that doesn't exist (`BackupSrs` has no `activeSession` field; `parseBackup()` has no migration chain). Rename to describe what it actually verifies (a duplicate of the basic valid-backup path), or fold its assertion into the "accepts a well-formed current backup" test above it and delete the duplicate.
 
 **Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()\|\.toBeGreaterThan(0)" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. Verification gate green.
+**Status: COMPLETE — 2026-07-07**
 
 **Source:** Audit finding (Task #183 cycle) — severity 4 — tooling — Agents B/N/V independently converged on this during Task #183's audit.
 
