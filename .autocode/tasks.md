@@ -3377,6 +3377,7 @@ Debt items batched in by owner approval (2026-07-07):
 **Test required:** The task IS tests — assertions become more specific; a small number of new it() blocks added.
 **Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. `tests/introduction_behavior.test.ts` getNextCardType test uses `toBe("recognize")`. Verification gate green.
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
