@@ -364,7 +364,7 @@ describe("activateLicense — null safety", () => {
     expect(result.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
     // expires_at is a fixed deterministic string — assert the exact parsed timestamp,
     // not just "some Number greater than now" (which passes even for the wrong value).
-    expect(result.validUntil).toBe(new Date("2027-01-01T00:00:00Z").getTime());
+    expect(result.validUntil).toBe(1798761600000); // exact epoch for "2027-01-01T00:00:00Z" — not recomputed via new Date()
   });
 
   // S014: activateLicense returns error when meta.variant_name is missing
@@ -472,7 +472,7 @@ describe("validateLicense — null safety", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected ok:true");
     // expires_at is a fixed deterministic string — assert the exact parsed timestamp.
-    expect(result.validUntil).toBe(new Date("2027-01-01T00:00:00Z").getTime());
+    expect(result.validUntil).toBe(1798761600000); // exact epoch for "2027-01-01T00:00:00Z" — not recomputed via new Date()
   });
 
   it("returns ok:true with validUntil:null when expires_at is null", async () => {
@@ -651,7 +651,7 @@ describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to enti
     expect(r.licenseType).toBe("subscription");
     // S012: exact assertion — Monthly unlocks all packs
     expect(r.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
-    expect(r.validUntil).toBe(new Date("2027-01-01T00:00:00.000Z").getTime());
+    expect(r.validUntil).toBe(1798761600000); // exact epoch for "2027-01-01T00:00:00.000Z" — not recomputed via new Date()
   });
 
   it("'Annual' → subscription license, all packs", () => {
@@ -660,7 +660,7 @@ describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to enti
     // S012: exact assertion — Annual unlocks all packs
     expect(r.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
     // Task #183 F011: all 3 output fields asserted — expiresAt is deterministic, assert the exact value.
-    expect(r.validUntil).toBe(new Date("2027-01-01T00:00:00.000Z").getTime());
+    expect(r.validUntil).toBe(1798761600000); // exact epoch for "2027-01-01T00:00:00.000Z" — not recomputed via new Date()
   });
 
   it("unknown variant name → subscription licenseType, free packs only", () => {

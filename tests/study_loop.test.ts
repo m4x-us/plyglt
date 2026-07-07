@@ -31,7 +31,8 @@ describe("study loop — rate → schedule → due", () => {
     // FSRS v4: no multi-step learning — a non-again rating on a new card graduates immediately
     useSRSStore.getState().rateCard("c1", "good");
     expect(useSRSStore.getState().getProgress("c1").state).toBe("review");
-    expect(useSRSStore.getState().getProgress("c1").stability).toBeGreaterThan(0);
+    // Exact FSRS initial stability for a "good" grade on a new card (W[2] in lib/srs.ts).
+    expect(useSRSStore.getState().getProgress("c1").stability).toBe(3.1262);
   });
 
   it("review card rated 'again' goes to relearning with +1 lapse", () => {

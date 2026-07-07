@@ -51,8 +51,8 @@ describe("isMastered()", () => {
 });
 
 describe("MASTERY_STABILITY_DAYS", () => {
-  it("is a positive number", () => {
-    expect(MASTERY_STABILITY_DAYS).toBeGreaterThan(0);
+  it("is 7", () => {
+    expect(MASTERY_STABILITY_DAYS).toBe(7);
   });
 });
 

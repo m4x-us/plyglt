@@ -32,12 +32,17 @@ describe("parseBackup", () => {
     expect(r.srs.lastStudiedDate).toBe("2026-06-01");
   });
 
-  it("handles v0 backup (no activeSession field) via migration chain", () => {
-    // v0 backups pre-date activeSession — migration fills it as null
+  it("accepts a backup with an empty cards map", () => {
+    // Renamed (Task #227): the original name/comment claimed "v0 backup... via migration
+    // chain" and referenced an activeSession field, but BackupSrs has no activeSession
+    // field and parseBackup() has no migration chain — this simply verifies an empty
+    // cards map is accepted and streak/lastStudiedDate still pass through correctly.
     const r = parseBackup(validBackup({ srs: { cards: {}, streak: 3, lastStudiedDate: null } }));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.validCardCount).toBe(0);
     expect(r.srs.streak).toBe(3);
+    expect(r.srs.lastStudiedDate).toBeNull();
   });
 
   it("rejects non-object payload", () => {
@@ -72,12 +77,18 @@ describe("parseBackup", () => {
     expect(r.validCardCount).toBe(1);
     expect(r.skippedCardCount).toBe(1);
     expect(r.srs.cards["bad"]).toBeUndefined();
-    // The valid neighbour must survive untouched — assert its fields explicitly rather than
-    // just that the key exists, so corruption during the skip path would fail this test.
+    // The valid neighbour must survive untouched — assert all 7 fields explicitly rather
+    // than just that the key exists, so corruption confined to any single field during
+    // the skip path would fail this test.
     const goodCard = r.srs.cards["a1-01"];
+    expect(goodCard?.cardId).toBe(expectedGoodCard.cardId);
     expect(goodCard?.state).toBe(expectedGoodCard.state);
     expect(goodCard?.stability).toBe(expectedGoodCard.stability);
+    expect(goodCard?.difficulty).toBe(expectedGoodCard.difficulty);
+    expect(goodCard?.retrievability).toBe(expectedGoodCard.retrievability);
     expect(goodCard?.dueDate).toBe(expectedGoodCard.dueDate);
+    expect(goodCard?.lapses).toBe(expectedGoodCard.lapses);
+    expect(goodCard?.reps).toBe(expectedGoodCard.reps);
   });
 
   it("skips a card missing cardId", () => {

@@ -29,9 +29,8 @@ describe("lib/checkout — constants", () => {
     expect(CHECKOUT_URLS.annual).toContain("c541a459-fd38-4c81-94be-a4f2d6af3385");
   });
 
-  it("PRICING has an annual string value", () => {
-    expect(typeof PRICING.annual).toBe("string");
-    expect(PRICING.annual.length).toBeGreaterThan(0);
+  it("PRICING.annual is the exact real price string", () => {
+    expect(PRICING.annual).toBe("$34.99/yr");
   });
 
   it("CUSTOMER_PORTAL_URL is a valid HTTPS URL", () => {

@@ -47,9 +47,15 @@ describe("exportBackup()", () => {
   it("srs.cards contains the exact card fields from the input, not just a truthy container", () => {
     const parsed = JSON.parse(exportBackup(baseSrs, baseEntitlement, "en-it"));
     const card = parsed.srs.cards["it-a1-01-vocabolario-001"];
+    // All 7 CardProgress fields asserted — a corruption confined to any single
+    // field during export would have passed silently with only 4 asserted.
+    expect(card.cardId).toBe("it-a1-01-vocabolario-001");
     expect(card.state).toBe("review");
     expect(card.stability).toBe(14);
+    expect(card.difficulty).toBe(4.5);
+    expect(card.retrievability).toBe(0.92);
     expect(card.dueDate).toBe(1_700_000_000_000);
+    expect(card.lapses).toBe(0);
     expect(card.reps).toBe(5);
   });
 

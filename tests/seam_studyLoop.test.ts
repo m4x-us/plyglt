@@ -44,7 +44,9 @@ describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession
   it("buildQueue returns a non-empty queue from real cards with a fresh store state", () => {
     const { getDueCards, getNewCards } = useSRSStore.getState();
     const queue = buildQueue(SAMPLE_CARDS, getDueCards, getNewCards, false);
-    expect(queue.length).toBeGreaterThan(0);
+    // Fresh store: no due cards, all SAMPLE_CARDS are new and under SESSION_NEW_LIMIT (15).
+    expect(queue.length).toBe(SAMPLE_CARDS.length);
+    expect(queue.map((c) => c.id)).toEqual(SAMPLE_CARDS.map((c) => c.id));
   });
 
   it("rateCardAndSaveSession advances card reps to 1 after a good rating", () => {
@@ -114,7 +116,9 @@ describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession
     useSRSStore.getState().rateCardAndSaveSession(firstCard.id, "good", session);
     unsub();
 
-    expect(snapshots.length).toBeGreaterThan(0);
+    // rateCardAndSaveSession's single set() call produces exactly one snapshot — more than
+    // one would mean the update isn't atomic (a partial write followed by a second set()).
+    expect(snapshots.length).toBe(1);
     // No snapshot should show reps updated without position — that is a partial write
     const partialWrite = snapshots.find((s) => (s.reps ?? 0) > 0 && s.position === undefined);
     expect(partialWrite).toBeUndefined();

@@ -36,7 +36,7 @@ Run this before closing any batch of work. All four must be green:
 npx tsc --noEmit        # zero TypeScript errors
 npm test                # all tests pass + all coverage thresholds met
 npm run lint            # zero lint errors
-grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:" && echo "FAIL: existence-only assertions found without justification" && exit 1 || true
+grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()\|\.toBeGreaterThan(0)" tests/ --include="*.test.*" | grep -v "existence-check:" && echo "FAIL: existence-only assertions found without justification" && exit 1 || true
 ```
 
 Current coverage thresholds (thresholds only ever increase — ratchet up, never down):

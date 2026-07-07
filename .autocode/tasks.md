@@ -3460,9 +3460,9 @@ Discovered during Task #183's audit (test-assertion hardening): `tests/language.
 
 ### Task #227: Fix tooling: AGENTS.md bans `.toBeGreaterThan(0)` as a primary assertion but the automated grep gate never checks for it.
 
-**File:** AGENTS.md, tests/mastery.test.ts, tests/checkout.test.ts, tests/study_loop.test.ts, tests/seam_studyLoop.test.ts, tests/useLangPack.test.ts
+**File:** AGENTS.md, tests/mastery.test.ts, tests/checkout.test.ts, tests/study_loop.test.ts, tests/seam_studyLoop.test.ts, tests/useLangPack.test.ts, tests/exportBackup.test.ts, tests/importBackup.test.ts, tests/entitlement.test.ts
 
-**Complexity:** ⚡ Direct — 6 files, mechanical assertion tightening + one grep-pattern extension
+**Complexity:** ⚡ Direct — 8 files, mechanical assertion tightening + one grep-pattern extension
 **Owner:** QA Agent
 **Blocked by:** Nothing
 **Priority:** P3
@@ -3474,6 +3474,11 @@ AGENTS.md's "Test Assertion Quality Gate" section (prose) bans four patterns as 
 - [ ] Extend the grep pattern in AGENTS.md's Verification Gate to also match `\.toBeGreaterThan\(0\)`
 - [ ] For each of the 6 listed instances: either tighten to an exact-value assertion (preferred) or add a `// existence-check: [reason]` comment if the value is genuinely non-deterministic
 - [ ] Re-run the extended gate and confirm zero unjustified hits
+
+Debt items batched in by owner approval (2026-07-07):
+- `tests/exportBackup.test.ts:47-54` and `tests/importBackup.test.ts:62-81` — extend the Task #183 field assertions to cover the remaining `CardProgress` fields (`difficulty`, `retrievability`, `lapses`, and `cardId` in importBackup) so a corruption confined to those fields is no longer silent.
+- `tests/entitlement.test.ts` — the `validUntil` assertions added by Task #183 recompute `new Date(str).getTime()` on both sides rather than a hardcoded epoch integer. Replace with the literal computed epoch value (e.g. `1798761600000` for `"2027-01-01T00:00:00Z"`) so a Date-parsing regression that moved both sides of the assertion together would actually be caught.
+- `tests/importBackup.test.ts:35-41` — "handles v0 backup (no activeSession field) via migration chain" test name/comment describes behavior that doesn't exist (`BackupSrs` has no `activeSession` field; `parseBackup()` has no migration chain). Rename to describe what it actually verifies (a duplicate of the basic valid-backup path), or fold its assertion into the "accepts a well-formed current backup" test above it and delete the duplicate.
 
 **Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()\|\.toBeGreaterThan(0)" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. Verification gate green.
 

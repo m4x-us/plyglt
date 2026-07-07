@@ -88,6 +88,15 @@ const RAW_DISCRIMINANTS = [
   "parse_error",
 ] as const;
 
+// Exact expected copy per discriminant — mirrors hooks/useLangPack.ts's
+// LOAD_PACK_ERROR_MESSAGES map so a wording regression fails this test.
+const EXPECTED_MESSAGES: Record<(typeof RAW_DISCRIMINANTS)[number], string> = {
+  invalid_lang: "Pack not available.",
+  download_failed: "Couldn't load pack. Try again.",
+  checksum_mismatch: "Pack data corrupted. Try again.",
+  parse_error: "Couldn't read pack. Try again.",
+};
+
 const FILLER_WORDS = ["just", "simply", "quickly", "easily"];
 
 describe("LOAD_PACK_ERROR_MESSAGES — BRAND.md compliant translations (Task #069)", () => {
@@ -97,9 +106,8 @@ describe("LOAD_PACK_ERROR_MESSAGES — BRAND.md compliant translations (Task #06
         expect(LOAD_PACK_ERROR_MESSAGES[discriminant]).not.toBe(discriminant);
       });
 
-      it("translated message is a non-empty string", () => {
-        expect(typeof LOAD_PACK_ERROR_MESSAGES[discriminant]).toBe("string");
-        expect(LOAD_PACK_ERROR_MESSAGES[discriminant].length).toBeGreaterThan(0);
+      it("translated message matches the exact expected copy", () => {
+        expect(LOAD_PACK_ERROR_MESSAGES[discriminant]).toBe(EXPECTED_MESSAGES[discriminant]);
       });
 
       it("translated message contains no exclamation mark", () => {
