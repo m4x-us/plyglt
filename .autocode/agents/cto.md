@@ -1001,3 +1001,13 @@ Spot check: PASS (comment-only change, no logic/assertions touched; self-assesse
 Done-when: PASS — `grep "os_events.rs" app/settings/page.test.tsx` → 1 hit
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task
+
+### Task #181 | Pin test assertions and close coverage gaps in tests/introduction.test.ts | Status: COMPLETE | Cycle 1 | Completed: 2026-07-07
+
+#### Cycle 1 — 2026-07-07 — Direct Task (Builder path)
+Build approach: tests/introduction_behavior.test.ts:224 — F15 toContain→toBe("recognize") for the deterministic null-lastSeenType getNextCardType case. tests/introduction.test.ts:89-125 — F16 replaced the partial MAX_APPEARANCES_BY_PHASE_DAY test with a full 22-entry it.each parameterized table + toHaveLength(22) check. tests/introduction_behavior.test.ts:105-121 — F21 added an 11-field toEqual assertion for a recordResult correct-path return. tests/introduction_behavior.test.ts:84-98 — F22 added consecutiveCorrect=0/16 boundary cases to shouldGraduate. tests/seam_introduction.test.ts (new file) — F14 cross-module seam test tracing introduceCard→recordIntroductionResult(3x wrong)→getIntroductionDueCardIds through the real store, proving Task #178's phaseStartDate fix is observable end-to-end. tests/introduction.test.ts:35 — picked up a batched Task #178 debt item, asserting record.phaseStartDate in the IntroductionRecord shape test. File split 436→3 files (introduction.test.ts 202, introduction_behavior.test.ts 248, seam_introduction.test.ts 54) to stay under the 250-line cap — three files, not the two the task anticipated, since non-seam content alone didn't fit in one.
+Scripts: PASS — tsc clean, 992/992 tests, coverage 87.2%/81.57%/86.23%/90.21% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Spot check: WARN (3 items, severity 1-3, logged to debt.md/patterns.md — a sibling deterministic getNextCardType test left untightened, the 3-file split vs. anticipated 2, and the done-when's own grep command missing -E)
+Done-when: PASS — 22/22 phase days individually verified at runtime (parameterized form, per the done-when's own escape clause), 11-field assertion test exists, toBe("recognize") replaces toContain, all 3 files ≤ 250 lines, verification gate green
+Fixed this cycle: F14, F15, F16, F21, F22, Task #178 debt item | Still open: — | New findings: DSC-1 (sev 3), DSC-2 (sev 2), DSC-3 (sev 1) — all logged as debt, none blocking | Regression signal: NO
+CTO diagnosis run: NO — Direct task
