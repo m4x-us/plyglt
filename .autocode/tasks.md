@@ -3309,6 +3309,7 @@ Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from
 **Test required:** The task IS tests — all 22 phase-day entries individually asserted, seam test passes, green gate.
 **Done when:** `grep -c "phaseDay\|phase_day\|phase day" tests/introduction.test.ts` ≥ 22 (or equivalent parameterized coverage). 10-field assertion test exists. `toBe("recognize")` replaces `toContain`. File ≤ 250 lines (or split into two files each ≤ 250). Verification gate green.
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
@@ -3339,7 +3340,7 @@ BuyModal.test.tsx negative regression guard and store/migrations.ts stay unchang
 **What:** Harden 50 existence-only test assertions to specific-value assertions across 11 test files, eliminating pseudocode coverage. This activates the hard assertion-quality gate in the Verification Gate (AGENTS.md). Extended by Batch 1 re-audit (2026-07-03) to absorb 12 additional test quality findings (F001, F003, F004, F007, F008, F010, F011, F015, F017, F019, F020).
 
 Mandatory rewrites — suppression comment NOT permitted (reason: deterministic outputs):
-- `tests/introduction.test.ts:64` — `expect(MAX_APPEARANCES_BY_PHASE_DAY).not.toBeNull()` → rewrite to assert specific phase/day values (day 1 → Infinity appearances, day 22 → 0).
+- ~~`tests/introduction.test.ts:64` — `expect(MAX_APPEARANCES_BY_PHASE_DAY).not.toBeNull()` → rewrite to assert specific phase/day values (day 1 → Infinity appearances, day 22 → 0).~~ — RESOLVED by Task #181 (F16): replaced with a full 22-entry parameterized test (`it.each` over every phase day) plus a `toHaveLength(22)` check. No `.not.toBeNull()` remains anywhere in the split files (`tests/introduction.test.ts`, `tests/introduction_behavior.test.ts`, `tests/seam_introduction.test.ts`).
 - `tests/packLoader.test.ts:118-119` — localStorage key not-null → parse stored JSON, assert `sha256` or `version` field matches manifest.
 - `tests/importBackup.test.ts:74` — card existence after import → assert `dueDate`, `stability`, `state` fields.
 - `tests/seam_importRestore.test.ts:85-86,159` — card existence in seam tests → same field-level assertions.
@@ -3363,9 +3364,10 @@ Anti-gaming rule: `// existence-check: this is fine` without a specific non-dete
 
 After this task COMPLETES: remove the `# Hard gate — activates after Task #183 completes` comment from the Verification Gate code block in `AGENTS.md`.
 **Why:** 50+ existence-only assertions = pseudocode coverage that passes even when behavior is broken. Systemic finding across Batch 1 audits. AGENTS.md Test Assertion Quality Gate and Rule 16 both require specific-value assertions for deterministic outputs.
-**File:** Multiple — `tests/introduction.test.ts`, `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts` + `AGENTS.md` (remove TODO comment)
+**File:** Multiple — `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts` + `AGENTS.md` (remove TODO comment)
 **Severity:** 7 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 13 files (12 test files + AGENTS.md)
+**Complexity:** 🔧 Full — 12 files (11 test files + AGENTS.md)
+**Scope narrowed:** 2026-07-07 — `tests/introduction.test.ts` dropped from file list; its only listed item (F16-equivalent `.not.toBeNull()` rewrite) was resolved by Task #181, which also split the file into three (`introduction.test.ts`, `introduction_behavior.test.ts`, `seam_introduction.test.ts`), none of which contain any remaining banned assertion.
 **Blocked by:** #184, #185 (some tests reference production code fixed there — write them red first, they turn green when those tasks close) | **Blocks:** Batch 1 audit PASS
 **Test required:** The task IS tests — assertions become more specific; a small number of new it() blocks added.
 **Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. Verification gate green.
