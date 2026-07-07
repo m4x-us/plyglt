@@ -3452,6 +3452,7 @@ Discovered during Task #183's audit (test-assertion hardening): `tests/language.
 - [ ] Update `tests/language.test.ts`'s exact regex-source assertion (added by Task #183) to match the corrected pattern.
 
 **Done when:** New curly-apostrophe test passes. `tests/language.test.ts`'s regex-source assertion reflects the corrected pattern. Verification gate green.
+**Status: COMPLETE — 2026-07-07**
 
 **Source:** Audit finding (Task #183 cycle) — severity 8 — code-quality — Agents W/N/R independently converged on this during Task #183's audit.
 
