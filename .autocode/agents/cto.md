@@ -71,7 +71,7 @@ Batches 1–14 below were completed before this SOP existed — no retroactive a
 | 15 | 0 | — | not started | — |
 | 16 | 0 | — | not started | — |
 | 17 | 0 | — | not started | — |
-| 18 | 0 | — | in-progress | Batch not yet complete |
+| 18 | 1 | 2026-07-07 | FAIL | 8-agent batch-level audit (A,B,S,N,K,W,V,Red R): 2 severity-9 findings — Task #180's cross-day pause and "variety rule" wiring are both dead code, marked COMPLETE despite being non-functional. 18 findings promoted to Tasks #228-245; 10 low-severity items logged to debt.md |
 
 ### Batch 1 | Re-audit | 2026-07-03 | Verdict: FAIL
 Findings: 0 critical, 4 major, 17 minor (21 total)
@@ -96,6 +96,21 @@ Source code unchanged since second audit. All 21 findings verified still open by
 Remediation blockers: Tasks #184 (DATE_RE + null guard), #185 (instance?.id guard), #186 (Object.freeze), #183 (test hardening).
 None of the four remediation tasks have been implemented. Verdict cannot change until all four complete.
 Audit cycle will pass when: #184 + #185 + #186 → merged → #183 → complete → re-run `/audit Batch 1`.
+
+### Batch 18 | Batch-level audit | 2026-07-07 | Verdict: FAIL
+8-agent parallel review (A, B, S, N, K, W, V, Red R) of all 11 tasks (#178-186, #226, #227) against the full diff since 42a2793 (28 production/test files). Every task's own individual spot-check/audit had passed; the batch-level pass caught two features that were each verified "working" by unit tests that never drove the real production call path.
+
+Top findings by severity:
+- F001 sev:9 | requirements | canIntroduceNewCard's cross-day wrong-streak pause (Task #180's own F10 acceptance criterion) is dead code — consecutiveWrongToday can never be persisted >= CONSECUTIVE_WRONG_RESET because recordResult resets it to 0 in the same write that would reach the threshold. Converged by 7/8 auditors | store/srsStore.ts:canIntroduceNewCard:272
+- F002 sev:9 | requirements | The "variety rule" (Task #180) is inert — recordIntroductionResult never receives the actually-displayed card type, and nothing reads IntroductionRecord.lastSeenType to select what's shown | store/srsStore.ts:recordIntroductionResult:246
+- F003 sev:8 | code-quality | getNextCardType can only ever oscillate between 2 of 5 CardTypes (recognize/produce) regardless of wiring — confirmed empirically via 10 sequential calls | lib/introduction.ts:getNextCardType:140
+- F004 sev:7 | requirements | getDayOfPhase's date validation checks shape only; a calendar-invalid-but-shape-valid string ("2026-13-45") silently returns NaN instead of throwing, contradicting its own docstring | lib/introduction.ts:getDayOfPhase:51
+- F005 sev:6 | data-loss | Migration v3's isNaN date guard misses day-of-month rollover ("2026-02-30" silently normalizes to March 2) | store/migrations.ts:77
+- F006 sev:6 | data-loss | Migration's null-record recovery produces an incomplete IntroductionRecord (only phaseStartDate); next recordResult call corrupts totalEncounters/consecutiveCorrect to NaN | store/migrations.ts:91
+
+18 findings (severity >=4) promoted to Tasks #228-245 in Batch 18 (re-opened from "pending audit" back to [CURRENT SPRINT]). 10 lower-severity findings logged to debt.md (F026 — entitlement.ts unbound catch — was a duplicate of an existing 2026-07-03 debt entry, not re-logged).
+Systemic pattern flagged: multiple severity 6-9 findings share one root cause — Batch 18's task-completion process verified "done" via unit tests that inject state directly or call functions in isolation, never through the real production call path from user action to persisted effect. Both F001 and F002 looked wired and looked tested but were never exercised end-to-end before being marked COMPLETE.
+Audit cycle will pass when: Tasks #228-245 complete → re-run `/audit Batch 18`.
 
 ## Open Escalations
 

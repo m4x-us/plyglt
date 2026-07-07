@@ -7,3 +7,4 @@
 | 2026-07-03 | Batch 1 — Security + Correctness Foundation | 1 | 7 | FAIL |
 | 2026-07-03 | Batch 1 re-audit (Task #182 + AGENTS.md + SRS v3) | 1 | 7 | FAIL |
 | 2026-07-04 | #164 Add tests for the Task #163 OS trigger settings | 1 | 9 | FAIL |
+| 2026-07-07 | Batch 18 — Introduction Engine Remediation + Correctness Hardening | 1 | 9 | FAIL |

@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 11 tasks | [TASKS COMPLETE — pending batch audit]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 29 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3484,6 +3484,381 @@ Debt items batched in by owner approval (2026-07-07):
 **Status: COMPLETE — 2026-07-07**
 
 **Source:** Audit finding (Task #183 cycle) — severity 4 — tooling — Agents B/N/V independently converged on this during Task #183's audit.
+
+---
+
+### Task #228: Fix requirements: canIntroduceNewCard's cross-day wrong-streak pause is dead code
+
+**File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
+**Complexity:** 🔧 Full — architectural fix, requires a new persisted signal
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+`canIntroduceNewCard` (store/srsStore.ts:272) gates on `r.consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET && r.lastSeenDate !== today` to implement BRAND.md's "Wrong across multiple days → New card introductions pause until this one stabilizes." This is Task #180's own F10 acceptance criterion. It is dead code: `recordResult` (lib/introduction.ts:120-127) always resets `consecutiveWrongToday` to 0 in the exact same write that would ever push it to the threshold — no writer in the codebase can persist a value >= 3. The only test for this (`tests/srsStore.test.ts` "F10") injects the unreachable state directly via `setState`, bypassing the real write path entirely. 7 of 8 independent audit agents converged on this finding.
+
+**Acceptance Criteria:**
+- [ ] Introduce a signal that survives the same-day reset — e.g. a `strandedAcrossDays: boolean` set once when a card resets to Day 1 and only cleared once the card records a correct answer on a later day, or redefine the trigger around comparing `phaseStartDate` resets across distinct calendar days
+- [ ] Replace the F10 unit test with a seam test (matching `tests/seam_introduction.test.ts`'s pattern) that drives the cross-day-pause condition through `introduceCard`/`recordIntroductionResult` end-to-end, not via direct `setState` injection
+- [ ] Verify the fix actually blocks `canIntroduceNewCard` when a real multi-day-wrong sequence is played through the store API
+
+**Done when:** A new seam test drives a card wrong across 2+ real calendar-day boundaries through `recordIntroductionResult` and asserts `canIntroduceNewCard` returns `false` as a result — without directly setting `consecutiveWrongToday` via `setState`. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 9 — requirements — converged independently by Agents A, B, N, W, K, Red R, V.
+
+---
+
+### Task #229: Fix requirements: the "variety rule" (Task #180) has zero effect on what the user is shown
+
+**File:** store/srsStore.ts, lib/introduction.ts, app/study/page.tsx, content/types.ts
+**Complexity:** 🔧 Full — requires either a content-model change or removing the dead mechanism
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+BRAND.md requires "each encounter uses a different retrieval angle" during the intensive introduction phase. Task #180 added `getNextCardType`/`lastSeenType` machinery to implement this, but it is fully inert: `app/study/page.tsx:147` calls `recordIntroductionResult(currentCard.id, g !== "again", localDateStr())` — it never passes the actually-displayed card's type. `recordIntroductionResult` (store/srsStore.ts:246-247) computes `getNextCardType(record.lastSeenType, ALL_CARD_TYPES)` and writes the result back into `lastSeenType`, but nothing anywhere in the codebase reads `IntroductionRecord.lastSeenType` to select what's actually shown — `StudyCard.tsx` renders strictly from the content pack's fixed, immutable `card.type`. There is no "sibling card" concept in the content model to even vary the presented format for a given word. 3 independent auditors (A, B, W) confirmed this via full-repo grep of `lastSeenType`.
+
+**Acceptance Criteria:**
+- [ ] Decide the actual mechanism: either (a) content packs need sibling cards per word/type so the queue can select an alternate-type card for the same word on each introduction encounter, or (b) if varying the retrieval angle is out of scope for now, remove the dead `lastSeenType`/`getNextCardType` wiring and its tests rather than leaving inert code that looks functional
+- [ ] If implementing: add a seam test that drives two consecutive introduction encounters for the same card through the real queue-building path and asserts the actually-displayed card type differs
+- [ ] Update content/types.ts's `lastSeenType` doc comment to be accurate about what it does today
+
+**Done when:** Either a real end-to-end seam test proves the displayed card type varies across encounters, or the dead mechanism is removed with an explicit documented decision. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 9 — requirements — converged independently by Agents A, B, W plus the orchestrating CTO's own full-repo grep.
+
+---
+
+### Task #230: Fix code-quality: getNextCardType can only ever produce 2 of 5 CardTypes
+
+**File:** lib/introduction.ts
+**Complexity:** ⚡ Direct — 1 file, algorithm fix
+**Owner:** Architecture Agent
+**Blocked by:** Task #229 (fix depends on whether the mechanism is kept or removed)
+**Priority:** P1
+
+**What:**
+`getNextCardType` (lib/introduction.ts:140-146) filters only the single `lastSeenType` out of the candidate pool and takes `pool[0]`. Given the fixed-order `ALL_CARD_TYPES = ["recognize","produce","conjugate","fill_blank","passage_cloze"]`, this means the function can only ever oscillate between `"recognize"` and `"produce"` — empirically confirmed via 10 sequential calls producing only 2 distinct outputs. `conjugate`, `fill_blank`, and `passage_cloze` are structurally unreachable no matter how many times the function is called. This defeats BRAND.md's stated premise ("varied retrieval across encounters produces durable memory") independent of the wiring gap in Task #229.
+
+**Acceptance Criteria:**
+- [ ] If Task #229 keeps the mechanism: rewrite the selection algorithm to genuinely rotate/vary across all N available types (e.g. round-robin through a shuffled or rotating order, or track more than just the single last-seen type)
+- [ ] Add a test that calls the function N times in sequence and asserts all 5 CardTypes appear across the sequence (not just 2)
+- [ ] If Task #229 removes the mechanism: this task is superseded — close as not-applicable with a cross-reference
+
+**Done when:** A test drives `getNextCardType` through 10+ sequential calls and asserts at least 4 of the 5 CardTypes appear in the output sequence. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 8 — code-quality — confirmed empirically by the orchestrating CTO and independently by Agent W.
+
+---
+
+### Task #231: Fix requirements: getDayOfPhase's date validation misses calendar-invalid-but-shape-valid dates
+
+**File:** lib/introduction.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+`getDayOfPhase` (lib/introduction.ts:51-62) validates only string shape via `DATE_RE = /^\d{4}-\d{2}-\d{2}$/`, not calendar validity. A shape-valid, calendar-invalid string like `"2026-13-45"` passes the guard; `new Date("2026-13-45").getTime()` is `NaN`, so the function silently returns `NaN` instead of throwing — directly contradicting its own docstring ("Throws on malformed input... NaN propagation would cause silent card disappearance"). This is the exact failure mode Task #179 was built to eliminate, reintroduced one validation layer down. 5 of 8 auditors converged on this (S, W, K, Red R, V), each independently verifying via `node`.
+
+**Acceptance Criteria:**
+- [ ] Add an `isNaN(new Date(...).getTime())` check to `getDayOfPhase` itself (matching what `store/migrations.ts`'s v3 migration already does at the persistence boundary), throwing the same `[ERR-INTRO-DATE]` error on failure
+- [ ] Add a test asserting `getDayOfPhase("2026-13-45", "2026-07-01")` throws, not returns NaN
+- [ ] Update the function's docstring only if its claim still doesn't fully hold after the fix (verify against Task #232's day-of-month rollover finding too)
+
+**Done when:** `getDayOfPhase("2026-13-45", "2026-07-01")` throws `[ERR-INTRO-DATE]` instead of returning NaN, verified by a new test. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 7 — requirements — converged independently by Agents S, W, K, Red R, V plus the orchestrating CTO's own node verification.
+
+---
+
+### Task #232: Fix data-loss: migration v3's isNaN date guard misses day-of-month rollover
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The v3 migration's date guard (store/migrations.ts:71-90, added by Task #184 specifically to reject calendar-invalid dates) does not catch day-of-month rollover: `"2026-02-30"` passes both `DATE_RE` and `!isNaN(new Date(...).getTime())` because JS's `Date` silently normalizes it to a valid timestamp (March 2nd), so the calendar-invalid string is preserved as-is into the migrated record instead of falling back to today. The guard's own comment overclaims "rejects calendar-invalid strings" as a general class when it only covers month-overflow (e.g. month 13). Converged independently by Agents K, Red R, V, confirmed via `node` by the orchestrating CTO.
+
+**Acceptance Criteria:**
+- [ ] Strengthen the date guard to also reject day-of-month rollover — e.g. re-format the parsed `Date` back to a `YYYY-MM-DD` string and compare it to the original input string; a mismatch means the input was calendar-invalid even though `getTime()` didn't return NaN
+- [ ] Add a test asserting a v2 record with `phaseStartDate: "2026-02-30"` falls back to today's date after migration, not a silently-rolled-forward date
+- [ ] Correct the guard's comment to accurately describe what it now covers
+
+**Done when:** A migration test with `phaseStartDate: "2026-02-30"` asserts the migrated record's `phaseStartDate` equals the fallback (today), not `"2026-02-30"` or a rolled-forward value. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — data-loss — converged independently by Agents K, Red R, V.
+
+---
+
+### Task #233: Fix data-loss: migration's null-record recovery produces an incomplete IntroductionRecord
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The v3 migration's null-record recovery path (store/migrations.ts:67-91, added by Task #184 to prevent a full-store-reset TypeError) produces `{ ...record, phaseStartDate }` where `record` is `{}` for a null/corrupt entry — only `phaseStartDate` is populated; the other 10 required `IntroductionRecord` fields are missing. The next `recordResult` call computes `record.totalEncounters + 1` and `record.consecutiveCorrect + 1` as `undefined + 1 = NaN`, permanently corrupting those counters — since `NaN >= GRADUATION_THRESHOLD` is always false, the card can never graduate again. A "recovery" path that itself introduces silent, permanent data corruption on the record it recovers. Found by Agent A, confirmed via code trace by the orchestrating CTO.
+
+**Acceptance Criteria:**
+- [ ] Build a complete default `IntroductionRecord` (all 11 fields, matching `introduceCard`'s initialization defaults) when a corrupt/null entry is recovered, not just `phaseStartDate`
+- [ ] Add a test asserting that after migrating a `null` introduction record and then calling `recordResult` on it, `totalEncounters` and `consecutiveCorrect` are real numbers, not `NaN`
+- [ ] Verify the recovered record can still graduate normally after 15 consecutive correct answers
+
+**Done when:** A test migrates a null introduction record, calls `recordResult` on the migrated output, and asserts `totalEncounters` and `consecutiveCorrect` are `1` (not `NaN`). Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — data-loss — found by Agent A, confirmed by the orchestrating CTO's own code trace.
+
+---
+
+### Task #234: Fix error-handling: getDayOfPhase's throw is uncaught inside getIntroductionDueCardIds's filter loop
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Architecture Agent
+**Blocked by:** Task #231 (getDayOfPhase's throw conditions are changing)
+**Priority:** P2
+
+**What:**
+`getIntroductionDueCardIds` (store/srsStore.ts:250-264) calls `getDayOfPhase` inside a `.filter()` over ALL introduction records with no per-record try/catch anywhere in the call chain, and the app has zero `ErrorBoundary`/`componentDidCatch` components. One corrupted record now aborts due-card computation for every card, not just the offending one — a larger blast radius than the silent single-card disappearance the throw-on-invalid-input design was meant to replace. Found independently by Agents S and K.
+
+**Acceptance Criteria:**
+- [ ] Wrap the `getDayOfPhase` call inside the filter callback in a try/catch that logs a ref ID and excludes only that one record from the due-card set, rather than letting the exception propagate and abort the whole computation
+- [ ] Add a test with one corrupt record and one valid record in `state.introductions`, asserting the valid record's card ID is still returned
+
+**Done when:** A test with a mix of one corrupt and one valid introduction record asserts `getIntroductionDueCardIds` returns the valid record's card without throwing. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — error-handling — found independently by Agents S and K.
+
+---
+
+### Task #235: Fix security: LANG_CONFIG_MAP's Object.freeze is shallow
+
+**File:** lib/langRegistry.ts, lib/language.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Security Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+`Object.freeze(LANG_CONFIG_MAP)` (lib/langRegistry.ts:48-50, Task #186) only freezes the outer map object. The nested `LanguageConfig` objects (`ITALIAN`/`SPANISH` from lib/language.ts) and their `uiStrings`/`cardLabels` sub-objects remain fully mutable at runtime despite the `Readonly<>` type annotation implying full tamper-proofing — e.g. `LANG_CONFIG_MAP.it.articles = null` compiles and succeeds. Same class as the already-known F07 shallow-freeze gap. 4 of 8 auditors converged on this (S, A, B, Red R).
+
+**Acceptance Criteria:**
+- [ ] Deep-freeze `LANG_CONFIG_MAP`'s values (recursively freeze `ITALIAN`/`SPANISH` and their nested objects), or document explicitly why shallow freeze is an accepted trade-off given current low exploitability
+- [ ] Add a test asserting a nested-field mutation attempt (e.g. `LANG_CONFIG_MAP.it.articles = null`) either throws (strict mode) or has no effect
+
+**Done when:** A test attempts to mutate a nested field of `LANG_CONFIG_MAP.it` and asserts the original value is unchanged afterward. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — security — converged independently by Agents S, A, B, Red R.
+
+---
+
+### Task #236: Fix security: activateLicense's instanceId guard checks truthiness, not type
+
+**File:** lib/entitlement.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Security Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+`activateLicense`'s guard `if (!res.instance?.id)` (lib/entitlement.ts:139, Task #185) checks truthiness only, not type. `res` is an untyped `raw as LsActivateBody` cast with no runtime schema validation. A response shaped like `instance: { id: 123 }` (a number, not a string) passes this guard, then gets assigned to the `instanceId: string` field of the returned `ActivateResult`, violating the function's own return type contract, and is persisted into the entitlement store and later passed back to `deactivateLicense` as if it were a real string. Found by Red Agent R.
+
+**Acceptance Criteria:**
+- [ ] Change the guard to `if (!res.instance?.id || typeof res.instance.id !== "string")` (or equivalent runtime type check)
+- [ ] Add a test asserting `activateLicense` rejects a response where `instance.id` is a number
+
+**Done when:** A test with `instance: { id: 123 }` (number, not string) asserts `activateLicense` returns an error result, not a persisted numeric instanceId. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — security — found by Red Agent R.
+
+---
+
+### Task #237: Fix tests: commitSession's "atomicity" test doesn't test atomicity
+
+**File:** tests/commitSession.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+"all three slices are consistent — no partial application" (tests/commitSession.test.ts:36-47) claims to prove `commitSession`'s atomic single-`set()`-call contract (documented in store/srsStore.ts:72-74) but only checks final-state values. It would pass identically if `commitSession` made three sequential `set()` calls instead of one. `tests/seam_studyLoop.test.ts:93-129` already has the correct pattern (subscribe + snapshot-count) for the sibling `rateCardAndSaveSession` function — the same pattern was not applied here. Found independently by Agents K and V.
+
+**Acceptance Criteria:**
+- [ ] Rewrite the test to subscribe to the store and assert exactly 1 snapshot fires for a single `commitSession` call, matching the pattern already used in `tests/seam_studyLoop.test.ts`
+
+**Done when:** The rewritten test would fail if `commitSession` were changed to call `set()` more than once. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — tests — converged independently by Agents K and V.
+
+---
+
+### Task #238: Fix tests: useLangPack.test.ts's error-message enumeration omits base_pack_not_loaded
+
+**File:** tests/useLangPack.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The `RAW_DISCRIMINANTS`/`EXPECTED_MESSAGES` enumeration added by Task #227 (tests/useLangPack.test.ts:84-103) omits `base_pack_not_loaded` — 1 of 5 `LoadPackResult` error discriminants (defined lib/packTypes.ts:41-46, copy in hooks/useLangPack.ts:18) is never tested. A Rule 16 enumeration gap in a fixture explicitly built to enumerate all discriminants. Found by Agent K.
+
+**Acceptance Criteria:**
+- [ ] Add `base_pack_not_loaded` to `RAW_DISCRIMINANTS` and its exact expected copy to `EXPECTED_MESSAGES`
+
+**Done when:** All 5 `LoadPackResult` error discriminants are covered by the enumeration test. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — tests — found by Agent K.
+
+---
+
+### Task #239: Fix tests: packLoader stale-cache fallback has no semantic-corruption test
+
+**File:** tests/packLoader.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+No test in tests/packLoader.test.ts exercises syntactically-valid-but-semantically-malformed cached JSON (e.g. non-array `units`) reaching the offline stale-cache-fallback path (lib/packLoader.ts:210-235). That path skips the shape validation the happy-path download branch performs, so a truncated/corrupted cache write (plausible per the file's own atomic-write comment) could leak an invalid `Pack` as `ok:true`. Found by Agent K.
+
+**Acceptance Criteria:**
+- [ ] Add a test that seeds a cached pack with a non-array `units` field, forces the offline-fallback path, and asserts the result is either rejected or validated before being returned
+
+**Done when:** A test with semantically-malformed cached JSON asserts the stale-cache fallback path does not silently return an invalid Pack as `ok:true`. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — tests — found by Agent K.
+
+---
+
+### Task #240: Fix code-quality: DATE_RE regex duplicated across two files
+
+**File:** lib/introduction.ts, store/migrations.ts
+**Complexity:** ⚡ Direct — 2 files, extract to shared module
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+`const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;` is independently defined in both lib/introduction.ts:9 and store/migrations.ts:60 — the exact duplicate-constant failure class this team already hit once this batch (`CONSECUTIVE_WRONG_RESET`, fixed in Batch 18 Wave 1). AGENTS.md explicitly bans "any parallel list/array that should be derived from a single source of truth." Found independently by Agents B and Red R.
+
+**Acceptance Criteria:**
+- [ ] Export `DATE_RE` once from a shared module (e.g. lib/utils.ts, already imported by both files) and import it in both places
+
+**Done when:** `grep -rn "DATE_RE = " lib/ store/` returns exactly one definition. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — converged independently by Agents B and Red R.
+
+---
+
+### Task #241: Fix code-quality: phase-day boundary magic number 22 repeated in 3 places
+
+**File:** lib/introduction.ts, store/srsStore.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The phase-day graduation boundary `22` is a bare literal repeated in three places with no shared named constant: `MAX_APPEARANCES_BY_PHASE_DAY[22] = 0` and `getDayOfPhase`'s `Math.min(diffDays + 1, 22)` clamp (both lib/introduction.ts), and the day-22+ rescue-path check in store/srsStore.ts:257. Found by Agent B.
+
+**Acceptance Criteria:**
+- [ ] Extract a named constant (e.g. `MAX_PHASE_DAY = 22`) in lib/introduction.ts, export it, and use it at all three call sites
+
+**Done when:** `grep -rn "\b22\b" lib/introduction.ts store/srsStore.ts` shows no remaining bare `22` literal tied to the phase-day boundary. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — found by Agent B.
+
+---
+
+### Task #242: Fix code-quality: shouldGraduate() exported but never called; duplicated inline
+
+**File:** lib/introduction.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+`shouldGraduate()` (lib/introduction.ts:88-91) is exported but never called from production code — only from tests. `recordResult` (line 116) re-implements the identical check inline (`graduated: consecutiveCorrect >= GRADUATION_THRESHOLD`) instead of calling `shouldGraduate(record)`. Two independent expressions of the same rule. Found by Agent B.
+
+**Acceptance Criteria:**
+- [ ] Change `recordResult` to call `shouldGraduate({ ...record, consecutiveCorrect })` instead of re-implementing the comparison inline
+
+**Done when:** `recordResult`'s graduation check calls `shouldGraduate` rather than duplicating its comparison. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — found by Agent B.
+
+---
+
+### Task #243: Fix tests: study_loop.test.ts never asserts masteryPct
+
+**File:** tests/study_loop.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+"getStats correctly counts due, learning, and mastered across a mixed unit" (tests/study_loop.test.ts:86-109) checks 4 of 5 `getStats` return fields; `masteryPct` (drives `MASTERY_GATE`, a BRAND.md-critical unlock threshold) is never asserted. Found by Agent K.
+
+**Acceptance Criteria:**
+- [ ] Add an assertion on the exact expected `masteryPct` value for the test's mixed-unit fixture
+
+**Done when:** The test asserts a specific `masteryPct` value, not just the other 4 fields. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — tests — found by Agent K.
+
+---
+
+### Task #244: Fix tests: importBackup normalizeCardProgress fallback coverage incomplete
+
+**File:** tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+`normalizeCardProgress` fallback coverage (tests/importBackup.test.ts:106-141) forces only 2 of 7 `CardProgress` fallback branches (`stability`, `lapses`); `difficulty`, `retrievability`, `dueDate`, and `reps` fallback paths (lib/importBackup.ts:52-56) are untested. Found by Agent K.
+
+**Acceptance Criteria:**
+- [ ] Add a test case per remaining fallback branch (`difficulty`, `retrievability`, `dueDate`, `reps`) with an invalid input value and an exact expected fallback assertion
+
+**Done when:** All 7 `CardProgress` fallback branches have a dedicated test case with an exact expected value. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — tests — found by Agent K.
+
+---
+
+### Task #245: Fix code-quality: AGENTS.md's Stop-the-Line list omits .toBeGreaterThan(0)
+
+**File:** AGENTS.md
+**Complexity:** ⚡ Direct — 1 file, 1 line
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+AGENTS.md's Verification Gate grep (line ~39) bans 4 assertion patterns including `.toBeGreaterThan(0)`, but the adjacent Stop-the-Line Violations bullet list (line ~84) only mentions 3, omitting `.toBeGreaterThan(0)` — a parallel-list violation introduced by Task #227 itself, directly contradicting the rule stated one line above it in the same document ("Any parallel list/array that should be derived from a single source of truth"). Converged independently by Agents W and K.
+
+**Acceptance Criteria:**
+- [ ] Add `.toBeGreaterThan(0)` to the Stop-the-Line Violations bullet so it matches the Verification Gate grep pattern exactly
+
+**Done when:** AGENTS.md's Stop-the-Line Violations bullet and Verification Gate grep pattern list the same 4 banned assertion patterns. Verification gate green.
+
+**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — converged independently by Agents W and K.
 
 ---
 
