@@ -1,5 +1,8 @@
 // ============================================================
-// tests/introduction.test.ts — structural and behavioral tests for the introduction engine
+// tests/introduction.test.ts — structural tests + scheduling math for the introduction engine
+// Split from a single 436-line file (Task #181) to stay under the 250-line file limit.
+// See also: tests/introduction_behavior.test.ts (shouldAppearToday/shouldGraduate/recordResult/
+// getNextCardType) and tests/seam_introduction.test.ts (cross-module store seam test).
 // ============================================================
 import { describe, it, expect } from "vitest";
 import type { IntroductionRecord } from "@/content/types";
@@ -9,10 +12,6 @@ import {
   CONSECUTIVE_WRONG_RESET,
   getDayOfPhase,
   maxAppearancesToday,
-  shouldAppearToday,
-  recordResult,
-  shouldGraduate,
-  getNextCardType,
 } from "@/lib/introduction";
 
 describe("IntroductionRecord — shape", () => {
@@ -32,6 +31,7 @@ describe("IntroductionRecord — shape", () => {
     };
     expect(record.cardId).toBe("it-a1u01-001");
     expect(record.introducedDate).toBe("2026-06-27");
+    expect(record.phaseStartDate).toBe("2026-06-27");
     expect(record.dayOfPhase).toBe(1);
     expect(record.consecutiveCorrect).toBe(0);
     expect(record.totalEncounters).toBe(0);
@@ -83,21 +83,43 @@ describe("GRADUATION_THRESHOLD / CONSECUTIVE_WRONG_RESET", () => {
   });
 });
 
-describe("MAX_APPEARANCES_BY_PHASE_DAY", () => {
-  it("is a non-null object with numeric keys", () => {
-    expect(typeof MAX_APPEARANCES_BY_PHASE_DAY).toBe("object");
-    expect(MAX_APPEARANCES_BY_PHASE_DAY).not.toBeNull();
-    for (const key of Object.keys(MAX_APPEARANCES_BY_PHASE_DAY)) {
-      expect(Number.isFinite(Number(key))).toBe(true);
-    }
-  });
+// F16 — every one of the 22 phase-day entries is asserted individually (not just a sample),
+// so a silent edit to any single entry in the scheduling table fails a test.
+describe("MAX_APPEARANCES_BY_PHASE_DAY — full table (all 22 phase days)", () => {
+  const EXPECTED_BY_PHASE_DAY: Record<number, number> = {
+    1: Infinity,
+    2: 5,
+    3: 2,
+    4: 2,
+    5: 2,
+    6: 1,
+    7: 1,
+    8: 1,
+    9: 1,
+    10: 1,
+    11: 0.5,
+    12: 0.5,
+    13: 0.5,
+    14: 0.5,
+    15: 0.5,
+    16: 0.5,
+    17: 0.5,
+    18: 0.5,
+    19: 0.5,
+    20: 0.5,
+    21: 0.5,
+    22: 0,
+  };
 
-  it("day 1 is Infinity — every interrupt, no daily cap", () => {
-    expect(MAX_APPEARANCES_BY_PHASE_DAY[1]).toBe(Infinity);
-  });
+  it.each(Object.entries(EXPECTED_BY_PHASE_DAY))(
+    "phase day %s maps to %s",
+    (day, expected) => {
+      expect(MAX_APPEARANCES_BY_PHASE_DAY[Number(day)]).toBe(expected);
+    },
+  );
 
-  it("day 11 is 0.5 — every other day", () => {
-    expect(MAX_APPEARANCES_BY_PHASE_DAY[11]).toBe(0.5);
+  it("has exactly 22 entries — no extra or missing phase day", () => {
+    expect(Object.keys(MAX_APPEARANCES_BY_PHASE_DAY)).toHaveLength(22);
   });
 });
 
@@ -176,195 +198,5 @@ describe("maxAppearancesToday", () => {
   it("day 25 → 0 (out-of-bounds day not in table — ?? 0 fallback)", () => {
     // Covers the nullish-coalescing branch at line 49: undefined ?? 0
     expect(maxAppearancesToday(25)).toBe(0);
-  });
-});
-
-// Helper to build a minimal valid IntroductionRecord for shouldAppearToday tests.
-const makeRecord = (overrides: Partial<IntroductionRecord>): IntroductionRecord => ({
-  cardId: "it-a1u01-001",
-  introducedDate: "2026-06-17",
-  phaseStartDate: "2026-06-17",
-  dayOfPhase: 1,
-  consecutiveCorrect: 0,
-  totalEncounters: 0,
-  lastSeenDate: "2026-06-27",
-  appearancesToday: 0,
-  consecutiveWrongToday: 0,
-  lastSeenType: null,
-  graduated: false,
-  ...overrides,
-});
-
-describe("shouldAppearToday", () => {
-  it("graduated record → false regardless of phase day", () => {
-    expect(shouldAppearToday(makeRecord({ graduated: true, dayOfPhase: 5 }), "2026-06-27")).toBe(false);
-  });
-
-  it("day 22 (not graduated) → false (max=0, no appearances allowed)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 22 }), "2026-06-27")).toBe(false);
-  });
-
-  it("day 1, appearancesToday=0 → true (Infinity cap not reached)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 1, appearancesToday: 0 }), "2026-06-27")).toBe(true);
-  });
-
-  it("day 11 (odd dayOfPhase), appearancesToday=0 → true (every-other-day: odd phase days appear)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 11, appearancesToday: 0 }), "2026-06-27")).toBe(true);
-  });
-
-  it("day 12 (even dayOfPhase), appearancesToday=0 → false (every-other-day: even phase days skip)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 12, appearancesToday: 0 }), "2026-06-27")).toBe(false);
-  });
-
-  it("day 2, appearancesToday=5 → false (daily cap of 5 reached)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 2, appearancesToday: 5 }), "2026-06-27")).toBe(false);
-  });
-
-  it("day 13 (odd dayOfPhase), appearancesToday=0 → true (confirms odd parity rule beyond day 11)", () => {
-    expect(shouldAppearToday(makeRecord({ dayOfPhase: 13, appearancesToday: 0 }), "2026-06-27")).toBe(true);
-  });
-
-  it("uses 0 as appearances when lastSeenDate is not today (date-reset ternary false branch)", () => {
-    // Card was seen yesterday with 3 appearances; today is a new day → treat as 0 appearances
-    // Covers line 60 ternary false branch: lastSeenDate !== today → 0
-    const record = makeRecord({ dayOfPhase: 8, lastSeenDate: "2026-06-26", appearancesToday: 3 });
-    // max=1 for day 8; date-reset sets appearances=0, so 0 < 1 → should appear
-    expect(shouldAppearToday(record, "2026-06-27")).toBe(true);
-  });
-
-  it("day 11 (on day), appearancesToday=1 today → false (0.5-cap: once per on-day)", () => {
-    // On an odd phase day in the 11–21 range, once we've seen the card today it must not reappear.
-    const record = makeRecord({ dayOfPhase: 11, lastSeenDate: "2026-06-27", appearancesToday: 1 });
-    expect(shouldAppearToday(record, "2026-06-27")).toBe(false);
-  });
-
-  it("day 11 (on day), appearancesToday=1 yesterday → true (day reset: yesterday count doesn't carry over)", () => {
-    // Yesterday's appearance count must not block today's single allowed appearance.
-    const record = makeRecord({ dayOfPhase: 11, lastSeenDate: "2026-06-26", appearancesToday: 1 });
-    expect(shouldAppearToday(record, "2026-06-27")).toBe(true);
-  });
-});
-
-describe("shouldGraduate", () => {
-  it("returns true when consecutiveCorrect >= 15", () => {
-    expect(shouldGraduate(makeRecord({ consecutiveCorrect: 15 }))).toBe(true);
-  });
-
-  it("returns false when consecutiveCorrect < 15", () => {
-    expect(shouldGraduate(makeRecord({ consecutiveCorrect: 14 }))).toBe(false);
-  });
-});
-
-describe("recordResult", () => {
-  it("correct answer increments counters and resets consecutiveWrongToday", () => {
-    const result = recordResult(
-      makeRecord({ consecutiveCorrect: 3, totalEncounters: 10, appearancesToday: 2, consecutiveWrongToday: 1 }),
-      true,
-      "2026-06-27",
-    );
-    expect(result.consecutiveCorrect).toBe(4);
-    expect(result.totalEncounters).toBe(11);
-    expect(result.appearancesToday).toBe(3);
-    expect(result.consecutiveWrongToday).toBe(0);
-    expect(result.lastSeenDate).toBe("2026-06-27");
-  });
-
-  it("15th consecutive correct answer sets graduated: true", () => {
-    const result = recordResult(makeRecord({ consecutiveCorrect: 14 }), true, "2026-06-27");
-    expect(result.graduated).toBe(true);
-  });
-
-  it("wrong answer resets consecutiveCorrect and increments consecutiveWrongToday", () => {
-    const result = recordResult(
-      makeRecord({ consecutiveCorrect: 5, totalEncounters: 10, consecutiveWrongToday: 0 }),
-      false,
-      "2026-06-27",
-    );
-    expect(result.consecutiveCorrect).toBe(0);
-    expect(result.consecutiveWrongToday).toBe(1);
-    expect(result.totalEncounters).toBe(11);
-  });
-
-  it("third consecutive wrong advances phaseStartDate to today and clears consecutiveWrongToday", () => {
-    // consecutiveWrongToday: 2 + one more wrong = 3 total → Day 1 reset via phaseStartDate advance
-    // phaseStartDate is set to today so getDayOfPhase(record.phaseStartDate, today) → 1
-    const result = recordResult(makeRecord({ consecutiveWrongToday: 2, dayOfPhase: 8, phaseStartDate: "2026-06-17" }), false, "2026-06-27");
-    expect(result.phaseStartDate).toBe("2026-06-27");
-    expect(result.consecutiveWrongToday).toBe(0);
-    expect(result.consecutiveCorrect).toBe(0);
-    expect(result.graduated).toBe(false);
-    expect(result.totalEncounters).toBe(1);
-    expect(result.appearancesToday).toBe(1);
-    expect(result.lastSeenDate).toBe("2026-06-27");
-    expect(result.dayOfPhase).toBe(8); // stale — callers must recompute via getDayOfPhase(result.phaseStartDate, today)
-  });
-
-  it("does not mutate the original record (immutability)", () => {
-    const original = makeRecord({ consecutiveCorrect: 3 });
-    const result = recordResult(original, true, "2026-06-27");
-    expect(original.consecutiveCorrect).toBe(3);
-    expect(result.consecutiveCorrect).toBe(4);
-  });
-
-  it("resets appearancesToday to 1 when lastSeenDate differs from today (date-reset path)", () => {
-    // Card was seen yesterday with 2 appearances. Recording today's result should
-    // treat appearances as 0 before incrementing to 1. Covers lines 78-79 ternary false branch.
-    const record = makeRecord({ lastSeenDate: "2026-06-26", appearancesToday: 2 });
-    const result = recordResult(record, true, "2026-06-27");
-    expect(result.appearancesToday).toBe(1);
-    expect(result.lastSeenDate).toBe("2026-06-27");
-  });
-
-  it("second consecutive wrong increments consecutiveWrongToday to 2 without triggering triple-wrong reset", () => {
-    // Only 3rd wrong triggers Day 1 reset; 2nd wrong is an intermediate state.
-    // dayOfPhase assertion removed (vacuous — recordResult never mutates dayOfPhase).
-    const result = recordResult(makeRecord({ consecutiveWrongToday: 1, dayOfPhase: 8 }), false, "2026-06-27");
-    expect(result.consecutiveWrongToday).toBe(2);
-    expect(result.consecutiveCorrect).toBe(0);
-    expect(result.phaseStartDate).toBe("2026-06-17"); // NOT reset — only 2nd wrong, not 3rd
-  });
-
-  it("cross-day wrong: 2 wrongs on a prior day do NOT count toward triple-wrong on a new day", () => {
-    // consecutiveWrongToday=2 from yesterday; one wrong today should give consecutiveWrongToday=1
-    // and must NOT trigger the triple-wrong Day 1 reset (cross-day carryover is the bug CF-02 fixes).
-    const result = recordResult(
-      makeRecord({ consecutiveWrongToday: 2, lastSeenDate: "2026-06-26", phaseStartDate: "2026-06-17" }),
-      false,
-      "2026-06-27",
-    );
-    expect(result.consecutiveWrongToday).toBe(1);
-    expect(result.phaseStartDate).toBe("2026-06-17"); // NOT reset — cross-day carryover must not fire
-    expect(result.consecutiveCorrect).toBe(0);
-  });
-
-  it("15th consecutive correct sets both consecutiveCorrect to 15 and graduated to true", () => {
-    const result = recordResult(makeRecord({ consecutiveCorrect: 14 }), true, "2026-06-27");
-    expect(result.consecutiveCorrect).toBe(15);
-    expect(result.graduated).toBe(true);
-  });
-});
-
-describe("getNextCardType", () => {
-  it("returns any available type when lastSeenType is null", () => {
-    const result = getNextCardType(null, ["recognize", "produce"]);
-    expect(["recognize", "produce"] as string[]).toContain(result);
-  });
-
-  it("returns a different type when an alternative to lastSeenType is available", () => {
-    expect(getNextCardType("produce", ["recognize", "produce"])).toBe("recognize");
-  });
-
-  it("returns lastSeenType when it is the only available option", () => {
-    expect(getNextCardType("produce", ["produce"])).toBe("produce");
-  });
-
-  it("avoids lastSeenType when multiple alternatives exist and returns a value within available", () => {
-    const result = getNextCardType("fill_blank", ["recognize", "produce", "fill_blank"]);
-    expect(result).not.toBe("fill_blank");
-    expect(["recognize", "produce", "fill_blank"] as string[]).toContain(result);
-  });
-
-  it("throws when available is empty (line 120 guard — callers must not pass empty arrays)", () => {
-    expect(() => getNextCardType(null, [])).toThrow("getNextCardType: available must not be empty");
   });
 });

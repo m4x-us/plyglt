@@ -3300,6 +3300,7 @@ Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from
 - F22: Add `consecutiveCorrect=0` (should return false) and `consecutiveCorrect=16` (should return true) cases to the `shouldGraduate` suite — currently only boundary values 14 and 15 are tested
 - F14: Add a seam test tracing the end-to-end triple-wrong path through the store, confirming Task #178's fix is observable (`getIntroductionDueCardIds` must schedule the card at day 1 after 3 consecutive wrong answers)
 - If file exceeds 250 lines after additions: split into `tests/introduction.test.ts` (lib unit tests) and `tests/seam_introduction.test.ts` (cross-module seam tests)
+- Debt item from Task #178 (batched in by owner approval): the `IntroductionRecord` shape test does not assert `record.phaseStartDate` despite the field being present in the constructed record — add a specific-value assertion for it.
 **Why:** F16 (sev:3) — 15 untested phase-day entries means the scheduling table can silently corrupt without a test failing. F14 (sev:4) — the dead-write bug that caused audit FAIL was invisible to all unit tests because none trace the recordResult → store → scheduling path. Rule 16: enumerate every member before asserting.
 **File:** `tests/introduction.test.ts`
 **Severity:** 4 | **DoD Tier:** 2
