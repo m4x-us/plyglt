@@ -61,6 +61,7 @@ describe("parseBackup", () => {
 
   it("skips a card with an invalid state and counts it in skippedCardCount", () => {
     const backup = validBackup();
+    const expectedGoodCard = backup.srs.cards["a1-01"];
     (backup.srs.cards as Record<string, unknown>)["bad"] = {
       cardId: "bad", state: "INVALID", stability: 5, difficulty: 5,
       retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 1,
@@ -71,7 +72,12 @@ describe("parseBackup", () => {
     expect(r.validCardCount).toBe(1);
     expect(r.skippedCardCount).toBe(1);
     expect(r.srs.cards["bad"]).toBeUndefined();
-    expect(r.srs.cards["a1-01"]).toBeDefined();
+    // The valid neighbour must survive untouched — assert its fields explicitly rather than
+    // just that the key exists, so corruption during the skip path would fail this test.
+    const goodCard = r.srs.cards["a1-01"];
+    expect(goodCard?.state).toBe(expectedGoodCard.state);
+    expect(goodCard?.stability).toBe(expectedGoodCard.stability);
+    expect(goodCard?.dueDate).toBe(expectedGoodCard.dueDate);
   });
 
   it("skips a card missing cardId", () => {

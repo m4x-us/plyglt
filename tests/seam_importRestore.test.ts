@@ -82,8 +82,12 @@ describe("seam: parseBackup → setState → getDueCards", () => {
     const result = parseBackup(makeBackupJson());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.srs.cards["card-due"]).toBeDefined();
-    expect(result.srs.cards["card-not-due"]).toBeDefined();
+    expect(result.srs.cards["card-due"]?.dueDate).toBe(PAST_DATE);
+    expect(result.srs.cards["card-due"]?.stability).toBe(1.5);
+    expect(result.srs.cards["card-due"]?.state).toBe("review");
+    expect(result.srs.cards["card-not-due"]?.dueDate).toBe(FUTURE_DATE);
+    expect(result.srs.cards["card-not-due"]?.stability).toBe(2);
+    expect(result.srs.cards["card-not-due"]?.state).toBe("review");
     expect(result.srs.streak).toBe(5);
   });
 
@@ -156,8 +160,9 @@ describe("seam: parseBackup → setState → getDueCards", () => {
     if (!result.ok) return;
 
     const dueCard = result.srs.cards["card-due"];
-    expect(dueCard).toBeDefined();
-    expect(dueCard!.dueDate).toBe(PAST_DATE);
+    expect(dueCard?.dueDate).toBe(PAST_DATE);
+    expect(dueCard?.stability).toBe(1.5);
+    expect(dueCard?.reps).toBe(3);
     expect(dueCard!.dueDate).toBeLessThan(Date.now());
   });
 

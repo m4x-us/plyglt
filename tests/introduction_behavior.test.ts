@@ -229,17 +229,25 @@ describe("getNextCardType", () => {
   });
 
   it("returns a different type when an alternative to lastSeenType is available", () => {
-    expect(getNextCardType("produce", ["recognize", "produce"])).toBe("recognize");
+    // lastSeenType is available[0] here — the fixture must put the type-to-avoid FIRST in
+    // the array. A fixture like ("produce", ["recognize", "produce"]) would pass identically
+    // even if the filter were deleted (pool[0] is "recognize" either way) — a B7/Rule 18
+    // violation caught during Task #183's audit. This fixture actually distinguishes the two:
+    // without filtering, pool[0] would wrongly be "recognize" (the type just seen);
+    // with filtering, alternatives = ["produce"], so pool[0] is "produce".
+    expect(getNextCardType("recognize", ["recognize", "produce"])).toBe("produce");
   });
 
   it("returns lastSeenType when it is the only available option", () => {
     expect(getNextCardType("produce", ["produce"])).toBe("produce");
   });
 
-  it("avoids lastSeenType when multiple alternatives exist and returns a value within available", () => {
-    const result = getNextCardType("fill_blank", ["recognize", "produce", "fill_blank"]);
-    expect(result).not.toBe("fill_blank");
-    expect(["recognize", "produce", "fill_blank"] as string[]).toContain(result);
+  it("avoids lastSeenType when multiple alternatives exist (deterministic: pool[0] after filtering)", () => {
+    // lastSeenType ("fill_blank") is deliberately available[0] — without filtering, pool[0]
+    // would wrongly be "fill_blank" (the type just seen); with filtering, alternatives =
+    // ["recognize", "produce"], so pool[0] is "recognize". A fixture where the avoided type
+    // isn't first would pass even with the filter deleted — see Task #183 audit finding.
+    expect(getNextCardType("fill_blank", ["fill_blank", "recognize", "produce"])).toBe("recognize");
   });
 
   it("throws when available is empty (line 120 guard — callers must not pass empty arrays)", () => {

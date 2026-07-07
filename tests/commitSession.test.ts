@@ -23,9 +23,9 @@ describe("commitSession() — atomicity contract", () => {
     const session = makeSession();
     useSRSStore.getState().commitSession("c1", "good", session);
     const s = useSRSStore.getState();
-    // Card was rated
-    expect(s.cards["c1"]).toBeDefined();
-    expect(s.cards["c1"]?.reps).toBeGreaterThan(0);
+    // Card was rated — a fresh card ("new", reps=0) graduates to "review" with reps=1 on "good".
+    expect(s.cards["c1"]?.state).toBe("review");
+    expect(s.cards["c1"]?.reps).toBe(1);
     // Session was persisted
     expect(s.activeSession).toEqual(session);
     // Streak was incremented (lastStudiedDate was null → new streak)
@@ -36,10 +36,13 @@ describe("commitSession() — atomicity contract", () => {
   it("all three slices are consistent — no partial application", () => {
     // If any slice were absent, that would indicate the mutations happened in
     // separate set() calls and a crash between them would corrupt state.
-    useSRSStore.getState().commitSession("c1", "again", makeSession({ sessionCorrect: 0 }));
+    const session = makeSession({ sessionCorrect: 0 });
+    useSRSStore.getState().commitSession("c1", "again", session);
     const s = useSRSStore.getState();
-    expect(s.cards["c1"]).toBeDefined();
-    expect(s.activeSession).not.toBeNull();
+    // A fresh card ("new", reps=0) graded "again" stays in "learning" with reps=1.
+    expect(s.cards["c1"]?.state).toBe("learning");
+    expect(s.cards["c1"]?.reps).toBe(1);
+    expect(s.activeSession).toEqual(session);
     expect(s.lastStudiedDate).toBe(localDateStr());
   });
 

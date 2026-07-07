@@ -66,8 +66,10 @@ describe("active session persistence", () => {
       });
     }
 
+    // Note: no not.toBeNull() check here (not a suppressed banned pattern — just omitted).
+    // The field accesses below via `!` would throw at runtime if `saved` were null, so a
+    // bare not.toBeNull() would add no coverage beyond what these assertions already prove.
     const saved = store().getResumableSession();
-    expect(saved).not.toBeNull();
     expect(saved!.position).toBe(3);
     expect(saved!.queueIds).toHaveLength(8);
     // Cards 0-2 are done; next to study is index 3
@@ -88,8 +90,11 @@ describe("active session persistence", () => {
 
   it("session with position at end is still offered for resume (boundary guard)", () => {
     // position === queueIds.length means session is done — study page filters this
-    store().saveActiveSession(mockSession({ position: 5, queueIds: ["c1","c2","c3","c4","c5"] }));
-    // getResumableSession itself doesn't filter on position; study page does
-    expect(store().getResumableSession()).not.toBeNull();
+    const session = mockSession({ position: 5, queueIds: ["c1","c2","c3","c4","c5"] });
+    store().saveActiveSession(session);
+    // getResumableSession itself doesn't filter on position; study page does.
+    // Assert the exact session is returned unmodified, not just "some truthy value" —
+    // a filtering regression here would silently drop the session, not just null it.
+    expect(store().getResumableSession()).toEqual(session);
   });
 });

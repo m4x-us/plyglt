@@ -32,11 +32,11 @@ describe("langRegistry — derived constants are consistent", () => {
   });
 
   it("LANG_CONFIG_MAP config.code matches the pack code for every entry", () => {
+    // A bare existence check here would be redundant: if config were missing, config?.code
+    // is undefined, and undefined !== code — the assertion below already fails in that case.
     for (const code of ALL_PACK_CODES) {
       const config = LANG_CONFIG_MAP[code];
-      expect(config, `no config for "${code}"`).toBeDefined();
-      if (!config) return;
-      expect(config.code, `LANG_CONFIG_MAP["${code}"].code is "${config.code}" — expected "${code}"`)
+      expect(config?.code, `LANG_CONFIG_MAP["${code}"] is missing or its .code does not match "${code}"`)
         .toBe(code);
     }
   });

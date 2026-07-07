@@ -358,10 +358,11 @@ describe("rateCardAndSaveSession — atomic update", () => {
     useSRSStore.getState().rateCardAndSaveSession("card-1", "good", session);
 
     const state = useSRSStore.getState();
-    // Card must be scheduled (reps > 0)
+    // Card must be scheduled — a fresh card ("new", reps=0) graded "good" graduates to
+    // "review" with reps=1.
     const card1 = state.cards["card-1"];
-    expect(card1).toBeDefined();
-    expect(card1?.reps).toBeGreaterThan(0);
+    expect(card1?.state).toBe("review");
+    expect(card1?.reps).toBe(1);
     // Session must match exactly what was passed
     expect(state.activeSession).toEqual(session);
     expect(state.activeSession?.position).toBe(1);
@@ -380,7 +381,9 @@ describe("rateCardAndSaveSession — atomic update", () => {
     useSRSStore.getState().rateCardAndSaveSession("card-2", "again", session);
 
     const state = useSRSStore.getState();
-    expect(state.cards["card-2"]).toBeDefined();
+    // A fresh card ("new", reps=0) graded "again" stays in "learning" with reps=1.
+    expect(state.cards["card-2"]?.state).toBe("learning");
+    expect(state.cards["card-2"]?.reps).toBe(1);
     expect(state.activeSession?.unitId).toBe("global");
   });
 });

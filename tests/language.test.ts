@@ -170,7 +170,8 @@ describe("Spanish lang.articles — correct alternation order", () => {
 
 describe("ITALIAN config", () => {
   it("code is 'it'", () => expect(ITALIAN.code).toBe("it"));
-  it("has a non-null articles regex", () => expect(ITALIAN.articles).not.toBeNull());
+  it("has the exact ITALIAN articles regex pattern (not null, not some other regex)", () =>
+    expect(ITALIAN.articles?.source).toBe("^(il|lo|la|l'|l'|gli|le|un'|un'|uno|una|un|i)\\s*"));
 
   it("articles regex matches 'il' prefix", () => {
     expect(ITALIAN.articles!.test("il gatto")).toBe(true);
@@ -233,11 +234,12 @@ describe("getLanguageConfig poka-yoke", () => {
     }
   });
 
-  it("returns a defined config for every registered pack code", () => {
-    for (const code of ALL_PACK_CODES) {
-      const cfg = getLanguageConfig(code);
-      expect(cfg).toBeDefined();
-      expect(typeof cfg.code).toBe("string");
-    }
+  // The original version of this test only asserted toBeDefined()/typeof — both are
+  // tautological given getLanguageConfig's `LANGUAGE_MAP[code] ?? ITALIAN` signature, which
+  // can never return undefined or a non-string .code. Replaced with a test of the one
+  // behavior that actually can be wrong: the fallback path for an unregistered code.
+  it("falls back to ITALIAN for a code not present in LANGUAGE_MAP", () => {
+    const cfg = getLanguageConfig("xx-not-a-real-code");
+    expect(cfg).toBe(ITALIAN);
   });
 });

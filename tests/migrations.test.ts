@@ -9,7 +9,7 @@
 // USED BY: CI / npm test
 // ===========================================
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   migrateSrsStore,
   migrateEntitlementStore,
@@ -139,10 +139,23 @@ describe("migrateSrsStore()", () => {
       },
     };
     const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
-      introductions: Record<string, { phaseStartDate: string; introducedDate: string }>;
+      introductions: Record<string, Record<string, unknown>>;
     };
-    expect(result.introductions["card-1"]?.phaseStartDate).toBe("2026-05-20");
-    expect(result.introductions["card-1"]?.introducedDate).toBe("2026-05-20");
+    // Task #183 F007: all 11 IntroductionRecord fields asserted — the migration is a spread
+    // ({ ...record, phaseStartDate }), so every input field must pass through unchanged.
+    expect(result.introductions["card-1"]).toEqual({
+      cardId: "card-1",
+      introducedDate: "2026-05-20",
+      phaseStartDate: "2026-05-20",
+      dayOfPhase: 8,
+      consecutiveCorrect: 3,
+      totalEncounters: 12,
+      lastSeenDate: "2026-06-01",
+      appearancesToday: 1,
+      consecutiveWrongToday: 0,
+      lastSeenType: null,
+      graduated: false,
+    });
   });
 
   it("v2 → v3: preserves existing phaseStartDate if already populated (pre-release build)", () => {
@@ -166,11 +179,23 @@ describe("migrateSrsStore()", () => {
         },
       },
     };
-    const result = migrateSrsStore(state, 2) as typeof state & {
-      introductions: Record<string, { phaseStartDate: string; introducedDate: string }>;
+    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
+      introductions: Record<string, Record<string, unknown>>;
     };
-    expect(result.introductions["card-1"]?.phaseStartDate).toBe("2026-05-25");
-    expect(result.introductions["card-1"]?.introducedDate).toBe("2026-05-20"); // introducedDate must not be clobbered
+    // Task #183 F007: all 11 IntroductionRecord fields asserted (same gap as the sibling test above).
+    expect(result.introductions["card-1"]).toEqual({
+      cardId: "card-1",
+      introducedDate: "2026-05-20", // must not be clobbered
+      phaseStartDate: "2026-05-25", // preserved — already populated
+      dayOfPhase: 3,
+      consecutiveCorrect: 0,
+      totalEncounters: 5,
+      lastSeenDate: "2026-05-25",
+      appearancesToday: 1,
+      consecutiveWrongToday: 0,
+      lastSeenType: null,
+      graduated: false,
+    });
   });
 
   it("v2 → v3: preserves all other srsStore fields", () => {
@@ -203,13 +228,25 @@ describe("migrateSrsStore()", () => {
         },
       },
     };
-    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
-      introductions: Record<string, { phaseStartDate: string }>;
-    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let result: Record<string, unknown> & { introductions: Record<string, { phaseStartDate: string }> };
+    try {
+      result = migrateSrsStore(state, 2) as typeof result;
+      // Task #183 F008: the corrupt-record fallback must log so a real corruption incident is diagnosable.
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/migration v3: corrupt record card-corrupt/),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
     const intro = result.introductions["card-corrupt"];
+    // Note: these are already exact-value assertions (.toBe / .not.toBe), not the banned
+    // existence-only patterns — no existence-check tag needed. phaseStartDate is derived
+    // from localDateStr() at test execution time (genuinely non-deterministic, today's date),
+    // so format/non-emptiness is the strongest check possible without hardcoding "today";
+    // an exact-date assertion would flake by test-run day.
     expect(typeof intro?.phaseStartDate).toBe("string");
-    expect(intro?.phaseStartDate).not.toBe("");
-    // Must match YYYY-MM-DD format — not "" and not "NaN"
+    expect(intro?.phaseStartDate).not.toBe(""); // guards against the empty-string bug this test targets
     expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
   });
 
@@ -267,6 +304,63 @@ describe("migrateSrsStore()", () => {
     expect(isNaN(new Date(intro?.phaseStartDate ?? "").getTime())).toBe(false);
     // introducedDate field must not be clobbered
     expect(intro?.introducedDate).toBe("2026-13-45");
+  });
+
+  // Task #183 F019: the for-loop over introductions must process each card independently —
+  // one corrupt record's fallback must not leak into or corrupt a valid neighbour.
+  it("v2 → v3: a corrupt record's fallback does not contaminate a valid neighbour in the same map", () => {
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-valid": {
+          cardId: "card-valid",
+          introducedDate: "2026-05-20",
+          dayOfPhase: 8,
+          consecutiveCorrect: 3,
+          totalEncounters: 12,
+          lastSeenDate: "2026-06-01",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+        "card-corrupt": null, // missing both date fields — must fall back to today, not throw
+      },
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let result: Record<string, unknown> & { introductions: Record<string, Record<string, unknown> | null> };
+    try {
+      result = migrateSrsStore(state, 2) as typeof result;
+      // Same log path as the single-record corrupt test above (F008) — asserted here too for
+      // consistency, since this test exercises the identical fallback branch in store/migrations.ts.
+      // Must be checked before errorSpy.mockRestore() below clears the call history.
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/migration v3: corrupt record card-corrupt/),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+    // The valid neighbour keeps its own phaseStartDate — untouched by the corrupt record's
+    // today-fallback path processed in the same loop iteration set.
+    expect(result.introductions["card-valid"]).toEqual({
+      cardId: "card-valid",
+      introducedDate: "2026-05-20",
+      phaseStartDate: "2026-05-20",
+      dayOfPhase: 8,
+      consecutiveCorrect: 3,
+      totalEncounters: 12,
+      lastSeenDate: "2026-06-01",
+      appearancesToday: 1,
+      consecutiveWrongToday: 0,
+      lastSeenType: null,
+      graduated: false,
+    });
+    // The corrupt record still gets its own independent valid fallback, not "" or NaN.
+    const corruptPhaseStartDate = result.introductions["card-corrupt"]?.phaseStartDate;
+    expect(typeof corruptPhaseStartDate).toBe("string");
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(String(corruptPhaseStartDate))).toBe(true);
   });
 
   // Migration chain guard — verify every step from v0 to SRS_VERSION is defined.
@@ -396,6 +490,11 @@ describe("migrateEntitlementStore()", () => {
   });
 
   it("v0 → v3: full chain output includes purchasedAddOns: []", () => {
+    // Task #183 F017: this test only asserts purchasedAddOns — the other 6 EntitlementState fields
+    // (licenseKey, instanceId, licenseType, unlockedPacks, lastValidated, validUntil) are
+    // covered for the v2→v3 step by "v2 → v3: preserves all other fields unchanged" above.
+    // Not duplicated here to avoid two tests asserting the same 6 fields at different
+    // migration entry points with no behavioral difference between them.
     const result = migrateEntitlementStore({}, 0) as Record<string, unknown>;
     expect(result.purchasedAddOns).toEqual([]);
   });

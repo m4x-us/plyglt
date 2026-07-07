@@ -114,9 +114,15 @@ describe("loadPack", () => {
     const result = await loadPack("it", fakeManifest());
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.pack.lang).toBe("it");
-    // Data is now cached in platform storage
-    expect(localStorageMock.getItem("pack-data-v1-it")).not.toBeNull();
-    expect(localStorageMock.getItem("pack-meta-v1-it")).not.toBeNull();
+    // Data is now cached in platform storage — assert the exact stored content, not just presence.
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBe(PACK_JSON);
+    const meta = JSON.parse(localStorageMock.getItem("pack-meta-v1-it")!);
+    expect(meta.version).toBe("1.0.0");
+    expect(meta.sha256).toBe(CORRECT_SHA);
+    // Note: already an exact-value assertion (.toBe), not a banned existence-only pattern —
+    // no existence-check tag needed. cachedAt is Date.now() at write time, genuinely
+    // non-deterministic, so type is the strongest check possible without a flaky range check.
+    expect(typeof meta.cachedAt).toBe("number");
   });
 
   it("returns cached pack without fetching if version matches", async () => {

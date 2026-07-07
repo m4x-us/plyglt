@@ -31,20 +31,18 @@ When a mistake-prone pattern is spotted — a magic string, a parallel list, an 
 - No silent failures — every `catch` block must surface the error to the user or log it explicitly; swallowing errors is a stop-the-line violation
 
 ## Verification Gate
-Run this before closing any batch of work. All three must be green:
+Run this before closing any batch of work. All four must be green:
 ```bash
 npx tsc --noEmit        # zero TypeScript errors
 npm test                # all tests pass + all coverage thresholds met
 npm run lint            # zero lint errors
+grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:" && echo "FAIL: existence-only assertions found without justification" && exit 1 || true
 ```
 
 Current coverage thresholds (thresholds only ever increase — ratchet up, never down):
   lines=84, funcs=79, branches=81, stmts=82
 
-```bash
-# Hard gate — activates after Task #183 completes (remove this comment when #183 is COMPLETE)
-grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:" && echo "FAIL: existence-only assertions found without justification" && exit 1 || true
-```
+**Known limitation of the grep gate above:** it enforces the *presence* of an `// existence-check:` comment on a suppressed line, not the *validity* of the justification — `// existence-check: trust me` passes the gate exactly as well as a specific non-deterministic reason does. This is an accepted trade-off for a text-based gate. Human/AI review at PR time is still required to catch a suppression comment that doesn't actually name a non-deterministic value.
 
 ## Test Assertion Quality Gate
 
@@ -68,7 +66,7 @@ This is Rule 16 from `~/.claude/autocode/philosophy.md` — Enumerate Before You
 A batch is not done when the last task closes. It is done when the batch audit passes.
 
 After every batch reaches 100% COMPLETE:
-1. Run the Verification Gate above — all three green.
+1. Run the Verification Gate above — all four green.
 2. Run `/audit [batch #]` — independent batch-level review against the full batch scope.
 3. Log the result in `.autocode/agents/cto.md` `## Batch Audit Log`.
 4. If the audit returns FAIL: stop. Fix all findings before starting the next batch.

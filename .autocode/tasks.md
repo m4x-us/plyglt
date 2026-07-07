@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 9 tasks | [CURRENT SPRINT]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 11 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3362,15 +3362,20 @@ Suppression permitted (non-deterministic only — document the specific reason):
 
 Anti-gaming rule: `// existence-check: this is fine` without a specific non-deterministic reason is a Stop-the-Line violation.
 
-After this task COMPLETES: remove the `# Hard gate — activates after Task #183 completes` comment from the Verification Gate code block in `AGENTS.md`.
+After this task COMPLETES: remove the `# Hard gate — activates after Task #183 completes` comment from the Verification Gate code block in `AGENTS.md`. (This also resolves debt item F018 below — the misleading comment is deleted entirely, not reworded.)
+
+Debt items batched in by owner approval (2026-07-07):
+- (F018) AGENTS.md:46 — resolved as a side effect of this task's own done-when (the misleading comment is removed, not reworded).
+- (F021) AGENTS.md — add a one-line documented-limitation note next to the grep gate: the suppression check only requires the literal text `existence-check:` to appear on the line: it enforces presence, not the validity of the justification. This is an accepted trade-off for a text-based gate, not a bug to fix.
+- `tests/introduction_behavior.test.ts:239-243` — "avoids lastSeenType when multiple alternatives exist" getNextCardType test: tighten `expect(result).not.toBe("fill_blank"); expect([...]).toContain(result)` to `expect(result).toBe("recognize")` — the case is fully deterministic (pool[0] always resolves to "recognize" once "fill_blank" is filtered out), same reasoning as Task #181's F15 fix to its sibling test three lines above.
 **Why:** 50+ existence-only assertions = pseudocode coverage that passes even when behavior is broken. Systemic finding across Batch 1 audits. AGENTS.md Test Assertion Quality Gate and Rule 16 both require specific-value assertions for deterministic outputs.
-**File:** Multiple — `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts` + `AGENTS.md` (remove TODO comment)
+**File:** Multiple — `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts`, `tests/introduction_behavior.test.ts` + `AGENTS.md` (remove TODO comment, add F021 limitation note)
 **Severity:** 7 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 12 files (11 test files + AGENTS.md)
-**Scope narrowed:** 2026-07-07 — `tests/introduction.test.ts` dropped from file list; its only listed item (F16-equivalent `.not.toBeNull()` rewrite) was resolved by Task #181, which also split the file into three (`introduction.test.ts`, `introduction_behavior.test.ts`, `seam_introduction.test.ts`), none of which contain any remaining banned assertion.
+**Complexity:** 🔧 Full — 13 files (12 test files + AGENTS.md)
+**Scope narrowed:** 2026-07-07 — `tests/introduction.test.ts` dropped from file list; its only listed item (F16-equivalent `.not.toBeNull()` rewrite) was resolved by Task #181, which also split the file into three (`introduction.test.ts`, `introduction_behavior.test.ts`, `seam_introduction.test.ts`), none of which contain any remaining banned assertion. `tests/introduction_behavior.test.ts` (one of the three split files) re-added to scope for the batched-in getNextCardType debt item above.
 **Blocked by:** #184, #185 (some tests reference production code fixed there — write them red first, they turn green when those tasks close) | **Blocks:** Batch 1 audit PASS
 **Test required:** The task IS tests — assertions become more specific; a small number of new it() blocks added.
-**Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. Verification gate green.
+**Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. `tests/introduction_behavior.test.ts` getNextCardType test uses `toBe("recognize")`. Verification gate green.
 **Owner:** QA Agent
 
 ---
@@ -3424,6 +3429,53 @@ Note: `MAX_APPEARANCES_BY_PHASE_DAY` in `lib/introduction.ts` was originally in 
 **Done when:** `grep "Object.freeze(LANG_CONFIG_MAP)" lib/langRegistry.ts` returns a hit. `npx tsc --noEmit` clean. Verification gate green.
 **Owner:** Security Agent
 **Status: COMPLETE — 2026-07-07**
+
+---
+
+### Task #226: Fix code-quality: ITALIAN_ARTICLES regex has dead duplicate alternation branches masking missing curly-apostrophe support.
+
+**File:** lib/answerCheck.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+`ITALIAN_ARTICLES = /^(il|lo|la|l'|l'|gli|le|un'|un'|uno|una|un|i)\s*/i` at `lib/answerCheck.ts:12` contains two literal duplicate alternation branches — `l'|l'` and `un'|un'` — both using the identical ASCII straight apostrophe (U+0027, byte-verified). This reads as though curly-apostrophe support (U+2019, `l'`/`un'` as typed by iOS/macOS autocorrect) was intended but never implemented. Empirically verified: `checkAnswer("l'amico", ["amico"], {articles: ITALIAN_ARTICLES})` returns `"correct"`, but `checkAnswer("l'amico", ["amico"], {articles: ITALIAN_ARTICLES})` (typed with a curly apostrophe) returns `"wrong"`. A learner whose device autocorrects straight quotes to curly quotes (the OS default on iOS/macOS) gets marked wrong on a correct answer.
+
+Discovered during Task #183's audit (test-assertion hardening): `tests/language.test.ts` now pins the exact (buggy) regex source as the expected value, which is correct test behavior (it captures current reality) but surfaces that the underlying regex itself needs the fix, not the test.
+
+**Acceptance Criteria:**
+- [ ] Add a curly-apostrophe alternative (U+2019) alongside each straight-apostrophe branch in `ITALIAN_ARTICLES`, or normalize the input string's apostrophe character before matching — whichever approach keeps the regex simplest.
+- [ ] Add a test asserting `checkAnswer` treats a curly-apostrophe answer (e.g. `"l'amico"` with U+2019) identically to the straight-apostrophe form.
+- [ ] Update `tests/language.test.ts`'s exact regex-source assertion (added by Task #183) to match the corrected pattern.
+
+**Done when:** New curly-apostrophe test passes. `tests/language.test.ts`'s regex-source assertion reflects the corrected pattern. Verification gate green.
+
+**Source:** Audit finding (Task #183 cycle) — severity 8 — code-quality — Agents W/N/R independently converged on this during Task #183's audit.
+
+---
+
+### Task #227: Fix tooling: AGENTS.md bans `.toBeGreaterThan(0)` as a primary assertion but the automated grep gate never checks for it.
+
+**File:** AGENTS.md, tests/mastery.test.ts, tests/checkout.test.ts, tests/study_loop.test.ts, tests/seam_studyLoop.test.ts, tests/useLangPack.test.ts
+
+**Complexity:** ⚡ Direct — 6 files, mechanical assertion tightening + one grep-pattern extension
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+AGENTS.md's "Test Assertion Quality Gate" section (prose) bans four patterns as primary assertions on non-trivial computed values: `.toBeDefined()`, `.toBeTruthy()`, `.not.toBeNull()`, and `.toBeGreaterThan(0)`. Task #183's automated grep gate (`grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" ...`) only mechanically enforces the first three — `.toBeGreaterThan(0)` was never added to the pattern, so the "permanent hard gate" passes green while 6 unjustified instances of the fourth banned pattern remain: `tests/mastery.test.ts:55`, `tests/checkout.test.ts:34`, `tests/study_loop.test.ts:34`, `tests/seam_studyLoop.test.ts:47,117`, `tests/useLangPack.test.ts:102`. (The 3 in-scope instances in `tests/entitlement.test.ts` were already fixed during Task #183's audit remediation.)
+
+**Acceptance Criteria:**
+- [ ] Extend the grep pattern in AGENTS.md's Verification Gate to also match `\.toBeGreaterThan\(0\)`
+- [ ] For each of the 6 listed instances: either tighten to an exact-value assertion (preferred) or add a `// existence-check: [reason]` comment if the value is genuinely non-deterministic
+- [ ] Re-run the extended gate and confirm zero unjustified hits
+
+**Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()\|\.toBeGreaterThan(0)" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. Verification gate green.
+
+**Source:** Audit finding (Task #183 cycle) — severity 4 — tooling — Agents B/N/V independently converged on this during Task #183's audit.
 
 ---
 

@@ -192,6 +192,7 @@ describe("setEntitlement()", () => {
     expect(s.licenseType).toBe("subscription");
     expect(s.unlockedPacks).toEqual(["it", "es"]);
     expect(s.validUntil).toBeNull();
+    // existence-check: lastValidated is set to Date.now() internally — genuinely non-deterministic.
     expect(s.lastValidated).toBeGreaterThanOrEqual(before);
   });
 });
@@ -202,6 +203,7 @@ describe("markValidated()", () => {
   it("updates lastValidated to roughly now", () => {
     const before = Date.now();
     store().markValidated(null);
+    // existence-check: lastValidated is set to Date.now() internally — genuinely non-deterministic.
     expect(store().lastValidated).toBeGreaterThanOrEqual(before);
   });
 
@@ -218,9 +220,14 @@ describe("touchValidated()", () => {
   it("resets lastValidated without changing validUntil", () => {
     const originalValidUntil = Date.now() + 86400000;
     reset({ licenseType: "subscription", lastValidated: 0, validUntil: originalValidUntil });
+    const before = Date.now();
     store().touchValidated();
     const s = store();
-    expect(s.lastValidated).toBeGreaterThan(0);
+    // existence-check: lastValidated is set to Date.now() internally — genuinely non-deterministic.
+    // Tightened from toBeGreaterThan(0) (proves only "reset happened at some point since epoch")
+    // to toBeGreaterThanOrEqual(before) (proves the reset happened during this test, matching
+    // the sibling assertions in setEntitlement()/markValidated() above).
+    expect(s.lastValidated).toBeGreaterThanOrEqual(before);
     expect(s.validUntil).toBe(originalValidUntil);
   });
 });
@@ -323,6 +330,21 @@ describe("activateLicense — null safety", () => {
     expect(r.error).toBe(ERR_ACTIVATE_NO_INSTANCE);
   });
 
+  // Task #183 F010: a degraded Lemon Squeezy response with instance:{id:''} is truthy but must not be
+  // treated as a valid instance — Task #185's guard (`if (!res.instance?.id)`) must catch it.
+  it("returns ok:false when instance is present but its id is an empty string", async () => {
+    mockInvoke.mockResolvedValueOnce({
+      activated: true, error: null,
+      license_key: { status: "active", key: "KEY-ABC", expires_at: null },
+      instance: { id: "" },
+      meta: { variant_name: "Monthly Plan" },
+    });
+    const r = await activateLicense("KEY-ABC");
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_ACTIVATE_NO_INSTANCE);
+  });
+
   // S001: activateLicense ok:true path
   it("returns ok:true with all fields when activation succeeds", async () => {
     mockInvoke.mockResolvedValueOnce({
@@ -340,9 +362,9 @@ describe("activateLicense — null safety", () => {
     expect(result.licenseType).toBe("subscription");
     // Monthly Plan unlocks all packs — verify exact equality, not just containment
     expect(result.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
-    // V2: assert validUntil is a future timestamp, not just any Number
-    expect(result.validUntil).toEqual(expect.any(Number));
-    expect(result.validUntil!).toBeGreaterThan(Date.now());
+    // expires_at is a fixed deterministic string — assert the exact parsed timestamp,
+    // not just "some Number greater than now" (which passes even for the wrong value).
+    expect(result.validUntil).toBe(new Date("2027-01-01T00:00:00Z").getTime());
   });
 
   // S014: activateLicense returns error when meta.variant_name is missing
@@ -449,9 +471,8 @@ describe("validateLicense — null safety", () => {
     const result = await validateLicense("KEY-ABC", "inst-123");
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected ok:true");
-    expect(result.validUntil).toEqual(expect.any(Number));
-    expect(result.validUntil).not.toBeNull();
-    expect(result.validUntil! > Date.now()).toBe(true);
+    // expires_at is a fixed deterministic string — assert the exact parsed timestamp.
+    expect(result.validUntil).toBe(new Date("2027-01-01T00:00:00Z").getTime());
   });
 
   it("returns ok:true with validUntil:null when expires_at is null", async () => {
@@ -584,9 +605,11 @@ describe("needsValidation() — pure function", () => {
 // ── resolveVariantEntitlement ──────────────────────────────────────────────────────────────
 
 describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to entitlements", () => {
-  // Unrecognised variant names from historical Lemon Squeezy webhook payloads.
-  // These tests verify that unrecognised variant strings are coerced to "subscription" licenseType
-  // with free pack access only — the conservative fallback for any unknown variant.
+  // This block covers both branches: variants that match a recognised substring
+  // ("monthly" / "annual" / "all languages" — unlock ALL_PACK_CODES) and variants that
+  // don't match anything — genuinely unrecognised, coerced to "subscription" licenseType
+  // with free pack access only (the conservative fallback). Not every test in this block
+  // unlocks only free packs — see the recognised "all languages" case below.
   it("unrecognised single-language variant → subscription licenseType, Italian pack only", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -599,12 +622,28 @@ describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to enti
     }
   });
 
-  it("unrecognised all-languages variant → subscription licenseType, all packs", () => {
+  it("'All Languages Extended' variant → subscription licenseType, all packs (RECOGNISED: contains \"all languages\", not actually unrecognised)", () => {
+    // "All Languages Extended".toLowerCase() contains the "all languages" substring rule
+    // (lib/entitlement.ts:106), so this exercises the recognised branch, not the fallback —
+    // it must NOT be described as an "unrecognised" variant.
     const r = resolveVariantEntitlement("All Languages Extended", null);
     expect(r.licenseType).toBe("subscription");
-    // S012: exact assertion on unlockedPacks for all-language variants
     expect(r.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
     expect(r.validUntil).toBeNull();
+  });
+
+  it("genuinely unrecognised all-languages-shaped variant (\"Omnilinguistic Bundle\") → subscription licenseType, free packs only", () => {
+    // Does not contain "monthly", "annual", or "all languages" — must hit the fallback,
+    // unlike the "All Languages Extended" case above.
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const r = resolveVariantEntitlement("Omnilinguistic Bundle", null);
+      expect(r.licenseType).toBe("subscription");
+      expect(r.unlockedPacks).toEqual([...FREE_PACK_CODES]);
+      expect(r.validUntil).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("'Monthly' → subscription license, all packs", () => {
@@ -620,6 +659,8 @@ describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to enti
     expect(r.licenseType).toBe("subscription");
     // S012: exact assertion — Annual unlocks all packs
     expect(r.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());
+    // Task #183 F011: all 3 output fields asserted — expiresAt is deterministic, assert the exact value.
+    expect(r.validUntil).toBe(new Date("2027-01-01T00:00:00.000Z").getTime());
   });
 
   it("unknown variant name → subscription licenseType, free packs only", () => {

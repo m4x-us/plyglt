@@ -44,10 +44,13 @@ describe("exportBackup()", () => {
     expect(parsed.langPair).toBe("en-it");
   });
 
-  it("contains srs.cards key", () => {
+  it("srs.cards contains the exact card fields from the input, not just a truthy container", () => {
     const parsed = JSON.parse(exportBackup(baseSrs, baseEntitlement, "en-it"));
-    expect(parsed.srs).toBeDefined();
-    expect(parsed.srs.cards).toBeDefined();
+    const card = parsed.srs.cards["it-a1-01-vocabolario-001"];
+    expect(card.state).toBe("review");
+    expect(card.stability).toBe(14);
+    expect(card.dueDate).toBe(1_700_000_000_000);
+    expect(card.reps).toBe(5);
   });
 
   it("srs payload matches input — cards, streak, lastStudiedDate", () => {
