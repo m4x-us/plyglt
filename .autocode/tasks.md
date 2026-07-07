@@ -2822,7 +2822,7 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 4 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 4 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Theme: Extend the pack registry, entitlement model, pack loader, and UI to support the concept of sub-packs within a language — so adding a real specialty pack later requires only content and a pricing entry, not architectural changes.
 
@@ -2872,7 +2872,7 @@ Theme: Extend the pack registry, entitlement model, pack loader, and UI to suppo
 
 ---
 
-## Batch 13 — Quality Foundation | 3 tasks | [CURRENT SPRINT]
+## Batch 13 — Quality Foundation | 3 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: Independent. No owner actions required.
 Theme: Three gaps identified in the world-class audit (2026-06-30) with no existing task coverage: content depth checkpoint, specialty pack merge path proof, and E2E seam test.
 
@@ -2927,7 +2927,7 @@ Theme: Three gaps identified in the world-class audit (2026-06-30) with no exist
 
 ---
 
-## Batch 14 — M3 macOS OS Hooks [CURRENT SPRINT]
+## Batch 14 — M3 macOS OS Hooks [TASKS COMPLETE — pending batch audit]
 Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire interrupts from real OS events — wake from sleep, unlock screen, and idle return — rather than the 30-second interval timer alone. Pre-req stop-the-line tasks (#173–#177) must close before OS hook tasks (#159–#164) begin.
 
 ### Task #173 | architecture | severity 7
@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 9 tasks
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 9 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3417,7 +3417,7 @@ Fix: `Object.freeze(LANG_CONFIG_MAP)` at point of declaration; `Object.freeze(MA
 
 ---
 
-## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 39 tasks | [CURRENT SPRINT]
+## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 39 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: None (standalone remediation batch). Theme: /audit #164 (2026-07-04, verdict FAIL, severity 9, 39 findings) found that Task #163's OS trigger toggle controls (wake/unlock/idle + idle threshold) are entirely non-functional — `os_events.rs` never reads the settings it was built to expose. F001-F006 are the stop-the-line core; everything else is downstream test/doc/hardening debt discovered in the same audit. Fix order: F001-F004 (wiring) → F006 (Rust test coverage) → F015-F017/F040 (JS test hardening) → remainder.
 
 ### Task #187: Fix functional-defect: wake_enabled is written by update_interrupt_config but never read anywhere else in the crate.
