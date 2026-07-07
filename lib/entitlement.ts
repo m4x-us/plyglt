@@ -38,11 +38,8 @@ export const ERR_VALIDATE_INACTIVE    = "License is no longer valid." as const;
 // Update here if LS variant names change — one place, not buried in logic.
 const VARIANT_MONTHLY       = "monthly";
 const VARIANT_ANNUAL        = "annual";
-// "all languages" matches "All Languages Pack", "All Languages Lifetime", etc.
-// Matching legacy "lifetime" variant names is intentional backward-compat: users
-// who previously held a lifetime key can re-enter it and receive a subscription
-// grant rather than an activation error. No "lifetime" entitlement survives —
-// resolveVariantEntitlement always returns licenseType:"subscription".
+// "all languages" matches "All Languages Pack", "All Languages Annual", etc.
+// Unrecognised variant names return subscription licenseType and free pack access only.
 const VARIANT_ALL_LANGUAGES = "all languages";
 
 // ── LS response shapes ────────────────────────────────────────────────────────
@@ -92,7 +89,7 @@ function parseExpiry(expiresAt: string | null): number | null {
  *   "annual"        — matches "Annual Plan", "Annual Subscription", "semiannual"
  *                     ("semiannual".includes("annual") === true — intentional,
  *                     since semiannual is a paid plan and should unlock all packs).
- *   "all languages" — matches "All Languages Pack", "All Languages Lifetime", etc.
+ *   "all languages" — matches "All Languages Pack", "All Languages Annual", etc.
  *
  * Any variant name that does not match the above unlocks only the free packs.
  * Unknown variant names are treated conservatively — they do not escalate access.
@@ -139,7 +136,7 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
     if (res.error) console.error(`[ENTITLEMENT_ACTIVATE_ERR-${Date.now()}]`, { error: res.error });
     return { ok: false, error: ERR_ACTIVATION_FAILED };
   }
-  if (!res.instance) {
+  if (!res.instance?.id) {
     console.error(`[ENTITLEMENT_ACTIVATE_NO_INSTANCE-${Date.now()}]`, { activated: res.activated });
     return { ok: false, error: ERR_ACTIVATE_NO_INSTANCE };
   }

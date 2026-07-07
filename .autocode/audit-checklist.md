@@ -33,6 +33,21 @@ Stack: Node.js / Next.js 16.2.9 + Tauri 2 / desktop app (macOS/Windows/Linux)
 [ ] `app/settings/page.tsx:28` — `catch (e)` on `enableAutostart`/`disableAutostart` logs `[ERR-AUTOSTART-${Date.now()}]` but lacks a user-visible error state update; verify the UI reverts `launchAtLogin` (the `setLaunchAtLogin(!v)` rollback) in all error paths including IPC promise rejection after the autostart call returns
 
 ## Test Assertion Quality
+
+UNIVERSAL RULE — auditors must apply this to every `it()` block in scope, not just the named examples below:
+For every test you read: perform the Deletion Test. Mentally delete the production code path the test name describes. If any assertion still passes after that deletion — it is a Rule 16 violation (Enumerate Before You Assert, `~/.claude/autocode/philosophy.md`). Report it as: `[filepath:line] — test name claims "[X]" but the assertion passes even if [X] is broken — pseudocode test.` Do not skip tests in files you did not modify — if you read it, you audit it.
+
+Mandatory rewrite triggers (suppression comment is NOT valid for these — rewrite the assertion):
+- Any assertion on a named constant or enum value
+- Any assertion on a deterministic function's return value
+- Any assertion on store state after a known operation (card inserted → assert card fields, not card existence)
+- Any assertion on data after import/restore (assert specific field values, not that the record exists)
+
+Suppression (`// existence-check: [reason]`) is valid ONLY for:
+- Auto-generated IDs (crypto.randomUUID(), Zustand internal IDs)
+- Timestamps (Date.now() results, any date that is non-deterministic)
+
+Known gaps from 2026-07-03 Batch 1 audit (all require REWRITE, not suppression):
 [ ] `app/learn/page.test.tsx:96-97` — `expect(screen.getByText("cards ready")).toBeDefined()` and `expect(screen.getByText("day streak 🔥")).toBeDefined()` verify element existence but not the numeric values rendered; verify at least one test asserts the exact due count and streak count so a regression that renders "0 cards ready" while non-zero cards exist would fail
 [ ] `tests/seam_importRestore.test.ts:85-86` — `expect(result.srs.cards["card-due"]).toBeDefined()` verifies card presence but not field correctness after import; verify `dueDate`, `stability`, and `state` are asserted for at least one restored card so field-level corruption in the import seam fails a test
 [ ] `tests/introduction.test.ts:64` — `expect(MAX_APPEARANCES_BY_PHASE_DAY).not.toBeNull()` asserts the table exists but not its values; verify at least one test asserts specific phase entries (e.g. day 1 maps to `Infinity`, day 22 maps to `0`) so a silent modification to the cadence table fails a test

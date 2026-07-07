@@ -60,7 +60,7 @@ describe("BRAND.md compliance — subscription-only model", () => {
   });
 
   it("resolveVariantEntitlement always returns subscription licenseType regardless of variant name", () => {
-    const variantNames = ["Italian Lifetime", "All Languages Lifetime", "Monthly", "Annual", "Unknown Variant"];
+    const variantNames = ["Unrecognised Single", "Unrecognised All", "Monthly", "Annual", "Unknown Variant"];
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       for (const name of variantNames) {
@@ -249,7 +249,7 @@ describe("activateLicense — null safety", () => {
   it("returns error when license_key is absent from API response", async () => {
     mockInvoke.mockResolvedValueOnce({
       activated: true, error: null,
-      instance: { id: "i1" }, meta: { variant_name: "Italian Lifetime" },
+      instance: { id: "i1" }, meta: { variant_name: "Unknown Variant" },
       // license_key intentionally absent — simulates LS error response shape
     });
     const r = await activateLicense("KEY");
@@ -261,7 +261,7 @@ describe("activateLicense — null safety", () => {
   it("returns error when license_key.status is 'inactive'", async () => {
     mockInvoke.mockResolvedValueOnce({
       activated: true, error: null,
-      instance: { id: "i1" }, meta: { variant_name: "Italian Lifetime" },
+      instance: { id: "i1" }, meta: { variant_name: "Unknown Variant" },
       license_key: { status: "inactive", key: "K", expires_at: null },
     });
     const r = await activateLicense("INACTIVE");
@@ -584,13 +584,13 @@ describe("needsValidation() — pure function", () => {
 // ── resolveVariantEntitlement ──────────────────────────────────────────────────────────────
 
 describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to entitlements", () => {
-  // Legacy variant names — these were valid in a prior app version that supported one-time purchases.
-  // These tests verify that legacy variant names are correctly coerced to "subscription" licenseType.
-  // Lifetime variants are NOT a supported product configuration in the current app.
-  it("'Italian Lifetime' variant → subscription licenseType, Italian pack only", () => {
+  // Unrecognised variant names from historical Lemon Squeezy webhook payloads.
+  // These tests verify that unrecognised variant strings are coerced to "subscription" licenseType
+  // with free pack access only — the conservative fallback for any unknown variant.
+  it("unrecognised single-language variant → subscription licenseType, Italian pack only", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const r = resolveVariantEntitlement("Italian Lifetime", null);
+      const r = resolveVariantEntitlement("Legacy Single Language", null);
       expect(r.licenseType).toBe("subscription");
       expect(r.unlockedPacks).toEqual([...FREE_PACK_CODES]);
       expect(r.validUntil).toBeNull();
@@ -599,8 +599,8 @@ describe("resolveVariantEntitlement — maps Lemon Squeezy variant names to enti
     }
   });
 
-  it("'All Languages Lifetime' variant → subscription licenseType, all packs", () => {
-    const r = resolveVariantEntitlement("All Languages Lifetime", null);
+  it("unrecognised all-languages variant → subscription licenseType, all packs", () => {
+    const r = resolveVariantEntitlement("All Languages Extended", null);
     expect(r.licenseType).toBe("subscription");
     // S012: exact assertion on unlockedPacks for all-language variants
     expect(r.unlockedPacks.sort()).toEqual([...ALL_PACK_CODES].sort());

@@ -40,10 +40,39 @@ High blast-radius (many importers — touch carefully):
 - `lib/licenseTypes.ts` — defines `LICENSE_TYPES` enumeration and `LicenseType` type ("free" | "subscription").
 - `store/entitlementStore.ts` — owns `licenseType: LicenseType` (NOT settingsStore — common brief error). Also owns `unlockedPacks`, `purchasedAddOns`, `licenseKey`, `validUntil`. isProEnabled pattern: `import { useEntitlementStore } from "@/store/entitlementStore"` then `const licenseType = useEntitlementStore(state => state.licenseType)`.
 
-## Introduction Engine (M1 — COMPLETE and LIVE)
+## Introduction Engine (M1 — LIVE; Batch 5 audit FAIL 2026-07-02 — OPEN DEFECTS)
+
 `lib/introduction.ts` — pure-function module (no React, no Zustand). Six exports: getDayOfPhase, maxAppearancesToday, shouldAppearToday, recordResult, shouldGraduate, getNextCardType.
 Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
 Session-start activation: hooks/useStudySession.ts mount useEffect calls canIntroduceNewCard → introduces first qualifying card → appends to queue. LIVE since Task #085 (2026-06-29).
+
+### Critical Architectural Defects (discovered Batch 5 audit — must fix before feature is correct)
+
+**[F01 sev:9] Dead write — triple-wrong Day 1 reset never takes effect**
+`recordResult` (lib/introduction.ts:101) writes `dayOfPhase: 1` on triple-wrong. But both store callers (`recordIntroductionResult:230` and `getIntroductionDueCardIds:239`) always call `getDayOfPhase(record.introducedDate, today)` which recomputes from the original `introducedDate`, discarding whatever dayOfPhase was stored. BRAND.md "Wrong 3× → resets to Day 1" is never honored. Fix: add `phaseStartDate: string` to IntroductionRecord (separate from introducedDate). Triple-wrong path sets `phaseStartDate: today`. `getDayOfPhase` callers use phaseStartDate, not introducedDate. Requires SRS_VERSION bump + migration.
+
+**[F12 sev:7] Stranded cards — no recovery path for day 22+ non-graduates**
+`getDayOfPhase` clamps to 22 (line 44). `maxAppearancesToday(22) = 0`. A card reaching calendar day 22 without 15 consecutive correct answers disappears from both queues permanently — introduction engine sees max=0 (stops scheduling), FSRS ignores it (graduated=false). No error, no recovery. Fix: rescue path in `getIntroductionDueCardIds` or `shouldAppearToday` routing day-22+ non-graduated cards to daily review until graduation.
+
+**[F10 sev:7] canIntroduceNewCard missing BRAND.md spec**
+BRAND.md: "Wrong across multiple days → new card introductions pause until this one stabilizes." `canIntroduceNewCard` (srsStore.ts:245-248) only checks whether any card was introduced today — no cross-day failure check. No TODO, no task reference acknowledges the gap.
+
+**[F13 sev:6] introduceCard silently overwrites graduated card data**
+Guard at srsStore.ts:211: `if (existing && !existing.graduated) return` — a graduated card falls through and is silently re-introduced, resetting introducedDate, totalEncounters, consecutiveCorrect, and graduated=false. Destroys all historical progress without error.
+
+### Active Defects (sev 5-6 — medium priority)
+
+**[F02 sev:5]** `shouldAppearToday` days 11-21 (0.5 branch, line 59): returns `dayOfPhase % 2 === 1` with no check on `appearancesToday`. On odd phase days a card can appear in every session all day with no cap. Fix: add `const appearances = record.lastSeenDate === today ? record.appearancesToday : 0; return appearances < 1;` after the odd-day check.
+
+**[F03 sev:5]** `getNextCardType` has zero production callers (not imported by srsStore). `lastSeenType` is initialised to null and never written after introduction. The variety rule (BRAND.md: "each encounter uses a different retrieval angle") is completely unenforced. Fix: wire getNextCardType call in `recordIntroductionResult`; write returned CardType back to record.lastSeenType.
+
+**[F09 sev:5]** `consecutiveWrongToday` never resets on calendar day boundary. Field is named "Today" and documented "wrong streak today" but accumulates across sessions. User with 2 wrong on day N + 1 wrong on day N+1 triggers Day 1 reset the spec does not intend.
+
+**[F06 sev:6]** Magic literals 15 (graduation) and 3 (consecutive-wrong reset) appear in two functions each without named constants. If threshold changes, both sites must be updated manually with no sync test.
+
+**[F07 sev:6]** `MAX_APPEARANCES_BY_PHASE_DAY` exported without Object.freeze() — any importer can corrupt the global schedule. Fix: `Object.freeze({...})` at line 9.
+
+**[shouldGraduate note]** `shouldGraduate` has zero production callers — graduation is determined by the `graduated` field written by `recordResult`. The two graduation checks (shouldGraduate:line 66 and recordResult:line 94) share no constant. Wire `shouldGraduate` into `recordIntroductionResult` as the canonical graduation gate, or document its role as a utility for external callers only.
 
 ## Auto-Updater Architecture
 - `tauri-plugin-updater` registered in src-tauri/src/lib.rs and Cargo.toml.

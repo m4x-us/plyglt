@@ -45,9 +45,9 @@ export type PackCode = "it" | "es";
 export const ALL_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGISTRY.map(l => l.code));
 export const READY_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGISTRY.filter(l => l.ready).map(l => l.code));
 export const FREE_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGISTRY.filter(l => l.isFree).map(l => l.code));
-export const LANG_CONFIG_MAP = Object.fromEntries(
-  LANGUAGE_REGISTRY.map(l => [l.code, l.config])
-) as Record<string, LanguageConfig>;
+export const LANG_CONFIG_MAP: Readonly<Record<string, LanguageConfig>> = Object.freeze(
+  Object.fromEntries(LANGUAGE_REGISTRY.map(l => [l.code, l.config]))
+);
 
 /** Type guard: returns true iff s is a registered PackCode (member of ALL_PACK_CODES). */
 export function isValidPackCode(s: string): s is PackCode {

@@ -47,8 +47,9 @@ export interface Unit {
 // The introduction engine uses this before handing off to FSRS at graduation.
 export interface IntroductionRecord {
   cardId: string;
-  introducedDate: string;          // ISO date YYYY-MM-DD of first exposure
-  dayOfPhase: number;              // calendar days since introduction + 1; max 22
+  introducedDate: string;          // ISO date YYYY-MM-DD of first exposure (calendar metadata only)
+  phaseStartDate: string;          // ISO date YYYY-MM-DD used to compute dayOfPhase; advances on triple-wrong reset to restart Day 1 intensity
+  dayOfPhase: number;              // calendar days since phaseStartDate + 1; max 22 (recomputed by callers — not persisted authoritatively)
   consecutiveCorrect: number;      // resets to 0 on any wrong answer
   totalEncounters: number;         // total times shown across all sessions
   lastSeenDate: string;            // ISO date YYYY-MM-DD of most recent session

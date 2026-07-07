@@ -1,261 +1,75 @@
-# Barry — Stream W1B — Wave 1 — 2026-07-04
+# Barry — Stream W1B — Wave 1 — 2026-07-06
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W1B | #195 #221 #197 #218 #203 #207 #208 #220
+— Barry | W1B | #180
 
-You are Barry, a CTO working on a specific set of Batch 19 remediation tasks in parallel
-with 3 other windows (this wave has 4 streams). These tasks all came from the /audit #164
-verdict (FAIL, severity 9): Task #163's OS trigger settings feature (wake/unlock/idle toggles
-+ idle threshold) is entirely non-functional because src-tauri/src/os_events.rs — the only
-Rust code that fires wake/unlock/idle interrupts — never reads the config fields Task #163
-built the whole UI/store/IPC chain to expose. Work exclusively on the files listed under
-"Files You Own". Do not touch anything else.
+You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
+Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #195
-2. /task #221
-3. /task #197
-4. /task #218
-5. /task #203
-6. /task #207
-7. /task #208
-8. /task #220
+1. /task #180  — Wire variety rule, close spec gaps, and add rescue path in store/srsStore.ts
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Barry — W1B
-[ ] #195
-[ ] #221
-[ ] #197
-[ ] #218
-[ ] #203
-[ ] #207
-[ ] #208
-[ ] #220
+[→] #180 — Wire variety rule, close spec gaps, and add rescue path in store/srsStore.ts   ← starting now
 
-Update to [✓] as each completes. This lets Max glance at any window and know exactly
-where you are.
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-lib/tauriInterrupt.ts
-app/study/page.tsx
-src-tauri/src/interrupt.rs
-app/settings/page.test.tsx
+store/srsStore.ts
+tests/srsStore.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-app/learn/page.tsx
-app/settings/page.tsx
-components/InterruptHandler.test.tsx
-components/InterruptHandler.tsx
-src-tauri/src/lib.rs
-src-tauri/src/os_events.rs
+lib/introduction.ts
+tests/introduction.test.ts
 store/migrations.ts
-store/settingsStore.ts
 tests/migrations.test.ts
-tests/settingsStore.test.ts
-tests/tauri.test.ts
+lib/entitlement.ts
+lib/langRegistry.ts
 
 ## Task Definitions
 
-### Task #195: Fix documentation-trust: updateInterruptConfig JSDoc says "the Rust background thread" (singular), obscuring two threads exist.
-
-**File:** lib/tauriInterrupt.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-JSDoc states 'the Rust background thread' (singular), obscuring that there are two independent Rust threads (interrupt.rs's own loop and os_events.rs) and that neither of them consumes wake_enabled/unlock_enabled/idle_enabled/idle_threshold_secs as the singular-thread framing implies, at lib/tauriInterrupt.ts:JSDoc above updateInterruptConfig:21.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation-trust issue at lib/tauriInterrupt.ts:JSDoc above updateInterruptConfig:21
-- [ ] Rewrite JSDoc to name both threads and their actual field consumption
-
-**Source:** Audit finding F009 — severity 8 — documentation-trust
-
----
-
----
-
-### Task #221: Fix reliability: exitMandatoryMode has no try/catch and its call sites handle failure inconsistently.
-
-**File:** lib/tauriInterrupt.ts, app/study/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
+### Task #180 | correctness | severity 7
+**What:** Wire variety rule, close spec gaps, and add rescue path in `store/srsStore.ts`:
+- F03: Import `getNextCardType` from `@/lib/introduction`. Call it at the end of `recordIntroductionResult`, passing `record.lastSeenType` and the available card types for this card. Write the returned CardType back to `record.lastSeenType` before persisting. This wires the variety rule (BRAND.md: "each encounter uses a different retrieval angle") which currently has zero runtime enforcement.
+- F10: `canIntroduceNewCard`: add cross-day failure check — if any `IntroductionRecord` has `consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET` and `lastSeenDate !== today`, return false. This implements the BRAND.md spec "wrong across multiple days → pause new card introductions until this one stabilizes" which is currently absent.
+- F12: `getIntroductionDueCardIds`: add rescue branch — if `getDayOfPhase(record.phaseStartDate, today) >= 22` and `!record.graduated`, include the card with `shouldAppearToday` returning true (1 appearance/day). Without this, cards reaching day 22 without 15 consecutive correct answers disappear from both queues permanently.
+- F13: `introduceCard`: change guard from `if (existing && !existing.graduated) return` to `if (existing) return` — a graduated card must not be silently re-introduced with reset history.
+**Why:** F10 (sev:7) and F12 (sev:7) are stop-the-line spec gaps. F03 (sev:5) — variety rule is fully implemented in lib but has zero runtime callers. F13 (sev:6) — graduated card re-introduction destroys all historical progress silently.
+**File:** `store/srsStore.ts`, `tests/srsStore.test.ts`
+**Severity:** 7 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — 2 files, 4 behavior fixes
+**Blocked by:** #178 (COMPLETE) | **Blocks:** #181
+**Test required:** Yes — one test per fix: (1) `lastSeenType` updates after `recordIntroductionResult`; (2) `canIntroduceNewCard` returns false when cross-day wrong streak exists; (3) `getIntroductionDueCardIds` includes a day-22+ non-graduated card; (4) `introduceCard` does not overwrite a graduated card.
+**Done when:** `grep -n "getNextCardType" store/srsStore.ts` shows an import and a call site. All 4 new tests pass and assert specific values. Verification gate green.
 **Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
 
-**What:**
-exitMandatoryMode() (tauriInterrupt.ts:60-63) has no try/catch, unlike sibling updateInterruptConfig/snoozeInterrupt in the same file. app/study/page.tsx:73 has zero error handling around its call (unhandled-rejection risk, user could be stuck in a locked window); app/study/page.tsx:121 uses try/finally but no catch. Predates the #163/#164 diff — pre-existing debt, at exitMandatoryMode and call sites:60.
-NEW
+## Agent Memories (Architecture Agent — relevant excerpt)
 
-**Acceptance Criteria:**
-- [ ] Fix reliability issue at exitMandatoryMode and call sites:60
-- [ ] Add try/catch with an ERR-* ref log matching the sibling pattern in the same file
+### Introduction Engine (M1 — LIVE; Batch 5 audit FAIL 2026-07-02 — OPEN DEFECTS)
 
-**Source:** Audit finding F036 — severity 4 — reliability
+Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
 
----
+**[F12 sev:7] Stranded cards — no recovery path for day 22+ non-graduates**
+`getDayOfPhase` clamps to 22 (line 44). `maxAppearancesToday(22) = 0`. A card reaching calendar day 22 without 15 consecutive correct answers disappears from both queues permanently — introduction engine sees max=0 (stops scheduling), FSRS ignores it (graduated=false). No error, no recovery. Fix: rescue path in `getIntroductionDueCardIds` or `shouldAppearToday` routing day-22+ non-graduated cards to daily review until graduation.
 
----
+**[F10 sev:7] canIntroduceNewCard missing BRAND.md spec**
+BRAND.md: "Wrong across multiple days → new card introductions pause until this one stabilizes." `canIntroduceNewCard` (srsStore.ts:245-248) only checks whether any card was introduced today — no cross-day failure check. No TODO, no task reference acknowledges the gap.
 
-### Task #197: Fix documentation: interrupt.rs file header not updated to list the 4 new InterruptState fields.
+**[F13 sev:6] introduceCard silently overwrites graduated card data**
+Guard at srsStore.ts:211: `if (existing && !existing.graduated) return` — a graduated card falls through and is silently re-introduced, resetting introducedDate, totalEncounters, consecutiveCorrect, and graduated=false. Destroys all historical progress without error.
 
-**File:** src-tauri/src/interrupt.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
+**[F03 sev:5]** `getNextCardType` has zero production callers (not imported by srsStore). `lastSeenType` is initialised to null and never written after introduction. The variety rule (BRAND.md: "each encounter uses a different retrieval angle") is completely unenforced. Fix: wire getNextCardType call in `recordIntroductionResult`; write returned CardType back to record.lastSeenType.
 
-**What:**
-File header (lines 1-6) describing InterruptState has not been updated to list the 4 new fields (wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs), at src-tauri/src/interrupt.rs:file header:1.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation issue at src-tauri/src/interrupt.rs:file header:1
-
-**Source:** Audit finding F011 — severity 4 — documentation
-
----
-
----
-
-### Task #218: Fix reliability: update_interrupt_config silently no-ops on a poisoned mutex with no error surfaced.
-
-**File:** src-tauri/src/interrupt.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-Silently no-ops on a poisoned mutex (lines 111-119); the JS caller receives a resolved promise and believes the config was applied even though nothing was written, at src-tauri/src/interrupt.rs:update_interrupt_config:111.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix reliability issue at src-tauri/src/interrupt.rs:update_interrupt_config:111
-- [ ] Log or surface an error when the lock cannot be acquired, per Rule 8 (Log Everything)
-
-**Source:** Audit finding F033 — severity 5 — reliability
-
----
-
----
-
-### Task #203: Fix test-quality: banned .not.toBeNull() assertion with no existence-check comment.
-
-**File:** app/settings/page.test.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** QA Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-expect(queryIdleThresholdInput()).not.toBeNull() is a banned assertion form per AGENTS.md's Stop-the-Line list, with no inline `// existence-check: [reason]` comment. The value under test is not non-deterministic, so the documented exception does not apply, at app/settings/page.test.tsx:idle-threshold input presence test:302.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix test-quality issue at app/settings/page.test.tsx:idle-threshold input presence test:302
-- [ ] Either add a specific-value assertion in place of .not.toBeNull(), or justify with an inline existence-check comment
-
-**Source:** Audit finding F018 — severity 3 — test-quality
-
----
-
----
-
-### Task #207: Fix documentation: new Task #164 tests inserted out of numeric order in page.test.tsx.
-
-**File:** app/settings/page.test.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-New Task #164 tests were inserted labeled 'Test 4'/'Test 5' ahead of the pre-existing 'Test 3' comment block, producing non-sequential numbering, at app/settings/page.test.tsx:n/a — test ordering:0.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation issue at app/settings/page.test.tsx:n/a — test ordering:0
-- [ ] Renumber the "Test N" comments to match file order
-
-**Source:** Audit finding F022 — severity 2 — documentation
-
----
-
----
-
-### Task #208: Fix documentation: page.test.tsx file header not updated for new OS-trigger test coverage.
-
-**File:** app/settings/page.test.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-File header comment was not updated to reflect the newly added OS-trigger test coverage, at app/settings/page.test.tsx:file header comment:1.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation issue at app/settings/page.test.tsx:file header comment:1
-
-**Source:** Audit finding F023 — severity 3 — documentation
-
----
-
----
-
-### Task #220: Fix scope: license/notification/mandatory-mode tests in page.test.tsx are unrelated to Task #163's OS-trigger feature.
-
-**File:** app/settings/page.test.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** QA Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-License/notification/mandatory-mode tests (12-25) are unrelated to Task #163's OS-trigger feature — scope bleed into Task #164, though separately authorized by the user mid-task to close a coverage gap, at app/settings/page.test.tsx:tests 12-25:0.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Review whether these tests should be documented as their own coverage initiative rather than attributed to Task #164's scope
-
-**Source:** Audit finding F035 — severity 2 — scope
-
----
-
-## Context You Need
-
-This wave fixes findings from a 7-agent independent audit (/audit #164, verdict FAIL,
-severity 9, 39 findings). The central defect: `update_interrupt_config` in
-`src-tauri/src/interrupt.rs` correctly writes `wake_enabled`, `unlock_enabled`,
-`idle_enabled`, `idle_threshold_secs` into shared `InterruptState`, but
-`src-tauri/src/os_events.rs`'s guard-state destructure (around line 165) only reads
-`(enabled, snooze_until, mandatory)` — never the 4 new fields. Every wake/unlock/idle
-detection branch in that file gates only on the master `enabled` flag. A self-authored
-TODO comment in os_events.rs (around line 29) already documents this exact gap.
-
-11 further tasks in Batch 19 (#191,#192,#193,#194,#196,#198,#210,#213,#215,#216,#225) are
-DEFERRED — blocked by the P1 wiring tasks (#187-#190) landing first. They will surface in
-Wave 2 once this wave closes.
+## Note on Task #178's prior fix (already merged — read before writing code)
+Task #178 (COMPLETE) added `phaseStartDate: string` to `IntroductionRecord` and made it authoritative for `getDayOfPhase` — it removed the redundant `getDayOfPhase(record.introducedDate, today)` recomputation from both `recordIntroductionResult:230` and `getIntroductionDueCardIds:239`. Your F12 rescue-path fix in `getIntroductionDueCardIds` must call `getDayOfPhase(record.phaseStartDate, today)` (not `introducedDate`) to stay consistent with that fix.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1B/completion.md (append, do not
-overwrite prior wave history in that file):
+Write your completion summary to .autocode/stream-W1B/completion.md:
   Tasks closed: [list task numbers that reached COMPLETE status]
   Tasks NOT completed: [list task number + done-when condition that failed]
   Debt entries logged: [count]
@@ -263,4 +77,4 @@ overwrite prior wave history in that file):
 
 Then tell Max in this window: "Barry is done." (or describe what's incomplete).
 
-— Barry | W1B | #195 #221 #197 #218 #203 #207 #208 #220
+— Barry | W1B | #180

@@ -23,8 +23,8 @@ import {
 
 // S011: exact value assertions (not just "positive integer")
 describe("version constants", () => {
-  it("SRS_VERSION is 2", () => {
-    expect(SRS_VERSION).toBe(2);
+  it("SRS_VERSION is 3", () => {
+    expect(SRS_VERSION).toBe(3);
   });
   it("ENTITLEMENT_VERSION is 3", () => {
     expect(ENTITLEMENT_VERSION).toBe(3);
@@ -105,12 +105,168 @@ describe("migrateSrsStore()", () => {
   });
 
   it("v1 → v2: preserves existing introductions when already populated (does not reset to {})", () => {
-    const existingIntros = { "it-a1u01-001": { cardId: "it-a1u01-001", graduated: false } };
+    // Running from v1 applies both v2 (preserves introductions) and v3 (adds phaseStartDate).
+    const existingIntros = { "it-a1u01-001": { cardId: "it-a1u01-001", introducedDate: "2026-05-01", graduated: false } };
     const result = migrateSrsStore(
       { cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: existingIntros },
       1,
     ) as Record<string, unknown>;
-    expect(result.introductions).toEqual(existingIntros);
+    const intro = (result.introductions as Record<string, Record<string, unknown>>)["it-a1u01-001"];
+    expect(intro?.["cardId"]).toBe("it-a1u01-001");
+    expect(intro?.["introducedDate"]).toBe("2026-05-01");
+    expect(intro?.["phaseStartDate"]).toBe("2026-05-01");
+    expect(intro?.["graduated"]).toBe(false);
+  });
+
+  it("v2 → v3: adds phaseStartDate to each IntroductionRecord, defaulting to introducedDate", () => {
+    const state = {
+      cards: {},
+      streak: 5,
+      lastStudiedDate: "2026-06-01",
+      introductions: {
+        "card-1": {
+          cardId: "card-1",
+          introducedDate: "2026-05-20",
+          dayOfPhase: 8,
+          consecutiveCorrect: 3,
+          totalEncounters: 12,
+          lastSeenDate: "2026-06-01",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    };
+    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
+      introductions: Record<string, { phaseStartDate: string; introducedDate: string }>;
+    };
+    expect(result.introductions["card-1"]?.phaseStartDate).toBe("2026-05-20");
+    expect(result.introductions["card-1"]?.introducedDate).toBe("2026-05-20");
+  });
+
+  it("v2 → v3: preserves existing phaseStartDate if already populated (pre-release build)", () => {
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-1": {
+          cardId: "card-1",
+          introducedDate: "2026-05-20",
+          phaseStartDate: "2026-05-25",
+          dayOfPhase: 3,
+          consecutiveCorrect: 0,
+          totalEncounters: 5,
+          lastSeenDate: "2026-05-25",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    };
+    const result = migrateSrsStore(state, 2) as typeof state & {
+      introductions: Record<string, { phaseStartDate: string; introducedDate: string }>;
+    };
+    expect(result.introductions["card-1"]?.phaseStartDate).toBe("2026-05-25");
+    expect(result.introductions["card-1"]?.introducedDate).toBe("2026-05-20"); // introducedDate must not be clobbered
+  });
+
+  it("v2 → v3: preserves all other srsStore fields", () => {
+    const state = { cards: { "c1": { stability: 3.2 } }, streak: 7, lastStudiedDate: "2026-06-01", introductions: {} };
+    const result = migrateSrsStore(state, 2) as typeof state;
+    expect(result.streak).toBe(7);
+    expect(result.lastStudiedDate).toBe("2026-06-01");
+    expect(result.cards).toEqual({ "c1": { stability: 3.2 } });
+  });
+
+  it("v2 → v3: record missing introducedDate gets phaseStartDate from today (not '' or NaN)", () => {
+    // Corrupt legacy records that are missing both phaseStartDate and introducedDate must NOT get
+    // phaseStartDate: "" — that causes getDayOfPhase to return NaN and silently hides the card.
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-corrupt": {
+          cardId: "card-corrupt",
+          // intentionally omit introducedDate to simulate corrupt legacy data
+          dayOfPhase: 3,
+          consecutiveCorrect: 0,
+          totalEncounters: 2,
+          lastSeenDate: "2026-06-01",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    };
+    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
+      introductions: Record<string, { phaseStartDate: string }>;
+    };
+    const intro = result.introductions["card-corrupt"];
+    expect(typeof intro?.phaseStartDate).toBe("string");
+    expect(intro?.phaseStartDate).not.toBe("");
+    // Must match YYYY-MM-DD format — not "" and not "NaN"
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
+  });
+
+  it("v2 → v3: null record does not throw and produces a valid phaseStartDate (Zustand data-loss guard)", () => {
+    // A null entry in the introductions map would cause TypeError on property access,
+    // which Zustand's persist middleware catches by resetting the entire store — silently
+    // wiping all SRS card history. The null guard must prevent the throw.
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: { "card-null": null },
+    };
+    expect(() => migrateSrsStore(state, 2)).not.toThrow();
+    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
+      introductions: Record<string, { phaseStartDate: string }>;
+    };
+    const intro = result.introductions["card-null"];
+    expect(typeof intro?.phaseStartDate).toBe("string");
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
+  });
+
+  it("v2 → v3: calendar-invalid introducedDate (e.g. '2026-13-45') falls back to today, not preserved", () => {
+    // "2026-13-45" passes DATE_RE (/^\d{4}-\d{2}-\d{2}$/) but new Date("2026-13-45") is
+    // Invalid Date. If preserved as phaseStartDate, getDayOfPhase returns NaN and the card
+    // is silently hidden forever. The isNaN guard must reject it and fall back to today.
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-bad-date": {
+          cardId: "card-bad-date",
+          introducedDate: "2026-13-45",
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 1,
+          lastSeenDate: "2026-07-01",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    };
+    const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
+      introductions: Record<string, { phaseStartDate: string; introducedDate: string }>;
+    };
+    const intro = result.introductions["card-bad-date"];
+    // Must NOT preserve the calendar-invalid string
+    expect(intro?.phaseStartDate).not.toBe("2026-13-45");
+    // Must be a valid calendar date — not NaN or ""
+    expect(typeof intro?.phaseStartDate).toBe("string");
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
+    expect(isNaN(new Date(intro?.phaseStartDate ?? "").getTime())).toBe(false);
+    // introducedDate field must not be clobbered
+    expect(intro?.introducedDate).toBe("2026-13-45");
   });
 
   // Migration chain guard — verify every step from v0 to SRS_VERSION is defined.
@@ -199,8 +355,8 @@ describe("migrateEntitlementStore()", () => {
     ).not.toThrow();
   });
 
-  // S013: storedVersion=1 triggers only v2 migration (lifetime → subscription)
-  it("storedVersion=1 still coerces lifetime licenseType to subscription via v2 migration", () => {
+  // S013: storedVersion=1 triggers only v2 migration (unrecognised → subscription)
+  it("storedVersion=1 coerces unrecognised licenseType to subscription via v2 migration", () => {
     const result = migrateEntitlementStore(
       { licenseType: "lifetime", licenseKey: "X", instanceId: "Y", unlockedPacks: ["it"], lastValidated: 0, validUntil: null },
       1

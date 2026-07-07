@@ -11,7 +11,8 @@
 // - Throw on a missing migration step — silent fallbacks corrupt user data.
 // ===========================================
 // DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES),
-//             @/lib/licenseTypes (LICENSE_TYPES, LicenseType)
+//             @/lib/licenseTypes (LICENSE_TYPES, LicenseType),
+//             @/lib/utils (localDateStr)
 // USED BY: store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts
 // EXPORTS: IDLE_THRESHOLD_DEFAULT_MINUTES — single source of truth for the idle default;
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
@@ -19,10 +20,11 @@
 
 import { FREE_PACK_CODES } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
+import { localDateStr } from "@/lib/utils";
 
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
-export const SRS_VERSION = 2;
+export const SRS_VERSION = 3;
 
 const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v0 → v1: initial shape. Fills missing fields for data written before versioning.
@@ -40,6 +42,55 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   2: (data: unknown) => {
     const d = data as Record<string, unknown>;
     return { ...d, introductions: d.introductions ?? {} };
+  },
+  // v2 → v3: adds phaseStartDate to every IntroductionRecord.
+  // phaseStartDate defaults to introducedDate — safe because prior builds never
+  // executed a triple-wrong reset (the dayOfPhase:1 write was a dead write discarded
+  // by all callers). No user has ever had a functional triple-wrong reset.
+  // Corrupt records missing both fields fall back to today's date and log an error;
+  // an empty string or calendar-invalid date would produce NaN in getDayOfPhase and
+  // silently hide the card forever.
+  3: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    // Typed as Record<string, unknown> (not Record<string, Record<string, unknown>>) so that
+    // the null-record guard below can safely narrow at runtime without fighting the type system.
+    const introductions = typeof d.introductions === "object" && d.introductions !== null
+      ? d.introductions as Record<string, unknown>
+      : {};
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const todayFallback = localDateStr();
+    const migratedIntroductions: Record<string, unknown> = {};
+    for (const [cardId, rawRecord] of Object.entries(introductions)) {
+      // Guard against null/non-object entries stored by a corrupt build.
+      // A TypeError thrown on null access would be caught by Zustand's persist middleware
+      // and resolved by resetting the entire store to defaults — silently wiping all history.
+      const record: Record<string, unknown> =
+        rawRecord !== null && typeof rawRecord === "object"
+          ? rawRecord as Record<string, unknown>
+          : {};
+      const phaseStartDate = (() => {
+        // isNaN check rejects calendar-invalid strings like "2026-13-45" that pass DATE_RE
+        // but resolve to NaN in getDayOfPhase, which silently hides the card forever.
+        if (
+          typeof record.phaseStartDate === "string" &&
+          DATE_RE.test(record.phaseStartDate) &&
+          !isNaN(new Date(record.phaseStartDate).getTime())
+        ) {
+          return record.phaseStartDate;
+        }
+        if (
+          typeof record.introducedDate === "string" &&
+          DATE_RE.test(record.introducedDate) &&
+          !isNaN(new Date(record.introducedDate).getTime())
+        ) {
+          return record.introducedDate;
+        }
+        console.error(`[plyglt] migration v3: corrupt record ${cardId} — missing or calendar-invalid date fields, using today`);
+        return todayFallback;
+      })();
+      migratedIntroductions[cardId] = { ...record, phaseStartDate };
+    }
+    return { ...d, introductions: migratedIntroductions };
   },
 };
 

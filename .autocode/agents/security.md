@@ -29,6 +29,17 @@
 - License key format/length validation — FIXED (Task #098)
 - featureFlags "0"/"off"/"False" not recognised as false — FIXED (Task #099)
 
+## Introduction Engine Security Findings (Batch 5 audit — 2026-07-02)
+
+**[F07 sev:6] MAX_APPEARANCES_BY_PHASE_DAY exported unfrozen (lib/introduction.ts:9)**
+`export const MAX_APPEARANCES_BY_PHASE_DAY: Record<number, number> = { ... }` — no `Object.freeze()`. Any same-process importer can mutate `MAX_APPEARANCES_BY_PHASE_DAY[1] = 0` and silently disable Day 1 scheduling for all cards. In a Tauri webview, exploitable by injected script in rendered card content. Fix: `export const MAX_APPEARANCES_BY_PHASE_DAY = Object.freeze({ ... })` with `Readonly<Record<number, number>>` type.
+
+**[F11 sev:5] getDayOfPhase NaN propagation on malformed date strings (lib/introduction.ts:42)**
+`new Date(invalid_string).getTime()` returns NaN. `Math.max(1, NaN)` returns NaN (not 1 — spec-defined). NaN propagates to `maxAppearancesToday(NaN)` → `undefined ?? 0` → `shouldAppearToday` returns false. A card with a corrupted `introducedDate` silently disappears from the introduction queue forever with no error, no log, no user feedback. Fix: add format validation (`/^\d{4}-\d{2}-\d{2}$/.test(str)`) before `new Date(str)`, throw with ref ID on invalid input.
+
+**[F20 sev:3] today param is caller-controlled with no clock validation (lib/introduction.ts, store/srsStore.ts)**
+`recordIntroductionResult` and `getIntroductionDueCardIds` accept `today` from the caller without validation against `Date.now()`. A caller alternating date strings bypasses the daily appearance cap. Low practical risk in offline Tauri context (all callers currently use `localDateStr()`), but the contract is implicit not enforced. No fix required now — monitor if more call sites are added.
+
 ## Open / Monitoring
 - F5: `src-tauri/src/license.rs:open_url` — HTTPS-only check, no domain allowlist → accepted risk; all callers use hardcoded constants from lib/checkout.ts
 - F6: `lib/entitlement.ts` String(e) in deactivate catch — may embed IPC error; key truncated to 8 chars before log. Low-confidence exploitation. Monitoring.

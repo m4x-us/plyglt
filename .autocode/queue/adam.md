@@ -1,248 +1,85 @@
 ---
 status: done
 agent: adam
-stream: W2A
-wave: 2
+stream: W1A
+wave: 1
 ---
 
-# Adam — Stream W2A — Wave 2 (Batch 19) — 2026-07-05
+# Adam — Stream W1A — Wave 1 — 2026-07-06
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216
+— Adam | W1A | #179
 
-You are Adam, a CTO working on a specific set of Batch 19 remediation tasks in parallel
-with 1 other window. Wave 1 already fixed the core defect (os_events.rs now reads all 4
-OS-trigger config fields). These remaining tasks are deferred cleanup that was blocked on
-Wave 1 landing. Work exclusively on the files listed under "Files You Own".
-
-NOTE before you start #191 and #198: check the current state of the file first — some of
-this task's Done-When may already be satisfied as a side effect of Wave 1's fix (e.g. the
-TODO comment #191 asks you to remove may already be gone). If so, verify quickly and close
-it rather than redoing the work.
+You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
+Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #191
-2. /task #198
-3. /task #193
-4. /task #196
-5. /task #194
-6. /task #192
-7. /task #215
-8. /task #216
+1. /task #179  — Fix remaining behavior bugs and code quality gaps in lib/introduction.ts
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, print your status board:
+STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
+the next one, print your current status board in this exact format:
 
-Adam — W2A
-[ ] #191
-[ ] #198
-[ ] #193
-[ ] #196
-[ ] #194
-[ ] #192
-[ ] #215
-[ ] #216
+Adam — W1A
+[→] #179 — Fix remaining behavior bugs and code quality gaps in lib/introduction.ts   ← starting now
+
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-src-tauri/src/os_events.rs
-src-tauri/src/interrupt.rs
-store/migrations.ts
-components/InterruptHandler.tsx
-app/settings/page.tsx
-lib/tauriInterrupt.ts
-store/settingsStore.ts
+lib/introduction.ts
+tests/introduction.test.ts
 
-## Off-Limits Files (DO NOT MODIFY — owned by the other window)
-app/settings/page.test.tsx
-tests/
+## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
+store/srsStore.ts
+tests/srsStore.test.ts
+store/migrations.ts
+tests/migrations.test.ts
+lib/entitlement.ts
+lib/langRegistry.ts
 
 ## Task Definitions
 
-### Task #191: Fix process: unresolved TODO proves the team knew the wake/unlock/idle wiring was incomplete when Task #163 was marked COMPLETE.
-
-**File:** src-tauri/src/os_events.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
+### Task #179 | correctness | severity 6
+**What:** Fix remaining behavior bugs and code quality gaps in `lib/introduction.ts`:
+- ~~F02: `shouldAppearToday` 0.5 branch~~ — DONE in Task #178 Cycle 2 (CF-12 fix)
+- ~~F09: `recordResult` cross-day consecutiveWrongToday reset~~ — DONE in Task #178 Cycle 2 (CF-02 fix)
+- F11: `getDayOfPhase`: validate date string format (`/^\d{4}-\d{2}-\d{2}$/`) before calling `new Date(str)`, throw with ref ID on invalid input — NaN propagation currently causes silent card disappearance (migration has DATE_RE guard at persistence boundary but getDayOfPhase itself is still unguarded)
+- F07: `export const MAX_APPEARANCES_BY_PHASE_DAY = Object.freeze({...})` with `Readonly<Record<number, number>>` type — currently exported unfrozen, mutable by any importer
+- F06: Extract `export const GRADUATION_THRESHOLD = 15` and `export const CONSECUTIVE_WRONG_RESET = 3` as named constants; replace all magic literals in `recordResult` and `shouldGraduate`
+- F18: Add Rule 2 header to `lib/introduction.ts` (DEPENDS ON / USED BY missing)
+- F19: Add ref ID to `throw new Error("getNextCardType: available must not be empty")` (currently no Error Reference System ID)
+**Why:** F07 (sev:6) — unfrozen scheduling table corruptible by injected card content in Tauri webview. F11 — getDayOfPhase produces NaN silently on invalid input. F06 prevents silent divergence if thresholds change.
+**File:** `lib/introduction.ts`, `tests/introduction.test.ts`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, multiple behavior fixes
+**Blocked by:** #178 (COMPLETE) | **Blocks:** #181
+**Test required:** Yes — add test for `getDayOfPhase` with malformed date string (must throw). Tests for F02/F09 cross-day behavior were added in Task #178.
+**Done when:** `grep -n "Object.freeze" lib/introduction.ts` shows `MAX_APPEARANCES_BY_PHASE_DAY`. `grep -n "GRADUATION_THRESHOLD\|CONSECUTIVE_WRONG_RESET" lib/introduction.ts` shows constant declarations. Rule 2 header present. All new tests pass. Verification gate green.
 **Owner:** Architecture Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P2
-**Status:** OPEN
 
-**What:**
-A self-authored, unresolved TODO reads: "TODO #163: replace IDLE_THRESHOLD_SECS with st.idle_threshold_secs once the configurable field is added to InterruptState. The state lock block already reads the guard fields; just add idle_threshold_secs to that destructure." Its stated precondition has since been satisfied but the follow-up was never done. Remove the TODO once #187-#190 close it out, at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29.
-NEW
+## Agent Memories (Architecture Agent — relevant excerpt)
 
-**Acceptance Criteria:**
-- [ ] Fix process issue at src-tauri/src/os_events.rs:start_os_listeners (TODO comment):29
-- [ ] Remove the stale TODO comment once the wiring lands
+### Introduction Engine (M1 — LIVE; Batch 5 audit FAIL 2026-07-02 — OPEN DEFECTS)
 
-**Source:** Audit finding F005 — severity 7 — process
+`lib/introduction.ts` — pure-function module (no React, no Zustand). Six exports: getDayOfPhase, maxAppearancesToday, shouldAppearToday, recordResult, shouldGraduate, getNextCardType.
+Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
 
----
+**[F06 sev:6]** Magic literals 15 (graduation) and 3 (consecutive-wrong reset) appear in two functions each without named constants. If threshold changes, both sites must be updated manually with no sync test.
 
----
+**[F07 sev:6]** `MAX_APPEARANCES_BY_PHASE_DAY` exported without Object.freeze() — any importer can corrupt the global schedule. Fix: `Object.freeze({...})` at line 9.
 
-### Task #198: Fix documentation: os_events.rs file header documents current behavior as complete rather than disclosing the unread/hardcoded fields.
+Security Agent's version of F11 (matching finding, cross-reference): "getDayOfPhase NaN propagation on malformed date strings (lib/introduction.ts:42) — `new Date(invalid_string).getTime()` returns NaN. `Math.max(1, NaN)` returns NaN (not 1 — spec-defined). NaN propagates to `maxAppearancesToday(NaN)` → `undefined ?? 0` → `shouldAppearToday` returns false. A card with a corrupted `introducedDate` silently disappears from the introduction queue forever with no error, no log, no user feedback. Fix: add format validation (`/^\d{4}-\d{2}-\d{2}$/.test(str)`) before `new Date(str)`, throw with ref ID on invalid input."
 
-**File:** src-tauri/src/os_events.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-File header (lines 4-6) documents current listener behavior as normal/complete rather than disclosing that 3 of 4 new settings fields are currently unread and one is hardcoded-overridden, at src-tauri/src/os_events.rs:file header:4.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation issue at src-tauri/src/os_events.rs:file header:4
-
-**Source:** Audit finding F012 — severity 4 — documentation
-
----
-
----
-
-### Task #193: Fix documentation-trust: store/migrations.ts comment claims a functioning OS-trigger opt-out that does not exist at runtime.
-
-**File:** store/migrations.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-Comment at lines 158-159 claims a functioning opt-out for OS triggers that does not exist at runtime (per F001-F004), at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation-trust issue at store/migrations.ts:comment above SETTINGS_MIGRATIONS entry:158
-- [ ] Update the comment once #187-#190 make the opt-out real, or soften the claim until then
-
-**Source:** Audit finding F007 — severity 9 — documentation-trust
-
----
-
----
-
-### Task #196: Fix documentation-trust: InterruptHandler.tsx comment "Keep the Rust thread in sync" is false for the 4 new fields.
-
-**File:** components/InterruptHandler.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-Comment 'Keep the Rust thread in sync' is false with respect to the 4 new fields — nothing keeps os_events.rs in sync with them (F001-F004), at components/InterruptHandler.tsx:config-sync effect comment:30.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation-trust issue at components/InterruptHandler.tsx:config-sync effect comment:30
-- [ ] Update comment once #187-#190 land
-
-**Source:** Audit finding F010 — severity 7 — documentation-trust
-
----
-
----
-
-### Task #194: Fix documentation-trust: Wake/Unlock/Idle toggle descriptions claim independent control that runtime code never honors.
-
-**File:** app/settings/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-The Wake/Unlock/Idle toggle descriptions (lines 104-111) claim these triggers can be independently disabled; runtime code never honors any of the three (F001-F003). Conflicts with BRAND.md's stress-free/trust principle, at app/settings/page.tsx:OS Triggers section JSX:104.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix documentation-trust issue at app/settings/page.tsx:OS Triggers section JSX:104
-- [ ] Verify UI copy matches real behavior once #187-#190 land
-
-**Source:** Audit finding F008 — severity 9 — documentation-trust
-
----
-
----
-
-### Task #192: Fix test-quality: zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs.
-
-**File:** src-tauri/src/
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** QA Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-Zero Rust #[test] blocks exist anywhere in src-tauri/src/*.rs. The exact layer containing the critical defect (F001-F004) has no test harness at all, so Task #164's added tests — which all stop at the JS/IPC-call boundary — had no way to catch it, at src-tauri/src/:n/a — entire crate:0.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Add a #[cfg(test)] module to os_events.rs and/or interrupt.rs covering the wake/unlock/idle gating logic
-- [ ] Audit passes: bash scripts/deep-audit.sh src-tauri/src/os_events.rs
-
-**Source:** Audit finding F006 — severity 7 — test-quality
-
----
-
----
-
-### Task #215: Fix code-quality: "15 minutes" idle default hardcoded independently in four places with no shared constant.
-
-**File:** src-tauri/src/os_events.rs, src-tauri/src/interrupt.rs, store/settingsStore.ts, store/migrations.ts
-**Complexity:** 🔧 Full — 4 files, cross-cutting constant extraction
-**Owner:** Architecture Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-The '15 minutes' idle default is hardcoded independently in four places (os_events.rs:31, interrupt.rs:52, settingsStore.ts:54, migrations.ts:167) with no shared constant. One copy is already permanently out of sync since it is the unread hardcoded override (F004), at idle-default constants:31.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix code-quality issue at idle-default constants:31
-- [ ] Extract a single shared default-minutes constant consumed by all four sites (via a shared TS/Rust boundary or documented single source of truth)
-
-**Source:** Audit finding F030 — severity 6 — code-quality
-
----
-
----
-
-### Task #216: Fix architecture: 7-positional-parameter interrupt-config contract duplicated identically across 5 files with no shared schema.
-
-**File:** app/settings/page.tsx, lib/tauriInterrupt.ts, components/InterruptHandler.tsx, store/settingsStore.ts, src-tauri/src/interrupt.rs
-**Complexity:** 🔧 Full — 5 files, contract redesign
-**Owner:** Architecture Agent
-**Blocked by:** #187, #188, #189, #190
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-The 7-positional-parameter interrupt-config contract is duplicated identically across 5 files with no shared type/schema forcing sync. This exact coupling is the structural root cause that let os_events.rs silently fall out of sync with the other 4 files' understanding of the config shape (F001-F004), at update_interrupt_config parameter contract.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix architecture issue at update_interrupt_config parameter contract
-- [ ] Consider a shared config object/struct (TS interface + matching Rust struct) instead of positional params, so adding a field forces every consumer to acknowledge it
-
-**Source:** Audit finding F031 — severity 6 — architecture
-
----
+IMPORTANT — duplicate-work note: Task #186 (running in stream W1D, a different window) originally also planned to freeze `MAX_APPEARANCES_BY_PHASE_DAY` but has been trimmed to drop that overlap — this task (#179 F07) is now the sole owner of that specific `Object.freeze()` call. Do not skip it assuming another stream will do it.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W2A/completion.md (append):
-  Tasks closed / NOT completed / Debt entries logged / Carry-forward tasks generated
+Write your completion summary to .autocode/stream-W1A/completion.md:
+  Tasks closed: [list task numbers that reached COMPLETE status]
+  Tasks NOT completed: [list task number + done-when condition that failed]
+  Debt entries logged: [count]
+  Carry-forward tasks generated: [count]
 
-Then tell Max in this window: "Adam is done."
+Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W2A | #191 #198 #193 #196 #194 #192 #215 #216
+— Adam | W1A | #179

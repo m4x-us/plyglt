@@ -1,94 +1,33 @@
 # Stream W1D Task State
 
-### Task #217: Fix reliability: config-sync effect has no debounce, allowing rapid toggles to race and silently revert.
+### Task #185 | security | severity 7
+**What:** Guard `activateLicense` against an empty `instanceId`. The current guard `if (!res.instance)` at `lib/entitlement.ts:139` is falsy only for `null` and `undefined`. A Lemon Squeezy API response with `instance: { id: '' }` is truthy; the guard passes, and `instanceId: ''` is persisted to the entitlement store. Every subsequent `validateLicense(key, '')` and `deactivateLicense(key, '')` call sends an empty instance ID, producing API errors that surface to users as generic network failures with no indication of root cause.
 
-**File:** components/InterruptHandler.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
+Fix: change line 139 to `if (!res.instance?.id)`. This is a one-character change — the existing `console.error` and return statement stay unchanged.
 
-**What:**
-The config-sync effect (lines 31-35) has no debounce or request sequencing. Rapid toggle clicks can race — an older in-flight update_interrupt_config call resolving after a newer one could silently revert a toggle in Rust-side state with no user-visible indication, at components/InterruptHandler.tsx:config-sync effect:31.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix reliability issue at components/InterruptHandler.tsx:config-sync effect:31
-- [ ] Add a debounce or sequence-number guard so only the latest config write wins
-
-**Source:** Audit finding F032 — severity 5 — reliability
+Note: the corresponding test (`instance: { id: '' }` → ok:false) lives in Task #183. This task is the production code fix only.
+**Why:** Users who activate on a degraded Lemon Squeezy response end up stuck — license appears active but every subsequent validation fails — with no recovery path other than re-entering their license key. Open as F011 across two consecutive audits with no task.
+**File:** `lib/entitlement.ts`
+**Severity:** 7 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope fix
+**Blocked by:** Nothing | **Blocks:** #183 (the F010 test turns green once this fix is in place)
+**Test required:** Covered by Task #183 (F010). Run the full test suite to confirm no regressions.
+**Done when:** `grep "instance?.id" lib/entitlement.ts` has a hit at line 139. Verification gate green.
+**Owner:** Security Agent
 
 ---
 
----
+### Task #186 | security | severity 4
+**What:** Wrap `LANG_CONFIG_MAP` in `Object.freeze()`. It is created via `Object.fromEntries()` in `lib/langRegistry.ts` but not frozen; any importer can write `LANG_CONFIG_MAP['it'] = maliciousConfig` without a TypeError, silently replacing a security-relevant language configuration. The existing frozen arrays (`ALL_PACK_CODES`, `READY_PACK_CODES`, `FREE_PACK_CODES`) all have a comment explaining why they are frozen — the asymmetric treatment of `LANG_CONFIG_MAP` is unexplained.
 
-### Task #222: Fix architecture: InterruptHandler.tsx imports directly from store/, violating the components/ layer rule.
+Fix: `Object.freeze(LANG_CONFIG_MAP)` at point of declaration.
 
-**File:** components/InterruptHandler.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-Imports directly from store/ (settingsStore, srsStore), contradicting CLAUDE.md's layer rule: "components/ — Import from hooks/ and lib/ only." Pre-existing pattern, not introduced by this task, at components/InterruptHandler.tsx:module imports:1.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix architecture issue at components/InterruptHandler.tsx:module imports:1
-- [ ] Consider a hook wrapper (e.g. useInterruptConfig) to restore the documented layer boundary
-
-**Source:** Audit finding F037 — severity 4 — architecture
-
----
-
----
-
-### Task #223: Fix brand-voice: tray tooltip strings use a forbidden exclamation mark and non-canonical "due" terminology.
-
-**File:** src-tauri/src/lib.rs
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Docs Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-Tray tooltips at lines 59 and 61 violate BRAND.md voice rules: "all caught up!" uses a forbidden exclamation mark, and "due" is used instead of the canonical terminology "ready". Pre-existing code, not touched by the #163/#164 diff, at src-tauri/src/lib.rs:tray tooltip strings:59.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix brand-voice issue at src-tauri/src/lib.rs:tray tooltip strings:59
-- [ ] Rewrite tooltip strings to match BRAND.md voice and terminology
-
-**Source:** Audit finding F038 — severity 2 — brand-voice
-
----
-
----
-
-### Task #224: Fix architecture: app/learn/page.tsx calls localStorage directly, bypassing the storage abstraction.
-
-**File:** app/learn/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-Direct localStorage call at line 127, bypassing the lib/storage.ts platform-storage abstraction required by CLAUDE.md ("Never call localStorage directly from any file outside lib/storage.ts"). Pre-existing/systemic issue, not introduced by this task, at app/learn/page.tsx:n/a:127.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix architecture issue at app/learn/page.tsx:n/a:127
-- [ ] Route through lib/storage.ts or a dedicated helper
-
-**Source:** Audit finding F039 — severity 2 — architecture
-
----
-
----
-
+Note: `MAX_APPEARANCES_BY_PHASE_DAY` in `lib/introduction.ts` was originally in this task's scope too (same underlying finding — a mutable exported scheduling table) but is dropped here to avoid two streams editing the same line: Task #179 (F07) already freezes it as part of its own scope.
+**Why:** Known-open finding across two consecutive Batch 1 audits. Latent rather than immediately exploitable (no live callers mutate this today), but the correct time to close a latent mutable-export gap is before the code ships to users, not after.
+**File:** `lib/langRegistry.ts`
+**Severity:** 4 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope fix
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Test required:** TypeScript compiler enforces freeze at compile time for typed callers; no new test needed beyond verifying tsc passes.
+**Done when:** `grep "Object.freeze(LANG_CONFIG_MAP)" lib/langRegistry.ts` returns a hit. `npx tsc --noEmit` clean. Verification gate green.
+**Owner:** Security Agent

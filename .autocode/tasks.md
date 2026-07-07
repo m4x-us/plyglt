@@ -3270,6 +3270,7 @@ Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from
 **Test required:** Yes — add test for `getDayOfPhase` with malformed date string (must throw). Tests for F02/F09 cross-day behavior were added in Task #178.
 **Done when:** `grep -n "Object.freeze" lib/introduction.ts` shows `MAX_APPEARANCES_BY_PHASE_DAY`. `grep -n "GRADUATION_THRESHOLD\|CONSECUTIVE_WRONG_RESET" lib/introduction.ts` shows constant declarations. Rule 2 header present. All new tests pass. Verification gate green.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
@@ -3287,6 +3288,7 @@ Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from
 **Test required:** Yes — one test per fix: (1) `lastSeenType` updates after `recordIntroductionResult`; (2) `canIntroduceNewCard` returns false when cross-day wrong streak exists; (3) `getIntroductionDueCardIds` includes a day-22+ non-graduated card; (4) `introduceCard` does not overwrite a graduated card.
 **Done when:** `grep -n "getNextCardType" store/srsStore.ts` shows an import and a call site. All 4 new tests pass and assert specific values. Verification gate green.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
@@ -3362,7 +3364,7 @@ After this task COMPLETES: remove the `# Hard gate — activates after Task #183
 **Why:** 50+ existence-only assertions = pseudocode coverage that passes even when behavior is broken. Systemic finding across Batch 1 audits. AGENTS.md Test Assertion Quality Gate and Rule 16 both require specific-value assertions for deterministic outputs.
 **File:** Multiple — `tests/introduction.test.ts`, `tests/packLoader.test.ts`, `tests/importBackup.test.ts`, `tests/seam_importRestore.test.ts`, `tests/exportBackup.test.ts`, `tests/entitlement.test.ts`, `tests/migrations.test.ts`, `tests/commitSession.test.ts`, `tests/srsStore.test.ts`, `tests/langRegistry.test.ts`, `tests/language.test.ts`, `tests/session.test.ts` + `AGENTS.md` (remove TODO comment)
 **Severity:** 7 | **DoD Tier:** 2
-**Complexity: Direct**
+**Complexity:** 🔧 Full — 13 files (12 test files + AGENTS.md)
 **Blocked by:** #184, #185 (some tests reference production code fixed there — write them red first, they turn green when those tasks close) | **Blocks:** Batch 1 audit PASS
 **Test required:** The task IS tests — assertions become more specific; a small number of new it() blocks added.
 **Done when:** `grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:"` returns zero output. `grep "activates after Task #183" AGENTS.md` returns zero hits. Verification gate green.
@@ -3377,11 +3379,12 @@ Add two tests: (a) introductions map containing a null record — must not throw
 **Why:** Both bugs can silently corrupt or destroy user SRS progress. The NaN risk is the same failure mode the migration comment already warns about; the null-record risk causes silent data loss via the Zustand fallback path.
 **File:** `store/migrations.ts`, `tests/migrations.test.ts`
 **Severity:** 5 | **DoD Tier:** 1
-**Complexity: Direct**
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix
 **Blocked by:** Nothing | **Blocks:** #183 (F007/F008 tests reference the corrected migration behaviour)
 **Test required:** Two new it() blocks as described above.
 **Done when:** New tests pass. `node -e "console.log(/^\d{4}-\d{2}-\d{2}$/.test('2026-13-45') && !isNaN(new Date('2026-13-45').getTime()))"` prints `false`. Verification gate green.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
@@ -3394,26 +3397,30 @@ Note: the corresponding test (`instance: { id: '' }` → ok:false) lives in Task
 **Why:** Users who activate on a degraded Lemon Squeezy response end up stuck — license appears active but every subsequent validation fails — with no recovery path other than re-entering their license key. Open as F011 across two consecutive audits with no task.
 **File:** `lib/entitlement.ts`
 **Severity:** 7 | **DoD Tier:** 1
-**Complexity: Direct**
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope fix
 **Blocked by:** Nothing | **Blocks:** #183 (the F010 test turns green once this fix is in place)
 **Test required:** Covered by Task #183 (F010). Run the full test suite to confirm no regressions.
 **Done when:** `grep "instance?.id" lib/entitlement.ts` has a hit at line 139. Verification gate green.
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 
 ### Task #186 | security | severity 4
-**What:** Wrap two mutable exported objects in `Object.freeze()`. (1) `LANG_CONFIG_MAP` in `lib/langRegistry.ts` is created via `Object.fromEntries()` but not frozen; any importer can write `LANG_CONFIG_MAP['it'] = maliciousConfig` without a TypeError, silently replacing a security-relevant language configuration. The existing frozen arrays (`ALL_PACK_CODES`, `READY_PACK_CODES`, `FREE_PACK_CODES`) all have a comment explaining why they are frozen — the asymmetric treatment of `LANG_CONFIG_MAP` is unexplained. (2) `MAX_APPEARANCES_BY_PHASE_DAY` in `lib/introduction.ts` is the introduction engine's central scheduling table; any importer can write `MAX_APPEARANCES_BY_PHASE_DAY[1] = 0` to suppress day-1 flooding without a TypeError.
+**What:** Wrap `LANG_CONFIG_MAP` in `Object.freeze()`. It is created via `Object.fromEntries()` in `lib/langRegistry.ts` but not frozen; any importer can write `LANG_CONFIG_MAP['it'] = maliciousConfig` without a TypeError, silently replacing a security-relevant language configuration. The existing frozen arrays (`ALL_PACK_CODES`, `READY_PACK_CODES`, `FREE_PACK_CODES`) all have a comment explaining why they are frozen — the asymmetric treatment of `LANG_CONFIG_MAP` is unexplained.
 
-Fix: `Object.freeze(LANG_CONFIG_MAP)` at point of declaration; `Object.freeze(MAX_APPEARANCES_BY_PHASE_DAY)` at point of declaration.
-**Why:** Both are known-open findings across two consecutive Batch 1 audits. They are latent rather than immediately exploitable (no live callers mutate these today), but the correct time to close a latent mutable-export gap is before the code ships to users, not after.
-**File:** `lib/langRegistry.ts`, `lib/introduction.ts`
+Fix: `Object.freeze(LANG_CONFIG_MAP)` at point of declaration.
+
+Note: `MAX_APPEARANCES_BY_PHASE_DAY` in `lib/introduction.ts` was originally in this task's scope too (same underlying finding — a mutable exported scheduling table) but is dropped here to avoid two streams editing the same line: Task #179 (F07) already freezes it as part of its own scope.
+**Why:** Known-open finding across two consecutive Batch 1 audits. Latent rather than immediately exploitable (no live callers mutate this today), but the correct time to close a latent mutable-export gap is before the code ships to users, not after.
+**File:** `lib/langRegistry.ts`
 **Severity:** 4 | **DoD Tier:** 1
-**Complexity: Direct**
+**Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope fix
 **Blocked by:** Nothing | **Blocks:** Nothing
 **Test required:** TypeScript compiler enforces freeze at compile time for typed callers; no new test needed beyond verifying tsc passes.
-**Done when:** `grep "Object.freeze(LANG_CONFIG_MAP)" lib/langRegistry.ts` and `grep "Object.freeze(MAX_APPEARANCES_BY_PHASE_DAY)" lib/introduction.ts` both return hits. `npx tsc --noEmit` clean. Verification gate green.
+**Done when:** `grep "Object.freeze(LANG_CONFIG_MAP)" lib/langRegistry.ts` returns a hit. `npx tsc --noEmit` clean. Verification gate green.
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-07**
 
 ---
 

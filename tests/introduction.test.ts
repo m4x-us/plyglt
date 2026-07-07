@@ -5,6 +5,8 @@ import { describe, it, expect } from "vitest";
 import type { IntroductionRecord } from "@/content/types";
 import {
   MAX_APPEARANCES_BY_PHASE_DAY,
+  GRADUATION_THRESHOLD,
+  CONSECUTIVE_WRONG_RESET,
   getDayOfPhase,
   maxAppearancesToday,
   shouldAppearToday,
@@ -18,6 +20,7 @@ describe("IntroductionRecord — shape", () => {
     const record: IntroductionRecord = {
       cardId: "it-a1u01-001",
       introducedDate: "2026-06-27",
+      phaseStartDate: "2026-06-27",
       dayOfPhase: 1,
       consecutiveCorrect: 0,
       totalEncounters: 0,
@@ -43,6 +46,7 @@ describe("IntroductionRecord — shape", () => {
     const record: IntroductionRecord = {
       cardId: "it-a1u01-002",
       introducedDate: "2026-06-26",
+      phaseStartDate: "2026-06-26",
       dayOfPhase: 2,
       consecutiveCorrect: 3,
       totalEncounters: 5,
@@ -55,6 +59,27 @@ describe("IntroductionRecord — shape", () => {
     expect(record.lastSeenType).toBe("recognize");
     expect(record.dayOfPhase).toBe(2);
     expect(record.consecutiveCorrect).toBe(3);
+  });
+});
+
+describe("GRADUATION_THRESHOLD / CONSECUTIVE_WRONG_RESET", () => {
+  it("GRADUATION_THRESHOLD is 15 — matches BRAND.md 15-consecutive-correct rule", () => {
+    expect(GRADUATION_THRESHOLD).toBe(15);
+  });
+
+  it("CONSECUTIVE_WRONG_RESET is 3 — matches BRAND.md triple-wrong Day 1 reset rule", () => {
+    expect(CONSECUTIVE_WRONG_RESET).toBe(3);
+  });
+
+  it("MAX_APPEARANCES_BY_PHASE_DAY is frozen (cannot be mutated by importers)", () => {
+    const attempt = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (MAX_APPEARANCES_BY_PHASE_DAY as any)[1] = 999;
+    };
+    // Object.freeze causes silent failure in non-strict mode and throws in strict mode.
+    // Either way the value must remain unchanged.
+    try { attempt(); } catch { /* strict mode throw — acceptable */ }
+    expect(MAX_APPEARANCES_BY_PHASE_DAY[1]).toBe(Infinity);
   });
 });
 
@@ -109,6 +134,18 @@ describe("getDayOfPhase", () => {
     // Exercises the Math.max(1, ...) lower-bound guard added in Task #042
     expect(getDayOfPhase("2026-06-28", "2026-06-27")).toBe(1);
   });
+
+  it("throws [ERR-INTRO-DATE] when phaseStartDate is not YYYY-MM-DD", () => {
+    expect(() => getDayOfPhase("invalid", "2026-06-27")).toThrow("[ERR-INTRO-DATE]");
+  });
+
+  it("throws [ERR-INTRO-DATE] when today is not YYYY-MM-DD", () => {
+    expect(() => getDayOfPhase("2026-06-27", "27-06-2026")).toThrow("[ERR-INTRO-DATE]");
+  });
+
+  it("throws [ERR-INTRO-DATE] on empty string inputs", () => {
+    expect(() => getDayOfPhase("", "2026-06-27")).toThrow("[ERR-INTRO-DATE]");
+  });
 });
 
 describe("maxAppearancesToday", () => {
@@ -146,6 +183,7 @@ describe("maxAppearancesToday", () => {
 const makeRecord = (overrides: Partial<IntroductionRecord>): IntroductionRecord => ({
   cardId: "it-a1u01-001",
   introducedDate: "2026-06-17",
+  phaseStartDate: "2026-06-17",
   dayOfPhase: 1,
   consecutiveCorrect: 0,
   totalEncounters: 0,
@@ -193,6 +231,18 @@ describe("shouldAppearToday", () => {
     // max=1 for day 8; date-reset sets appearances=0, so 0 < 1 → should appear
     expect(shouldAppearToday(record, "2026-06-27")).toBe(true);
   });
+
+  it("day 11 (on day), appearancesToday=1 today → false (0.5-cap: once per on-day)", () => {
+    // On an odd phase day in the 11–21 range, once we've seen the card today it must not reappear.
+    const record = makeRecord({ dayOfPhase: 11, lastSeenDate: "2026-06-27", appearancesToday: 1 });
+    expect(shouldAppearToday(record, "2026-06-27")).toBe(false);
+  });
+
+  it("day 11 (on day), appearancesToday=1 yesterday → true (day reset: yesterday count doesn't carry over)", () => {
+    // Yesterday's appearance count must not block today's single allowed appearance.
+    const record = makeRecord({ dayOfPhase: 11, lastSeenDate: "2026-06-26", appearancesToday: 1 });
+    expect(shouldAppearToday(record, "2026-06-27")).toBe(true);
+  });
 });
 
 describe("shouldGraduate", () => {
@@ -235,11 +285,18 @@ describe("recordResult", () => {
     expect(result.totalEncounters).toBe(11);
   });
 
-  it("third consecutive wrong resets dayOfPhase to 1 and clears consecutiveWrongToday", () => {
-    // consecutiveWrongToday: 2 + one more wrong = 3 total → Day 1 reset
-    const result = recordResult(makeRecord({ consecutiveWrongToday: 2, dayOfPhase: 8 }), false, "2026-06-27");
-    expect(result.dayOfPhase).toBe(1);
+  it("third consecutive wrong advances phaseStartDate to today and clears consecutiveWrongToday", () => {
+    // consecutiveWrongToday: 2 + one more wrong = 3 total → Day 1 reset via phaseStartDate advance
+    // phaseStartDate is set to today so getDayOfPhase(record.phaseStartDate, today) → 1
+    const result = recordResult(makeRecord({ consecutiveWrongToday: 2, dayOfPhase: 8, phaseStartDate: "2026-06-17" }), false, "2026-06-27");
+    expect(result.phaseStartDate).toBe("2026-06-27");
     expect(result.consecutiveWrongToday).toBe(0);
+    expect(result.consecutiveCorrect).toBe(0);
+    expect(result.graduated).toBe(false);
+    expect(result.totalEncounters).toBe(1);
+    expect(result.appearancesToday).toBe(1);
+    expect(result.lastSeenDate).toBe("2026-06-27");
+    expect(result.dayOfPhase).toBe(8); // stale — callers must recompute via getDayOfPhase(result.phaseStartDate, today)
   });
 
   it("does not mutate the original record (immutability)", () => {
@@ -258,11 +315,26 @@ describe("recordResult", () => {
     expect(result.lastSeenDate).toBe("2026-06-27");
   });
 
-  it("second consecutive wrong increments consecutiveWrongToday to 2 without resetting dayOfPhase", () => {
-    // Only 3rd wrong triggers Day 1 reset; 2nd wrong is an intermediate state
+  it("second consecutive wrong increments consecutiveWrongToday to 2 without triggering triple-wrong reset", () => {
+    // Only 3rd wrong triggers Day 1 reset; 2nd wrong is an intermediate state.
+    // dayOfPhase assertion removed (vacuous — recordResult never mutates dayOfPhase).
     const result = recordResult(makeRecord({ consecutiveWrongToday: 1, dayOfPhase: 8 }), false, "2026-06-27");
     expect(result.consecutiveWrongToday).toBe(2);
-    expect(result.dayOfPhase).toBe(8);
+    expect(result.consecutiveCorrect).toBe(0);
+    expect(result.phaseStartDate).toBe("2026-06-17"); // NOT reset — only 2nd wrong, not 3rd
+  });
+
+  it("cross-day wrong: 2 wrongs on a prior day do NOT count toward triple-wrong on a new day", () => {
+    // consecutiveWrongToday=2 from yesterday; one wrong today should give consecutiveWrongToday=1
+    // and must NOT trigger the triple-wrong Day 1 reset (cross-day carryover is the bug CF-02 fixes).
+    const result = recordResult(
+      makeRecord({ consecutiveWrongToday: 2, lastSeenDate: "2026-06-26", phaseStartDate: "2026-06-17" }),
+      false,
+      "2026-06-27",
+    );
+    expect(result.consecutiveWrongToday).toBe(1);
+    expect(result.phaseStartDate).toBe("2026-06-17"); // NOT reset — cross-day carryover must not fire
+    expect(result.consecutiveCorrect).toBe(0);
   });
 
   it("15th consecutive correct sets both consecutiveCorrect to 15 and graduated to true", () => {

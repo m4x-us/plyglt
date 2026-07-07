@@ -396,6 +396,7 @@ describe("srsStore — introduction engine actions", () => {
     expect(intro?.dayOfPhase).toBe(1);
     expect(intro?.consecutiveCorrect).toBe(0);
     expect(intro?.graduated).toBe(false);
+    expect(intro?.phaseStartDate).toBe("2026-06-24");
   });
 
   it("introduceCard is idempotent — second call does not reset an in-progress record", () => {
@@ -441,5 +442,120 @@ describe("srsStore — introduction engine actions", () => {
     }
     const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-24");
     expect(due).not.toContain("card-1");
+  });
+
+  // F03 — variety rule: lastSeenType must advance after each recordIntroductionResult call
+  it("recordIntroductionResult updates lastSeenType to the next card type (variety rule)", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe(null);
+
+    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    // getNextCardType(null, ALL_CARD_TYPES): null branch → pool = all types → first = "recognize"
+    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe("recognize");
+
+    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    // getNextCardType("recognize", ALL_CARD_TYPES): filters "recognize" → pool[0] = "produce"
+    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe("produce");
+  });
+
+  // F10 — cross-day wrong streak: canIntroduceNewCard must block when a card is stuck wrong
+  it("canIntroduceNewCard returns false when a card has a cross-day wrong streak at the reset threshold", () => {
+    useSRSStore.setState({
+      introductions: {
+        "stuck-card": {
+          cardId: "stuck-card",
+          introducedDate: "2026-06-23",
+          phaseStartDate: "2026-06-23",
+          dayOfPhase: 2,
+          consecutiveCorrect: 0,
+          totalEncounters: 3,
+          lastSeenDate: "2026-06-24",   // previous day — not today
+          appearancesToday: 3,
+          consecutiveWrongToday: 3,     // at the reset threshold
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    });
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
+  });
+
+  // F12 — rescue path: day-22+ non-graduated cards must appear once per day
+  it("getIntroductionDueCardIds includes a day-22+ non-graduated card once per day (rescue path)", () => {
+    // phaseStartDate 21 days before today → getDayOfPhase returns 22
+    useSRSStore.setState({
+      introductions: {
+        "stranded-card": {
+          cardId: "stranded-card",
+          introducedDate: "2026-06-01",
+          phaseStartDate: "2026-06-01",
+          dayOfPhase: 22,
+          consecutiveCorrect: 0,
+          totalEncounters: 30,
+          lastSeenDate: "2026-06-21",  // yesterday — not today, so no appearance cap yet
+          appearancesToday: 0,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    });
+    // getDayOfPhase("2026-06-01", "2026-06-22") = Math.min(21 + 1, 22) = 22 → rescue branch
+    const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-22");
+    expect(due).toContain("stranded-card");
+
+    // After appearing once today, must NOT appear a second time
+    useSRSStore.setState({
+      introductions: {
+        "stranded-card": {
+          ...useSRSStore.getState().introductions["stranded-card"]!,
+          lastSeenDate: "2026-06-22",
+          appearancesToday: 1,
+        },
+      },
+    });
+    const dueAfter = useSRSStore.getState().getIntroductionDueCardIds("2026-06-22");
+    expect(dueAfter).not.toContain("stranded-card");
+  });
+
+  // F13 — graduated card guard: introduceCard must not overwrite a graduated record
+  it("introduceCard does not re-introduce a graduated card", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    for (let i = 0; i < 15; i++) {
+      useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
+    }
+    expect(useSRSStore.getState().introductions["card-1"]?.graduated).toBe(true);
+    const graduatedRecord = useSRSStore.getState().introductions["card-1"];
+
+    useSRSStore.getState().introduceCard("card-1", "2026-07-01"); // re-introduce attempt
+    const after = useSRSStore.getState().introductions["card-1"];
+    expect(after?.graduated).toBe(true);
+    expect(after?.introducedDate).toBe(graduatedRecord?.introducedDate);
+  });
+
+  it("triple-wrong seam: recordIntroductionResult (3× wrong) resets phaseStartDate so getIntroductionDueCardIds returns day 1 scheduling", () => {
+    // Introduce on 2026-06-01. On day 10 (2026-06-10), answer wrong 3 times.
+    // Without phaseStartDate fix: getDayOfPhase(introducedDate, "2026-06-10") = 10.
+    // With fix: phaseStartDate advances to "2026-06-10" → getDayOfPhase returns 1.
+    useSRSStore.getState().introduceCard("card-seam", "2026-06-01");
+
+    // Verify initial state
+    const initial = useSRSStore.getState().introductions["card-seam"];
+    expect(initial?.phaseStartDate).toBe("2026-06-01");
+
+    // Three consecutive wrong answers on a later date
+    useSRSStore.getState().recordIntroductionResult("card-seam", false, "2026-06-10");
+    useSRSStore.getState().recordIntroductionResult("card-seam", false, "2026-06-10");
+    useSRSStore.getState().recordIntroductionResult("card-seam", false, "2026-06-10");
+
+    // phaseStartDate must have advanced to the reset date
+    const after = useSRSStore.getState().introductions["card-seam"];
+    expect(after?.phaseStartDate).toBe("2026-06-10");
+    expect(after?.consecutiveWrongToday).toBe(0);  // reset cleared — required for Day 1 scheduling to work
+    expect(after?.consecutiveCorrect).toBe(0);     // reset cleared
+
+    // getIntroductionDueCardIds must return this card on "2026-06-10" (day 1 = Infinity cap)
+    const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-10");
+    expect(due).toContain("card-seam");
   });
 });

@@ -4,8 +4,14 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade } from "@/lib/srs";
-import type { Card, IntroductionRecord, Unit } from "@/content/types";
-import { getDayOfPhase, recordResult, shouldAppearToday } from "@/lib/introduction";
+import type { Card, CardType, IntroductionRecord, Unit } from "@/content/types";
+import {
+  CONSECUTIVE_WRONG_RESET,
+  getDayOfPhase,
+  getNextCardType,
+  recordResult,
+  shouldAppearToday,
+} from "@/lib/introduction";
 import { createPlatformStorage } from "@/lib/storage";
 import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
 import { LANG_PAIR_KEY } from "@/lib/constants";
@@ -20,6 +26,10 @@ const _activeLangPair: string =
   typeof window !== "undefined"
     ? (window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it")
     : "en-it";
+
+// Pool of all possible presentation types; used by getNextCardType to enforce the variety rule
+// (BRAND.md: "each encounter uses a different retrieval angle").
+const ALL_CARD_TYPES: CardType[] = ["recognize", "produce", "conjugate", "fill_blank", "passage_cloze"];
 
 // A card is mastered only when it has been reviewed across multiple sessions at meaningful distance.
 // FSRS assigns ~1–4 days stability on first graduation — that is single-session learning, not retention.
@@ -208,10 +218,11 @@ export const useSRSStore = create<SRSState>()(
 
       introduceCard: (cardId, today) => {
         const existing = get().introductions[cardId];
-        if (existing && !existing.graduated) return;
+        if (existing) return; // any existing record (including graduated) must not be overwritten
         const record: IntroductionRecord = {
           cardId,
           introducedDate: today,
+          phaseStartDate: today,
           dayOfPhase: 1,
           consecutiveCorrect: 0,
           totalEncounters: 0,
@@ -226,17 +237,27 @@ export const useSRSStore = create<SRSState>()(
 
       recordIntroductionResult: (cardId, correct, today) => {
         const record = get().introductions[cardId];
-        if (!record) return;
-        const dayOfPhase = getDayOfPhase(record.introducedDate, today);
+        if (!record) {
+          console.error(`[plyglt] recordIntroductionResult: unknown cardId "${cardId}" — no introduction record found`);
+          return;
+        }
+        const dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
         const updated = recordResult({ ...record, dayOfPhase }, correct, today);
-        set((s) => ({ introductions: { ...s.introductions, [cardId]: updated } }));
+        const nextType = getNextCardType(record.lastSeenType, ALL_CARD_TYPES);
+        set((s) => ({ introductions: { ...s.introductions, [cardId]: { ...updated, lastSeenType: nextType } } }));
       },
 
       getIntroductionDueCardIds: (today) => {
         const { introductions } = get();
         return Object.entries(introductions)
           .filter(([, record]) => {
-            const dayOfPhase = getDayOfPhase(record.introducedDate, today);
+            const dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
+            // Rescue path: day 22+ non-graduates would get maxAppearancesToday=0 and disappear
+            // permanently from both queues. Show once per day until graduation.
+            if (!record.graduated && dayOfPhase >= 22) {
+              const appearances = record.lastSeenDate === today ? record.appearancesToday : 0;
+              return appearances < 1;
+            }
             return shouldAppearToday({ ...record, dayOfPhase }, today);
           })
           .map(([cardId]) => cardId);
@@ -244,7 +265,12 @@ export const useSRSStore = create<SRSState>()(
 
       canIntroduceNewCard: (today) => {
         const { introductions } = get();
-        return !Object.values(introductions).some((r) => r.introducedDate === today);
+        const values = Object.values(introductions);
+        // One new card per day: block if any card was introduced today
+        if (values.some((r) => r.introducedDate === today)) return false;
+        // BRAND.md cross-day spec: pause introductions when a card is stuck wrong across days
+        if (values.some((r) => r.consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET && r.lastSeenDate !== today)) return false;
+        return true;
       },
     }),
     {

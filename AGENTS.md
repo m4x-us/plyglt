@@ -41,6 +41,40 @@ npm run lint            # zero lint errors
 Current coverage thresholds (thresholds only ever increase — ratchet up, never down):
   lines=84, funcs=79, branches=81, stmts=82
 
+```bash
+# Hard gate — activates after Task #183 completes (remove this comment when #183 is COMPLETE)
+grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()" tests/ --include="*.test.*" | grep -v "existence-check:" && echo "FAIL: existence-only assertions found without justification" && exit 1 || true
+```
+
+## Test Assertion Quality Gate
+
+Every test written by this team must pass the Deletion Test before it ships:
+
+**The Deletion Test (mandatory):** After writing any `it()` block, mentally delete the specific production code path the test name describes. If the test still passes — the assertion is pseudocode. Rewrite it with a specific expected value.
+
+**Banned as primary assertions on non-trivial computed values:**
+- `.toBeDefined()` — proves existence, not value
+- `.toBeTruthy()` — proves truthiness, not value
+- `.not.toBeNull()` — proves non-null, not value
+- `.toBeGreaterThan(0)` — proves sign, not value
+
+**Required:** Every `it()` block must contain at least one `.toBe()`, `.toEqual()`, or `.toStrictEqual()` specifying the exact expected output.
+
+**Exception:** Existence checks are valid ONLY when the value is genuinely non-deterministic (auto-generated IDs, `Date.now()` timestamps). Mark every exception with an inline comment: `// existence-check: [specific reason why value is non-deterministic]`
+
+This is Rule 16 from `~/.claude/autocode/philosophy.md` — Enumerate Before You Assert.
+
+## Batch Completion Gate
+A batch is not done when the last task closes. It is done when the batch audit passes.
+
+After every batch reaches 100% COMPLETE:
+1. Run the Verification Gate above — all three green.
+2. Run `/audit [batch #]` — independent batch-level review against the full batch scope.
+3. Log the result in `.autocode/agents/cto.md` `## Batch Audit Log`.
+4. If the audit returns FAIL: stop. Fix all findings before starting the next batch.
+
+No batch may be marked `[COMPLETE]` in `.autocode/tasks.md` until step 2 returns PASS.
+
 ## Stop-the-Line Violations (no exceptions — stop and fix before continuing)
 - Any TypeScript error
 - Any failing test
@@ -49,3 +83,4 @@ Current coverage thresholds (thresholds only ever increase — ratchet up, never
 - Any parallel list/array that should be derived from a single source of truth
 - Any user-visible feature with zero tests covering its happy path
 - Any function that can silently corrupt persisted user data
+- Any `.toBeDefined()` / `.toBeTruthy()` / `.not.toBeNull()` assertion without an inline `// existence-check: [reason]` comment explaining why existence is the correct assertion for this specific value
