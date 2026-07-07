@@ -9,13 +9,21 @@
 // Longest alternatives first: prevents partial prefix matches
 // ("un" must come after "uno"/"una"/"un'" so "una pizza" strips correctly)
 
-export const ITALIAN_ARTICLES = /^(il|lo|la|l'|l'|gli|le|un'|un'|uno|una|un|i)\s*/i;
+export const ITALIAN_ARTICLES = /^(il|lo|la|l'|gli|le|un'|uno|una|un|i)\s*/i;
 export const SPANISH_ARTICLES = /^(el|los|las|la|unos|unas|una|un)\s*/i;
+
+// Matches both the straight apostrophe (U+0027) and the curly/typographic apostrophe
+// (U+2019 — what iOS/macOS autocorrect produces by default, e.g. typed "l'amico").
+// The pre-existing /['']/g pattern below was itself a duplicate-alternation bug — both
+// characters inside the brackets were U+0027, so it never matched U+2019 at all.
+const APOSTROPHE_RE = /['’]/g;
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
+// Apostrophe normalized to straight (') before matching so a curly-apostrophe answer
+// strips identically to the straight-apostrophe form ITALIAN_ARTICLES is written with.
 export function stripArticle(s: string, articles: RegExp | null): string {
-  return articles ? s.replace(articles, "") : s;
+  return articles ? s.replace(APOSTROPHE_RE, "'").replace(articles, "") : s;
 }
 
 // Standard dynamic-programming Levenshtein distance.
@@ -48,7 +56,7 @@ export function checkAnswer(
   const normalize = (s: string) =>
     s.toLowerCase().trim()
       .normalize("NFC")
-      .replace(/['']/g, "'")
+      .replace(APOSTROPHE_RE, "'")
       .replace(/\s+/g, " ");
 
   // Used only when diacriticTolerant: true — NFD decompose, strip combining marks, re-compose
@@ -56,7 +64,7 @@ export function checkAnswer(
     s.toLowerCase().trim()
       .normalize("NFD").replace(/[̀-ͯ]/g, "")
       .normalize("NFC")
-      .replace(/['']/g, "'")
+      .replace(APOSTROPHE_RE, "'")
       .replace(/\s+/g, " ");
 
   const t = normalize(typed);

@@ -44,6 +44,11 @@ describe("stripArticle", () => {
   it("leaves word unchanged when no article prefix matches", () => {
     expect(stripArticle("gatto", ITALIAN_ARTICLES)).toBe("gatto");
   });
+
+  it("strips a curly-apostrophe article (l’) identically to the straight form (l')", () => {
+    expect(stripArticle("l’amico", ITALIAN_ARTICLES)).toBe("amico");
+    expect(stripArticle("l'amico", ITALIAN_ARTICLES)).toBe("amico");
+  });
 });
 
 // ── checkAnswer — basic matching ──────────────────────────────────────────────
@@ -93,6 +98,26 @@ describe("checkAnswer — article stripping", () => {
 
   it("typed without article matches accepted with article", () => {
     expect(checkAnswer("gatto", ["il gatto"], italianOpts)).toBe("correct");
+  });
+
+  // Task #226: a curly/typographic apostrophe (U+2019, what iOS/macOS autocorrect produces
+  // by default) must strip identically to the straight-apostrophe form ITALIAN_ARTICLES is
+  // written with — previously the apostrophe-normalization regex was itself a duplicate-
+  // alternation bug (both branches were the straight quote), so curly-quote input never
+  // stripped and fell through to "wrong".
+  it("typed with curly-apostrophe article (’) matches accepted without article", () => {
+    expect(checkAnswer("l’amico", ["amico"], italianOpts)).toBe("correct");
+  });
+
+  it("typed with curly-apostrophe 'un’' article matches accepted without article", () => {
+    expect(checkAnswer("un’amica", ["amica"], italianOpts)).toBe("correct");
+  });
+
+  it("straight- and curly-apostrophe typed forms produce the same result", () => {
+    const straight = checkAnswer("l'amico", ["amico"], italianOpts);
+    const curly = checkAnswer("l’amico", ["amico"], italianOpts);
+    expect(curly).toBe(straight);
+    expect(curly).toBe("correct");
   });
 });
 
