@@ -1026,3 +1026,13 @@ Audit: 8 independent agents (A, B, S, N, K, W, V, Red R) spawned in parallel aga
   [AUD-6|sev:2|code-quality|tests/migrations.test.ts:243-252, tests/packLoader.test.ts:122, tests/session.test.ts:69|5 existence-check comments misapplied to already-exact assertions or a deleted line, not a retained banned pattern|NEW — 4-way convergence (A, K, V, W) — fixed]
 Fixed this cycle: AUD-1, AUD-2, AUD-5, AUD-6 (all fixed inline before commit) | Still open: AUD-3 → Task #226, AUD-4 → Task #227 (both legitimately out-of-scope: severity ≥5, files not in TASK_FILES) | New findings: none introduced by the fixes themselves (re-ran full gate after each fix) | Regression signal: NO
 CTO diagnosis run: NO — first cycle, all fixes verified directly against production code (not just re-asserted)
+
+### Task #226 | Fix curly-apostrophe grading bug in ITALIAN_ARTICLES matching | Status: COMPLETE | Cycle 1 | Completed: 2026-07-07
+
+#### Cycle 1 — 2026-07-07 — Direct Task (Builder path)
+Build approach: lib/answerCheck.ts:19 — extracted `APOSTROPHE_RE = /['’]/g` (a real fix; the pre-existing `/['']/g` in normalize()/normalizeStripped() at lines 59/67 was itself byte-identical on both sides, a deeper instance of the same duplicate-alternation bug class the task's own title named). lib/answerCheck.ts:25-27 — stripArticle() now normalizes apostrophes via APOSTROPHE_RE before applying the articles regex. lib/answerCheck.ts:12 — removed the now-redundant `l'|l'`/`un'|un'` duplicate branches from ITALIAN_ARTICLES. tests/answerCheck.test.ts — 4 new tests (curly-apostrophe checkAnswer ×2, straight/curly parity, stripArticle curly-apostrophe). tests/language.test.ts:174 — updated the exact regex-source pin to the corrected pattern.
+Scripts: PASS — tsc clean, 999/999 tests (up from 995), coverage 87.21%/81.57%/86.23%/90.21% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Spot check: PASS — independently verified APOSTROPHE_RE matches distinct codepoints (U+0027, U+2019), hand-traced stripArticle for both l' and un' branches, confirmed all 4 new tests would fail if only the APOSTROPHE_RE fix were reverted (dedup alone)
+Done-when: PASS — new curly-apostrophe tests pass, language.test.ts regex-source assertion updated, verification gate green
+Fixed this cycle: root cause (dead regex + a deeper, same-class bug in normalize/normalizeStripped) | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
