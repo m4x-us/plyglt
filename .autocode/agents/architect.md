@@ -95,6 +95,9 @@ All production `licenseType === "subscription"` occurrences resolved:
 - `app/settings/page.tsx:91` — display label. Comment added: `{/* display label — not a feature gate */}`.
 - `app/settings/page.tsx:100` — "Manage subscription →" button. Documented as intentional exception: no `manageSubscription` feature flag exists; button is correctly conditioned on licenseType alone.
 
+## Open Findings (from Task #183 audit, 2026-07-07)
+- **[sev:8] `lib/answerCheck.ts:12` `ITALIAN_ARTICLES` regex has dead duplicate alternation** — `/^(il|lo|la|l'|l'|gli|le|un'|un'|uno|una|un|i)\s*/i`; the `l'|l'` and `un'|un'` pairs are byte-identical (both ASCII straight apostrophe U+0027). Strongly suggests curly-apostrophe (U+2019, what iOS/macOS autocorrect produces by default) support was intended but never implemented. Empirically confirmed: `checkAnswer("l'amico", ...)` (curly quote) returns `"wrong"` where the straight-quote form returns `"correct"` — a real grading bug for Apple-device users. Surfaced (not caused) by Task #183's test hardening, which correctly pinned the exact (buggy) regex as current behavior. Task #226 created to fix.
+
 ## Dead Zones (features mentioned in docs but no implementation)
 - `vacationMode` flag in featureFlags.ts — no store action, no UI, no scheduler logic. Intentional stub.
 - `analytics` flag — now connected to stats page Pro gate (Task #155 scheduled). Gate was missing; stats page was always visible regardless of Pro status.

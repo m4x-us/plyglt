@@ -1011,3 +1011,18 @@ Spot check: WARN (3 items, severity 1-3, logged to debt.md/patterns.md — a sib
 Done-when: PASS — 22/22 phase days individually verified at runtime (parameterized form, per the done-when's own escape clause), 11-field assertion test exists, toBe("recognize") replaces toContain, all 3 files ≤ 250 lines, verification gate green
 Fixed this cycle: F14, F15, F16, F21, F22, Task #178 debt item | Still open: — | New findings: DSC-1 (sev 3), DSC-2 (sev 2), DSC-3 (sev 1) — all logged as debt, none blocking | Regression signal: NO
 CTO diagnosis run: NO — Direct task
+
+### Task #183 | Harden ~50 existence-only test assertions to specific-value assertions | Status: COMPLETE | Cycle 1 | Completed: 2026-07-07
+
+#### Cycle 1 — 2026-07-07 — Full Task (Builder + 8-agent audit)
+Build approach: Hardened existence-only assertions across 12 test files (tests/packLoader.test.ts:114-122, tests/importBackup.test.ts:61-77, tests/seam_importRestore.test.ts:82-91+155-165, tests/exportBackup.test.ts:47-54, tests/commitSession.test.ts:22-58, tests/srsStore.test.ts:355-388, tests/entitlement.test.ts multiple, tests/migrations.test.ts multiple, tests/langRegistry.test.ts:246-252, tests/language.test.ts:173-174+241-244, tests/session.test.ts:65-100, tests/introduction_behavior.test.ts:239-245) + made AGENTS.md's grep gate permanent (removed "activates after Task #183" comment, merged into main Verification Gate block, added F021 documented-limitation note).
+Scripts: PASS — tsc clean, 995/995 tests, coverage 87.2%/81.57%/86.23%/90.21% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Audit: 8 independent agents (A, B, S, N, K, W, V, Red R) spawned in parallel against the full diff + production code. Findings (structured):
+  [AUD-1|sev:6|tests|tests/introduction_behavior.test.ts:239|My own fix introduced a Rule 18/B7 violation: fixture's available[0] already equaled the correct answer before filtering, so deleting the filter wouldn't fail the test|NEW — caught by Agent K, confirmed independently]
+  [AUD-2|sev:6|tests|AGENTS.md:69|Stale "all three green" cross-reference orphaned by this diff's own edit to "all four must be green" above|NEW — caught by Agents A and V]
+  [AUD-3|sev:8|code-quality|lib/answerCheck.ts:12|ITALIAN_ARTICLES regex has dead duplicate alternation (both l-apostrophe and un-apostrophe branches repeated identically) masking a real, empirically-verified curly-apostrophe grading bug|NEW — pre-existing, out of TASK_FILES, spun out as Task #226 — caught by Agents W, N, R]
+  [AUD-4|sev:4|tooling|AGENTS.md:34-38|Gate prose bans toBeGreaterThan(0) as a 4th pattern but mechanical grep only checks 3; 6 unjustified instances remain outside this task's files|NEW — spun out as Task #227 — caught by Agents B, N, V]
+  [AUD-5|sev:4|process|tests/migrations.test.ts, tests/entitlement.test.ts|Finding-ID comments (F007/F008/F010/F011/F017/F019) collided with unrelated IDs from the Batch 19 audit — no namespace disambiguation|NEW — caught by Red Agent R (unprimed) — fixed by prefixing "Task #183"]
+  [AUD-6|sev:2|code-quality|tests/migrations.test.ts:243-252, tests/packLoader.test.ts:122, tests/session.test.ts:69|5 existence-check comments misapplied to already-exact assertions or a deleted line, not a retained banned pattern|NEW — 4-way convergence (A, K, V, W) — fixed]
+Fixed this cycle: AUD-1, AUD-2, AUD-5, AUD-6 (all fixed inline before commit) | Still open: AUD-3 → Task #226, AUD-4 → Task #227 (both legitimately out-of-scope: severity ≥5, files not in TASK_FILES) | New findings: none introduced by the fixes themselves (re-ran full gate after each fix) | Regression signal: NO
+CTO diagnosis run: NO — first cycle, all fixes verified directly against production code (not just re-asserted)
