@@ -209,6 +209,51 @@ describe("loadPack", () => {
     if (!result.ok) expect(result.error).toBe("parse_error");
   });
 
+  it("evicts a shape-invalid cache entry hit via the network-throws offline-fallback path (Task #251)", async () => {
+    // Same setup as the semantic-corruption test above, but proves the corrupted entry is actually
+    // cleared — not just rejected once. Without clearPackCache here, every subsequent offline load
+    // attempt would hit the same corrupted bytes and return parse_error forever, with no path to
+    // self-heal until a version bump succeeds online. This test fails if clearPackCache is removed
+    // from this branch.
+    const malformedPack = { ...fakePack(), units: "not-an-array" };
+    localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => { throw new Error("Network error"); });
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    // Corrupted cache entry evicted — a subsequent load isn't blocked by the same stale bytes
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+
+    // A later successful download is not blocked by the (now-evicted) corrupted cache
+    vi.stubGlobal("fetch", async () => ({ ok: true, text: async () => PACK_JSON }));
+    const retryResult = await loadPack("it", fakeManifest(), { forceRedownload: true });
+    expect(retryResult.ok).toBe(true);
+  });
+
+  it("evicts a shape-invalid cache entry hit via the !res.ok offline-fallback path (Task #251)", async () => {
+    // Sibling of the network-throws test above — the !res.ok branch (HTTP error status) is a
+    // structurally identical offline-fallback path with the same eviction requirement. This test
+    // fails if clearPackCache is removed from this specific branch, even if the network-throws
+    // branch above still has it — the two are fixed independently.
+    const malformedPack = { ...fakePack(), units: "not-an-array" };
+    localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 503 }));
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+  });
+
   it("returns parse_error when downloaded pack JSON has null units field", async () => {
     const malformedPack = { ...fakePack(), units: null };
     const malformedJson = JSON.stringify(malformedPack);

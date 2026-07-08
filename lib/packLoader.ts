@@ -221,12 +221,17 @@ export async function loadPack(
         try {
           const pack = JSON.parse(cachedData) as Pack;
           if (!hasValidUnitsArray(pack)) {
+            // Evict — matching the cache-hit branches above. Without this, a shape-invalid
+            // cache entry is never cleared and every subsequent offline load attempt hits
+            // the same corrupted data, with no path to self-heal until online again.
+            await clearPackCache(lang);
             return { ok: false, error: "parse_error" };
           }
           memCache.set(lang, pack);
           return { ok: true, pack };
         } catch (err) {
           console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
+          await clearPackCache(lang);
           return { ok: false, error: "parse_error" };
         }
       }
@@ -240,12 +245,17 @@ export async function loadPack(
       try {
         const pack = JSON.parse(cachedData) as Pack;
         if (!hasValidUnitsArray(pack)) {
+          // Evict — matching the cache-hit branches above. Without this, a shape-invalid
+          // cache entry is never cleared and every subsequent offline load attempt hits
+          // the same corrupted data, with no path to self-heal until online again.
+          await clearPackCache(lang);
           return { ok: false, error: "parse_error" };
         }
         memCache.set(lang, pack);
         return { ok: true, pack };
       } catch (parseErr) {
         console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, parseErr);
+        await clearPackCache(lang);
         return { ok: false, error: "parse_error" };
       }
     }
