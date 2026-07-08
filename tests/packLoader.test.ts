@@ -228,11 +228,6 @@ describe("loadPack", () => {
     // Corrupted cache entry evicted — a subsequent load isn't blocked by the same stale bytes
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
-
-    // A later successful download is not blocked by the (now-evicted) corrupted cache
-    vi.stubGlobal("fetch", async () => ({ ok: true, text: async () => PACK_JSON }));
-    const retryResult = await loadPack("it", fakeManifest(), { forceRedownload: true });
-    expect(retryResult.ok).toBe(true);
   });
 
   it("evicts a shape-invalid cache entry hit via the !res.ok offline-fallback path (Task #251)", async () => {
@@ -242,6 +237,41 @@ describe("loadPack", () => {
     // branch above still has it — the two are fixed independently.
     const malformedPack = { ...fakePack(), units: "not-an-array" };
     localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 503 }));
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+  });
+
+  it("evicts a cache entry that fails to parse (invalid JSON, not just wrong shape) hit via the network-throws offline-fallback path (Task #260)", async () => {
+    // Distinct sub-case from the "not-an-array" shape-check tests above: this cached data is
+    // syntactically invalid JSON, so JSON.parse itself throws inside parseValidateAndCache rather
+    // than hasValidUnitsArray rejecting a successfully-parsed object. Both sub-cases route through
+    // the same shared evictAndReject tail, but this proves the parse-throw catch specifically
+    // still evicts — this test fails if that catch stops calling clearPackCache.
+    localStorageMock.setItem("pack-data-v1-it", "{not valid json");
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => { throw new Error("Network error"); });
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+  });
+
+  it("evicts a cache entry that fails to parse (invalid JSON, not just wrong shape) hit via the !res.ok offline-fallback path (Task #260)", async () => {
+    // Sibling of the network-throws parse-throw test above — same sub-case, other offline-fallback
+    // branch. Fails if that branch's own routing through parseValidateAndCache regresses.
+    localStorageMock.setItem("pack-data-v1-it", "{not valid json");
     localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
 
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -498,8 +528,10 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     if (!result.ok) expect(result.error).toBe("parse_error");
     // Shape validation rejects at cache-hit time — no download attempt
     expect(fetchSpy).not.toHaveBeenCalled();
-    // Malformed data evicted from cache
+    // Malformed data evicted from cache — both keys, not just data (Task #260: a regression
+    // dropping only meta-key removal from clearPackCache would slip past a data-key-only check)
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
   });
 
   it("returns parse_error when no-manifest cache-hit pack has non-array units", async () => {
@@ -519,8 +551,9 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     if (!result.ok) expect(result.error).toBe("parse_error");
     // No download attempted — shape check fires at cache-hit time
     expect(fetchSpy).not.toHaveBeenCalled();
-    // Malformed data evicted from cache
+    // Malformed data evicted from cache — both keys, not just data (Task #260)
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
   });
 });
 
@@ -765,11 +798,59 @@ describe("specialty pack merge path", () => {
     expect(getLoadedAddOns()).not.toContain("it-medical");
   });
 
-  it("rejects a malformed add-on pack via the shared hasValidUnitsArray guard (Task #250)", async () => {
-    // specialtyPackLoader.ts now delegates its shape check to lib/packTypes.ts's
-    // hasValidUnitsArray instead of its own inline Array.isArray(...) copy. This test fails
-    // if that delegation is removed and the sibling check regresses independently of
-    // lib/packLoader.ts's own copy of the same guard.
+  it("#259/#260: force-redownloading a base pack prunes its merged specialty add-on via the !res.ok offline-fallback path", async () => {
+    // Sibling of the fresh-download-success #259 test above — this exercises a DIFFERENT one of
+    // the 3 forceRedownload-reachable memCache.set sites (the offline-fallback path, reached when
+    // the forced redownload's fetch itself fails and platform-storage-cached bytes are served
+    // instead). Before Task #260's shared-helper extraction, only the fresh-download success site
+    // was covered; this test fails if the offline-fallback branch's clearSpecialtyPacksForLang call
+    // regresses independently of the fresh-download site.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest());
+    expect(getLoadedAddOns()).toContain("it-medical");
+
+    // Force-redownload fails (HTTP error) — falls back to the valid (unmerged) storage-cached
+    // base pack. loadedAddOns must still be pruned even though this is the fallback path, not
+    // the success path.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false, status: 503 }));
+    const result = await loadPack("it", fakeAddOnManifest(), { forceRedownload: true });
+
+    expect(result.ok).toBe(true);
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+  });
+
+  it("#259/#260: force-redownloading a base pack prunes its merged specialty add-on via the network-throw offline-fallback path", async () => {
+    // Sibling of the test above — the network-throw offline-fallback branch is a structurally
+    // identical but independently-routed path (a separate catch block in loadPack). Fails if
+    // this specific branch's clearSpecialtyPacksForLang call regresses even if the !res.ok
+    // sibling above still has it.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest());
+    expect(getLoadedAddOns()).toContain("it-medical");
+
+    vi.stubGlobal("fetch", vi.fn().mockImplementationOnce(async () => { throw new Error("Network error"); }));
+    const result = await loadPack("it", fakeAddOnManifest(), { forceRedownload: true });
+
+    expect(result.ok).toBe(true);
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+  });
+
+  it("rejects a malformed add-on pack, proving specialtyPackLoader.ts's shape check actually rejects bad units (Task #250)", async () => {
+    // specialtyPackLoader.ts delegates its shape check to lib/packTypes.ts's hasValidUnitsArray
+    // instead of its own inline Array.isArray(...) copy. This test proves the rejection behavior
+    // holds today — it does NOT prove delegation specifically, since reverting to the old
+    // functionally-identical inline check would still pass this exact assertion set (Task #260
+    // note: delegation itself is verified by code review / the import statement, not by this test).
     const malformedAddOnJson = JSON.stringify({ ...fakeAddOnPack(), units: "not-an-array" });
     const malformedSha = createHash("sha256").update(malformedAddOnJson).digest("hex");
     const baseManifest = fakeAddOnManifest();

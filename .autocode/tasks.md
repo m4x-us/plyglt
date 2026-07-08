@@ -4215,6 +4215,17 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 
 **Source:** Proactive architecture finding, identified while reviewing Batch 18's cycle-6 audit findings, 2026-07-08 — not itself an audit finding, a structural fix for the root cause behind 4 consecutive cycles' worth of "fixed here, missed the sibling" findings in this exact function.
 
+**Folded in from debt.md (Debt Review, 2026-07-08) — 9 items, all in scope for this task:**
+- [data-loss, sev 5] Task #259's fix missed 4 sibling `clearPackCache`+return sites in the same two offline-fallback blocks it edited — the exact defect this task's helper extraction eliminates structurally (all 5 sites route through one implementation, so this can't recur)
+- [code-quality, sev 3] The 4 near-identical parse→validate→evict blocks (Task #251) — the finding that spawned this task
+- [tests, sev 3] Task #259's test only exercises 1 of 3 fixed call sites — the consolidated test suite must cover all 5 original code paths through the shared helper
+- [tests, sev 3] The two JSON.parse-throws catch blocks (within the offline-fallback branches) have no dedicated test distinct from the shape-check sub-case — must be covered once the helper is shared
+- [code-quality, sev 3] `clearPackCache`'s new error logs use lang-keyed ref IDs (`ERR-CACHE-CLEAR-META-{lang}`) instead of the file's established `Date.now()`-based uniqueness pattern — align with the rest of the file while touching this code
+- [code-quality, sev 3] `clearSpecialtyPacksForLang`/`clearPackCache` pairing fragility — no internal guard against a future caller invoking one without the other; the shared helper closes this by construction
+- [tests, sev 3] Task #248's shape-validation tests assert only the data-key is null after eviction, not the meta-key — fix while consolidating eviction-path tests
+- [tests, sev 3] Task #250's test comment overclaims "delegation" when it only proves rejection behavior — correct the comment/test name while touching this test file
+- [tests, sev 2] Task #251's "network-throws" test has a redundant/misleading `forceRedownload` retry assertion that proves nothing about eviction — remove or fix while consolidating
+
 ---
 
 ## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 39 tasks | [TASKS COMPLETE — pending batch audit]

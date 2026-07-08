@@ -94,6 +94,17 @@ async function writeCacheData(lang: string, json: string): Promise<void> {
   await getStorage().setItem(CACHE_DATA_PREFIX + lang, json);
 }
 
+/**
+ * Clears a base pack's cache entries (memory + platform storage) and prunes any specialty
+ * add-ons merged into it — the two are inseparable: an evicted base pack can never have its
+ * merge state left dangling. Pruning lives INSIDE this function, not at each call site, because
+ * 4 consecutive Batch 18 remediation tasks (#250, #251, #253, #259) each independently forgot
+ * to pair the two calls at one or more of clearPackCache's several call sites — most recently
+ * Task #259 added clearSpecialtyPacksForLang after 3 of loadPack's memCache.set calls but missed
+ * 4 sibling clearPackCache-and-return call sites in the same two blocks it was editing. Folding
+ * the prune into clearPackCache itself means every call site, present and any added later, gets
+ * the guarantee automatically — there is no longer a second line to remember.
+ */
 async function clearPackCache(lang: string): Promise<void> {
   // allSettled: both removals run regardless of whether either throws.
   // memCache.delete always runs after — a storage I/O failure must never leave
@@ -103,12 +114,69 @@ async function clearPackCache(lang: string): Promise<void> {
     getStorage().removeItem(CACHE_DATA_PREFIX + lang),
   ]);
   if (metaResult.status === "rejected") {
-    console.error(`[ERR-CACHE-CLEAR-META-${lang}] storage removeItem failed — meta key may persist`, metaResult.reason);
+    console.error(`[ERR-CACHE-CLEAR-META-${lang}-${Date.now()}] storage removeItem failed — meta key may persist`, metaResult.reason);
   }
   if (dataResult.status === "rejected") {
-    console.error(`[ERR-CACHE-CLEAR-DATA-${lang}] storage removeItem failed — data key may persist`, dataResult.reason);
+    console.error(`[ERR-CACHE-CLEAR-DATA-${lang}-${Date.now()}] storage removeItem failed — data key may persist`, dataResult.reason);
   }
   memCache.delete(lang);
+  clearSpecialtyPacksForLang(lang);
+}
+
+// ── Shared parse/validate/cache-or-evict helpers ──────────────────────────────
+//
+// loadPack serves pack JSON from 5 different origins (2 cache-hit branches, 2 offline-fallback
+// branches, 1 fresh-download success). All 5 need the same guarantee on any memCache write:
+// clearSpecialtyPacksForLang must run before memCache.set, so a merged specialty pack's tracking
+// state never outlives the data it was merged into. (The eviction-side pairing is now handled
+// inside clearPackCache itself — see its doc comment above.) Prior to this extraction each of
+// the 5 sites hand-rolled this logic independently; centralizing it here means a 6th call site
+// (or a future edit to an existing one) gets the guarantee for free.
+
+/** Success tail shared by every site that adds `pack` to memCache under `lang`. */
+function cacheAndReturn(lang: string, pack: Pack): LoadPackResult {
+  clearSpecialtyPacksForLang(lang);
+  memCache.set(lang, pack);
+  return { ok: true, pack };
+}
+
+/**
+ * Failure tail for previously-cached bytes that fail to parse or fail shape validation.
+ * Evicts the corrupted cache entry — without this, a corrupted cache entry blocks every future
+ * load forever. Not used by the fresh-download path: a malformed server response shouldn't evict
+ * a still-good local cache, since nothing has been cached from it yet.
+ */
+async function evictAndReject(lang: string): Promise<LoadPackResult> {
+  await clearPackCache(lang);
+  return { ok: false, error: "parse_error" };
+}
+
+/** Shape-validates an already-parsed pack, evicting on failure or caching on success. */
+async function validateAndCache(lang: string, pack: Pack): Promise<LoadPackResult> {
+  if (!hasValidUnitsArray(pack)) {
+    return evictAndReject(lang);
+  }
+  return cacheAndReturn(lang, pack);
+}
+
+/**
+ * Parses and shape-validates JSON already sitting in cache. Used by the 2 offline-fallback
+ * branches, where a JSON.parse throw and a shape-validation failure both mean the same thing
+ * (no further fallback exists — return the error immediately). NOT used by the 2 cache-hit
+ * branches: those wrap their own JSON.parse in an outer try/catch so a parse throw there falls
+ * through to attempt a fresh download instead of erroring immediately — a fresh download hasn't
+ * been attempted yet at that point, so a corrupt cache entry there isn't necessarily fatal. Those
+ * branches call validateAndCache directly once parsing succeeds, preserving that distinction.
+ */
+async function parseValidateAndCache(lang: string, jsonText: string): Promise<LoadPackResult> {
+  let pack: Pack;
+  try {
+    pack = JSON.parse(jsonText) as Pack;
+  } catch (err) {
+    console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
+    return evictAndReject(lang);
+  }
+  return validateAndCache(lang, pack);
 }
 
 // ── Pack URL helpers ──────────────────────────────────────────────────────────
@@ -192,27 +260,26 @@ export async function loadPack(
         // Re-verify hash — never trust data that might have been corrupted since caching
         const actual = await sha256Hex(cachedData);
         if (actual !== manifestEntry.sha256) {
+          // clearPackCache also prunes specialty tracking for lang (see its doc comment) — this
+          // branch is only reachable when memCache.has(lang) was already false (step 1's
+          // memory-hit check would have short-circuited otherwise), so there is never a merged
+          // specialty pack in memCache here to worry about pruning stale; the prune still runs,
+          // it's simply a no-op in that case. The guarantee holds regardless of this invariant.
           await clearPackCache(lang);
           cachedData = null; // A003: prevent integrity-failed bytes from reaching stale-cache fallback
           // fall through to re-download
         } else {
+          // JSON.parse stays inside this outer try (not routed through parseValidateAndCache) so a
+          // throw here falls through to attempt a fresh download below, rather than erroring
+          // immediately — no download has been attempted yet at this point in the function.
           const pack = JSON.parse(cachedData) as Pack;
-          if (!hasValidUnitsArray(pack)) {
-            await clearPackCache(lang);
-            return { ok: false, error: "parse_error" };
-          }
-          memCache.set(lang, pack);
-          return { ok: true, pack };
+          return await validateAndCache(lang, pack);
         }
       } else {
-        // No manifest to compare against — serve cache as-is (offline degradation)
+        // No manifest to compare against — serve cache as-is (offline degradation).
+        // Same fall-through-on-parse-throw reasoning as the branch above.
         const pack = JSON.parse(cachedData) as Pack;
-        if (!hasValidUnitsArray(pack)) {
-          await clearPackCache(lang);
-          return { ok: false, error: "parse_error" };
-        }
-        memCache.set(lang, pack);
-        return { ok: true, pack };
+        return await validateAndCache(lang, pack);
       }
     } catch (err) {
       console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
@@ -228,26 +295,7 @@ export async function loadPack(
     if (!res.ok) {
       // Offline fallback: serve stale cache if available
       if (cachedData) {
-        try {
-          const pack = JSON.parse(cachedData) as Pack;
-          if (!hasValidUnitsArray(pack)) {
-            // Evict — matching the cache-hit branches above. Without this, a shape-invalid
-            // cache entry is never cleared and every subsequent offline load attempt hits
-            // the same corrupted data, with no path to self-heal until online again.
-            await clearPackCache(lang);
-            return { ok: false, error: "parse_error" };
-          }
-          // Task #259: prune specialty add-ons before overwriting memCache — forceRedownload skips
-          // the memory-hit short-circuit, so a merged specialty pack may be in memCache. Without
-          // this, getLoadedAddOns() reports a code as loaded whose units were just dropped.
-          clearSpecialtyPacksForLang(lang);
-          memCache.set(lang, pack);
-          return { ok: true, pack };
-        } catch (err) {
-          console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
-          await clearPackCache(lang);
-          return { ok: false, error: "parse_error" };
-        }
+        return await parseValidateAndCache(lang, cachedData);
       }
       return { ok: false, error: "download_failed" };
     }
@@ -256,24 +304,7 @@ export async function loadPack(
     // Network error — serve stale cache
     console.error(`[PACK_DOWNLOAD_FAIL-${Date.now()}]`, err);
     if (cachedData) {
-      try {
-        const pack = JSON.parse(cachedData) as Pack;
-        if (!hasValidUnitsArray(pack)) {
-          // Evict — matching the cache-hit branches above. Without this, a shape-invalid
-          // cache entry is never cleared and every subsequent offline load attempt hits
-          // the same corrupted data, with no path to self-heal until online again.
-          await clearPackCache(lang);
-          return { ok: false, error: "parse_error" };
-        }
-        // Task #259: prune specialty add-ons before overwriting memCache (same as HTTP-error fallback above).
-        clearSpecialtyPacksForLang(lang);
-        memCache.set(lang, pack);
-        return { ok: true, pack };
-      } catch (parseErr) {
-        console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, parseErr);
-        await clearPackCache(lang);
-        return { ok: false, error: "parse_error" };
-      }
+      return await parseValidateAndCache(lang, cachedData);
     }
     return { ok: false, error: "download_failed" };
   }
@@ -287,7 +318,9 @@ export async function loadPack(
     }
   }
 
-  // Parse
+  // Parse. Failure here is NOT routed through parseValidateAndCache/evictAndReject: these are
+  // freshly-downloaded bytes, not previously-cached ones, so there is nothing of this data's own
+  // to evict — a malformed server response must not blow away an existing, still-good local cache.
   let pack: Pack;
   try {
     pack = JSON.parse(json) as Pack;
@@ -314,14 +347,7 @@ export async function loadPack(
   } catch (err) {
     console.error(`[PACK_CACHE_WRITE_FAIL-${lang}] Storage write failed — pack available this session only:`, err);
   }
-  // Task #259: prune specialty add-ons whose units were merged into the old memCache entry.
-  // forceRedownload skips the memory-hit short-circuit, so a merged specialty pack may already
-  // be in memCache. Without this, getLoadedAddOns() reports a code as loaded even though its
-  // units are not in the freshly-downloaded, unmerged base pack. Matches evictPack's guarantee.
-  clearSpecialtyPacksForLang(lang);
-  memCache.set(lang, pack);
-
-  return { ok: true, pack };
+  return cacheAndReturn(lang, pack);
 }
 
 /**
@@ -335,7 +361,8 @@ export function getInstalledPacks(): PackCode[] {
 
 /**
  * Evicts a cached pack from memory and platform storage
- * (e.g. after purchase reversal or manual reset).
+ * (e.g. after purchase reversal or manual reset). clearPackCache itself prunes any specialty
+ * add-ons merged into this base pack — see its doc comment.
  *
  * Guard uses isValidPackCode (ALL_PACK_CODES): any registered code can be evicted
  * for cleanup, even unready ones. Rejects unregistered codes to prevent clearPackCache
@@ -343,9 +370,6 @@ export function getInstalledPacks(): PackCode[] {
  */
 export async function evictPack(lang: string): Promise<void> {
   if (!isValidPackCode(lang)) return;
-  // Prune any specialty add-ons whose baseLang matches the evicted pack so
-  // loadedAddOns doesn't report a merged code whose base is no longer in memCache.
-  clearSpecialtyPacksForLang(lang);
   await clearPackCache(lang);
 }
 
