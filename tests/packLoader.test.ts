@@ -571,6 +571,36 @@ describe("loadPack — specialty pack code validation", () => {
   });
 });
 
+describe("clearPackCache — atomicity: memCache cleared even when storage removeItem throws (#252)", () => {
+  it("clears memCache and logs error when the second storage removeItem throws — storage failure does not leave a stale in-memory entry", async () => {
+    // Load a pack so it's in memCache and storage
+    vi.stubGlobal("fetch", async () => ({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeManifest());
+    expect(getInstalledPacks()).toContain("it");
+
+    // Mock removeItem to succeed for meta key, throw for data key (second call)
+    let removeItemCallCount = 0;
+    const removeItemSpy = vi.spyOn(localStorageMock, "removeItem").mockImplementation((key) => {
+      removeItemCallCount++;
+      if (removeItemCallCount === 2) throw new Error("Storage I/O error");
+      delete store[key];
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await evictPack("it");
+      // memCache must be cleared despite the storage throw
+      expect(getInstalledPacks()).not.toContain("it");
+      // Error must be logged with ref ID — no silent failure
+      const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+      expect(logKeys.some(msg => msg.includes("ERR-CACHE-CLEAR-DATA-it"))).toBe(true);
+    } finally {
+      removeItemSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    }
+  });
+});
+
 describe("evictPack — allowlist validation", () => {
   it("silently no-ops for unknown lang — guard prevents clearPackCache from running", async () => {
     // Pre-seed poisoned entries under the malicious key so the test can observe whether clearPackCache ran
@@ -693,6 +723,26 @@ describe("specialty pack merge path", () => {
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2); // no additional fetch
     expect(getLoadedAddOns()).toContain("it-medical");
+  });
+
+  it("#253: evicting the base pack also removes its specialty add-ons from getLoadedAddOns", async () => {
+    // Merge an add-on into the base pack, then evict the base — the add-on must no longer
+    // be reported as loaded. Without the fix, loadedAddOns still shows "it-medical" and a
+    // subsequent loadPack("it") + loadPack("it-medical") would silently skip the merge.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest());
+    expect(getLoadedAddOns()).toContain("it-medical");
+
+    // Evict the base pack — specialty add-on must be pruned
+    await evictPack("it");
+
+    expect(getInstalledPacks()).not.toContain("it");
+    expect(getLoadedAddOns()).not.toContain("it-medical");
   });
 
   it("rejects a malformed add-on pack via the shared hasValidUnitsArray guard (Task #250)", async () => {

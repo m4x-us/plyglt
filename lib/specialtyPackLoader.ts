@@ -34,6 +34,21 @@ export function clearSpecialtyCache(): void {
 }
 
 /**
+ * Removes any specialty add-ons whose baseLang matches the evicted base pack.
+ * Called by packLoader.evictPack so evicting a base pack also prunes its merged add-ons.
+ */
+export function clearSpecialtyPacksForLang(baseLang: string): void {
+  const codesForBase = new Set(
+    SPECIALTY_PACKS.filter(sp => sp.baseLang === baseLang).map(sp => sp.code),
+  );
+  for (let i = loadedAddOns.length - 1; i >= 0; i--) {
+    if (codesForBase.has(loadedAddOns[i]!)) {
+      loadedAddOns.splice(i, 1);
+    }
+  }
+}
+
+/**
  * Loads a specialty add-on pack and merges its units into the base pack in memCache.
  *
  * Precondition: `lang` must be a ready specialty pack code (SPECIALTY_PACKS entry with ready:true).

@@ -47,9 +47,10 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // phaseStartDate defaults to introducedDate — safe because prior builds never
   // executed a triple-wrong reset (the dayOfPhase:1 write was a dead write discarded
   // by all callers). No user has ever had a functional triple-wrong reset.
-  // Corrupt records missing both fields fall back to today's date and log an error;
-  // an empty string or calendar-invalid date would produce NaN in getDayOfPhase and
-  // silently hide the card forever.
+  // Corrupt records missing both fields fall back to today's date and log an error.
+  // The isCalendarValidDate check below is defense-in-depth at the persistence boundary:
+  // getDayOfPhase now throws [ERR-INTRO-DATE] on invalid input rather than returning NaN;
+  // this guard ensures corrupt persisted dates never reach it.
   3: (data: unknown) => {
     const d = data as Record<string, unknown>;
     // Typed as Record<string, unknown> (not Record<string, Record<string, unknown>>) so that

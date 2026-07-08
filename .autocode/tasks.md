@@ -4022,6 +4022,7 @@ In `lib/packLoader.ts:loadPack`, the two "cache hit" shape-validation-failure br
 **File:** lib/packLoader.ts, tests/packLoader.test.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -4041,8 +4042,9 @@ In `lib/packLoader.ts:loadPack`, the two "cache hit" shape-validation-failure br
 ### Task #253: Fix code-quality: evictPack doesn't clear specialty-pack merge state
 
 **File:** lib/packLoader.ts, lib/specialtyPackLoader.ts, tests/packLoader.test.ts
-**Complexity:** ⚡ Direct — 3 files
+**Complexity:** 🔧 Full — 3 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -4062,8 +4064,9 @@ In `lib/packLoader.ts:loadPack`, the two "cache hit" shape-validation-failure br
 ### Task #254: Fix requirements: a stranded card with a corrupt phaseStartDate can never self-heal
 
 **File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
-**Complexity:** ⚡ Direct — 3 files
+**Complexity:** 🔧 Full — 3 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -4083,7 +4086,7 @@ A record that is both `strandedAcrossDays: true` and has a calendar-invalid `pha
 ### Task #255: Fix documentation-trust: CLAUDE.md's Introduction Engine section was never synced across 4 remediation cycles
 
 **File:** CLAUDE.md
-**Complexity:** 🔧 Full — documentation pass across a whole architecture section, not a one-line fix
+**Complexity:** ⚡ Direct — 1 file, no package boundary, no implementation-scope keyword in What
 **Owner:** Docs Agent
 **Blocked by:** Nothing
 **Priority:** P2
@@ -4107,6 +4110,7 @@ CLAUDE.md §7 ("Introduction Engine") still states "Wrong 3× in a row resets `d
 **File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Docs Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P3
 

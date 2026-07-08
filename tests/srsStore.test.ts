@@ -498,6 +498,73 @@ describe("srsStore — introduction engine actions", () => {
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(false);
   });
 
+  // Task #254 — stranded card with corrupt phaseStartDate self-heal path
+  // A record with strandedAcrossDays:true AND a calendar-invalid phaseStartDate was permanently
+  // stuck: the corrupt-date catch path returned early without ever calling recordResult, which is
+  // the only place strandedAcrossDays is cleared. A correct answer must clear the flag even when
+  // getDayOfPhase throws. A wrong answer must NOT.
+  it("#254: correct answer clears strandedAcrossDays even when phaseStartDate is corrupt (self-heal path)", () => {
+    useSRSStore.setState({
+      introductions: {
+        "corrupt-stranded": {
+          cardId: "corrupt-stranded",
+          introducedDate: "2026-06-01",
+          phaseStartDate: "not-a-date", // calendar-invalid — getDayOfPhase throws
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 5,
+          lastSeenDate: "2026-06-24",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+          strandedAcrossDays: true, // permanently blocked without this fix
+        },
+      },
+    });
+
+    // Verify pre-condition: canIntroduceNewCard is blocked
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
+
+    // Correct answer — must clear strandedAcrossDays despite the corrupt phaseStartDate
+    useSRSStore.getState().recordIntroductionResult("corrupt-stranded", true, "2026-06-25");
+
+    const after = useSRSStore.getState().introductions["corrupt-stranded"];
+    expect(after?.strandedAcrossDays).toBe(false);
+
+    // canIntroduceNewCard must now be unblocked
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(true);
+  });
+
+  it("#254: wrong answer does NOT clear strandedAcrossDays when phaseStartDate is corrupt (correct answer required)", () => {
+    useSRSStore.setState({
+      introductions: {
+        "corrupt-stranded-wrong": {
+          cardId: "corrupt-stranded-wrong",
+          introducedDate: "2026-06-01",
+          phaseStartDate: "not-a-date", // calendar-invalid
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 5,
+          lastSeenDate: "2026-06-24",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+          strandedAcrossDays: true,
+        },
+      },
+    });
+
+    // Wrong answer — must NOT clear strandedAcrossDays
+    useSRSStore.getState().recordIntroductionResult("corrupt-stranded-wrong", false, "2026-06-25");
+
+    const after = useSRSStore.getState().introductions["corrupt-stranded-wrong"];
+    expect(after?.strandedAcrossDays).toBe(true); // still stranded
+
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(false); // still blocked
+  });
+
   // F12 — rescue path: day-22+ non-graduated cards must appear once per day
   it("getIntroductionDueCardIds includes a day-22+ non-graduated card once per day (rescue path)", () => {
     // phaseStartDate 21 days before today → getDayOfPhase returns 22

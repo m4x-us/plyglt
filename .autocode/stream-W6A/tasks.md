@@ -1,49 +1,4 @@
----
-status: done
-agent: adam
-stream: W6A
-wave: 6
----
-
-# Adam — Stream W6A — Wave 6 — 2026-07-08
-
-IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
-(including short replies, confirmations, and one-word answers):
-— Adam | W6A | #252 #253 #257
-
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
-Work exclusively on the files listed under "Files You Own". Do not touch anything else.
-
-## Your Tasks (run in this exact order)
-1. /task #252 — Fix clearPackCache having no atomicity protection across its two storage removals
-2. /task #253 — Fix evictPack not clearing specialty-pack merge state
-3. /task #257 — Fix dead-code assignment with a misleading copy-pasted comment
-
-**Why this order:** All three touch lib/packLoader.ts, forcing them into one sequential stream regardless of parallelization preference. #252 and #253 are the two substantive fixes; #257 is a trivial one-line cleanup, run last to avoid merge noise ahead of the real fixes.
-
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
-
-Adam — W6A
-[✓] #252 — Fix clearPackCache atomicity   ← done
-[→] #253 — Fix evictPack specialty-cache gap   ← starting now
-[ ] #257 — Remove dead-code assignment
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
-
-## Files You Own (edit ONLY these)
-lib/packLoader.ts
-lib/specialtyPackLoader.ts
-tests/packLoader.test.ts
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-store/srsStore.ts
-lib/introduction.ts
-tests/srsStore.test.ts
-store/migrations.ts
-
-## Task Definitions
+# Stream W6A Task State
 
 ### Task #252: Fix data-loss: clearPackCache has no atomicity protection across its two storage removals
 
@@ -104,20 +59,3 @@ store/migrations.ts
 **Done when:** `lib/packLoader.ts:191`'s dead assignment is removed; the branch's behavior is unchanged (verified by the existing test suite still passing). Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit cycle 4, 2026-07-08) — severity 4 — code-quality — found by Agent B.
-
-## Agent Memories
-
-## Architecture Agent Memory (relevant excerpt)
-
-This file (lib/packLoader.ts) has now been touched across 3 consecutive remediation cycles (Tasks #239, #248, #251), each time leaving exactly one sibling instance of a fixed bug unfixed elsewhere. Before closing #252 and #253, grep the ENTIRE file (and lib/specialtyPackLoader.ts) for every other call site of `clearPackCache`/`evictPack`/`loadedAddOns` to confirm you haven't left a sibling gap — this is the specific pattern the last 2 audit cycles kept finding, and this wave exists specifically to close the last 2 known instances of it. Line numbers in the task text (e.g. "line 191", "lines 97-101") were correct as of the last audit read but may drift slightly if earlier tasks in your queue change line counts — search by function name/content, not just line number, when line numbers don't match exactly.
-
-## When You Finish
-Write your completion summary to .autocode/stream-W6A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
-
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
-
-— Adam | W6A | #252 #253 #257

@@ -28,7 +28,7 @@
 
 import { createPlatformStorage } from "@/lib/storage";
 import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } from "@/lib/langRegistry";
-import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+import { loadSpecialtyPack, clearSpecialtyCache, clearSpecialtyPacksForLang } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
 import { hasValidUnitsArray } from "@/lib/packTypes";
@@ -95,8 +95,19 @@ async function writeCacheData(lang: string, json: string): Promise<void> {
 }
 
 async function clearPackCache(lang: string): Promise<void> {
-  await getStorage().removeItem(CACHE_META_PREFIX + lang);
-  await getStorage().removeItem(CACHE_DATA_PREFIX + lang);
+  // allSettled: both removals run regardless of whether either throws.
+  // memCache.delete always runs after — a storage I/O failure must never leave
+  // a stale in-memory entry that silently bypasses the eviction.
+  const [metaResult, dataResult] = await Promise.allSettled([
+    getStorage().removeItem(CACHE_META_PREFIX + lang),
+    getStorage().removeItem(CACHE_DATA_PREFIX + lang),
+  ]);
+  if (metaResult.status === "rejected") {
+    console.error(`[ERR-CACHE-CLEAR-META-${lang}] storage removeItem failed — meta key may persist`, metaResult.reason);
+  }
+  if (dataResult.status === "rejected") {
+    console.error(`[ERR-CACHE-CLEAR-DATA-${lang}] storage removeItem failed — data key may persist`, dataResult.reason);
+  }
   memCache.delete(lang);
 }
 
@@ -188,7 +199,6 @@ export async function loadPack(
           const pack = JSON.parse(cachedData) as Pack;
           if (!hasValidUnitsArray(pack)) {
             await clearPackCache(lang);
-            cachedData = null; // A003-style: prevent bytes from reaching stale-cache fallback
             return { ok: false, error: "parse_error" };
           }
           memCache.set(lang, pack);
@@ -322,6 +332,9 @@ export function getInstalledPacks(): PackCode[] {
  */
 export async function evictPack(lang: string): Promise<void> {
   if (!isValidPackCode(lang)) return;
+  // Prune any specialty add-ons whose baseLang matches the evicted pack so
+  // loadedAddOns doesn't report a merged code whose base is no longer in memCache.
+  clearSpecialtyPacksForLang(lang);
   await clearPackCache(lang);
 }
 
