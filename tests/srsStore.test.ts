@@ -498,12 +498,13 @@ describe("srsStore — introduction engine actions", () => {
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(false);
   });
 
-  // Task #254 — stranded card with corrupt phaseStartDate self-heal path
+  // Task #254/#258 — stranded card with corrupt phaseStartDate full self-heal path
   // A record with strandedAcrossDays:true AND a calendar-invalid phaseStartDate was permanently
-  // stuck: the corrupt-date catch path returned early without ever calling recordResult, which is
-  // the only place strandedAcrossDays is cleared. A correct answer must clear the flag even when
-  // getDayOfPhase throws. A wrong answer must NOT.
-  it("#254: correct answer clears strandedAcrossDays even when phaseStartDate is corrupt (self-heal path)", () => {
+  // stuck: the corrupt-date catch path returned early without calling recordResult. Task #254
+  // fixed the strandedAcrossDays block; Task #258 also repairs phaseStartDate so the card
+  // rejoins getIntroductionDueCardIds at Day-1 intensity rather than remaining orphaned.
+  // A wrong answer must NOT repair or clear either field.
+  it("#254/#258: correct answer on a corrupt-phaseStartDate record clears strandedAcrossDays AND repairs phaseStartDate to today, allowing the card to rejoin the due queue", () => {
     useSRSStore.setState({
       introductions: {
         "corrupt-stranded": {
@@ -518,7 +519,7 @@ describe("srsStore — introduction engine actions", () => {
           consecutiveWrongToday: 0,
           lastSeenType: null,
           graduated: false,
-          strandedAcrossDays: true, // permanently blocked without this fix
+          strandedAcrossDays: true, // permanently blocked without Task #254 fix
         },
       },
     });
@@ -526,14 +527,22 @@ describe("srsStore — introduction engine actions", () => {
     // Verify pre-condition: canIntroduceNewCard is blocked
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
 
-    // Correct answer — must clear strandedAcrossDays despite the corrupt phaseStartDate
+    // Correct answer — clears strandedAcrossDays AND repairs phaseStartDate
     useSRSStore.getState().recordIntroductionResult("corrupt-stranded", true, "2026-06-25");
 
     const after = useSRSStore.getState().introductions["corrupt-stranded"];
+    // strandedAcrossDays cleared — canIntroduceNewCard unblocked
     expect(after?.strandedAcrossDays).toBe(false);
+    // phaseStartDate repaired to today — card can now rejoin getIntroductionDueCardIds
+    expect(after?.phaseStartDate).toBe("2026-06-25");
 
-    // canIntroduceNewCard must now be unblocked
+    // canIntroduceNewCard must now be unblocked (Task #254 assertion)
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(true);
+
+    // Card must now appear in getIntroductionDueCardIds (Task #258 assertion)
+    // phaseStartDate = "2026-06-25", today = "2026-06-25" → dayOfPhase=1 → Infinity cap → appears
+    const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-25");
+    expect(due).toContain("corrupt-stranded");
   });
 
   it("#254: wrong answer does NOT clear strandedAcrossDays when phaseStartDate is corrupt (correct answer required)", () => {

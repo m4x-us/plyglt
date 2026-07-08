@@ -1,38 +1,4 @@
----
-status: done
-agent: adam
-stream: W7A
-wave: 7
----
-
-# Adam — Stream W7A — Wave 7 — 2026-07-08
-
-IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
-(including short replies, confirmations, and one-word answers):
-— Adam | W7A | #258
-
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
-Work exclusively on the files listed under "Files You Own". Do not touch anything else.
-
-## Your Tasks (run in this exact order)
-1. /task #258 — Fix: Task #254's self-heal clears strandedAcrossDays but never repairs the corrupt phaseStartDate, so the card permanently vanishes from the due queue
-
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
-
-Adam — W7A
-[→] #258 — Fix corrupt-phaseStartDate permanent due-queue exclusion   ← starting now
-
-## Files You Own (edit ONLY these)
-store/srsStore.ts
-CLAUDE.md
-tests/srsStore.test.ts
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/packLoader.ts
-tests/packLoader.test.ts
-
-## Task Definitions
+# Stream W7A Task State
 
 ### Task #258: Fix requirements: Task #254's self-heal clears strandedAcrossDays but never repairs the corrupt phaseStartDate, so the card permanently vanishes from the due queue
 
@@ -54,22 +20,3 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 **Done when:** Either the record can rejoin the due queue after being healed, or CLAUDE.md explicitly documents this as a known permanent-exclusion edge case rather than asserting an invariant the code doesn't hold. Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit cycle 5, 2026-07-08) — severity 5 — requirements — converged independently by Agents A, B, Red R, W, K, V (6 of 8).
-
-## Agent Memories
-
-## Architecture Agent Memory (relevant excerpt)
-
-Recommended approach: option (a) — reset `phaseStartDate` to `today` in the corrupt-date catch path of `recordIntroductionResult` when a correct answer arrives, alongside clearing `strandedAcrossDays`. This is simpler than extending the rescue path in `getIntroductionDueCardIds` (option b) because it fixes the root cause (the corrupt date itself) rather than adding a second special case to the due-set filter. After resetting `phaseStartDate` to `today`, `getDayOfPhase` will compute `dayOfPhase = 1` on the next call — the record re-enters normal Day-1 intensive scheduling rather than being permanently excluded. Whichever path you choose, the wrong-answer branch must NOT repair the date or clear the flag — only a correct answer heals the record, per BRAND.md's requirement that stranding recovery requires an actual correct retrieval.
-
-Also verify CLAUDE.md §7's exports-list and mechanism description (rewritten in Task #255 this same cycle) remain accurate after your fix — if you add any new exported symbol or change the clearing mechanism's shape, update CLAUDE.md to match, don't let it drift again immediately after being fixed.
-
-## When You Finish
-Write your completion summary to .autocode/stream-W7A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
-
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
-
-— Adam | W7A | #258

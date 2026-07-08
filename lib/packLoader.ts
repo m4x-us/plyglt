@@ -237,6 +237,10 @@ export async function loadPack(
             await clearPackCache(lang);
             return { ok: false, error: "parse_error" };
           }
+          // Task #259: prune specialty add-ons before overwriting memCache — forceRedownload skips
+          // the memory-hit short-circuit, so a merged specialty pack may be in memCache. Without
+          // this, getLoadedAddOns() reports a code as loaded whose units were just dropped.
+          clearSpecialtyPacksForLang(lang);
           memCache.set(lang, pack);
           return { ok: true, pack };
         } catch (err) {
@@ -261,6 +265,8 @@ export async function loadPack(
           await clearPackCache(lang);
           return { ok: false, error: "parse_error" };
         }
+        // Task #259: prune specialty add-ons before overwriting memCache (same as HTTP-error fallback above).
+        clearSpecialtyPacksForLang(lang);
         memCache.set(lang, pack);
         return { ok: true, pack };
       } catch (parseErr) {
@@ -308,6 +314,11 @@ export async function loadPack(
   } catch (err) {
     console.error(`[PACK_CACHE_WRITE_FAIL-${lang}] Storage write failed — pack available this session only:`, err);
   }
+  // Task #259: prune specialty add-ons whose units were merged into the old memCache entry.
+  // forceRedownload skips the memory-hit short-circuit, so a merged specialty pack may already
+  // be in memCache. Without this, getLoadedAddOns() reports a code as loaded even though its
+  // units are not in the freshly-downloaded, unmerged base pack. Matches evictPack's guarantee.
+  clearSpecialtyPacksForLang(lang);
   memCache.set(lang, pack);
 
   return { ok: true, pack };

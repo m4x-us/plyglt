@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [CURRENT SPRINT]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [COMPLETE — 2026-07-08]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -4153,6 +4153,7 @@ CLAUDE.md §7 ("Introduction Engine") still states "Wrong 3× in a row resets `d
 **File:** store/srsStore.ts, CLAUDE.md, tests/srsStore.test.ts
 **Complexity:** 🔧 Full — 3 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -4176,6 +4177,7 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 **File:** lib/packLoader.ts, tests/packLoader.test.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 

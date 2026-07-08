@@ -745,6 +745,26 @@ describe("specialty pack merge path", () => {
     expect(getLoadedAddOns()).not.toContain("it-medical");
   });
 
+  it("#259: force-redownloading a base pack prunes its merged specialty add-on from getLoadedAddOns", async () => {
+    // Merge the add-on, then force-redownload the base. Without the fix, the fresh unmerged
+    // base pack overwrites memCache but loadedAddOns still reports "it-medical" as loaded —
+    // getLoadedAddOns() lies about what's actually in memory.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })         // call 1: base "it"
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON }); // call 2: add-on "it-medical"
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest());
+    expect(getLoadedAddOns()).toContain("it-medical");
+
+    // Force-redownload the base — must prune the merged add-on from loadedAddOns
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeAddOnManifest(), { forceRedownload: true });
+
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+  });
+
   it("rejects a malformed add-on pack via the shared hasValidUnitsArray guard (Task #250)", async () => {
     // specialtyPackLoader.ts now delegates its shape check to lib/packTypes.ts's
     // hasValidUnitsArray instead of its own inline Array.isArray(...) copy. This test fails

@@ -241,17 +241,22 @@ export const useSRSStore = create<SRSState>()(
           dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
         } catch (err) {
           console.error(`[ERR-INTRO-RESULT-${cardId}] corrupt phaseStartDate "${record.phaseStartDate}" — skipping update`, err);
-          // Task #254: getDayOfPhase threw — we can't run the full recordResult. But a correct
-          // answer must still clear strandedAcrossDays; without this, a record that is both
-          // stranded and has a corrupt phaseStartDate blocks canIntroduceNewCard permanently.
-          // A wrong answer does NOT clear it — BRAND.md requires an actual correct answer.
-          if (correct && record.strandedAcrossDays === true) {
-            set((s) => ({
-              introductions: {
-                ...s.introductions,
-                [cardId]: { ...s.introductions[cardId]!, strandedAcrossDays: false },
-              },
-            }));
+          // Task #254/#258: getDayOfPhase threw — full recordResult cannot run.
+          // A correct answer fully repairs the record: phaseStartDate is reset to today
+          // (Task #258 — so the card can rejoin getIntroductionDueCardIds at Day-1 intensity
+          // rather than being permanently orphaned) AND strandedAcrossDays is cleared if set
+          // (Task #254 — unblocking canIntroduceNewCard). A wrong answer does neither —
+          // BRAND.md requires an actual correct retrieval for recovery.
+          if (correct) {
+            set((s) => {
+              const prev = s.introductions[cardId];
+              if (!prev) return s;
+              const next = { ...prev, phaseStartDate: today };
+              if (prev.strandedAcrossDays === true) {
+                next.strandedAcrossDays = false;
+              }
+              return { introductions: { ...s.introductions, [cardId]: next } };
+            });
           }
           return;
         }
