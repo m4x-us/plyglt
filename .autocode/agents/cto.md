@@ -71,7 +71,7 @@ Batches 1–14 below were completed before this SOP existed — no retroactive a
 | 15 | 0 | — | not started | — |
 | 16 | 0 | — | not started | — |
 | 17 | 0 | — | not started | — |
-| 18 | 1 | 2026-07-07 | FAIL | 8-agent batch-level audit (A,B,S,N,K,W,V,Red R): 2 severity-9 findings — Task #180's cross-day pause and "variety rule" wiring are both dead code, marked COMPLETE despite being non-functional. 18 findings promoted to Tasks #228-245; 10 low-severity items logged to debt.md |
+| 18 | 2 | 2026-07-08 | FAIL | Cycle 1 (2026-07-07): 2 severity-9 findings — Task #180's cross-day pause and "variety rule" wiring both dead code. 18 findings → Tasks #228-245. Cycle 2 (2026-07-08, post-remediation): 16/18 prior findings genuinely resolved at root cause; 3 real functional defects found — strandedAcrossDays pause defeated by any same-day review (not just correct), recordIntroductionResult's uncaught getDayOfPhase throw left unfixed (sibling of Task #234's fix), packLoader shape-guard covers only 3/5 parse sites (sibling of Task #239's fix). 4 findings → Tasks #246-249; 7 low-severity items → debt.md |
 
 ### Batch 1 | Re-audit | 2026-07-03 | Verdict: FAIL
 Findings: 0 critical, 4 major, 17 minor (21 total)
@@ -111,6 +111,23 @@ Top findings by severity:
 18 findings (severity >=4) promoted to Tasks #228-245 in Batch 18 (re-opened from "pending audit" back to [CURRENT SPRINT]). 10 lower-severity findings logged to debt.md (F026 — entitlement.ts unbound catch — was a duplicate of an existing 2026-07-03 debt entry, not re-logged).
 Systemic pattern flagged: multiple severity 6-9 findings share one root cause — Batch 18's task-completion process verified "done" via unit tests that inject state directly or call functions in isolation, never through the real production call path from user action to persisted effect. Both F001 and F002 looked wired and looked tested but were never exercised end-to-end before being marked COMPLETE.
 Audit cycle will pass when: Tasks #228-245 complete → re-run `/audit Batch 18`.
+
+### Batch 18 | Remediation re-audit (cycle 2) | 2026-07-08 | Verdict: FAIL
+8-agent parallel review (A, B, S, N, K, W, V, Red R) re-verifying all 18 prior findings' root-cause resolution after Tasks #228-245 closed via /advance Wave 4, plus a fresh independent pass over the full diff since 42a2793 (30 files — lib/utils.ts and lib/packLoader.ts newly touched by the remediation).
+
+16 of 18 prior findings genuinely resolved at the root cause, verified with real evidence (empirical repro scripts, live TypeScript/node checks, seam tests that drive the actual store API rather than injected state) — not just re-reading the completion claims. Both severity-9 findings from cycle 1 (cross-day pause, variety rule) hold up under adversarial re-verification.
+
+3 real functional defects found, all independently converged on by multiple auditors:
+- G001 sev:6 | requirements | canIntroduceNewCard's new strandedAcrossDays pause (Task #228) is defeated by ANY same-day review of the stranded card, not just a stabilizing correct answer — recordResult's wrong-but-not-triple branch still writes lastSeenDate:today via `base`, so a second wrong answer silently lifts the pause for the rest of that day. Confirmed by direct repro script. Converged: Agents W, B | store/srsStore.ts:canIntroduceNewCard:274
+- G002 sev:6 | error-handling | recordIntroductionResult (the highest-traffic call site, hit on every card rating) still has no try/catch around getDayOfPhase — Task #234 hardened only the sibling call site (getIntroductionDueCardIds). Converged: Agents S, K, A, W (4/8) | store/srsStore.ts:recordIntroductionResult:239
+- G003 sev:5 | data-loss | packLoader's Array.isArray(pack.units) shape guard (Task #239) covers only 3 of 5 JSON.parse(...) as Pack sites — the two cache-hit paths (sha256-verified and no-manifest offline) remain unguarded, a pre-existing catalogued pattern (patterns.md 2026-06-26) only partially closed. Converged: Agents K, A, W, B (4/8) | lib/packLoader.ts:loadPack:187,193
+
+Plus a vacuous test tautology (`expect(n+1).toBe(n+1)`, Object.is(NaN,NaN)===true — found by 5/8 agents) and several minor documentation/test-coverage gaps.
+
+Systemic pattern: G002 and G003 are the SAME root-cause class — both remediation tasks fixed only the specific call site/code path literally named in the prior finding's text, not every structurally-identical instance of the same pattern in the same function/module (another getDayOfPhase call, another JSON.parse(...) as Pack site). Neither gap required new investigation to find — grepping the touched file for sibling instances of the exact same code shape would have caught both before closing the task.
+
+4 findings (severity >=4) promoted to Tasks #246-249; 7 low-severity items logged to debt.md. Two task-list process issues also fixed inline: Tasks #229/#230's acceptance-criteria checkboxes (found unchecked despite COMPLETE status by Agent W) were checked off with resolution notes.
+Audit cycle will pass when: Tasks #246-249 complete → re-run `/audit Batch 18`.
 
 ## Open Escalations
 

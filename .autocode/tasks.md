@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 29 tasks | [TASKS COMPLETE — pending batch audit]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 33 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3523,9 +3523,9 @@ Debt items batched in by owner approval (2026-07-07):
 BRAND.md requires "each encounter uses a different retrieval angle" during the intensive introduction phase. Task #180 added `getNextCardType`/`lastSeenType` machinery to implement this, but it is fully inert: `app/study/page.tsx:147` calls `recordIntroductionResult(currentCard.id, g !== "again", localDateStr())` — it never passes the actually-displayed card's type. `recordIntroductionResult` (store/srsStore.ts:246-247) computes `getNextCardType(record.lastSeenType, ALL_CARD_TYPES)` and writes the result back into `lastSeenType`, but nothing anywhere in the codebase reads `IntroductionRecord.lastSeenType` to select what's actually shown — `StudyCard.tsx` renders strictly from the content pack's fixed, immutable `card.type`. There is no "sibling card" concept in the content model to even vary the presented format for a given word. 3 independent auditors (A, B, W) confirmed this via full-repo grep of `lastSeenType`.
 
 **Acceptance Criteria:**
-- [ ] Decide the actual mechanism: either (a) content packs need sibling cards per word/type so the queue can select an alternate-type card for the same word on each introduction encounter, or (b) if varying the retrieval angle is out of scope for now, remove the dead `lastSeenType`/`getNextCardType` wiring and its tests rather than leaving inert code that looks functional
-- [ ] If implementing: add a seam test that drives two consecutive introduction encounters for the same card through the real queue-building path and asserts the actually-displayed card type differs
-- [ ] Update content/types.ts's `lastSeenType` doc comment to be accurate about what it does today
+- [x] Decide the actual mechanism: either (a) content packs need sibling cards per word/type so the queue can select an alternate-type card for the same word on each introduction encounter, or (b) if varying the retrieval angle is out of scope for now, remove the dead `lastSeenType`/`getNextCardType` wiring and its tests rather than leaving inert code that looks functional — resolved as (b); dead wiring removed from `recordIntroductionResult`
+- [x] If implementing: add a seam test that drives two consecutive introduction encounters for the same card through the real queue-building path and asserts the actually-displayed card type differs — n/a, mechanism removed per (b) above
+- [x] Update content/types.ts's `lastSeenType` doc comment to be accurate about what it does today — done (content/types.ts:58)
 
 **Done when:** Either a real end-to-end seam test proves the displayed card type varies across encounters, or the dead mechanism is removed with an explicit documented decision. Verification gate green.
 
@@ -3546,9 +3546,9 @@ BRAND.md requires "each encounter uses a different retrieval angle" during the i
 `getNextCardType` (lib/introduction.ts:140-146) filters only the single `lastSeenType` out of the candidate pool and takes `pool[0]`. Given the fixed-order `ALL_CARD_TYPES = ["recognize","produce","conjugate","fill_blank","passage_cloze"]`, this means the function can only ever oscillate between `"recognize"` and `"produce"` — empirically confirmed via 10 sequential calls producing only 2 distinct outputs. `conjugate`, `fill_blank`, and `passage_cloze` are structurally unreachable no matter how many times the function is called. This defeats BRAND.md's stated premise ("varied retrieval across encounters produces durable memory") independent of the wiring gap in Task #229.
 
 **Acceptance Criteria:**
-- [ ] If Task #229 keeps the mechanism: rewrite the selection algorithm to genuinely rotate/vary across all N available types (e.g. round-robin through a shuffled or rotating order, or track more than just the single last-seen type)
-- [ ] Add a test that calls the function N times in sequence and asserts all 5 CardTypes appear across the sequence (not just 2)
-- [ ] If Task #229 removes the mechanism: this task is superseded — close as not-applicable with a cross-reference
+- [x] If Task #229 keeps the mechanism: rewrite the selection algorithm to genuinely rotate/vary across all N available types (e.g. round-robin through a shuffled or rotating order, or track more than just the single last-seen type) — n/a, mechanism removed
+- [x] Add a test that calls the function N times in sequence and asserts all 5 CardTypes appear across the sequence (not just 2) — n/a, mechanism removed, no live caller to test
+- [x] If Task #229 removes the mechanism: this task is superseded — close as not-applicable with a cross-reference — done; superseded by Task #229's removal
 
 **Done when:** A test drives `getNextCardType` through 10+ sequential calls and asserts at least 4 of the 5 CardTypes appear in the output sequence. Verification gate green.
 
@@ -3877,6 +3877,91 @@ AGENTS.md's Verification Gate grep (line ~39) bans 4 assertion patterns includin
 **Done when:** AGENTS.md's Stop-the-Line Violations bullet and Verification Gate grep pattern list the same 4 banned assertion patterns. Verification gate green.
 
 **Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — converged independently by Agents W and K.
+
+---
+
+### Task #246: Fix requirements: canIntroduceNewCard's strandedAcrossDays pause is defeated by any same-day review, not just a correct one
+
+**File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
+**Complexity:** ⚡ Direct — 3 files, guard-condition fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+Task #228 fixed the cross-day pause from being fully dead code, but the guard in `canIntroduceNewCard` (store/srsStore.ts:274) is `r.strandedAcrossDays && r.lastSeenDate !== today`. Since `recordResult`'s wrong-but-not-triple branch (lib/introduction.ts:144) always writes `lastSeenDate: today` via `base` regardless of whether the answer was correct, reviewing the stranded card again on any later day — even with another WRONG answer that does not stabilize it — updates `lastSeenDate` to today and silently lifts the pause for the rest of that day. Confirmed via direct reproduction: triple-wrong on day 1 → blocked on day 2 (correct) → one more wrong answer on day 2 → `canIntroduceNewCard` incorrectly returns `true` later the same day. BRAND.md's "pause until this one stabilizes" is only honored on calendar days the card isn't reviewed at all, not until an actual correct answer. Given the proactive interruption model runs 6-10 sessions/day, this is reachable in ordinary use. Converged independently by Agents W and B, confirmed by the orchestrating CTO's own repro script.
+
+**Acceptance Criteria:**
+- [ ] Change the pause condition so it is lifted only by an actual correct answer (which already clears `strandedAcrossDays` to `false` per lib/introduction.ts:125-127), not merely by `lastSeenDate` advancing — e.g. drop the `lastSeenDate !== today` clause entirely from the `canIntroduceNewCard` guard (since `strandedAcrossDays` itself is already the authoritative signal and is correctly cleared only on a correct answer), while preserving the existing behavior that the pause does not block new intros on the very day the triple-wrong reset happens (verify the existing seam test for that scenario still passes)
+- [ ] Add a test: triple-wrong on day 1 → blocked day 2 → WRONG answer again on day 2 → still blocked later that same day and on day 3
+- [ ] Verify the existing "correct answer clears it" seam test still passes unmodified
+
+**Done when:** A test drives a stranded card through a same-day WRONG (non-stabilizing) review and asserts `canIntroduceNewCard` still returns `false` afterward — only a real correct answer lifts the pause. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 6 — requirements — converged independently by Agents W, B, plus the orchestrating CTO's own reproduction.
+
+---
+
+### Task #247: Fix error-handling: recordIntroductionResult still has no try/catch around getDayOfPhase (Task #234's sibling call site)
+
+**File:** store/srsStore.ts, tests/srsStore.test.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+Task #234 wrapped `getDayOfPhase` in a try/catch inside `getIntroductionDueCardIds` because an uncaught throw there aborted due-card computation for every card. `recordIntroductionResult` (store/srsStore.ts:239) calls the identical `getDayOfPhase(record.phaseStartDate, today)` with no try/catch — and this is the higher-traffic call site: it's invoked directly and uncaught from `app/study/page.tsx:147`'s `onRate` handler, hit on every single card rating. The app has zero `ErrorBoundary`/`componentDidCatch` anywhere, so a corrupted persisted record would crash the whole session on the user's next rating action, not just silently drop one card from a queue computation. Converged independently by Agents S, K, A, W (4 of 8 re-audit agents).
+
+**Acceptance Criteria:**
+- [ ] Wrap the `getDayOfPhase` call in `recordIntroductionResult` in the same try/catch pattern used in `getIntroductionDueCardIds` — log a ref ID with the cardId and bad value, and decide a safe fallback (e.g. skip the update for that card) instead of letting the exception propagate into the click handler
+- [ ] Add a test asserting `recordIntroductionResult` does not throw when called on a record with a corrupt `phaseStartDate`
+
+**Done when:** A test calls `recordIntroductionResult` on a record with a calendar-invalid `phaseStartDate` and asserts no exception propagates. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 6 — error-handling — converged independently by Agents S, K, A, W.
+
+---
+
+### Task #248: Fix data-loss: packLoader's shape-validation guard covers only 3 of 5 JSON.parse(...) as Pack sites
+
+**File:** lib/packLoader.ts, tests/packLoader.test.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+Task #239 added an `Array.isArray(pack.units)` shape guard to 3 of 5 `JSON.parse(...) as Pack` sites in `lib/packLoader.ts:loadPack` (the two offline-fallback branches at lines 213/232, and the fresh-download branch at line 263). The two "cache hit" branches — the sha256-verified hit (line 187) and the fully-unverified no-manifest offline-serve-as-is path (line 193) — remain unguarded, violating the module's own documented invariant ("a mismatch is a hard error — no corrupted pack is ever cached or returned," CLAUDE.md §6). This is a pre-existing catalogued pattern (`.autocode/patterns.md`, 2026-06-26) that Task #239 only partially closed. Converged independently by Agents K, A, W, B (4 of 8 re-audit agents).
+
+**Acceptance Criteria:**
+- [ ] Extract the shape-validation check into a single shared helper (e.g. `validatePackShape(pack): boolean`) and apply it uniformly at all 5 `JSON.parse(...) as Pack` sites in `loadPack`, not just the 3 currently guarded
+- [ ] Add a test that seeds a cached pack with non-array `units` reaching the sha256-verified cache-hit path and asserts the result is rejected, not returned as `ok:true`
+- [ ] Add a test for the no-manifest offline-serve-as-is path with the same malformed fixture
+
+**Done when:** All 5 `JSON.parse(...) as Pack` sites in `loadPack` reject non-array `units` via the same shared validator, verified by tests covering each previously-unguarded path. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 5 — data-loss — converged independently by Agents K, A, W, B.
+
+---
+
+### Task #249: Fix tests: vacuous NaN-equality tautology in srsStore.test.ts
+
+**File:** tests/srsStore.test.ts
+**Complexity:** ⚡ Direct — 1 file
+**Owner:** QA Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+`expect(n + 1).toBe(n + 1)` (tests/srsStore.test.ts:647, commented "NaN + 1 !== NaN + 1 (NaN propagation check)") is a self-referential tautology: Vitest's `.toBe()` uses `Object.is()` semantics, and `Object.is(NaN, NaN)` is `true`, so this line passes for any value of `n` including `NaN` — it proves nothing and directly contradicts its own comment. The real check is the preceding `expect(isNaN(n)).toBe(false)` line, which is correct. Converged independently by Agents N, A, K, V, B (5 of 8 re-audit agents).
+
+**Acceptance Criteria:**
+- [ ] Delete the vacuous `expect(n + 1).toBe(n + 1)` line, or replace it with a real assertion (e.g. `expect(n).toBe(<specific expected number>)`) if there's additional value to assert beyond the `isNaN` check
+
+**Done when:** No vacuous self-referential `.toBe()` assertions remain in the affected test. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 4 — tests — converged independently by Agents N, A, K, V, B.
 
 ---
 
