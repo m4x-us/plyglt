@@ -3974,6 +3974,7 @@ Task #239 added an `Array.isArray(pack.units)` shape guard to 3 of 5 `JSON.parse
 **File:** lib/packLoader.ts, lib/specialtyPackLoader.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
