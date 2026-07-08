@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [COMPLETE — 2026-07-08]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [43/43 tasks complete — audit cycle 6 found new debt, see .autocode/debt.md; recommendation: accept as done]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
