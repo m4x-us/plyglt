@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 41 tasks | [COMPLETE — 2026-07-08]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -4145,6 +4145,50 @@ CLAUDE.md §7 ("Introduction Engine") still states "Wrong 3× in a row resets `d
 **Done when:** `lib/packLoader.ts:191`'s dead assignment is removed; the branch's behavior is unchanged (verified by the existing test suite still passing). Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit cycle 4, 2026-07-08) — severity 4 — code-quality — found by Agent B.
+
+---
+
+### Task #258: Fix requirements: Task #254's self-heal clears strandedAcrossDays but never repairs the corrupt phaseStartDate, so the card permanently vanishes from the due queue
+
+**File:** store/srsStore.ts, CLAUDE.md, tests/srsStore.test.ts
+**Complexity:** 🔧 Full — 3 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch block) clears `strandedAcrossDays` on a correct answer, unblocking `canIntroduceNewCard` globally — but it never repairs the record's own `phaseStartDate`, which remains calendar-invalid. Every subsequent call for that same card re-throws in `getDayOfPhase`, so `getIntroductionDueCardIds`'s catch block (store/srsStore.ts) filters the card out of the due set on every calendar day, forever — its own catch-and-exclude runs before the day-22+ rescue check is ever reached, so the rescue path never applies to this state either. The card is "healed" in the sense that it no longer blocks other cards, but is itself permanently orphaned — unreachable for review or graduation. This directly contradicts CLAUDE.md's just-rewritten §7 claim (Task #255, same cycle) that a non-graduated card "can never permanently disappear from both queues." Converged independently by 6 of 8 cycle-5 audit agents (A, B, Red R, W, K, V).
+
+**Acceptance Criteria:**
+- [ ] Decide the repair path: either (a) have the corrupt-date catch path in `recordIntroductionResult` also reset `phaseStartDate` to `today` when clearing `strandedAcrossDays` (fully repairing the record, not just unblocking the global gate), or (b) extend `getIntroductionDueCardIds`'s rescue-path check to also apply to a record whose `getDayOfPhase` call throws, so a corrupt-but-healed record still surfaces at least once per day like the day-22+ case does
+- [ ] Update CLAUDE.md §7 so its claim about the rescue path accurately reflects the chosen fix — the doc must not state an invariant the code doesn't actually enforce for this specific state
+- [ ] Add a test: a record with a corrupt `phaseStartDate`, after being "healed" via a correct answer, must still be able to appear in `getIntroductionDueCardIds` (or the doc must be corrected to disclose this as a known, deliberate limitation instead of an invariant)
+- [ ] Rename or extend the existing "#254: correct answer clears strandedAcrossDays... (self-heal path)" test so its name and assertions match what the fix actually delivers — don't let "self-heal" imply full recovery if only the block is lifted
+
+**Done when:** Either the record can rejoin the due queue after being healed, or CLAUDE.md explicitly documents this as a known permanent-exclusion edge case rather than asserting an invariant the code doesn't hold. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit cycle 5, 2026-07-08) — severity 5 — requirements — converged independently by Agents A, B, Red R, W, K, V (6 of 8).
+
+---
+
+### Task #259: Fix data-loss: loadPack's forceRedownload path can silently overwrite a merged specialty pack without pruning loadedAddOns
+
+**File:** lib/packLoader.ts, tests/packLoader.test.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+`loadPack(lang, manifest, { forceRedownload: true })` skips the memory-hit short-circuit and the `cacheValid` check purely because `forceRedownload` is true, falls through to the network-download block, and unconditionally does `memCache.set(lang, pack)` with the freshly-downloaded, unmerged base pack — overwriting whatever merged pack (base + specialty units) was previously there. `loadedAddOns` is never consulted or pruned in this path, so `getLoadedAddOns()` continues reporting a specialty code as loaded even though its units were just silently dropped from `memCache`. This is the same defect class Task #253 just fixed in `evictPack` (a caller that replaces a base pack's `memCache` entry without pruning `loadedAddOns`), in a different call site. Currently dormant: `SPECIALTY_PACKS` is empty in production and no production caller passes `forceRedownload` yet, but this is public API, already exercised by existing tests, and will silently corrupt user-facing content the moment either a specialty pack ships or a "force refresh" UI feature is wired to this option. Found by Agent A (cycle-5 audit).
+
+**Acceptance Criteria:**
+- [ ] `loadPack`'s forceRedownload/fresh-download path should call `clearSpecialtyPacksForLang(lang)` (or equivalent) before `memCache.set(lang, pack)` whenever the pack being replaced could have had a specialty merge applied — matching the same guarantee Task #253 added to `evictPack`
+- [ ] Add a test: merge a specialty pack into a base pack, then call `loadPack(baseLang, manifest, { forceRedownload: true })`, and assert `getLoadedAddOns()` no longer reports the specialty code as loaded (consistent with the fresh unmerged pack now in memCache)
+
+**Done when:** A test proves that force-redownloading a base pack with a merged specialty add-on also prunes that add-on from `getLoadedAddOns()`. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit cycle 5, 2026-07-08) — severity 5 — data-loss — found by Agent A.
 
 ---
 
