@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 44 tasks | [43/44 complete — Task #260 is a proactive P3 cleanup, not blocking; see .autocode/debt.md for remaining dormant findings]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 44 tasks | [COMPLETE — 2026-07-08]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -4199,6 +4199,7 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 **File:** lib/packLoader.ts, tests/packLoader.test.ts
 **Complexity:** 🔧 Full — 2 files, but a structural refactor (extract shared control flow), not a single-scope fix
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P3
 
