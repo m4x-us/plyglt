@@ -1104,3 +1104,13 @@ Spot check: PASS — confirmed the new test genuinely exercises the shape-valida
 Done-when: PASS — `grep -rn "Array.isArray(.*units)" lib/` shows exactly one definition (lib/packTypes.ts), all call sites delegate to it
 Fixed this cycle: specialtyPackLoader.ts's duplicate shape-check (4th sibling-miss instance this batch) + folded-in validatePackShape naming/scope debt item | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task, first cycle
+
+### Task #251 | Fix packLoader's offline-fallback paths not evicting a shape-invalid cache entry | Status: COMPLETE | Cycle 1 | Completed: 2026-07-08
+
+#### Cycle 1 — 2026-07-08 — Direct Task (Builder path)
+Build approach: lib/packLoader.ts:loadPack — added `await clearPackCache(lang)` before the `parse_error` return in both offline-fallback branches' shape-validation-failure paths (the `!res.ok` branch and the fetch-throws branch), matching the two pre-existing cache-hit branches. Also extended the same two branches' JSON.parse-throws catch blocks with the same eviction call (same class of corrupted-cache bug, same two branches). tests/packLoader.test.ts — added two tests: one forcing the network-throws offline-fallback path with a shape-invalid cached pack, asserting eviction of both cache keys plus a follow-up successful download; one forcing the sibling `!res.ok` path with the same assertions.
+Scripts: PASS — tsc clean, 1023/1023 tests, coverage 87.45%/82.25%/86.34%/90.39% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Spot check: WARN — 3 low-severity items (a redundant/misleading follow-up assertion in the network-throws test, no dedicated test for the catch-block-specific eviction sub-case, a DRY note on the now-4x-repeated parse/validate/evict pattern) — all logged to debt.md/patterns.md, none blocking
+Done-when: PASS — new tests confirm cache eviction on both offline-fallback branches, not just the cache-hit branches
+Fixed this cycle: packLoader's offline-fallback eviction gap (this batch's other 4th-instance-of-the-pattern finding, alongside Task #250) | Still open: — | New findings: 3 (logged to debt.md as Direct spot-check warn items) | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
