@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 43 tasks | [43/43 tasks complete — audit cycle 6 found new debt, see .autocode/debt.md; recommendation: accept as done]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 44 tasks | [43/44 complete — Task #260 is a proactive P3 cleanup, not blocking; see .autocode/debt.md for remaining dormant findings]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -4191,6 +4191,29 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 **Done when:** A test proves that force-redownloading a base pack with a merged specialty add-on also prunes that add-on from `getLoadedAddOns()`. Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit cycle 5, 2026-07-08) — severity 5 — data-loss — found by Agent A.
+
+---
+
+### Task #260: Extract lib/packLoader.ts's 5 duplicated "parse → validate → evict-or-cache" blocks into one shared helper
+
+**File:** lib/packLoader.ts, tests/packLoader.test.ts
+**Complexity:** 🔧 Full — 2 files, but a structural refactor (extract shared control flow), not a single-scope fix
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+`loadPack` hand-duplicates the same "parse cached/downloaded JSON as Pack → validate via `hasValidUnitsArray` → on failure evict via `clearPackCache` and return `parse_error`, on success prune via `clearSpecialtyPacksForLang` and `memCache.set`" sequence across 5 separate call sites: the cache-hit/manifest-present branch (lines ~190-206), the cache-hit/no-manifest branch (~207-216), the `!res.ok` offline-fallback branch (~230-251), the network-throw offline-fallback branch (~258-277), and the fresh-download success path (~291-322). Across 6 audit cycles on Batch 18, every task that touched this defect class (Tasks #250, #251, #253, #259) correctly patched only the specific sites its own finding named, leaving the others unexamined until the next audit cycle re-read the whole file and found another gap — most recently, Task #259 added `clearSpecialtyPacksForLang` to 3 success-path copies but missed 4 sibling failure-path copies in the exact same two blocks it was editing (cycle 6 finding, Agent A). This is not a carelessness problem — there is no single place to make the fix, so each task's patch is structurally isolated from the other 4 copies of the same logic.
+
+**Acceptance Criteria:**
+- [ ] Extract a single private helper (e.g. `parseValidateAndCache(lang: string, jsonText: string): Promise<LoadPackResult>`) that performs: `JSON.parse` (catch → log, `clearPackCache`, `clearSpecialtyPacksForLang`, return `parse_error`), `hasValidUnitsArray` check (fail → same evict-and-prune-and-return-error path), success → `clearSpecialtyPacksForLang(lang)` + `memCache.set(lang, pack)` + return `{ ok: true, pack }`
+- [ ] Replace all 5 call sites in `loadPack` with calls to this helper
+- [ ] Call `clearSpecialtyPacksForLang` unconditionally in the helper, including at the two cache-hit sites where it is currently a structural no-op (memCache cannot hold this lang at that point, per the `!options?.forceRedownload` guard at line 171 and `cacheValid`'s own `!options?.forceRedownload` clause) — consistency here is cheap and removes a landmine if that invariant ever changes
+- [ ] Collapse the corresponding test coverage: the shared helper needs one set of parse-failure/shape-failure/success tests instead of duplicating them per call site; extend existing tests to cover all 5 original call sites through the one helper rather than leaving 2 of the 3 forceRedownload paths untested (closes the debt.md items about #259's 1-of-3 test coverage gap and the earlier catch-block JSON.parse-throw coverage gap)
+
+**Done when:** `lib/packLoader.ts:loadPack` has exactly one implementation of the parse/validate/evict-or-cache sequence, called from all 5 sites. Verification gate green. All 5 original code paths remain individually testable and tested.
+
+**Source:** Proactive architecture finding, identified while reviewing Batch 18's cycle-6 audit findings, 2026-07-08 — not itself an audit finding, a structural fix for the root cause behind 4 consecutive cycles' worth of "fixed here, missed the sibling" findings in this exact function.
 
 ---
 
