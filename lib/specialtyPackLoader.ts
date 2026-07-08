@@ -7,7 +7,7 @@
  */
 
 import { hasValidUnitsArray } from "@/lib/packTypes";
-import type { Pack, LoadPackResult, Manifest } from "@/lib/packTypes";
+import type { Pack, LoadPackResult, Manifest, PackMemCache } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
 
@@ -61,7 +61,7 @@ export function clearSpecialtyPacksForLang(baseLang: string): void {
  */
 export async function loadSpecialtyPack(
   lang: string,
-  memCache: Map<string, Pack>,
+  memCache: PackMemCache,
   manifest: Manifest | null,
 ): Promise<LoadPackResult> {
   const spec = SPECIALTY_PACKS.find(sp => sp.code === lang && sp.ready)!;
@@ -104,6 +104,9 @@ export async function loadSpecialtyPack(
     return { ok: false, error: "parse_error" };
   }
   if (!hasValidUnitsArray(addOnPack)) {
+    // Same log-before-reject discipline as the download/parse failures just above — without
+    // this, a wrong-shape add-on pack fails silently while every other failure mode here logs.
+    console.error(`[SHAPE_INVALID_FAIL-${lang}-${Date.now()}] add-on pack failed hasValidUnitsArray`);
     return { ok: false, error: "parse_error" };
   }
 
@@ -115,7 +118,10 @@ export async function loadSpecialtyPack(
     unitCount: base.unitCount + addOnPack.unitCount,
     cardCount: base.cardCount + addOnPack.cardCount,
   };
-  memCache.set(spec.baseLang, merged);
+  // merge, not write: this is an additive update to an already-loaded base pack, not a fresh
+  // replacement — it must NOT prune specialty tracking, since that would immediately undo the
+  // loadedAddOns.push(lang) two lines below. See PackMemCache's doc comment in lib/packTypes.ts.
+  memCache.merge(spec.baseLang, merged);
   loadedAddOns.push(lang);
   return { ok: true, pack: merged };
 }

@@ -219,7 +219,7 @@ describe("loadPack", () => {
     localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
     localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
 
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("fetch", async () => { throw new Error("Network error"); });
 
     const result = await loadPack("it", fakeManifest());
@@ -228,6 +228,9 @@ describe("loadPack", () => {
     // Corrupted cache entry evicted — a subsequent load isn't blocked by the same stale bytes
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+    // Shape-validation failures must log, same as JSON.parse failures do (Task #260 follow-up)
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 
   it("evicts a shape-invalid cache entry hit via the !res.ok offline-fallback path (Task #251)", async () => {
@@ -239,7 +242,7 @@ describe("loadPack", () => {
     localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
     localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
 
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("fetch", async () => ({ ok: false, status: 503 }));
 
     const result = await loadPack("it", fakeManifest());
@@ -247,6 +250,9 @@ describe("loadPack", () => {
     if (!result.ok) expect(result.error).toBe("parse_error");
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+    // Shape-validation failures must log, same as JSON.parse failures do (Task #260 follow-up)
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 
   it("evicts a cache entry that fails to parse (invalid JSON, not just wrong shape) hit via the network-throws offline-fallback path (Task #260)", async () => {
@@ -292,12 +298,19 @@ describe("loadPack", () => {
       text: async () => malformedJson,
     }));
 
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
     // Use a manifest whose sha256 matches the malformed JSON so we get past the checksum check
     const { createHash } = await import("node:crypto");
     const sha = createHash("sha256").update(malformedJson).digest("hex");
     const result = await loadPack("it", fakeManifest(sha));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("parse_error");
+
+    // Task #260 follow-up: shape-validation failures must log, same as JSON.parse failures do —
+    // this fails if the SHAPE_INVALID_FAIL log call is removed from the fresh-download path.
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 
   it("evicts cache and re-downloads when cached data has wrong SHA256", async () => {
@@ -518,7 +531,7 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     localStorageMock.setItem("pack-data-v1-it", malformedJson);
     localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: malformedSha, cachedAt: Date.now() }));
 
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -532,6 +545,9 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     // dropping only meta-key removal from clearPackCache would slip past a data-key-only check)
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+    // Shape-validation failures must log, same as JSON.parse failures do (Task #260 follow-up)
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 
   it("returns parse_error when no-manifest cache-hit pack has non-array units", async () => {
@@ -542,7 +558,7 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
     localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: "", cachedAt: Date.now() }));
 
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -554,6 +570,9 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
     // Malformed data evicted from cache — both keys, not just data (Task #260)
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
+    // Shape-validation failures must log, same as JSON.parse failures do (Task #260 follow-up)
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 });
 
@@ -865,6 +884,7 @@ describe("specialty pack merge path", () => {
       .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
       .mockResolvedValueOnce({ ok: true, text: async () => malformedAddOnJson });
     vi.stubGlobal("fetch", fetchSpy);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loadPack("it", manifest);
     const result = await loadPack("it-medical", manifest);
@@ -872,5 +892,8 @@ describe("specialty pack merge path", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("parse_error");
     expect(getLoadedAddOns()).not.toContain("it-medical");
+    // Shape-validation failures must log, same as download/parse failures do (Task #260 follow-up)
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 });

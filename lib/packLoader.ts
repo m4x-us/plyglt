@@ -8,9 +8,9 @@
  * Used by:    hooks/useLangPack.ts
  *
  * Storage hierarchy (fastest → slowest):
- *   1. In-memory Map<string, Pack>  — per-session, zero-latency
- *   2. Platform storage              — Tauri Store (desktop) or localStorage (web)
- *   3. Network download              — fetch from /packs/{lang}.json
+ *   1. In-memory cache (PackMemCache) — per-session, zero-latency
+ *   2. Platform storage                — Tauri Store (desktop) or localStorage (web)
+ *   3. Network download                — fetch from /packs/{lang}.json
  *
  * Security: loadPack validates lang against READY_PACK_CODES and SPECIALTY_PACKS
  * with ready:true (fail fast — unready and unknown codes return "invalid_lang" before
@@ -32,7 +32,7 @@ import { loadSpecialtyPack, clearSpecialtyCache, clearSpecialtyPacksForLang } fr
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
 import { hasValidUnitsArray } from "@/lib/packTypes";
-import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
+import type { Manifest, Pack, LoadPackResult, PackMemCache } from "@/lib/packTypes";
 export type { PackMeta, Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 
 // ── Private cache metadata type (internal to packLoader) ─────────────────────
@@ -44,8 +44,45 @@ interface CachedPackMeta {
 }
 
 // ── In-memory cache ───────────────────────────────────────────────────────────
+//
+// Implements PackMemCache (lib/packTypes.ts) — see that interface's doc comment for why `write`
+// and `merge` exist instead of a generic `set`. This is the only place that constructs the
+// underlying Map; every other file (lib/specialtyPackLoader.ts) only ever sees the narrow
+// interface, never the raw Map, so it cannot call an unguarded `.set(...)`.
+class PackMemCacheImpl implements PackMemCache {
+  private readonly map = new Map<string, Pack>();
 
-const memCache = new Map<string, Pack>();
+  has(lang: string): boolean {
+    return this.map.has(lang);
+  }
+
+  get(lang: string): Pack | undefined {
+    return this.map.get(lang);
+  }
+
+  keys(): IterableIterator<string> {
+    return this.map.keys();
+  }
+
+  write(lang: string, pack: Pack): void {
+    clearSpecialtyPacksForLang(lang);
+    this.map.set(lang, pack);
+  }
+
+  merge(lang: string, mergedPack: Pack): void {
+    this.map.set(lang, mergedPack);
+  }
+
+  delete(lang: string): void {
+    this.map.delete(lang);
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+const memCache: PackMemCache = new PackMemCacheImpl();
 
 // ── Platform storage (lazy singleton) ─────────────────────────────────────────
 
@@ -100,10 +137,10 @@ async function writeCacheData(lang: string, json: string): Promise<void> {
  * merge state left dangling. Pruning lives INSIDE this function, not at each call site, because
  * 4 consecutive Batch 18 remediation tasks (#250, #251, #253, #259) each independently forgot
  * to pair the two calls at one or more of clearPackCache's several call sites — most recently
- * Task #259 added clearSpecialtyPacksForLang after 3 of loadPack's memCache.set calls but missed
- * 4 sibling clearPackCache-and-return call sites in the same two blocks it was editing. Folding
- * the prune into clearPackCache itself means every call site, present and any added later, gets
- * the guarantee automatically — there is no longer a second line to remember.
+ * Task #259 added clearSpecialtyPacksForLang after 3 of loadPack's cache-write call sites but
+ * missed 4 sibling clearPackCache-and-return call sites in the same two blocks it was editing.
+ * Folding the prune into clearPackCache itself means every call site, present and any added
+ * later, gets the guarantee automatically — there is no longer a second line to remember.
  */
 async function clearPackCache(lang: string): Promise<void> {
   // allSettled: both removals run regardless of whether either throws.
@@ -126,17 +163,19 @@ async function clearPackCache(lang: string): Promise<void> {
 // ── Shared parse/validate/cache-or-evict helpers ──────────────────────────────
 //
 // loadPack serves pack JSON from 5 different origins (2 cache-hit branches, 2 offline-fallback
-// branches, 1 fresh-download success). All 5 need the same guarantee on any memCache write:
-// clearSpecialtyPacksForLang must run before memCache.set, so a merged specialty pack's tracking
-// state never outlives the data it was merged into. (The eviction-side pairing is now handled
-// inside clearPackCache itself — see its doc comment above.) Prior to this extraction each of
-// the 5 sites hand-rolled this logic independently; centralizing it here means a 6th call site
-// (or a future edit to an existing one) gets the guarantee for free.
+// branches, 1 fresh-download success). All 5 need the same guarantee: clearSpecialtyPacksForLang
+// must run before the cache is overwritten, so a merged specialty pack's tracking state never
+// outlives the data it was merged into. `cacheAndReturn` gets this for free by calling
+// `memCache.write` (see PackMemCache in lib/packTypes.ts) rather than a raw Map.set — there is no
+// raw `set` exposed on `memCache` for a future call site to bypass. (The eviction-side pairing is
+// handled inside clearPackCache itself — see its doc comment above.) Only 3 of these 5 origins
+// (the fresh-download success path and the 2 offline-fallback branches) previously hand-rolled
+// this pairing before Task #260's extraction; the 2 cache-hit branches never had it at all —
+// routing all 5 through one funnel closes that gap for every origin uniformly.
 
-/** Success tail shared by every site that adds `pack` to memCache under `lang`. */
+/** Success tail shared by every site that adds `pack` to the cache under `lang`. */
 function cacheAndReturn(lang: string, pack: Pack): LoadPackResult {
-  clearSpecialtyPacksForLang(lang);
-  memCache.set(lang, pack);
+  memCache.write(lang, pack);
   return { ok: true, pack };
 }
 
@@ -154,6 +193,10 @@ async function evictAndReject(lang: string): Promise<LoadPackResult> {
 /** Shape-validates an already-parsed pack, evicting on failure or caching on success. */
 async function validateAndCache(lang: string, pack: Pack): Promise<LoadPackResult> {
   if (!hasValidUnitsArray(pack)) {
+    // Same log-before-evict discipline as the JSON.parse-throw path just below — without this,
+    // an operator sees a log line for corrupt JSON but nothing for wrong-shape JSON, even though
+    // both silently wipe the user's local cache.
+    console.error(`[SHAPE_INVALID_FAIL-${lang}-${Date.now()}] pack failed hasValidUnitsArray — evicting`);
     return evictAndReject(lang);
   }
   return cacheAndReturn(lang, pack);
@@ -330,6 +373,7 @@ export async function loadPack(
   }
 
   if (!hasValidUnitsArray(pack)) {
+    console.error(`[SHAPE_INVALID_FAIL-${lang}-${Date.now()}] freshly-downloaded pack failed hasValidUnitsArray`);
     return { ok: false, error: "parse_error" };
   }
 

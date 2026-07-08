@@ -58,3 +58,23 @@ export type LoadPackResult =
 export function hasValidUnitsArray(pack: Pack): boolean {
   return Array.isArray(pack.units);
 }
+
+/**
+ * Contract for the in-memory pack cache, shared by lib/packLoader.ts (which owns the concrete
+ * implementation) and lib/specialtyPackLoader.ts (which reads/writes it only through this
+ * interface). Deliberately has no generic `set` method — only `write` (replace an entry outright;
+ * always prunes any specialty-pack tracking for `lang` first, since the incoming pack was not
+ * built by merging in an existing add-on) and `merge` (additive update used only when folding a
+ * specialty add-on's units into its base pack; must NOT prune, since pruning would immediately
+ * undo the merge this call itself just performed). A caller cannot silently bypass the
+ * specialty-tracking pairing a raw `Map.set` would allow, because there is no raw `set` exposed.
+ */
+export interface PackMemCache {
+  has(lang: string): boolean;
+  get(lang: string): Pack | undefined;
+  keys(): IterableIterator<string>;
+  write(lang: string, pack: Pack): void;
+  merge(lang: string, mergedPack: Pack): void;
+  delete(lang: string): void;
+  clear(): void;
+}
