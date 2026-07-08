@@ -111,8 +111,9 @@ Only `it` (Italian) and `es` (Spanish) are registered in `lib/langRegistry.ts`.
 `lib/introduction.ts` is a pure-function module (no React, no Zustand) implementing the
 22-phase intensive introduction cadence from BRAND.md.
 
-Six exports: `getDayOfPhase`, `maxAppearancesToday`, `shouldAppearToday`, `recordResult`,
-`shouldGraduate`, `getNextCardType`.
+10 exports — 4 constants: `GRADUATION_THRESHOLD`, `CONSECUTIVE_WRONG_RESET`, `MAX_PHASE_DAY`,
+`MAX_APPEARANCES_BY_PHASE_DAY` (frozen); 6 functions: `getDayOfPhase`, `maxAppearancesToday`,
+`shouldAppearToday`, `shouldGraduate`, `recordResult`, `getNextCardType`.
 
 Integrates with `store/srsStore.ts` via four actions: `introduceCard`,
 `recordIntroductionResult`, `getIntroductionDueCardIds`, `canIntroduceNewCard`.
@@ -123,11 +124,14 @@ The store imports from lib/, not vice versa.
 
 Session-start activation: on mount, `hooks/useStudySession.ts` calls `canIntroduceNewCard` and, if true, introduces the first qualifying card and appends it to the queue. This means every study session begins with a new card when the daily cap permits (live since Task #085, 2026-06-29).
 
+**Reset and pause mechanism (Tasks #178, #228, #246):** `phaseStartDate` — not `dayOfPhase` — is the authoritative reset anchor. `dayOfPhase` is always recomputed by callers via `getDayOfPhase(record.phaseStartDate, today)`; a persisted `dayOfPhase` value is never trusted directly. On a triple-wrong streak, `recordResult` advances `phaseStartDate` to today (restarting Day 1 intensity) and sets `strandedAcrossDays: true` on the record. `canIntroduceNewCard` blocks all new-card introductions while ANY record has `strandedAcrossDays: true` — the flag is cleared only by a subsequent correct answer on that record (a wrong answer never clears it). A day-22+ rescue path in `getIntroductionDueCardIds` (`store/srsStore.ts`) surfaces a non-graduated card once per day even past the 22-day table, so it can never permanently disappear from both queues.
+
 Key invariants:
 - One new card per day maximum (`canIntroduceNewCard` enforces the cap)
 - Graduation requires 15 consecutive correct retrievals (not time-based)
-- Wrong 3× in a row resets `dayOfPhase` to 1, not just `consecutiveCorrect`
+- Wrong 3× in a row advances `phaseStartDate` to today (Day 1 intensity restarts) and sets `strandedAcrossDays: true`, pausing new-card introductions until a correct answer clears it
 - `recordResult` is immutable — always returns a new object, never mutates input
+- `getDayOfPhase` throws `[ERR-INTRO-DATE]` on a calendar-invalid `phaseStartDate` or `today` rather than silently propagating `NaN`; callers (`store/srsStore.ts`) catch this per-record so one corrupted record cannot abort computation for every other card
 
 ---
 
