@@ -1,47 +1,4 @@
----
-status: done
-agent: adam
-stream: W5A
-wave: 5
----
-
-# Adam — Stream W5A — Wave 5 — 2026-07-08
-
-IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
-(including short replies, confirmations, and one-word answers):
-— Adam | W5A | #246 #247 #249
-
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
-Work exclusively on the files listed under "Files You Own". Do not touch anything else.
-
-## Your Tasks (run in this exact order)
-1. /task #246 — Fix canIntroduceNewCard's strandedAcrossDays pause being defeated by any same-day review
-2. /task #247 — Fix recordIntroductionResult having no try/catch around getDayOfPhase
-3. /task #249 — Fix vacuous NaN-equality tautology in srsStore.test.ts
-
-**Why this order:** #246 and #247 are the two substantive fixes from this cycle's re-audit; #249 is a trivial one-line test cleanup in the same file, run last to avoid merge noise ahead of the real fixes. A semantic-coupling check confirmed #246 and #247 touch disjoint code paths within store/srsStore.ts (a persisted-field guard vs. a corrupt-date defense) — there is no functional dependency between them, they're just co-located by file.
-
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
-
-Adam — W5A
-[✓] #246 — Fix strandedAcrossDays pause defeat   ← done
-[→] #247 — Fix recordIntroductionResult uncaught throw   ← starting now
-[ ] #249 — Fix vacuous NaN tautology
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
-
-## Files You Own (edit ONLY these)
-store/srsStore.ts
-lib/introduction.ts
-tests/srsStore.test.ts
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/packLoader.ts
-tests/packLoader.test.ts
-
-## Task Definitions
+# Stream W5A Task State
 
 ### Task #246: Fix requirements: canIntroduceNewCard's strandedAcrossDays pause is defeated by any same-day review, not just a correct one
 
@@ -103,22 +60,3 @@ Task #234 wrapped `getDayOfPhase` in a try/catch inside `getIntroductionDueCardI
 **Done when:** No vacuous self-referential `.toBe()` assertions remain in the affected test. Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 4 — tests — converged independently by Agents N, A, K, V, B.
-
-## Agent Memories
-
-## Architecture Agent Memory (relevant excerpt)
-
-This is the third remediation pass on the introduction engine this batch. Both prior passes (Task #180, then Tasks #228/#234) fixed the letter of a finding but left a sibling instance of the same bug class unfixed — the recurring failure mode this team keeps hitting in this exact file. Before closing #247, grep store/srsStore.ts for every `getDayOfPhase(` call site and confirm ALL of them (not just this one) have equivalent protection — don't leave a third sibling unfixed.
-
-For #246: the intended contract (per content/types.ts:59) is "strandedAcrossDays: true blocks canIntroduceNewCard until a correct answer clears it" — the fix should make the code match that contract exactly, using `strandedAcrossDays` alone as the signal rather than layering a `lastSeenDate` comparison on top of it.
-
-## When You Finish
-Write your completion summary to .autocode/stream-W5A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
-
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
-
-— Adam | W5A | #246 #247 #249

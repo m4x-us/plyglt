@@ -236,7 +236,13 @@ export const useSRSStore = create<SRSState>()(
           console.error(`[plyglt] recordIntroductionResult: unknown cardId "${cardId}" — no introduction record found`);
           return;
         }
-        const dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
+        let dayOfPhase: number;
+        try {
+          dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
+        } catch (err) {
+          console.error(`[ERR-INTRO-RESULT-${cardId}] corrupt phaseStartDate "${record.phaseStartDate}" — skipping update`, err);
+          return;
+        }
         const updated = recordResult({ ...record, dayOfPhase }, correct, today);
         set((s) => ({ introductions: { ...s.introductions, [cardId]: updated } }));
       },
@@ -268,10 +274,11 @@ export const useSRSStore = create<SRSState>()(
         const values = Object.values(introductions);
         // One new card per day: block if any card was introduced today
         if (values.some((r) => r.introducedDate === today)) return false;
-        // BRAND.md cross-day spec: pause introductions when a card hit triple-wrong reset and
-        // hasn't been seen today. strandedAcrossDays is set by recordResult on triple-wrong,
-        // cleared on the next correct answer.
-        if (values.some((r) => r.strandedAcrossDays && r.lastSeenDate !== today)) return false;
+        // BRAND.md: pause introductions until the stranded card stabilizes (any correct answer).
+        // strandedAcrossDays is the authoritative signal — set on triple-wrong, cleared only by
+        // a correct answer. The prior guard also required lastSeenDate !== today, which caused
+        // any same-day review (even wrong) to silently lift the pause (Task #246 fix).
+        if (values.some((r) => r.strandedAcrossDays)) return false;
         return true;
       },
     }),

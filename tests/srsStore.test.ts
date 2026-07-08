@@ -473,6 +473,31 @@ describe("srsStore — introduction engine actions", () => {
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(true);
   });
 
+  // #246 — same-day wrong review must NOT lift the strandedAcrossDays pause
+  it("#246: a same-day WRONG answer does not unblock canIntroduceNewCard — only a correct answer does", () => {
+    useSRSStore.getState().introduceCard("stranded-card2", "2026-06-24");
+    // Triple wrong on day 1 → strandedAcrossDays: true
+    useSRSStore.getState().recordIntroductionResult("stranded-card2", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-card2", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-card2", false, "2026-06-24");
+
+    // Blocked on day 2 before any review
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
+
+    // One WRONG answer on day 2 — updates lastSeenDate to "2026-06-25" but must NOT clear strandedAcrossDays
+    useSRSStore.getState().recordIntroductionResult("stranded-card2", false, "2026-06-25");
+
+    const afterWrong = useSRSStore.getState().introductions["stranded-card2"];
+    expect(afterWrong?.strandedAcrossDays).toBe(true); // still stranded
+    expect(afterWrong?.lastSeenDate).toBe("2026-06-25"); // lastSeenDate advanced...
+
+    // ...but the pause must still apply — old guard would have lifted it here (bug)
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
+
+    // Must remain blocked on day 3 as well (no correct answer has occurred)
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(false);
+  });
+
   // F12 — rescue path: day-22+ non-graduated cards must appear once per day
   it("getIntroductionDueCardIds includes a day-22+ non-graduated card once per day (rescue path)", () => {
     // phaseStartDate 21 days before today → getDayOfPhase returns 22
@@ -597,6 +622,39 @@ describe("srsStore — introduction engine actions", () => {
       errorSpy.mockRestore();
     }
   });
+
+  // #247 — recordIntroductionResult must not throw when called on a corrupt phaseStartDate record
+  it("#247: recordIntroductionResult does not throw on a corrupt phaseStartDate — logs and skips the update", () => {
+    useSRSStore.setState({
+      introductions: {
+        "corrupt-result-card": {
+          cardId: "corrupt-result-card",
+          introducedDate: "2026-07-01",
+          phaseStartDate: "2026-02-30", // calendar-invalid — getDayOfPhase will throw
+          dayOfPhase: 1,
+          consecutiveCorrect: 5,
+          totalEncounters: 10,
+          lastSeenDate: "2026-07-01",
+          appearancesToday: 2,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => {
+        useSRSStore.getState().recordIntroductionResult("corrupt-result-card", true, "2026-07-08");
+      }).not.toThrow();
+      // Record must remain unchanged — skip, not corrupt further
+      const rec = useSRSStore.getState().introductions["corrupt-result-card"];
+      expect(rec?.consecutiveCorrect).toBe(5);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/ERR-INTRO-RESULT-corrupt-result-card/), expect.anything());
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });
 
 // ── Cross-module tests: migration date guards & getDayOfPhase calendar validation ───────────────
@@ -644,7 +702,7 @@ describe("migrateSrsStore — #233 null-record complete default", () => {
     // Verify totalEncounters is a real number (not NaN from undefined + 1)
     const n = intro?.totalEncounters as number;
     expect(isNaN(n)).toBe(false);
-    expect(n + 1).toBe(n + 1); // NaN + 1 !== NaN + 1 (NaN propagation check)
+    expect(n).toBe(0); // null-record default sets totalEncounters to 0; NaN would make this fail
   });
 });
 

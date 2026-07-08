@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 33 tasks | [CURRENT SPRINT]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 33 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3883,8 +3883,9 @@ AGENTS.md's Verification Gate grep (line ~39) bans 4 assertion patterns includin
 ### Task #246: Fix requirements: canIntroduceNewCard's strandedAcrossDays pause is defeated by any same-day review, not just a correct one
 
 **File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
-**Complexity:** ⚡ Direct — 3 files, guard-condition fix
+**Complexity:** 🔧 Full — 3 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P1
 
@@ -3907,6 +3908,7 @@ Task #228 fixed the cross-day pause from being fully dead code, but the guard in
 **File:** store/srsStore.ts, tests/srsStore.test.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3926,8 +3928,9 @@ Task #234 wrapped `getDayOfPhase` in a try/catch inside `getIntroductionDueCardI
 ### Task #248: Fix data-loss: packLoader's shape-validation guard covers only 3 of 5 JSON.parse(...) as Pack sites
 
 **File:** lib/packLoader.ts, tests/packLoader.test.ts
-**Complexity:** ⚡ Direct — 2 files
+**Complexity:** 🔧 Full — extract shared validator
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3950,6 +3953,7 @@ Task #239 added an `Array.isArray(pack.units)` shape guard to 3 of 5 `JSON.parse
 **File:** tests/srsStore.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-08**
 **Blocked by:** Nothing
 **Priority:** P3
 

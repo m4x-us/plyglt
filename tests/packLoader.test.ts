@@ -430,6 +430,55 @@ describe("loadPack — QuotaExceededError handling", () => {
   });
 });
 
+describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () => {
+  it("returns parse_error when sha256-verified cache-hit pack has non-array units", async () => {
+    // The manifest sha256 matches the malformed data — the hash check passes — so shape validation
+    // at the sha256-verified site is the only remaining guard. Without validatePackShape at this
+    // site the malformed pack would return ok:true. Test fails if the guard is removed.
+    const malformedPack = { ...fakePack(), units: "not-an-array" };
+    const malformedJson = JSON.stringify(malformedPack);
+    const { createHash: ch } = await import("node:crypto");
+    const malformedSha = ch("sha256").update(malformedJson).digest("hex");
+
+    localStorageMock.setItem("pack-data-v1-it", malformedJson);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: malformedSha, cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Manifest sha256 matches malformed data → hash passes → shape check fires
+    const result = await loadPack("it", fakeManifest(malformedSha));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    // Shape validation rejects at cache-hit time — no download attempt
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // Malformed data evicted from cache
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+  });
+
+  it("returns parse_error when no-manifest cache-hit pack has non-array units", async () => {
+    // No manifest (null) → no hash verification. Shape validation is the only safety check.
+    // Without validatePackShape at the no-manifest site the malformed pack returns ok:true.
+    // Test fails if the guard is removed from the no-manifest (offline-serve-as-is) branch.
+    const malformedPack = { ...fakePack(), units: null };
+    localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await loadPack("it", null);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    // No download attempted — shape check fires at cache-hit time
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // Malformed data evicted from cache
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
+  });
+});
+
 describe("loadPack — A003: cachedData nulled after SHA-eviction (integrity bypass prevention)", () => {
   it("returns download_failed (not integrity-failed cache) when SHA-eviction is followed by network failure", async () => {
     // Seed cache with data whose SHA does not match the manifest (simulates corrupted cache).
