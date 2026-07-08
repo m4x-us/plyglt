@@ -1114,3 +1114,13 @@ Spot check: WARN — 3 low-severity items (a redundant/misleading follow-up asse
 Done-when: PASS — new tests confirm cache eviction on both offline-fallback branches, not just the cache-hit branches
 Fixed this cycle: packLoader's offline-fallback eviction gap (this batch's other 4th-instance-of-the-pattern finding, alongside Task #250) | Still open: — | New findings: 3 (logged to debt.md as Direct spot-check warn items) | Regression signal: NO
 CTO diagnosis run: NO — Direct task, first cycle
+
+### Task #255 | Fix documentation-trust: CLAUDE.md's Introduction Engine section was never synced across 4 remediation cycles | Status: COMPLETE | Cycle 1 | Completed: 2026-07-08
+
+#### Cycle 1 — 2026-07-08 — Direct Task (Builder path)
+Build approach: CLAUDE.md:109-134 (§7 "Introduction Engine") — rewrote the exports line from "Six exports" to the actual current 10 (4 constants + 6 functions, verified via `grep -n "^export " lib/introduction.ts`); replaced "Wrong 3x resets dayOfPhase to 1" with an accurate description of phaseStartDate as the authoritative reset anchor and strandedAcrossDays as the cross-day pause flag; added the day-22+ rescue path description (store/srsStore.ts:getIntroductionDueCardIds) and getDayOfPhase's throw-on-invalid-date behavior with its per-record try/catch. Cross-checked the rest of CLAUDE.md via grep for other stale introduction-engine references — none found.
+Scripts: PASS — tsc clean, 1027/1027 tests, lint 0 errors (1 pre-existing unrelated warning) — unchanged from before, doc-only edit
+Spot check: WARN — 1 severity-2 item (doc doesn't mention strandedAcrossDays clears via two distinct code paths — recordResult's normal branch and Task #254's catch-block fallback — an implementation-nuance omission, not a factual error) — logged to debt.md
+Done-when: PASS — exports list matches lib/introduction.ts exactly; phaseStartDate/strandedAcrossDays/rescue path all accurately described, independently verified by a spot-check agent against the live source
+Fixed this cycle: CLAUDE.md §7 documentation drift (open since Task #178, surfaced by Agent W in cycle-4 audit) | Still open: — | New findings: 1 (logged to debt.md as Direct spot-check warn) | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
