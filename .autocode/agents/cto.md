@@ -71,7 +71,7 @@ Batches 1–14 below were completed before this SOP existed — no retroactive a
 | 15 | 0 | — | not started | — |
 | 16 | 0 | — | not started | — |
 | 17 | 0 | — | not started | — |
-| 18 | 2 | 2026-07-08 | FAIL | Cycle 1 (2026-07-07): 2 severity-9 findings — Task #180's cross-day pause and "variety rule" wiring both dead code. 18 findings → Tasks #228-245. Cycle 2 (2026-07-08, post-remediation): 16/18 prior findings genuinely resolved at root cause; 3 real functional defects found — strandedAcrossDays pause defeated by any same-day review (not just correct), recordIntroductionResult's uncaught getDayOfPhase throw left unfixed (sibling of Task #234's fix), packLoader shape-guard covers only 3/5 parse sites (sibling of Task #239's fix). 4 findings → Tasks #246-249; 7 low-severity items → debt.md |
+| 18 | 3 | 2026-07-08 | FAIL | Cycle 1 (2026-07-07): 2 severity-9 findings — Task #180's cross-day pause and "variety rule" wiring both dead code. 18 findings → Tasks #228-245. Cycle 2 (2026-07-08, post-remediation): 16/18 prior findings genuinely resolved; 3 real defects (strandedAcrossDays defeated by same-day review, recordIntroductionResult's uncaught throw, packLoader 3/5 site coverage) → Tasks #246-249. Cycle 3 (2026-07-08, post-remediation): all 4 targeted fixes hold; found a 4th sibling-miss instance (specialtyPackLoader.ts duplicates the shape check) + an inconsistent cache-eviction gap in packLoader's offline-fallback paths. Severity trend: 9 → 6 → 5. 2 findings → Tasks #250-251; 5 low-severity items → debt.md |
 
 ### Batch 1 | Re-audit | 2026-07-03 | Verdict: FAIL
 Findings: 0 critical, 4 major, 17 minor (21 total)
@@ -128,6 +128,22 @@ Systemic pattern: G002 and G003 are the SAME root-cause class — both remediati
 
 4 findings (severity >=4) promoted to Tasks #246-249; 7 low-severity items logged to debt.md. Two task-list process issues also fixed inline: Tasks #229/#230's acceptance-criteria checkboxes (found unchecked despite COMPLETE status by Agent W) were checked off with resolution notes.
 Audit cycle will pass when: Tasks #246-249 complete → re-run `/audit Batch 18`.
+
+### Batch 18 | Remediation re-audit (cycle 3) | 2026-07-08 | Verdict: FAIL
+8-agent parallel review (A, B, S, N, K, W, V, Red R) re-verifying all 4 cycle-2 findings' root-cause resolution after Tasks #246-249 closed via /advance Wave 5, plus a fresh independent pass over the full diff since 42a2793 (30 files).
+
+All 4 cycle-2 findings genuinely resolved at the root cause — verified via direct code reads, live reproduction, and B7 deletion-test tracing on every new/modified test (each one fails when its corresponding fix is reverted). canIntroduceNewCard's guard now checks only `strandedAcrossDays`; recordIntroductionResult has the matching try/catch; packLoader's shape guard now covers all 5 sites inside `loadPack`; the vacuous test tautology is gone.
+
+2 real new defects found, both independently converged on by multiple auditors — a 4th instance of the recurring "fixed the named site, missed the sibling" pattern, now one file removed rather than one call site removed:
+- H1 sev:5 | code-quality | lib/specialtyPackLoader.ts:90 duplicates the shape-check Task #248 just centralized in `validatePackShape()` (not exported, so this file's untouched inline copy was never updated). Currently inert (SPECIALTY_PACKS empty) but a live landmine. Converged: Agents A, B, W (3/8)
+- H2 sev:5 | data-loss | lib/packLoader.ts's two offline-fallback branches (fetch !res.ok, fetch throws) don't call clearPackCache() on shape-validation failure, unlike the two cache-hit branches — a corrupted cache is never evicted while offline, causing a permanent self-inflicted outage. Found by Red Agent R, confirmed by direct code read.
+
+Plus lower-severity findings: `validatePackShape`'s name overclaims what it checks (5/8 agents, matches an already-catalogued audit-checklist.md gap), a unit test that doesn't assert the exact field it exists to test (Agent W), an untested behavior change in the same-day-as-reset scenario (3/8 agents, likely correct but unverified), and two documentation-staleness items.
+
+Severity trend across all 3 cycles: 9 → 6 → 5. The pattern itself (fix the named site, miss the sibling) has now recurred 4 times, but each recurrence has been progressively lower-stakes: 2 completely dead marquee features (cycle 1) → 2 half-fixed call sites on hot paths (cycle 2) → 1 duplicated check in dead/unshipped code + 1 narrow double-failure edge case (cycle 3). Diminishing-returns judgment call flagged to Max rather than auto-continuing to a 4th cycle.
+
+2 findings (severity 5) promoted to Tasks #250-251; 5 lower-severity items logged to debt.md. Also corrected a stale claim in security.md ("no npm audit step in ci.yml") that Agent S found had already been resolved by an earlier, unrelated commit.
+Audit cycle will pass when: Tasks #250-251 complete (or are explicitly accepted as debt) → re-run `/audit Batch 18`.
 
 ## Open Escalations
 

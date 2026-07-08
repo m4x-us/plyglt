@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 33 tasks | [TASKS COMPLETE — pending batch audit]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 35 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3966,6 +3966,49 @@ Task #239 added an `Array.isArray(pack.units)` shape guard to 3 of 5 `JSON.parse
 **Done when:** No vacuous self-referential `.toBe()` assertions remain in the affected test. Verification gate green.
 
 **Source:** Audit finding (Batch 18 remediation re-audit, 2026-07-08) — severity 4 — tests — converged independently by Agents N, A, K, V, B.
+
+---
+
+### Task #250: Fix code-quality: specialtyPackLoader.ts duplicates the shape-check Task #248 just centralized
+
+**File:** lib/packLoader.ts, lib/specialtyPackLoader.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+Task #248 extracted a shared `validatePackShape()` helper and applied it at all 5 `JSON.parse(...) as Pack` sites inside `lib/packLoader.ts:loadPack`. `lib/specialtyPackLoader.ts:90` has a structurally identical 6th site (`JSON.parse(addOnJson) as Pack` → `if (!Array.isArray(addOnPack.units))`) that still duplicates the check inline instead of importing the shared helper — `validatePackShape` isn't even exported, so reuse wasn't possible without a further edit. This file was untouched by all 3 remediation cycles on this batch. Currently inert since `SPECIALTY_PACKS` is empty, but a live landmine for the day specialty packs ship — the exact "fixed the named site, missed the sibling" pattern that has now recurred 4 times this batch. Converged independently by Agents A, B, W (3 of 8 cycle-3 audit agents).
+
+**Acceptance Criteria:**
+- [ ] Export `validatePackShape` from `lib/packLoader.ts` (or move it to `lib/packTypes.ts` alongside the `Pack` interface it validates)
+- [ ] Replace `lib/specialtyPackLoader.ts:90`'s inline `!Array.isArray(addOnPack.units)` check with a call to the shared `validatePackShape()`
+- [ ] Add a test in the specialty-pack-loading test coverage asserting malformed `units` is rejected via the shared validator (even though `SPECIALTY_PACKS` is currently empty, this exercises the merge path directly)
+
+**Done when:** `grep -rn "Array.isArray(.*units)" lib/` shows exactly one definition (inside `validatePackShape` itself), with all call sites — including `lib/specialtyPackLoader.ts` — delegating to it. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit cycle 3, 2026-07-08) — severity 5 — code-quality — converged independently by Agents A, B, W.
+
+---
+
+### Task #251: Fix data-loss: packLoader's offline-fallback paths don't evict a shape-invalid cache entry
+
+**File:** lib/packLoader.ts, tests/packLoader.test.ts
+**Complexity:** ⚡ Direct — 2 files
+**Owner:** Architecture Agent
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+In `lib/packLoader.ts:loadPack`, the two "cache hit" shape-validation-failure branches (sha256-verified hit, no-manifest hit) call `clearPackCache(lang)` before returning `{ ok: false, error: "parse_error" }`. The two "offline-fallback" branches (fetch `!res.ok`, fetch throws) return the same error on shape-validation failure but never call `clearPackCache` first. A corrupted cache entry hit through either offline-fallback path is therefore never evicted — every subsequent offline load attempt hits the same corrupted cache and returns `parse_error` again, with no path to self-heal until network returns and a version bump happens, or someone manually calls `evictPack`. Confirmed via direct code read (lib/packLoader.ts:229-234, 248-253). Found by Red Agent R.
+
+**Acceptance Criteria:**
+- [ ] Add `await clearPackCache(lang)` before returning `parse_error` in both offline-fallback branches, matching the cache-hit branches' behavior
+- [ ] Add a test: seed a shape-invalid cached pack, force the offline-fallback path (network error), assert the result is `parse_error` AND that the cache was evicted (a subsequent successful download is not blocked by stale corrupted data)
+
+**Done when:** A test confirms the cache is evicted after a shape-validation failure on the offline-fallback path, not just on the cache-hit paths. Verification gate green.
+
+**Source:** Audit finding (Batch 18 remediation re-audit cycle 3, 2026-07-08) — severity 5 — data-loss — found by Red Agent R, confirmed by the orchestrating CTO's own code read.
 
 ---
 

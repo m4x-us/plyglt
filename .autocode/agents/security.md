@@ -53,8 +53,8 @@
 - UPDATE ENDPOINT PLACEHOLDER: `src-tauri/tauri.conf.json:48` endpoint still `REPLACE_WITH_REPO`. Task #123 updates this when release.yml creates real releases. STILL OPEN.
 
 ## CI Security Gaps (Batch 9 scope — Task #115)
-- No `npm audit` step in ci.yml — high/critical CVEs pass silently through CI.
-- 2 known moderate vulns: next/postcss chain (ReDoS at build time, not runtime). Unfixable without major Next.js downgrade. Document in STATUS.md (Task #125). Gate CI on `--audit-level=high` only.
+- RESOLVED: `ci.yml:22` now runs `npm audit --audit-level=high` (confirmed live during Batch 18 cycle-3 re-audit, 2026-07-08 — predates that batch, an earlier stale note here was corrected).
+- 2 known moderate vulns: next/postcss chain (ReDoS at build time, not runtime). Unfixable without major Next.js downgrade. Documented in STATUS.md (Task #125).
 
 ## Auto-Updater Security Requirements (Task #121, #122, #123)
 - Generate ed25519 keypair: `tauri signer generate -w ~/.tauri/plyglt.key`
