@@ -31,6 +31,7 @@ import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } fro
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
+import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 export type { PackMeta, Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 
@@ -97,16 +98,6 @@ async function clearPackCache(lang: string): Promise<void> {
   await getStorage().removeItem(CACHE_META_PREFIX + lang);
   await getStorage().removeItem(CACHE_DATA_PREFIX + lang);
   memCache.delete(lang);
-}
-
-// ── Pack shape validation ─────────────────────────────────────────────────────
-
-// Shared guard for all JSON.parse(...) as Pack sites in loadPack.
-// sha256 integrity (bytes haven't changed) and structural shape (bytes are a valid Pack)
-// are orthogonal checks — a pack can pass sha256 yet have non-array units if the
-// content-authoring pipeline produced malformed JSON. Apply both checks at every parse site.
-function validatePackShape(pack: Pack): boolean {
-  return Array.isArray(pack.units);
 }
 
 // ── Pack URL helpers ──────────────────────────────────────────────────────────
@@ -195,7 +186,7 @@ export async function loadPack(
           // fall through to re-download
         } else {
           const pack = JSON.parse(cachedData) as Pack;
-          if (!validatePackShape(pack)) {
+          if (!hasValidUnitsArray(pack)) {
             await clearPackCache(lang);
             cachedData = null; // A003-style: prevent bytes from reaching stale-cache fallback
             return { ok: false, error: "parse_error" };
@@ -206,7 +197,7 @@ export async function loadPack(
       } else {
         // No manifest to compare against — serve cache as-is (offline degradation)
         const pack = JSON.parse(cachedData) as Pack;
-        if (!validatePackShape(pack)) {
+        if (!hasValidUnitsArray(pack)) {
           await clearPackCache(lang);
           return { ok: false, error: "parse_error" };
         }
@@ -229,7 +220,7 @@ export async function loadPack(
       if (cachedData) {
         try {
           const pack = JSON.parse(cachedData) as Pack;
-          if (!validatePackShape(pack)) {
+          if (!hasValidUnitsArray(pack)) {
             return { ok: false, error: "parse_error" };
           }
           memCache.set(lang, pack);
@@ -248,7 +239,7 @@ export async function loadPack(
     if (cachedData) {
       try {
         const pack = JSON.parse(cachedData) as Pack;
-        if (!validatePackShape(pack)) {
+        if (!hasValidUnitsArray(pack)) {
           return { ok: false, error: "parse_error" };
         }
         memCache.set(lang, pack);
@@ -279,7 +270,7 @@ export async function loadPack(
     return { ok: false, error: "parse_error" };
   }
 
-  if (!validatePackShape(pack)) {
+  if (!hasValidUnitsArray(pack)) {
     return { ok: false, error: "parse_error" };
   }
 

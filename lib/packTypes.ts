@@ -45,3 +45,16 @@ export type LoadPackResult =
         | "checksum_mismatch"
         | "parse_error";
     };
+
+// Shared guard for every JSON.parse(...) as Pack site in lib/packLoader.ts and
+// lib/specialtyPackLoader.ts. sha256 integrity (bytes haven't changed) and this
+// shape check (bytes are at least a valid Pack skeleton) are orthogonal — a pack
+// can pass sha256 yet have non-array units if the content-authoring pipeline
+// produced malformed JSON. Apply both checks at every parse site.
+// NOTE: this checks only that `units` is an array — it does NOT validate the
+// other required Pack fields above or individual Unit/Card element shapes.
+// Name and scope kept deliberately narrow to avoid promising validation this
+// function doesn't perform.
+export function hasValidUnitsArray(pack: Pack): boolean {
+  return Array.isArray(pack.units);
+}

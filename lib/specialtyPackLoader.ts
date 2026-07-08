@@ -6,6 +6,7 @@
  * Pure functions only — no React, no Zustand.
  */
 
+import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Pack, LoadPackResult, Manifest } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
@@ -87,7 +88,7 @@ export async function loadSpecialtyPack(
     console.error(`[ADDON_PARSE_FAIL-${Date.now()}]`, err);
     return { ok: false, error: "parse_error" };
   }
-  if (!Array.isArray(addOnPack.units)) {
+  if (!hasValidUnitsArray(addOnPack)) {
     return { ok: false, error: "parse_error" };
   }
 

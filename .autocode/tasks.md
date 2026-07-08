@@ -3987,6 +3987,9 @@ Task #248 extracted a shared `validatePackShape()` helper and applied it at all 
 
 **Done when:** `grep -rn "Array.isArray(.*units)" lib/` shows exactly one definition (inside `validatePackShape` itself), with all call sites — including `lib/specialtyPackLoader.ts` — delegating to it. Verification gate green.
 
+**Debt item batched in by owner approval (2026-07-08):**
+- `lib/packLoader.ts:validatePackShape`'s name/comment overclaims what it checks (only `Array.isArray(pack.units)`, not the full `Pack` interface or unit/card element shapes — severity 4, matches an already-open unchecked `audit-checklist.md` item). While exporting/renaming this function for reuse in `specialtyPackLoader.ts`, either rename it to honestly describe its narrow scope (e.g. `hasValidUnitsArray`) or expand its doc comment to explicitly state it only checks the `units` array shape, not full Pack/Unit/Card structural validation.
+
 **Source:** Audit finding (Batch 18 remediation re-audit cycle 3, 2026-07-08) — severity 5 — code-quality — converged independently by Agents A, B, W.
 
 ---

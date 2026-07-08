@@ -433,7 +433,7 @@ describe("loadPack — QuotaExceededError handling", () => {
 describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () => {
   it("returns parse_error when sha256-verified cache-hit pack has non-array units", async () => {
     // The manifest sha256 matches the malformed data — the hash check passes — so shape validation
-    // at the sha256-verified site is the only remaining guard. Without validatePackShape at this
+    // at the sha256-verified site is the only remaining guard. Without hasValidUnitsArray at this
     // site the malformed pack would return ok:true. Test fails if the guard is removed.
     const malformedPack = { ...fakePack(), units: "not-an-array" };
     const malformedJson = JSON.stringify(malformedPack);
@@ -459,7 +459,7 @@ describe("loadPack — shape-validation at all cache-hit paths (Task #248)", () 
 
   it("returns parse_error when no-manifest cache-hit pack has non-array units", async () => {
     // No manifest (null) → no hash verification. Shape validation is the only safety check.
-    // Without validatePackShape at the no-manifest site the malformed pack returns ok:true.
+    // Without hasValidUnitsArray at the no-manifest site the malformed pack returns ok:true.
     // Test fails if the guard is removed from the no-manifest (offline-serve-as-is) branch.
     const malformedPack = { ...fakePack(), units: null };
     localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
@@ -648,5 +648,33 @@ describe("specialty pack merge path", () => {
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2); // no additional fetch
     expect(getLoadedAddOns()).toContain("it-medical");
+  });
+
+  it("rejects a malformed add-on pack via the shared hasValidUnitsArray guard (Task #250)", async () => {
+    // specialtyPackLoader.ts now delegates its shape check to lib/packTypes.ts's
+    // hasValidUnitsArray instead of its own inline Array.isArray(...) copy. This test fails
+    // if that delegation is removed and the sibling check regresses independently of
+    // lib/packLoader.ts's own copy of the same guard.
+    const malformedAddOnJson = JSON.stringify({ ...fakeAddOnPack(), units: "not-an-array" });
+    const malformedSha = createHash("sha256").update(malformedAddOnJson).digest("hex");
+    const baseManifest = fakeAddOnManifest();
+    const manifest: Manifest = {
+      ...baseManifest,
+      packs: {
+        ...baseManifest.packs,
+        "it-medical": { ...baseManifest.packs["it-medical"]!, sha256: malformedSha },
+      },
+    };
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => malformedAddOnJson });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", manifest);
+    const result = await loadPack("it-medical", manifest);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    expect(getLoadedAddOns()).not.toContain("it-medical");
   });
 });
