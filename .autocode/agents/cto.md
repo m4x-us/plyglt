@@ -1094,3 +1094,13 @@ Spot check: PASS — independently re-derived all 6 tightened values from source
 Done-when: PASS — extended grep gate returns zero output project-wide, verification gate green
 Fixed this cycle: all 6 toBeGreaterThan(0) gaps + 3 folded-in Task #183 debt items | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task, first cycle
+
+### Task #250 | Fix specialtyPackLoader.ts duplicating the shape-check Task #248 centralized | Status: COMPLETE | Cycle 1 | Completed: 2026-07-08
+
+#### Cycle 1 — 2026-07-08 — Direct Task (Builder path)
+Build approach: lib/packTypes.ts — moved `validatePackShape` (renamed `hasValidUnitsArray`) here from lib/packLoader.ts to avoid a circular import (packLoader.ts already imports from specialtyPackLoader.ts for the specialty-pack delegation path). lib/packLoader.ts:5 internal call sites updated to import and call `hasValidUnitsArray` from `@/lib/packTypes` instead of a local definition. lib/specialtyPackLoader.ts:90 — replaced the inline `!Array.isArray(addOnPack.units)` duplicate with a call to the same shared `hasValidUnitsArray`. Folded in owner-approved debt item: expanded the function's doc comment to disclose its narrow scope (only checks `units` is an array, not the full Pack interface or unit/card element shapes). Added a new test to tests/packLoader.test.ts's "specialty pack merge path" describe block: malformed add-on pack with a manifest sha256 recomputed to match the malformed bytes (so shape validation is the only remaining guard), asserts `parse_error` and that `getLoadedAddOns()` excludes the rejected code.
+Scripts: PASS — tsc clean, 1021/1021 tests, coverage 87.29%/82.06%/86.34%/90.22% (all above threshold), lint 0 errors (1 pre-existing unrelated warning)
+Spot check: PASS — confirmed the new test genuinely exercises the shape-validation path (not the sha256-mismatch path) via a stub-to-always-true deletion test; confirmed lib/packTypes.ts has no import from packLoader.ts/specialtyPackLoader.ts, ruling out the circular-import concern; confirmed the done-when grep is satisfied literally (exactly one `Array.isArray(...units...)` definition project-wide)
+Done-when: PASS — `grep -rn "Array.isArray(.*units)" lib/` shows exactly one definition (lib/packTypes.ts), all call sites delegate to it
+Fixed this cycle: specialtyPackLoader.ts's duplicate shape-check (4th sibling-miss instance this batch) + folded-in validatePackShape naming/scope debt item | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
