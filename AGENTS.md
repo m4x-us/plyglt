@@ -81,4 +81,4 @@ No batch may be marked `[COMPLETE]` in `.autocode/tasks.md` until step 2 returns
 - Any parallel list/array that should be derived from a single source of truth
 - Any user-visible feature with zero tests covering its happy path
 - Any function that can silently corrupt persisted user data
-- Any `.toBeDefined()` / `.toBeTruthy()` / `.not.toBeNull()` assertion without an inline `// existence-check: [reason]` comment explaining why existence is the correct assertion for this specific value
+- Any `.toBeDefined()` / `.toBeTruthy()` / `.not.toBeNull()` / `.toBeGreaterThan(0)` assertion without an inline `// existence-check: [reason]` comment explaining why existence is the correct assertion for this specific value

@@ -20,7 +20,7 @@
 
 import { FREE_PACK_CODES } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
-import { localDateStr } from "@/lib/utils";
+import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
@@ -57,32 +57,39 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
     const introductions = typeof d.introductions === "object" && d.introductions !== null
       ? d.introductions as Record<string, unknown>
       : {};
-    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    // isCalendarValidDate imported from lib/utils — single source of truth for DATE_RE +
+    // isNaN + round-trip calendar checks. See lib/utils.ts for full documentation.
     const todayFallback = localDateStr();
     const migratedIntroductions: Record<string, unknown> = {};
     for (const [cardId, rawRecord] of Object.entries(introductions)) {
       // Guard against null/non-object entries stored by a corrupt build.
       // A TypeError thrown on null access would be caught by Zustand's persist middleware
       // and resolved by resetting the entire store to defaults — silently wiping all history.
-      const record: Record<string, unknown> =
-        rawRecord !== null && typeof rawRecord === "object"
-          ? rawRecord as Record<string, unknown>
-          : {};
+      // Build a complete default record (not just phaseStartDate) to prevent NaN corruption
+      // on the first review call — undefined fields cause NaN propagation via undefined + 1.
+      if (rawRecord === null || typeof rawRecord !== "object") {
+        console.error(`[plyglt] migration v3: corrupt record ${cardId} — null or non-object entry, using today-based defaults`);
+        migratedIntroductions[cardId] = {
+          cardId,
+          introducedDate: todayFallback,
+          phaseStartDate: todayFallback,
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 0,
+          lastSeenDate: todayFallback,
+          appearancesToday: 0,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        };
+        continue;
+      }
+      const record = rawRecord as Record<string, unknown>;
       const phaseStartDate = (() => {
-        // isNaN check rejects calendar-invalid strings like "2026-13-45" that pass DATE_RE
-        // but resolve to NaN in getDayOfPhase, which silently hides the card forever.
-        if (
-          typeof record.phaseStartDate === "string" &&
-          DATE_RE.test(record.phaseStartDate) &&
-          !isNaN(new Date(record.phaseStartDate).getTime())
-        ) {
+        if (typeof record.phaseStartDate === "string" && isCalendarValidDate(record.phaseStartDate)) {
           return record.phaseStartDate;
         }
-        if (
-          typeof record.introducedDate === "string" &&
-          DATE_RE.test(record.introducedDate) &&
-          !isNaN(new Date(record.introducedDate).getTime())
-        ) {
+        if (typeof record.introducedDate === "string" && isCalendarValidDate(record.introducedDate)) {
           return record.introducedDate;
         }
         console.error(`[plyglt] migration v3: corrupt record ${cardId} — missing or calendar-invalid date fields, using today`);

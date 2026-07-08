@@ -3236,7 +3236,7 @@ Dependency: Batch 16 complete (sync backend and push notification server live). 
 
 ---
 
-## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 29 tasks | [CURRENT SPRINT]
+## Batch 18 — Introduction Engine Remediation + Correctness Hardening | 29 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: None (standalone remediation batch). Theme: Fix the 24 findings from the Batch 5 standalone audit (VERDICT: FAIL, 2026-07-02). Three sev ≥ 7 findings are stop-the-line. Tasks must run in order: #178 (schema) → #179 (lib) → #180 (store) → #181 (tests).
 
 ### Task #178 | architecture | severity 9
@@ -3492,6 +3492,7 @@ Debt items batched in by owner approval (2026-07-07):
 **File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
 **Complexity:** 🔧 Full — architectural fix, requires a new persisted signal
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P1
 
@@ -3514,6 +3515,7 @@ Debt items batched in by owner approval (2026-07-07):
 **File:** store/srsStore.ts, lib/introduction.ts, app/study/page.tsx, content/types.ts
 **Complexity:** 🔧 Full — requires either a content-model change or removing the dead mechanism
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P1
 
@@ -3536,6 +3538,7 @@ BRAND.md requires "each encounter uses a different retrieval angle" during the i
 **File:** lib/introduction.ts
 **Complexity:** ⚡ Direct — 1 file, algorithm fix
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Task #229 (fix depends on whether the mechanism is kept or removed)
 **Priority:** P1
 
@@ -3558,6 +3561,7 @@ BRAND.md requires "each encounter uses a different retrieval angle" during the i
 **File:** lib/introduction.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P1
 
@@ -3580,6 +3584,7 @@ BRAND.md requires "each encounter uses a different retrieval angle" during the i
 **File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3602,6 +3607,7 @@ The v3 migration's date guard (store/migrations.ts:71-90, added by Task #184 spe
 **File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3624,6 +3630,7 @@ The v3 migration's null-record recovery path (store/migrations.ts:67-91, added b
 **File:** store/srsStore.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Task #231 (getDayOfPhase's throw conditions are changing)
 **Priority:** P2
 
@@ -3645,6 +3652,7 @@ The v3 migration's null-record recovery path (store/migrations.ts:67-91, added b
 **File:** lib/langRegistry.ts, lib/language.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3666,6 +3674,7 @@ The v3 migration's null-record recovery path (store/migrations.ts:67-91, added b
 **File:** lib/entitlement.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3687,6 +3696,7 @@ The v3 migration's null-record recovery path (store/migrations.ts:67-91, added b
 **File:** tests/commitSession.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3707,6 +3717,7 @@ The v3 migration's null-record recovery path (store/migrations.ts:67-91, added b
 **File:** tests/useLangPack.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3727,6 +3738,7 @@ The `RAW_DISCRIMINANTS`/`EXPECTED_MESSAGES` enumeration added by Task #227 (test
 **File:** tests/packLoader.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P2
 
@@ -3747,6 +3759,7 @@ No test in tests/packLoader.test.ts exercises syntactically-valid-but-semantical
 **File:** lib/introduction.ts, store/migrations.ts
 **Complexity:** ⚡ Direct — 2 files, extract to shared module
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 
@@ -3767,6 +3780,7 @@ No test in tests/packLoader.test.ts exercises syntactically-valid-but-semantical
 **File:** lib/introduction.ts, store/srsStore.ts
 **Complexity:** ⚡ Direct — 2 files
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 
@@ -3787,6 +3801,7 @@ The phase-day graduation boundary `22` is a bare literal repeated in three place
 **File:** lib/introduction.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 
@@ -3807,6 +3822,7 @@ The phase-day graduation boundary `22` is a bare literal repeated in three place
 **File:** tests/study_loop.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 
@@ -3827,6 +3843,7 @@ The phase-day graduation boundary `22` is a bare literal repeated in three place
 **File:** tests/importBackup.test.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 
@@ -3847,6 +3864,7 @@ The phase-day graduation boundary `22` is a bare literal repeated in three place
 **File:** AGENTS.md
 **Complexity:** ⚡ Direct — 1 file, 1 line
 **Owner:** QA Agent
+**Status: COMPLETE — 2026-07-07**
 **Blocked by:** Nothing
 **Priority:** P3
 

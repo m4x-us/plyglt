@@ -55,6 +55,7 @@ export interface IntroductionRecord {
   lastSeenDate: string;            // ISO date YYYY-MM-DD of most recent session
   appearancesToday: number;        // appearances so far today (resets each calendar day)
   consecutiveWrongToday: number;   // wrong streak today; triggers Day 1 reset at 3
-  lastSeenType: CardType | null;   // card type shown in the most recent encounter (variety rule)
+  lastSeenType: CardType | null;   // card type shown in the most recent encounter; tracked but no longer updated by srsStore (Task #229 — variety-rule wiring removed as dead code: content model has no sibling cards per word)
+  strandedAcrossDays?: boolean;    // set true on triple-wrong reset; cleared false on next correct answer; canIntroduceNewCard blocks when true AND lastSeenDate !== today
   graduated: boolean;              // true once handed off to FSRS (15 consecutive correct)
 }

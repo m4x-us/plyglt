@@ -140,6 +140,59 @@ describe("parseBackup", () => {
     expect(r.srs.cards["neg"]?.lapses).toBe(0);
   });
 
+  it("defaults difficulty to 5 when value is not a finite number", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["d"] = {
+      cardId: "d", state: "review", stability: 5,
+      difficulty: "bad", retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["d"]?.difficulty).toBe(5);
+  });
+
+  it("defaults retrievability to 1 when value is not finite", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["rv"] = {
+      cardId: "rv", state: "review", stability: 5,
+      difficulty: 5, retrievability: Infinity, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["rv"]?.retrievability).toBe(1);
+  });
+
+  it("defaults dueDate to approximately now when value is not a finite number", () => {
+    const backup = validBackup();
+    const before = Date.now();
+    (backup.srs.cards as Record<string, unknown>)["dd"] = {
+      cardId: "dd", state: "review", stability: 5,
+      difficulty: 5, retrievability: 0.9, dueDate: "invalid", lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    const after = Date.now();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const dueDate = r.srs.cards["dd"]?.dueDate ?? -1;
+    // existence-check: dueDate fallback is Date.now() — exact value is non-deterministic at test time
+    expect(dueDate).toBeGreaterThanOrEqual(before);
+    expect(dueDate).toBeLessThanOrEqual(after);
+  });
+
+  it("defaults reps to 0 when value is not an integer", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["rp"] = {
+      cardId: "rp", state: "review", stability: 5,
+      difficulty: 5, retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 1.5,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["rp"]?.reps).toBe(0);
+  });
+
   it("defaults licenseType to 'free' when value is unrecognised (never grant unpaid access)", () => {
     const backup = validBackup({
       entitlement: { licenseKey: null, instanceId: null, licenseType: "pirate", unlockedPacks: ["it"], validUntil: null },

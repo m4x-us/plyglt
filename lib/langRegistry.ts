@@ -38,6 +38,15 @@ export const LANGUAGE_REGISTRY: readonly LanguageEntry[] = [
 // LanguageEntry.code is typed as PackCode so TypeScript enforces valid codes at registry definition time.
 export type PackCode = "it" | "es";
 
+// Deep-freeze a LanguageConfig and its nested objects. Object.freeze is shallow — the two-level
+// nested structure (config → uiStrings → cardLabels) requires explicit per-level freezing so
+// that runtime mutations like `LANG_CONFIG_MAP.it.uiStrings.appTitle = "x"` throw TypeError.
+function deepFreezeConfig(config: LanguageConfig): Readonly<LanguageConfig> {
+  Object.freeze(config.uiStrings.cardLabels);
+  Object.freeze(config.uiStrings);
+  return Object.freeze(config);
+}
+
 // Derived constants — import these everywhere instead of maintaining parallel arrays.
 // Object.freeze makes these immutable at runtime — ALL_PACK_CODES backs the security allowlist in
 // evictPack; READY_PACK_CODES backs the loadPack guard (fail fast before CDN for unready packs).
@@ -46,7 +55,7 @@ export const ALL_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGIST
 export const READY_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGISTRY.filter(l => l.ready).map(l => l.code));
 export const FREE_PACK_CODES: readonly PackCode[] = Object.freeze(LANGUAGE_REGISTRY.filter(l => l.isFree).map(l => l.code));
 export const LANG_CONFIG_MAP: Readonly<Record<string, LanguageConfig>> = Object.freeze(
-  Object.fromEntries(LANGUAGE_REGISTRY.map(l => [l.code, l.config]))
+  Object.fromEntries(LANGUAGE_REGISTRY.map(l => [l.code, deepFreezeConfig(l.config)]))
 );
 
 /** Type guard: returns true iff s is a registered PackCode (member of ALL_PACK_CODES). */

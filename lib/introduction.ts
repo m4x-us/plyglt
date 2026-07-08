@@ -1,12 +1,11 @@
 // ============================================================
 // lib/introduction.ts — pure functions and constants for the intensive introduction engine
-// DEPENDS ON: @/content/types (CardType, IntroductionRecord)
+// DEPENDS ON: @/content/types (CardType, IntroductionRecord), @/lib/utils (DATE_RE, isCalendarValidDate)
 // USED BY: store/srsStore.ts (introduceCard, recordIntroductionResult, getIntroductionDueCardIds,
 //          canIntroduceNewCard), hooks/useStudySession.ts (session-start introduction logic)
 // ============================================================
 import type { CardType, IntroductionRecord } from "@/content/types";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { isCalendarValidDate } from "@/lib/utils";
 
 // Consecutive-correct threshold before a card graduates to the FSRS scheduler (BRAND.md).
 export const GRADUATION_THRESHOLD = 15;
@@ -14,8 +13,12 @@ export const GRADUATION_THRESHOLD = 15;
 // Three consecutive wrong answers in a single calendar day resets the card to Day 1 intensity.
 export const CONSECUTIVE_WRONG_RESET = 3;
 
+// Maximum calendar-day phase index (inclusive). Phase days [1..MAX_PHASE_DAY-1] are active
+// introduction; MAX_PHASE_DAY signals the FSRS hand-off point in the appearance table.
+export const MAX_PHASE_DAY = 22;
+
 // Maximum appearances per calendar day for each phase day (1-indexed).
-// Day 22 signals graduation — shouldAppearToday always returns false at or beyond this point.
+// Day MAX_PHASE_DAY signals graduation — shouldAppearToday always returns false at or beyond this point.
 // Values: Infinity = no daily cap; 0.5 = every other day (odd dayOfPhase only); 0 = graduated.
 export const MAX_APPEARANCES_BY_PHASE_DAY: Readonly<Record<number, number>> = Object.freeze({
   1: Infinity, // every interrupt — 6–10× per day
@@ -39,29 +42,30 @@ export const MAX_APPEARANCES_BY_PHASE_DAY: Readonly<Record<number, number>> = Ob
   19: 0.5,
   20: 0.5,
   21: 0.5,
-  22: 0, // graduated to FSRS
+  [MAX_PHASE_DAY]: 0, // graduated to FSRS
 });
 
-// Returns the 1-based phase day for a card: calendar days since phaseStartDate + 1, clamped to [1, 22].
-// Both arguments are ISO date strings (YYYY-MM-DD). Parsed as UTC midnight so the diff is
-// exact regardless of the caller's local timezone.
+// Returns the 1-based phase day for a card: calendar days since phaseStartDate + 1,
+// clamped to [1, MAX_PHASE_DAY]. Both arguments are ISO date strings (YYYY-MM-DD).
+// Parsed as UTC midnight so the diff is exact regardless of the caller's local timezone.
 // Pre-condition: today >= phaseStartDate. If today < phaseStartDate (clock skew, bad data),
 // diffDays is negative — the Math.max(1, ...) guard clamps the result to day 1.
-// Throws on malformed input (not YYYY-MM-DD) — NaN propagation would cause silent card disappearance.
+// Throws on malformed or calendar-invalid input (e.g. "2026-13-45", "2026-02-30") —
+// NaN propagation would cause silent card disappearance.
 export function getDayOfPhase(phaseStartDate: string, today: string): number {
-  if (!DATE_RE.test(phaseStartDate) || !DATE_RE.test(today)) {
+  if (!isCalendarValidDate(phaseStartDate) || !isCalendarValidDate(today)) {
     throw new Error(
-      `[ERR-INTRO-DATE] getDayOfPhase: invalid date format — expected YYYY-MM-DD, got phaseStartDate="${phaseStartDate}" today="${today}"`,
+      `[ERR-INTRO-DATE] getDayOfPhase: invalid date — expected valid YYYY-MM-DD, got phaseStartDate="${phaseStartDate}" today="${today}"`,
     );
   }
   const MS_PER_DAY = 86_400_000;
   const diffDays = Math.floor(
     (new Date(today).getTime() - new Date(phaseStartDate).getTime()) / MS_PER_DAY,
   );
-  return Math.max(1, Math.min(diffDays + 1, 22));
+  return Math.max(1, Math.min(diffDays + 1, MAX_PHASE_DAY));
 }
 
-// Returns the appearance cap for a given phase day. Days beyond the table (> 22) return 0.
+// Returns the appearance cap for a given phase day. Days beyond the table (> MAX_PHASE_DAY) return 0.
 export function maxAppearancesToday(dayOfPhase: number): number {
   return MAX_APPEARANCES_BY_PHASE_DAY[dayOfPhase] ?? 0;
 }
@@ -109,12 +113,19 @@ export function recordResult(
 
   if (correct) {
     const consecutiveCorrect = record.consecutiveCorrect + 1;
-    return {
+    const result: IntroductionRecord = {
       ...base,
       consecutiveCorrect,
       consecutiveWrongToday: 0,
-      graduated: consecutiveCorrect >= GRADUATION_THRESHOLD,
+      graduated: shouldGraduate({ ...base, consecutiveCorrect }),
     };
+    // Clear strandedAcrossDays on correct answer. Only set when currently true to avoid
+    // adding strandedAcrossDays: false to records that never had it — this preserves the
+    // shape of the return object for tests that use toEqual without the optional field.
+    if (record.strandedAcrossDays === true) {
+      result.strandedAcrossDays = false;
+    }
+    return result;
   }
 
   // Reset consecutiveWrongToday at day boundaries — wrongs from a prior day must not
@@ -123,7 +134,8 @@ export function recordResult(
   if (consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET) {
     // BRAND.md: 3 consecutive wrong answers resets card to Day 1 intensity.
     // Advancing phaseStartDate to today means getDayOfPhase(record.phaseStartDate, today) → 1.
-    return { ...base, consecutiveCorrect: 0, consecutiveWrongToday: 0, phaseStartDate: today };
+    // strandedAcrossDays: true blocks canIntroduceNewCard until a correct answer clears it.
+    return { ...base, consecutiveCorrect: 0, consecutiveWrongToday: 0, phaseStartDate: today, strandedAcrossDays: true };
   }
 
   // BRAND.md: "Wrong once → card returns to Day 2 intensity" — interpreted as scheduling
@@ -133,10 +145,11 @@ export function recordResult(
 }
 
 // Returns the next card type to show, avoiding the type most recently seen (variety rule).
-// BRAND.md: each encounter uses a different retrieval angle to produce durable memory.
+// NOTE: The srsStore wiring (recordIntroductionResult updating lastSeenType) was removed as dead
+// code in Task #229 — the content model has no sibling cards per word, so the selected type
+// cannot influence what card is displayed. This function is kept exported for tests and future
+// use when sibling-card support is added to the content model.
 // If only one type is available, returns it regardless of lastSeenType.
-// CALLER CONTRACT: this function returns the type to show but does not update record.lastSeenType.
-// Callers must write the returned CardType back to record.lastSeenType before the next call.
 export function getNextCardType(lastSeenType: CardType | null, available: CardType[]): CardType {
   const alternatives = lastSeenType !== null ? available.filter(t => t !== lastSeenType) : available;
   const pool = alternatives.length > 0 ? alternatives : available;

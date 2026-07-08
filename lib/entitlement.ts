@@ -59,7 +59,7 @@ interface LsActivateBody {
   activated?: boolean;
   error: string | null;
   license_key: LsKey | null | undefined; // LS API omits on error responses
-  instance: { id: string } | null;
+  instance: { id: unknown } | null; // id typed unknown — typeof check required before use (Task #236)
   meta?: LsMeta; // optional — LS API omits meta on error responses
 }
 
@@ -136,7 +136,7 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
     if (res.error) console.error(`[ENTITLEMENT_ACTIVATE_ERR-${Date.now()}]`, { error: res.error });
     return { ok: false, error: ERR_ACTIVATION_FAILED };
   }
-  if (!res.instance?.id) {
+  if (!res.instance?.id || typeof res.instance.id !== "string") {
     console.error(`[ENTITLEMENT_ACTIVATE_NO_INSTANCE-${Date.now()}]`, { activated: res.activated });
     return { ok: false, error: ERR_ACTIVATE_NO_INSTANCE };
   }
@@ -155,7 +155,7 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
     res.meta.variant_name,
     res.license_key.expires_at
   );
-  return { ok: true, licenseKey: res.license_key.key, instanceId: res.instance.id, licenseType, unlockedPacks, validUntil };
+  return { ok: true, licenseKey: res.license_key.key, instanceId: res.instance.id as string, licenseType, unlockedPacks, validUntil };
 }
 
 export type ValidateResult =

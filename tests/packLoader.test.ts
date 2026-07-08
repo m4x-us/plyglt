@@ -192,6 +192,23 @@ describe("loadPack", () => {
     if (result.ok) expect(result.pack.lang).toBe("it");
   });
 
+  it("returns parse_error when stale cached pack has non-array units field (semantic corruption)", async () => {
+    // Seeds cache with syntactically-valid but semantically-malformed JSON (units is a string, not array).
+    // Version mismatch (0.9.0 vs 1.0.0 in manifest) bypasses the cache-hit branch, so the stale-cache
+    // fallback path runs when fetch throws. This test fails if the !Array.isArray(pack.units) guard is
+    // removed from the stale-cache fallback path — the malformed pack would leak as ok:true.
+    const malformedPack = { ...fakePack(), units: "not-an-array" };
+    localStorageMock.setItem("pack-data-v1-it", JSON.stringify(malformedPack));
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.0", sha256: "", cachedAt: Date.now() }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", async () => { throw new Error("Network error"); });
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+  });
+
   it("returns parse_error when downloaded pack JSON has null units field", async () => {
     const malformedPack = { ...fakePack(), units: null };
     const malformedJson = JSON.stringify(malformedPack);

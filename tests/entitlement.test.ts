@@ -395,6 +395,23 @@ describe("activateLicense — null safety", () => {
     if (result.ok) throw new Error("Expected ok:false");
     expect(result.error).toBe(ERR_ACTIVATE_NO_KEY);
   });
+
+  // Task #236: type-confusion guard — `raw as LsActivateBody` is an unsafe cast; a degraded LS
+  // response could return instance.id as a number. The truthiness-only check `!res.instance?.id`
+  // passes for 123 (truthy), so the old guard would persist a numeric instanceId as a string.
+  // The fixed guard adds `typeof res.instance.id !== "string"` to close this gap.
+  it("returns ok:false when instance.id is a number, not a string (type-confusion guard)", async () => {
+    mockInvoke.mockResolvedValueOnce({
+      activated: true, error: null,
+      license_key: { status: "active", key: "KEY-ABC", expires_at: null },
+      instance: { id: 123 },
+      meta: { variant_name: "Monthly Plan" },
+    });
+    const r = await activateLicense("KEY-ABC");
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("Expected ok:false");
+    expect(r.error).toBe(ERR_ACTIVATE_NO_INSTANCE);
+  });
 });
 
 // ── validateLicense — null safety ─────────────────────────────────────────────

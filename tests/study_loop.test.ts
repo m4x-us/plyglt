@@ -102,9 +102,10 @@ describe("study loop — rate → schedule → due", () => {
       },
     });
     const stats = useSRSStore.getState().getStats(cards);
-    expect(stats.due).toBe(1);      // c2 only (c1 not due; c3 has reps=0)
-    expect(stats.learning).toBe(1); // c2
-    expect(stats.mastered).toBe(1); // c1
+    expect(stats.due).toBe(1);           // c2 only (c1 not due; c3 has reps=0)
+    expect(stats.learning).toBe(1);      // c2
+    expect(stats.mastered).toBe(1);      // c1
     expect(stats.total).toBe(3);
+    expect(stats.masteryPct).toBe(33);   // Math.round(1/3 * 100) — drives MASTERY_GATE unlock
   });
 });

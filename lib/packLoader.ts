@@ -210,6 +210,9 @@ export async function loadPack(
       if (cachedData) {
         try {
           const pack = JSON.parse(cachedData) as Pack;
+          if (!Array.isArray(pack.units)) {
+            return { ok: false, error: "parse_error" };
+          }
           memCache.set(lang, pack);
           return { ok: true, pack };
         } catch (err) {
@@ -226,6 +229,9 @@ export async function loadPack(
     if (cachedData) {
       try {
         const pack = JSON.parse(cachedData) as Pack;
+        if (!Array.isArray(pack.units)) {
+          return { ok: false, error: "parse_error" };
+        }
         memCache.set(lang, pack);
         return { ok: true, pack };
       } catch (parseErr) {

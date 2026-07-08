@@ -83,6 +83,7 @@ import { LOAD_PACK_ERROR_MESSAGES } from "@/hooks/useLangPack";
 
 const RAW_DISCRIMINANTS = [
   "invalid_lang",
+  "base_pack_not_loaded",
   "download_failed",
   "checksum_mismatch",
   "parse_error",
@@ -91,10 +92,11 @@ const RAW_DISCRIMINANTS = [
 // Exact expected copy per discriminant — mirrors hooks/useLangPack.ts's
 // LOAD_PACK_ERROR_MESSAGES map so a wording regression fails this test.
 const EXPECTED_MESSAGES: Record<(typeof RAW_DISCRIMINANTS)[number], string> = {
-  invalid_lang: "Pack not available.",
-  download_failed: "Couldn't load pack. Try again.",
-  checksum_mismatch: "Pack data corrupted. Try again.",
-  parse_error: "Couldn't read pack. Try again.",
+  invalid_lang:         "Pack not available.",
+  base_pack_not_loaded: "Load the base language pack first.",
+  download_failed:      "Couldn't load pack. Try again.",
+  checksum_mismatch:    "Pack data corrupted. Try again.",
+  parse_error:          "Couldn't read pack. Try again.",
 };
 
 const FILLER_WORDS = ["just", "simply", "quickly", "easily"];

@@ -2,6 +2,25 @@
 // utils.ts — Shared pure utilities (no React, no Zustand)
 // ============================================================
 
+// Shape-only regex for YYYY-MM-DD date strings. Exported so that lib/introduction.ts and
+// store/migrations.ts share a single canonical copy — there must never be two DATE_RE definitions.
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Returns true if str is both shape-valid (YYYY-MM-DD) AND calendar-valid.
+// Two-pass guard: isNaN catches month-overflow ("2026-13-45" → Invalid Date).
+// Round-trip check catches day-of-month rollover: "2026-02-30" passes isNaN because
+// JS Date normalises it to March 2nd; re-formatting the parsed UTC date back to
+// YYYY-MM-DD exposes the mismatch ("2026-03-02" !== "2026-02-30" → false).
+// Uses UTC methods because ISO-format date-only strings are parsed as UTC midnight.
+export function isCalendarValidDate(str: string): boolean {
+  if (!DATE_RE.test(str)) return false;
+  const ms = new Date(str).getTime();
+  if (isNaN(ms)) return false;
+  const d = new Date(ms);
+  const reFormatted = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return reFormatted === str;
+}
+
 // Returns the current local date as an ISO YYYY-MM-DD string.
 // Uses local time, not UTC, so the string matches the user's calendar day.
 export function localDateStr(d: Date = new Date()): string {

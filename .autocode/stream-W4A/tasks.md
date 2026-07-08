@@ -1,71 +1,4 @@
----
-status: done
-agent: adam
-stream: W4A
-wave: 4
----
-
-# Adam — Stream W4A — Wave 4 — 2026-07-07
-
-IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
-(including short replies, confirmations, and one-word answers):
-— Adam | W4A | #232 #231 #233 #228 #229 #230 #234 #240 #241 #242
-
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
-Work exclusively on the files listed under "Files You Own". Do not touch anything else.
-
-## Your Tasks (run in this exact order)
-1. /task #232 — Fix migration v3's isNaN date guard missing day-of-month rollover
-2. /task #231 — Fix getDayOfPhase's date validation missing calendar-invalid-but-shape-valid dates
-3. /task #233 — Fix migration's null-record recovery producing an incomplete IntroductionRecord
-4. /task #228 — Fix canIntroduceNewCard's cross-day wrong-streak pause (dead code)
-5. /task #229 — Fix the "variety rule" (Task #180) having zero effect on what the user is shown
-6. /task #230 — Fix getNextCardType producing only 2 of 5 CardTypes
-7. /task #234 — Fix getDayOfPhase's throw being uncaught inside getIntroductionDueCardIds's filter loop
-8. /task #240 — Fix DATE_RE regex duplicated across two files
-9. /task #241 — Fix phase-day boundary magic number 22 repeated in 3 places
-10. /task #242 — Fix shouldGraduate() being exported but never called
-
-**Why this order:** #232 before #231 — a hidden semantic coupling was detected: #231's own acceptance criteria says to verify its docstring against #232's day-of-month-rollover finding, so #232 should land first. #230 is declared "Blocked by #229" and #234 is declared "Blocked by #231" in tasks.md — do not start those until their blocker is COMPLETE. The three DRY cleanups (#240, #241, #242) run last since they touch the same functions the earlier fixes will have just changed — doing them last avoids rework/merge friction within your own sequential work.
-
-STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
-the next one, print your current status board in this exact format:
-
-Adam — W4A
-[✓] #232 — Fix migration v3's isNaN date guard   ← done
-[→] #231 — Fix getDayOfPhase's date validation   ← starting now
-[ ] #233 — Fix migration's null-record recovery
-[ ] #228 — Fix canIntroduceNewCard's cross-day pause
-[ ] #229 — Fix the variety rule wiring
-[ ] #230 — Fix getNextCardType's 2-of-5 bug
-[ ] #234 — Fix uncaught throw in getIntroductionDueCardIds
-[ ] #240 — Extract duplicate DATE_RE
-[ ] #241 — Extract duplicate magic number 22
-[ ] #242 — Wire shouldGraduate() into recordResult
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
-
-## Files You Own (edit ONLY these)
-store/srsStore.ts
-lib/introduction.ts
-store/migrations.ts
-tests/srsStore.test.ts
-app/study/page.tsx
-content/types.ts
-
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/langRegistry.ts
-lib/language.ts
-lib/entitlement.ts
-tests/commitSession.test.ts
-tests/useLangPack.test.ts
-tests/packLoader.test.ts
-tests/study_loop.test.ts
-tests/importBackup.test.ts
-AGENTS.md
-
-## Task Definitions
+# Stream W4A Task State
 
 ### Task #232: Fix data-loss: migration v3's isNaN date guard misses day-of-month rollover
 
@@ -94,7 +27,7 @@ The v3 migration's date guard (store/migrations.ts:71-90, added by Task #184 spe
 **File:** lib/introduction.ts
 **Complexity:** ⚡ Direct — 1 file
 **Owner:** Architecture Agent
-**Blocked by:** Nothing (but run after #232 — see order rationale above)
+**Blocked by:** Nothing (run after #232 in this stream)
 **Priority:** P1
 
 **What:**
@@ -103,7 +36,7 @@ The v3 migration's date guard (store/migrations.ts:71-90, added by Task #184 spe
 **Acceptance Criteria:**
 - [ ] Add an `isNaN(new Date(...).getTime())` check to `getDayOfPhase` itself (matching what `store/migrations.ts`'s v3 migration already does at the persistence boundary), throwing the same `[ERR-INTRO-DATE]` error on failure
 - [ ] Add a test asserting `getDayOfPhase("2026-13-45", "2026-07-01")` throws, not returns NaN
-- [ ] Update the function's docstring only if its claim still doesn't fully hold after the fix (verify against Task #232's day-of-month rollover finding too — since #232 lands first in your queue, use whatever stricter validation approach it settled on for consistency)
+- [ ] Update the function's docstring only if its claim still doesn't fully hold after the fix (verify against Task #232's day-of-month rollover finding too)
 
 **Done when:** `getDayOfPhase("2026-13-45", "2026-07-01")` throws `[ERR-INTRO-DATE]` instead of returning NaN, verified by a new test. Verification gate green.
 
@@ -277,30 +210,3 @@ The phase-day graduation boundary `22` is a bare literal repeated in three place
 **Done when:** `recordResult`'s graduation check calls `shouldGraduate` rather than duplicating its comparison. Verification gate green.
 
 **Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — found by Agent B.
-
-## Agent Memories
-
-## Architecture Agent Memory (relevant excerpt — Introduction Engine + recent resolutions)
-
-### Introduction Engine (M1 — LIVE)
-`lib/introduction.ts` — pure-function module (no React, no Zustand). Six exports: getDayOfPhase, maxAppearancesToday, shouldAppearToday, recordResult, shouldGraduate, getNextCardType.
-Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
-
-### History of this exact area (read before touching it)
-- Batch 5 audit (2026-07-02) originally found: F01 (dead triple-wrong reset — FIXED via phaseStartDate, Task #178), F12 (day-22+ stranded cards — FIXED via rescue path, Task #180), F10 (cross-day pause missing — Task #180 claimed to fix this but the batch-level audit found it's dead code — this is your Task #228), F13 (graduated-card overwrite — FIXED, Task #180), F03 (variety rule zero production callers — Task #180 claimed to wire this but the batch-level audit found it's inert — this is your Task #229), F07 (unfrozen MAX_APPEARANCES_BY_PHASE_DAY — FIXED, Task #179).
-- The recurring failure pattern in this exact codebase area: a fix looks complete and its unit test passes, but the test verifies the fix in isolation or via injected state rather than through the real end-to-end call path. This is exactly why #228 and #229 exist — do not repeat this mistake. Every fix in this stream needs a seam test (see `tests/seam_introduction.test.ts` for the correct pattern) that drives the real production call path, not just a unit test on the pure function or a `setState` injection.
-- `shouldGraduate` has zero production callers — graduation is determined by the `graduated` field written by `recordResult` inline. This is your Task #242 to fix.
-
-## Resolved Findings
-- RESOLVED (Task #226, 2026-07-07): lib/answerCheck.ts curly-apostrophe grading bug. Root cause was the shared apostrophe-normalization regex being byte-identical on both sides. Fixed with a single shared `APOSTROPHE_RE` constant.
-
-## When You Finish
-Write your completion summary to .autocode/stream-W4A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
-
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
-
-— Adam | W4A | #232 #231 #233 #228 #229 #230 #234 #240 #241 #242

@@ -4,11 +4,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade } from "@/lib/srs";
-import type { Card, CardType, IntroductionRecord, Unit } from "@/content/types";
+import type { Card, IntroductionRecord, Unit } from "@/content/types";
 import {
-  CONSECUTIVE_WRONG_RESET,
   getDayOfPhase,
-  getNextCardType,
+  MAX_PHASE_DAY,
   recordResult,
   shouldAppearToday,
 } from "@/lib/introduction";
@@ -26,10 +25,6 @@ const _activeLangPair: string =
   typeof window !== "undefined"
     ? (window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it")
     : "en-it";
-
-// Pool of all possible presentation types; used by getNextCardType to enforce the variety rule
-// (BRAND.md: "each encounter uses a different retrieval angle").
-const ALL_CARD_TYPES: CardType[] = ["recognize", "produce", "conjugate", "fill_blank", "passage_cloze"];
 
 // A card is mastered only when it has been reviewed across multiple sessions at meaningful distance.
 // FSRS assigns ~1–4 days stability on first graduation — that is single-session learning, not retention.
@@ -243,18 +238,23 @@ export const useSRSStore = create<SRSState>()(
         }
         const dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
         const updated = recordResult({ ...record, dayOfPhase }, correct, today);
-        const nextType = getNextCardType(record.lastSeenType, ALL_CARD_TYPES);
-        set((s) => ({ introductions: { ...s.introductions, [cardId]: { ...updated, lastSeenType: nextType } } }));
+        set((s) => ({ introductions: { ...s.introductions, [cardId]: updated } }));
       },
 
       getIntroductionDueCardIds: (today) => {
         const { introductions } = get();
         return Object.entries(introductions)
-          .filter(([, record]) => {
-            const dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
-            // Rescue path: day 22+ non-graduates would get maxAppearancesToday=0 and disappear
-            // permanently from both queues. Show once per day until graduation.
-            if (!record.graduated && dayOfPhase >= 22) {
+          .filter(([cardId, record]) => {
+            let dayOfPhase: number;
+            try {
+              dayOfPhase = getDayOfPhase(record.phaseStartDate, today);
+            } catch (err) {
+              console.error(`[ERR-INTRO-DUE-${cardId}] corrupt phaseStartDate "${record.phaseStartDate}" — skipping from due set`, err);
+              return false;
+            }
+            // Rescue path: day MAX_PHASE_DAY+ non-graduates would get maxAppearancesToday=0 and
+            // disappear permanently from both queues. Show once per day until graduation.
+            if (!record.graduated && dayOfPhase >= MAX_PHASE_DAY) {
               const appearances = record.lastSeenDate === today ? record.appearancesToday : 0;
               return appearances < 1;
             }
@@ -268,8 +268,10 @@ export const useSRSStore = create<SRSState>()(
         const values = Object.values(introductions);
         // One new card per day: block if any card was introduced today
         if (values.some((r) => r.introducedDate === today)) return false;
-        // BRAND.md cross-day spec: pause introductions when a card is stuck wrong across days
-        if (values.some((r) => r.consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET && r.lastSeenDate !== today)) return false;
+        // BRAND.md cross-day spec: pause introductions when a card hit triple-wrong reset and
+        // hasn't been seen today. strandedAcrossDays is set by recordResult on triple-wrong,
+        // cleared on the next correct answer.
+        if (values.some((r) => r.strandedAcrossDays && r.lastSeenDate !== today)) return false;
         return true;
       },
     }),

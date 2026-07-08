@@ -33,17 +33,35 @@ describe("commitSession() — atomicity contract", () => {
     expect(s.lastStudiedDate).toBe(localDateStr());
   });
 
-  it("all three slices are consistent — no partial application", () => {
-    // If any slice were absent, that would indicate the mutations happened in
-    // separate set() calls and a crash between them would corrupt state.
+  it("commitSession is atomic — cards, activeSession, and streak update in a single store tick", () => {
+    // This test fails if commitSession is changed to call set() more than once:
+    // three sequential set() calls would produce 3 snapshots; an atomic single set() produces exactly 1.
+    // Mirrors the pattern used for rateCardAndSaveSession in tests/seam_studyLoop.test.ts:93-129.
     const session = makeSession({ sessionCorrect: 0 });
+    const snapshots: Array<{
+      reps: number | undefined;
+      activeSession: ActiveSession | null;
+      streak: number;
+    }> = [];
+    const unsub = useSRSStore.subscribe((state) => {
+      snapshots.push({
+        reps: state.cards["c1"]?.reps,
+        activeSession: state.activeSession,
+        streak: state.streak,
+      });
+    });
     useSRSStore.getState().commitSession("c1", "again", session);
-    const s = useSRSStore.getState();
-    // A fresh card ("new", reps=0) graded "again" stays in "learning" with reps=1.
-    expect(s.cards["c1"]?.state).toBe("learning");
-    expect(s.cards["c1"]?.reps).toBe(1);
-    expect(s.activeSession).toEqual(session);
-    expect(s.lastStudiedDate).toBe(localDateStr());
+    unsub();
+
+    // Exactly one snapshot proves commitSession's single set() call contract
+    expect(snapshots.length).toBe(1);
+    // The one snapshot must contain all three slices simultaneously — no partial writes
+    const snap = snapshots[0]!;
+    // A fresh card graded "again" transitions to learning with reps=1
+    expect(snap.reps).toBe(1);
+    expect(snap.activeSession).toEqual(session);
+    // null lastStudiedDate → first session of the day → streak increments to 1
+    expect(snap.streak).toBe(1);
   });
 
   it("increments streak by 1 when last studied yesterday", () => {

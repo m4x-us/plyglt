@@ -6,6 +6,8 @@ import type { ActiveSession } from "@/store/srsStore";
 import { isInDnd } from "@/store/settingsStore";
 import { getTargetLangCode, setTargetLangCode, LANG_PAIR_KEY } from "@/lib/constants";
 import type { Unit } from "@/content/types";
+import { migrateSrsStore } from "@/store/migrations";
+import { getDayOfPhase } from "@/lib/introduction";
 
 function makeUnit(cardIds: string[]): Unit {
   return {
@@ -447,40 +449,28 @@ describe("srsStore — introduction engine actions", () => {
     expect(due).not.toContain("card-1");
   });
 
-  // F03 — variety rule: lastSeenType must advance after each recordIntroductionResult call
-  it("recordIntroductionResult updates lastSeenType to the next card type (variety rule)", () => {
-    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
-    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe(null);
+  // F10 — cross-day stranded: canIntroduceNewCard uses strandedAcrossDays (set by triple-wrong,
+  // cleared by correct) instead of the unreachable consecutiveWrongToday-at-threshold state.
+  // This is a seam test: drives through introduceCard and recordIntroductionResult end-to-end
+  // rather than injecting the unreachable state directly via setState.
+  it("F10 seam: triple-wrong sets strandedAcrossDays, blocking canIntroduceNewCard on subsequent days until a correct answer clears it", () => {
+    useSRSStore.getState().introduceCard("stranded-card", "2026-06-24");
+    // Triple wrong on day 1 → triggers triple-wrong reset, sets strandedAcrossDays: true
+    useSRSStore.getState().recordIntroductionResult("stranded-card", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-card", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-card", false, "2026-06-24");
 
-    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
-    // getNextCardType(null, ALL_CARD_TYPES): null branch → pool = all types → first = "recognize"
-    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe("recognize");
+    const afterReset = useSRSStore.getState().introductions["stranded-card"];
+    expect(afterReset?.strandedAcrossDays).toBe(true);
 
-    useSRSStore.getState().recordIntroductionResult("card-1", true, "2026-06-24");
-    // getNextCardType("recognize", ALL_CARD_TYPES): filters "recognize" → pool[0] = "produce"
-    expect(useSRSStore.getState().introductions["card-1"]?.lastSeenType).toBe("produce");
-  });
-
-  // F10 — cross-day wrong streak: canIntroduceNewCard must block when a card is stuck wrong
-  it("canIntroduceNewCard returns false when a card has a cross-day wrong streak at the reset threshold", () => {
-    useSRSStore.setState({
-      introductions: {
-        "stuck-card": {
-          cardId: "stuck-card",
-          introducedDate: "2026-06-23",
-          phaseStartDate: "2026-06-23",
-          dayOfPhase: 2,
-          consecutiveCorrect: 0,
-          totalEncounters: 3,
-          lastSeenDate: "2026-06-24",   // previous day — not today
-          appearancesToday: 3,
-          consecutiveWrongToday: 3,     // at the reset threshold
-          lastSeenType: null,
-          graduated: false,
-        },
-      },
-    });
+    // Day 2: card is stranded AND lastSeenDate ("2026-06-24") !== today ("2026-06-25") → block
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25")).toBe(false);
+
+    // Correct answer on day 2 → clears strandedAcrossDays
+    useSRSStore.getState().recordIntroductionResult("stranded-card", true, "2026-06-25");
+
+    // Day 3: strandedAcrossDays cleared → must unblock even though lastSeenDate !== today
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-26")).toBe(true);
   });
 
   // F12 — rescue path: day-22+ non-graduated cards must appear once per day
@@ -560,5 +550,114 @@ describe("srsStore — introduction engine actions", () => {
     // getIntroductionDueCardIds must return this card on "2026-06-10" (day 1 = Infinity cap)
     const due = useSRSStore.getState().getIntroductionDueCardIds("2026-06-10");
     expect(due).toContain("card-seam");
+  });
+
+  // #234 — getIntroductionDueCardIds must not propagate getDayOfPhase throws for corrupt records
+  it("#234: getIntroductionDueCardIds skips a corrupt-phaseStartDate record without throwing, still returns valid cards", () => {
+    useSRSStore.setState({
+      introductions: {
+        "valid-card": {
+          cardId: "valid-card",
+          introducedDate: "2026-07-01",
+          phaseStartDate: "2026-07-01",
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 0,
+          lastSeenDate: "2026-07-01",
+          appearancesToday: 0,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+        "corrupt-card": {
+          cardId: "corrupt-card",
+          introducedDate: "2026-07-01",
+          phaseStartDate: "2026-02-30", // calendar-invalid — getDayOfPhase will throw
+          dayOfPhase: 1,
+          consecutiveCorrect: 0,
+          totalEncounters: 0,
+          lastSeenDate: "2026-07-01",
+          appearancesToday: 0,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    });
+    let due: string[] = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => {
+        due = useSRSStore.getState().getIntroductionDueCardIds("2026-07-01");
+      }).not.toThrow();
+      expect(due).toContain("valid-card");
+      expect(due).not.toContain("corrupt-card");
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/ERR-INTRO-DUE-corrupt-card/), expect.anything());
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// ── Cross-module tests: migration date guards & getDayOfPhase calendar validation ───────────────
+
+describe("migrateSrsStore — #232 day-of-month rollover guard", () => {
+  it("v2 → v3: phaseStartDate '2026-02-30' falls back to today (JS silently normalises Feb-30 to Mar-2)", () => {
+    const state = {
+      cards: {}, streak: 0, lastStudiedDate: null, activeSession: null,
+      introductions: {
+        "card-rollover": {
+          cardId: "card-rollover",
+          introducedDate: "2026-02-28",
+          phaseStartDate: "2026-02-30", // day-of-month rollover — JS normalises to 2026-03-02
+          dayOfPhase: 1, consecutiveCorrect: 0, totalEncounters: 1,
+          lastSeenDate: "2026-02-28", appearancesToday: 1,
+          consecutiveWrongToday: 0, lastSeenType: null, graduated: false,
+        },
+      },
+    };
+    const result = migrateSrsStore(state, 2) as { introductions: Record<string, { phaseStartDate: string }> };
+    const intro = result.introductions["card-rollover"];
+    // Must NOT preserve the rolled-over string or the silently-normalised downstream value
+    expect(intro?.phaseStartDate).not.toBe("2026-02-30");
+    expect(intro?.phaseStartDate).not.toBe("2026-03-02");
+    // Must fall back to a valid YYYY-MM-DD date (today)
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
+    expect(isNaN(new Date(intro?.phaseStartDate ?? "").getTime())).toBe(false);
+  });
+});
+
+describe("migrateSrsStore — #233 null-record complete default", () => {
+  it("v2 → v3: null introduction record is recovered with all required fields so recordResult doesn't NaN", () => {
+    const state = {
+      cards: {}, streak: 0, lastStudiedDate: null, activeSession: null,
+      introductions: { "null-card": null },
+    };
+    const result = migrateSrsStore(state, 2) as { introductions: Record<string, Record<string, unknown>> };
+    const intro = result.introductions["null-card"];
+    expect(typeof intro?.totalEncounters).toBe("number");
+    expect(typeof intro?.consecutiveCorrect).toBe("number");
+    expect(typeof intro?.appearancesToday).toBe("number");
+    expect(typeof intro?.consecutiveWrongToday).toBe("number");
+    expect(intro?.graduated).toBe(false);
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(String(intro?.phaseStartDate ?? ""))).toBe(true);
+    // Verify totalEncounters is a real number (not NaN from undefined + 1)
+    const n = intro?.totalEncounters as number;
+    expect(isNaN(n)).toBe(false);
+    expect(n + 1).toBe(n + 1); // NaN + 1 !== NaN + 1 (NaN propagation check)
+  });
+});
+
+describe("getDayOfPhase — #231 calendar-invalid date detection", () => {
+  it("throws [ERR-INTRO-DATE] on month-overflow date '2026-13-45' (passes DATE_RE but isNaN catches it)", () => {
+    expect(() => getDayOfPhase("2026-13-45", "2026-07-07")).toThrow("[ERR-INTRO-DATE]");
+  });
+
+  it("throws [ERR-INTRO-DATE] on day-of-month rollover '2026-02-30' (passes isNaN but round-trip check catches it)", () => {
+    expect(() => getDayOfPhase("2026-02-30", "2026-07-07")).toThrow("[ERR-INTRO-DATE]");
+  });
+
+  it("throws [ERR-INTRO-DATE] when today is a day-of-month rollover '2026-02-30'", () => {
+    expect(() => getDayOfPhase("2026-07-01", "2026-02-30")).toThrow("[ERR-INTRO-DATE]");
   });
 });

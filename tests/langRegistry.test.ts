@@ -120,6 +120,29 @@ describe("SpecialtyPack registry — initial empty state", () => {
   });
 });
 
+describe("LANG_CONFIG_MAP — deep immutability (Task #235)", () => {
+  it("mutation attempt on a top-level config field throws TypeError and leaves the value unchanged", () => {
+    // Object.freeze(LANG_CONFIG_MAP) alone is shallow — without deepFreezeConfig, assigning
+    // LANG_CONFIG_MAP.it.articles = null compiles and silently succeeds at runtime.
+    // deepFreezeConfig freezes the config object itself; in ESM strict mode this throws.
+    const original = LANG_CONFIG_MAP["it"]?.articles;
+    expect(() => {
+      (LANG_CONFIG_MAP["it"] as unknown as Record<string, unknown>).articles = null;
+    }).toThrow(TypeError);
+    expect(LANG_CONFIG_MAP["it"]?.articles).toBe(original);
+  });
+
+  it("mutation attempt on a nested uiStrings field throws TypeError (shallow freeze would silently allow this)", () => {
+    // Without Object.freeze(config.uiStrings), LANG_CONFIG_MAP.it.uiStrings.appTitle = "x"
+    // would succeed despite the outer freeze. deepFreezeConfig also freezes uiStrings.
+    const original = LANG_CONFIG_MAP["it"]?.uiStrings.appTitle;
+    expect(() => {
+      (LANG_CONFIG_MAP["it"]!.uiStrings as Record<string, unknown>).appTitle = "hacked";
+    }).toThrow(TypeError);
+    expect(LANG_CONFIG_MAP["it"]?.uiStrings.appTitle).toBe(original);
+  });
+});
+
 describe("isValidPackCode — type guard", () => {
   it("returns true for registered codes", () => {
     expect(isValidPackCode("it")).toBe(true);
