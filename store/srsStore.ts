@@ -3,7 +3,7 @@
 // ============================================================
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade } from "@/lib/srs";
+import { type CardProgress, defaultProgress, scheduleCard, isDue, type Grade, prerequisitesMet } from "@/lib/srs";
 import type { Card, IntroductionRecord, Unit } from "@/content/types";
 import {
   getDayOfPhase,
@@ -92,11 +92,6 @@ interface SRSState {
   recordIntroductionResult: (cardId: string, correct: boolean, today: string) => void;
   getIntroductionDueCardIds: (today: string) => string[];
   canIntroduceNewCard: (today: string) => boolean;
-}
-
-function prerequisitesMet(card: Card, progressMap: Record<string, CardProgress>): boolean {
-  if (!card.prerequisites?.length) return true;
-  return card.prerequisites.every((id) => progressMap[id]?.state === "review");
 }
 
 export const useSRSStore = create<SRSState>()(

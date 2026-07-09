@@ -7,8 +7,8 @@ import { renderHook, act } from "@testing-library/react";
 import { useStudySession } from "./useStudySession";
 import type { Card, Tier } from "@/content/types";
 
-function makeCard(id: string, tier: Tier = 1): Card {
-  return { id, type: "recognize", prompt: `Prompt ${id}`, accepted: [`Answer ${id}`], tags: [], tier };
+function makeCard(id: string, tier: Tier = 1, prerequisites?: string[]): Card {
+  return { id, type: "recognize", prompt: `Prompt ${id}`, accepted: [`Answer ${id}`], tags: [], tier, ...(prerequisites ? { prerequisites } : {}) };
 }
 
 const CARDS = [makeCard("c1"), makeCard("c2"), makeCard("c3")];
@@ -199,5 +199,71 @@ describe("useStudySession — introduction auto-selection", () => {
     );
     // c1 is the lowest-tier qualifying card; it's already in the initial queue so no append
     expect(result.current.queue).toHaveLength(3);
+  });
+});
+
+// ── prerequisite gating (Batch 18) ────────────────────────────────────────────
+// Rule 20 — exercises the real production entry point (the hook's mount effect), not the
+// underlying prerequisitesMet/selectQualifyingNewCard functions called directly in isolation.
+
+describe("useStudySession — introduce-on-mount effect respects Card.prerequisites (Batch 18)", () => {
+  it("skips a qualifying card whose prerequisite has not reached 'review' state, introduces the next eligible card instead", () => {
+    const cardA = makeCard("card-a", 2);
+    const cardB = makeCard("card-b", 1, ["card-a"]); // tier 1 sorts first if not filtered
+    const introduceCard = vi.fn();
+    // B7: the pre-fix filter has no prerequisitesMet check, so it would call
+    // introduceCard("card-b", ...) here (card-b sorts first by tier) even though its
+    // prerequisite card-a is unmet.
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          allCardMap: { "card-a": cardA, "card-b": cardB },
+          cards: {},
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("card-a", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+  });
+
+  it("introduces a gated card once its prerequisite reaches 'review' state", () => {
+    const cardA = makeCard("card-a", 2);
+    const cardB = makeCard("card-b", 1, ["card-a"]);
+    const introduceCard = vi.fn();
+    const progressMap = {
+      "card-a": { cardId: "card-a", state: "review" as const, stability: 5, difficulty: 5, retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 3 },
+    };
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          allCardMap: { "card-a": cardA, "card-b": cardB },
+          cards: progressMap,
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+    // B7: catches an over-aggressive gate that always returns false — introduceCard must fire.
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("card-b", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+  });
+
+  it("introduces nothing when the only qualifying card has an unmet prerequisite", () => {
+    const cardB = makeCard("card-b", 1, ["card-a"]);
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          allCardMap: { "card-b": cardB },
+          cards: {},
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+    // B7: catches a missing `if (!first) return;` guard interaction.
+    expect(introduceCard).not.toHaveBeenCalled();
   });
 });

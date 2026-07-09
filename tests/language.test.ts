@@ -171,10 +171,11 @@ describe("Spanish lang.articles — correct alternation order", () => {
 describe("ITALIAN config", () => {
   it("code is 'it'", () => expect(ITALIAN.code).toBe("it"));
   it("has the exact ITALIAN articles regex pattern (not null, not some other regex)", () =>
-    // Task #226: the old pattern had dead duplicate alternation (l'|l', un'|un') masking
-    // missing curly-apostrophe support; apostrophe normalization now happens in stripArticle
-    // itself (see lib/answerCheck.ts's APOSTROPHE_RE), so the regex no longer needs duplicates.
-    expect(ITALIAN.articles?.source).toBe("^(il|lo|la|l'|gli|le|un'|uno|una|un|i)\\s*"));
+    // Batch 18 finding: added a (?=\s|$) word-boundary lookahead to the plain-word alternatives
+    // so a leading substring resembling an article (the "i" in "isola") can no longer be
+    // stripped mid-word. Apostrophe forms (l', un') sit outside the lookahead group — the
+    // apostrophe itself already disambiguates them from a mid-word match.
+    expect(ITALIAN.articles?.source).toBe("^(?:(?:il|lo|la|gli|le|uno|una|un|i)(?=\\s|$)|l'|un')\\s*"));
 
   it("articles regex matches 'il' prefix", () => {
     expect(ITALIAN.articles!.test("il gatto")).toBe(true);

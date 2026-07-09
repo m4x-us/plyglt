@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useSRSStore } from "@/store/srsStore";
 import type { ActiveSession } from "@/store/srsStore";
 import { buildQueue } from "@/lib/queue";
+import { selectQualifyingNewCard } from "@/lib/srs";
 import { ALL_UNITS } from "@/content/index";
 
 // Three real Italian cards from the Greetings unit — imported directly
@@ -23,13 +24,13 @@ describe("seam: session-start → auto-introduction", () => {
     expect(SAMPLE_CARDS.length).toBeGreaterThanOrEqual(2);
     expect(canIntroduceNewCard(today)).toBe(true);
 
-    // Mirror what useStudySession does on mount: find the first unintroduced card
-    // sorted by tier ascending and call introduceCard before building the queue.
+    // Calls the same production selector hooks/useStudySession.ts uses on mount — this seam
+    // test's value is exercising real content (ALL_UNITS) and the real store/buildQueue
+    // pipeline, not re-deriving the selection logic (a hand-duplicated copy here previously
+    // drifted from production after a Batch 18 fix added prerequisite gating to the real
+    // selector but not to this test's inline copy).
     const cardMap = Object.fromEntries(SAMPLE_CARDS.map((c) => [c.id, c]));
-    const qualifying = Object.values(cardMap)
-      .filter((c) => !cards[c.id] && !introductions[c.id])
-      .sort((a, b) => a.tier - b.tier);
-    const first = qualifying[0];
+    const first = selectQualifyingNewCard(cardMap, cards, introductions);
     if (first) introduceCard(first.id, today);
 
     // On the next session load buildQueue now includes the introduced card

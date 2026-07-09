@@ -156,6 +156,8 @@ Once introduced, new content enters an ultra-intensive repetition phase before g
 
 **The variety rule.** Each encounter uses a different retrieval angle: produce, recognize, fill-blank in a new sentence, translate cold. Identical repetition produces shallow encoding. Varied retrieval across encounters produces durable memory.
 
+**Implementation status (2026-07-08):** not yet live. `getNextCardType` implements this rotation logic and is unit-tested, but the content model currently authors one `Card` object per word per type — there is no sibling card to rotate to, so repeated encounters during the intensive phase show the identical card verbatim. Delivering this rule requires generating sibling `Card` objects per word across the curriculum, tracked as a separate future content-model initiative, not part of routine engineering remediation.
+
 **Graduation requires performance, not time.** A card graduates after 15 consecutive correct retrievals across varied formats. Time alone does not advance it.
 
 **Wrong-answer rules:**

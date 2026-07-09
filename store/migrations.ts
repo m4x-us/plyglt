@@ -150,9 +150,12 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v2 → v3: adds purchasedAddOns for specialty pack add-on tracking.
   // Default [] — no existing user has purchased any add-ons.
   // Preserves any data already written by a pre-release build (unlikely but safe).
+  // Element-shape guard: filter to string-only so a corrupt/pre-release blob with
+  // non-string elements (null, number, object) cannot propagate into entitlementStore.
   3: (data: unknown) => {
     const d = data as Record<string, unknown>;
-    return { ...d, purchasedAddOns: Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [] };
+    const raw = Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [];
+    return { ...d, purchasedAddOns: raw.filter((item): item is string => typeof item === "string") };
   },
 };
 

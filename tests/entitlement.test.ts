@@ -12,9 +12,10 @@
 // ===========================================
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation } from "@/store/entitlementStore";
+import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
 import { ALL_PACK_CODES, FREE_PACK_CODES } from "@/lib/langRegistry";
+import * as specialtyPackLoader from "@/lib/specialtyPackLoader";
 
 vi.mock("@/lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/tauri")>();
@@ -293,6 +294,25 @@ describe("activateLicense — null safety", () => {
     expect(r.error).toBe(ERR_ACTIVATE_NETWORK);
   });
 
+  it("redacts the license key when invoke throws — never logs the raw key or the raw error object (Batch 18)", async () => {
+    // B7: pre-fix, this catch block logged the raw caught error (`console.error(tag, e)`),
+    // which could embed the full license key via the IPC request params. This test fails if
+    // that regresses — it asserts the log call's second argument is the redacted shape, not
+    // an Error instance.
+    mockInvoke.mockRejectedValueOnce(new Error("IPC error"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await activateLicense("ACTKEY-SECRET-1234");
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringMatching(/ENTITLEMENT_ACTIVATE_FAIL/),
+        { licenseKey: "ACTKEY-S...", errType: "Error" },
+      );
+      expect(spy.mock.calls[0]?.[1]).not.toBeInstanceOf(Error);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("returns ok:false with fallback message when activated is false and res.error is null", async () => {
     mockInvoke.mockResolvedValueOnce({
       activated: false, error: null,
@@ -478,6 +498,21 @@ describe("validateLicense — null safety", () => {
     expect(r.error).toBe(ERR_VALIDATE_NETWORK);
   });
 
+  it("redacts the license key when invoke throws — never logs the raw key or the raw error object (Batch 18)", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("IPC error"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await validateLicense("VALKEY-SECRET-5678", "INST");
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringMatching(/ENTITLEMENT_VALIDATE_FAIL/),
+        { licenseKey: "VALKEY-S...", errType: "Error" },
+      );
+      expect(spy.mock.calls[0]?.[1]).not.toBeInstanceOf(Error);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   // S002: validateLicense ok:true path
   it("returns ok:true with validUntil in future when validation succeeds", async () => {
     mockInvoke.mockResolvedValueOnce({
@@ -520,6 +555,20 @@ describe("deactivateLicense()", () => {
     // to prevent Tauri internals from reaching the UI. The IPC error is not
     // logged either (it may embed the license key via request params).
     expect(result.error).toBe(ERR_DEACTIVATE_NETWORK);
+  });
+
+  it("redacts the license key when invoke throws — closes the pre-existing gap where only the return value, never the actual log payload, was ever verified (Batch 18)", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("IPC error"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await deactivateLicense("KEY-ABC", "inst-123");
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringMatching(/ENTITLEMENT_DEACTIVATE_FAIL/),
+        { licenseKey: "KEY-ABC...", errType: "Error" },
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("returns ok:false when invoke resolves to null (empty body guard)", async () => {
@@ -977,6 +1026,45 @@ describe("purchasedAddOns — add-on entitlement (Task #148)", () => {
     expect(store().purchasedAddOns).toHaveLength(1);
     store().clearEntitlement();
     expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("#263: clearEntitlement calls clearSpecialtyCache to prune in-memory add-on state", () => {
+    // Without this fix, clearEntitlement only zeros purchasedAddOns in the Zustand store
+    // but never clears loadedAddOns in specialtyPackLoader — specialty content merged into
+    // memCache remains accessible for the rest of the session after a license deactivation.
+    const spy = vi.spyOn(specialtyPackLoader, "clearSpecialtyCache");
+    store().clearEntitlement();
+    expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
+  });
+});
+
+// ── cross-tab sync handler (#288) ────────────────────────────────────────────
+
+describe("cross-tab sync — _handleCrossTabStorageEvent (#288)", () => {
+  it("#288: handler calls rehydrate when key matches the entitlement store key", () => {
+    // Zustand persist writes the in-memory snapshot to localStorage without reading the
+    // current on-disk value first. Two tabs racing on purchaseAddOn for different codes
+    // cause the second write to drop the first tab's purchase. The storage event handler
+    // re-hydrates from disk so the next write starts from the merged on-disk state.
+    const spy = vi.spyOn(useEntitlementStore.persist, "rehydrate").mockResolvedValue(undefined);
+    _handleCrossTabStorageEvent({ key: "entitlement-v1" });
+    expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
+  });
+
+  it("#288: handler does not call rehydrate when key does not match the entitlement store key", () => {
+    const spy = vi.spyOn(useEntitlementStore.persist, "rehydrate").mockResolvedValue(undefined);
+    _handleCrossTabStorageEvent({ key: "some-other-store" });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("#288: handler does not call rehydrate when key is null", () => {
+    const spy = vi.spyOn(useEntitlementStore.persist, "rehydrate").mockResolvedValue(undefined);
+    _handleCrossTabStorageEvent({ key: null });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

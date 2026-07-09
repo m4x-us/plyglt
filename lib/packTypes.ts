@@ -1,6 +1,7 @@
 /**
  * packTypes.ts — Shared type definitions for language pack data structures.
- * Single source of truth for Pack, PackMeta, Manifest, and LoadPackResult.
+ * Single source of truth for: Pack, PackMeta, Manifest, LoadPackResult,
+ * hasValidUnitsArray, and PackMemCache.
  * Imported by lib/packLoader.ts and lib/specialtyPackLoader.ts — no React, no Zustand.
  */
 

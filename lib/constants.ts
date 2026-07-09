@@ -16,7 +16,10 @@ export const LANG_PAIR_KEY = "srs-lang-pair";
 export function getTargetLangCode(): string {
   if (typeof window === "undefined") return "it";
   const pair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
-  return pair.split("-")[1] || "it"; // || guards against empty string (malformed "en-")
+  // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
+  // like "it-medical" to "it". No-hyphen case falls back to "it" (malformed storage value).
+  const sepIdx = pair.indexOf("-");
+  return sepIdx === -1 ? "it" : (pair.slice(sepIdx + 1) || "it");
 }
 
 /** Writes the active language pair to localStorage. Source language is always "en". */

@@ -9,8 +9,20 @@
 // Longest alternatives first: prevents partial prefix matches
 // ("un" must come after "uno"/"una"/"un'" so "una pizza" strips correctly)
 
-export const ITALIAN_ARTICLES = /^(il|lo|la|l'|gli|le|un'|uno|una|un|i)\s*/i;
-export const SPANISH_ARTICLES = /^(el|los|las|la|unos|unas|una|un)\s*/i;
+// Non-apostrophe alternatives require a word boundary (whitespace or end-of-string) via the
+// (?=\s|$) lookahead before \s* is allowed to consume anything — without it, a leading
+// substring that merely resembles an article ("i" in "isola", "un" in "uncino", "la" in "lago")
+// gets silently stripped even when it isn't a standalone article token (Batch 18 finding: a
+// wrong word was graded "correct" because "isola" stripped to "sola"). Apostrophe forms (l', un')
+// don't need the lookahead — the apostrophe itself is a non-letter, so it can never falsely
+// match mid-word. Alternative order within the lookahead-gated group is NOT load-bearing for
+// correctness: JS's backtracking regex engine retries the next alternative at the same
+// position when an earlier one's lookahead fails, so even "un" listed before "uno"/"una"
+// still correctly strips "una casa"/"uno studente" (verified empirically — un's failed
+// lookahead backtracks into una/uno, which then match). Kept longest-first purely for
+// readability, matching the pre-existing convention in this file.
+export const ITALIAN_ARTICLES = /^(?:(?:il|lo|la|gli|le|uno|una|un|i)(?=\s|$)|l'|un')\s*/i;
+export const SPANISH_ARTICLES = /^(?:el|los|las|la|unos|unas|una|un)(?=\s|$)\s*/i;
 
 // Matches both the straight apostrophe (U+0027) and the curly/typographic apostrophe
 // (U+2019 — what iOS/macOS autocorrect produces by default, e.g. typed "l'amico").
@@ -68,22 +80,26 @@ export function checkAnswer(
       .replace(/\s+/g, " ");
 
   const t = normalize(typed);
-  const tNoArticle = normalize(stripArticle(typed, articles));
+  // stripArticle's regex is anchored at ^ with no leading \s* — a raw string with leading
+  // whitespace (e.g. an accidental leading space) would never match the article alternation
+  // at all, silently defeating stripping. Trim before stripping, not after, so the article
+  // check sees the same leading character normalize() would eventually see.
+  const tNoArticle = normalize(stripArticle(typed.trim(), articles));
   // Pre-compute stripped forms once (used for both diacriticTolerant "close" and
   // to exclude accent-only pairs from the Levenshtein typo check)
   const tS = normalizeStripped(typed);
-  const tNoArticleS = normalizeStripped(stripArticle(typed, articles));
+  const tNoArticleS = normalizeStripped(stripArticle(typed.trim(), articles));
 
   for (const answer of accepted) {
     const a = normalize(answer);
-    const aNoArticle = normalize(stripArticle(answer, articles));
+    const aNoArticle = normalize(stripArticle(answer.trim(), articles));
 
     if (t === a || t === aNoArticle || tNoArticle === a || tNoArticle === aNoArticle) {
       return "correct";
     }
 
     const aS = normalizeStripped(answer);
-    const aNoArticleS = normalizeStripped(stripArticle(answer, articles));
+    const aNoArticleS = normalizeStripped(stripArticle(answer.trim(), articles));
     const isAccentOnly = tS === aS || tS === aNoArticleS || tNoArticleS === aS || tNoArticleS === aNoArticleS;
 
     if (isAccentOnly) {
@@ -97,7 +113,11 @@ export function checkAnswer(
         levenshtein(tNoArticle, a),
         levenshtein(tNoArticle, aNoArticle),
       ];
-      if (a.length > 4 && Math.min(...distances) === 1) return "close";
+      // Gate on the article-stripped length, not the raw length — otherwise an accepted
+      // answer carrying an article (e.g. "il re", stripped length 2) inflates past the
+      // short-word cutoff via the article alone, granting typo tolerance to words far
+      // shorter than the 4-character floor this gate exists to enforce.
+      if (aNoArticle.length > 4 && Math.min(...distances) === 1) return "close";
     }
   }
   return "wrong";

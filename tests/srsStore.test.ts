@@ -699,8 +699,10 @@ describe("srsStore — introduction engine actions", () => {
     }
   });
 
-  // #247 — recordIntroductionResult must not throw when called on a corrupt phaseStartDate record
-  it("#247: recordIntroductionResult does not throw on a corrupt phaseStartDate — logs and skips the update", () => {
+  // #247/#258 — recordIntroductionResult must not throw on a corrupt phaseStartDate; a correct
+  // answer repairs phaseStartDate to `today` (Task #258) while consecutiveCorrect is untouched
+  // (crediting the graduation counter itself is separately tracked, accepted debt).
+  it("#247/#258: recordIntroductionResult repairs phaseStartDate to today on a correct answer against a corrupt record — consecutiveCorrect is not credited", () => {
     useSRSStore.setState({
       introductions: {
         "corrupt-result-card": {
@@ -723,9 +725,12 @@ describe("srsStore — introduction engine actions", () => {
       expect(() => {
         useSRSStore.getState().recordIntroductionResult("corrupt-result-card", true, "2026-07-08");
       }).not.toThrow();
-      // Record must remain unchanged — skip, not corrupt further
       const rec = useSRSStore.getState().introductions["corrupt-result-card"];
       expect(rec?.consecutiveCorrect).toBe(5);
+      // B7: a regression that hoists the repair to run unconditionally, or drops it entirely,
+      // would leave phaseStartDate at "2026-02-30" — the field the old test title claimed was
+      // "skipped" but never actually asserted.
+      expect(rec?.phaseStartDate).toBe("2026-07-08");
       expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/ERR-INTRO-RESULT-corrupt-result-card/), expect.anything());
     } finally {
       errorSpy.mockRestore();

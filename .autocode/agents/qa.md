@@ -8,6 +8,7 @@ Test command: `npm test`. Coverage: `npm test -- --coverage`.
 - **897 tests across 49 test files** (confirmed again after Tasks #154, #155, #157, #158, #120, #121)
 - vitest.config.ts now excludes `tests/e2e/**` — Playwright E2E runs separately via `npm run test:e2e`
 - Coverage thresholds: lines=84, funcs=79, branches=81, stmts=82
+- **UPDATED (Batch 18 WorldClass, 2026-07-08): 1085 tests across 53 test files.** Coverage still exceeds all thresholds (lines 91.13%, branches 82.24%, funcs 86.91%, stmts 88.08%). New: `tests/srs.test.ts` gained a `prerequisitesMet` describe block (5 cases); `hooks/useStudySession.test.ts` gained a prerequisite-gating describe block (3 `renderHook`-based cases); `tests/answerCheck.test.ts` gained ~38 exact-value regression cases for the article-stripping fix and 2 follow-on fresh-eyes bug fixes (length-gate, leading-whitespace); `tests/entitlement.test.ts` gained 3 `console.error`-spy tests closing a real gap where redaction was never actually verified at the log call, only at the return value.
 - All thresholds met. Thresholds only ever increase — never lower.
 
 ## Rule 14 Status (every user-facing component needs co-located test)
@@ -99,6 +100,12 @@ Rule 14 is now FULLY COMPLETE for all app pages and components.
 - Full E2E user path (no mocks): COVERED (Task #153 — Playwright smoke test)
 - getSpecialtyPacks() filter with populated registry: COVERED (Task #157 — 3 tests)
 - Stats page Pro gate (isProEnabled(flags.analytics, licenseType)): COVERED (Task #155 — 3 tests: free/pro/flag=false)
+
+## Systemic Patterns (from /patterns 2026-07-08 health report)
+
+- **Test Quality** (43 occurrences, 22 audit cycles, avg severity 4.2) — the single most recurring finding category in this codebase's history. Concentrated failure modes: existence-only assertions (`.toBeDefined()`/`.not.toBeNull()`) on deterministic values, tests that inject state directly via `setState` instead of exercising the real write path (now Rule 20 in philosophy.md), and B7/Rule 18 violations where the assertion would pass even if the described production code were deleted or broken. Before signing off any test file: run the Deletion Test on every `it()` block.
+- **Error Protection** (12 occurrences, 8 cycles, avg severity 4.7) — repeated gaps in error-path coverage, particularly asymmetric logging (one call site in a shared helper logs, a sibling call site added later does not).
+- New standing check to apply going forward: Rule 20 (Spec-to-Runtime Traceability) — verify every spec requirement's test exercises the real production entry point, and grep for orphan callers on any function implementing a requirement.
 
 ## Run History
 10 runs total. Blind spots: Task #056 misattributed (run 2); test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid.tsx Rule 14 gap first flagged run 5; projected test count 908 was wrong — actual 843 (confirmed run 6); Batch 9 closed all Rule 14 gaps for app pages (run 7); Batch 12 added +32 tests post-Task #148-150 (run 8 count was 888); Batch 13 added +3 (run 9 — 891 total); Two minor issues found in Batch 12-13 code: redundant toBeDefined assertions (6 instances) and untested getSpecialtyPacks filter predicate (run 9 — both resolved by run 10). Run 10: clean pass at 897. One minor open: PRICING.annual exact value not pinned by real-constant test.

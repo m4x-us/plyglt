@@ -413,7 +413,16 @@ export function getInstalledPacks(): PackCode[] {
  * from operating on poisoned storage key namespaces.
  */
 export async function evictPack(lang: string): Promise<void> {
-  if (!isValidPackCode(lang)) return;
+  if (!isValidPackCode(lang)) {
+    // Task #271: log specialty codes — a silent no-op violates Rule 8 (Log Everything).
+    // Specialty packs cannot be evicted individually; evict the base language pack, which
+    // prunes them via clearPackCache → clearSpecialtyPacksForLang.
+    const match = SPECIALTY_PACKS.find(sp => sp.code === lang);
+    if (match) {
+      console.warn(`[evictPack] "${lang}" is a specialty pack — cannot be evicted individually; evict the base language pack ("${match.baseLang}") instead`);
+    }
+    return;
+  }
   await clearPackCache(lang);
 }
 

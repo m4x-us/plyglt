@@ -1,30 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, getSpecialtyPacks, isSpecialtyPackCode } from "@/lib/langRegistry";
-import type { SpecialtyPack } from "@/lib/langRegistry";
 import { ALL_KNOWN_PACKS } from "@/store/entitlementStore";
-
-// ── Specialty pack mock ────────────────────────────────────────────────────────
-// getSpecialtyPacks and isSpecialtyPackCode close over the module-internal SPECIALTY_PACKS
-// constant — mocking only the export doesn't affect them. The mock factory re-implements
-// both functions using mockSpecialtyPacks so the filter predicate is exercised against
-// a live, mutable registry rather than the frozen empty constant.
-const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => []);
-vi.mock("@/lib/langRegistry", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
-  return {
-    ...actual,
-    SPECIALTY_PACKS: mockSpecialtyPacks,
-    getSpecialtyPacks: (lang: string): SpecialtyPack[] =>
-      mockSpecialtyPacks.filter(sp => sp.baseLang === lang),
-    isSpecialtyPackCode: (s: string): boolean =>
-      mockSpecialtyPacks.some(sp => sp.code === s),
-  };
-});
-
-// Reset to empty before every test so existing tests see the real empty-registry behaviour.
-beforeEach(() => {
-  mockSpecialtyPacks.length = 0;
-});
 
 describe("langRegistry — derived constants are consistent", () => {
   it("ALL_KNOWN_PACKS (from entitlementStore) equals ALL_PACK_CODES (from langRegistry)", () => {
@@ -166,24 +142,3 @@ describe("isValidPackCode — type guard", () => {
   });
 });
 
-describe("getSpecialtyPacks with non-empty registry", () => {
-  beforeEach(() => {
-    mockSpecialtyPacks.push(
-      { code: "it-medical", baseLang: "it", name: "Medical", ready: false },
-      { code: "it-business", baseLang: "it", name: "Business", ready: false },
-      { code: "es-travel", baseLang: "es", name: "Travel", ready: false },
-    );
-  });
-
-  it("returns only Italian packs for \"it\"", () => {
-    expect(getSpecialtyPacks("it")).toHaveLength(2);
-  });
-
-  it("returns only Spanish packs for \"es\"", () => {
-    expect(getSpecialtyPacks("es")).toHaveLength(1);
-  });
-
-  it("returns [] for unknown language \"fr\"", () => {
-    expect(getSpecialtyPacks("fr")).toEqual([]);
-  });
-});

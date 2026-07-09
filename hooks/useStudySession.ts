@@ -6,7 +6,7 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import type { Card } from "@/content/types";
 import type { IntroductionRecord } from "@/content/types";
-import type { Grade, CardProgress } from "@/lib/srs";
+import { selectQualifyingNewCard, type Grade, type CardProgress } from "@/lib/srs";
 import type { ActiveSession } from "@/store/srsStore";
 import { localDateStr } from "@/lib/utils";
 
@@ -75,10 +75,7 @@ export function useStudySession({
   useEffect(() => {
     const today = localDateStr();
     if (!canIntroduceNewCard(today)) return;
-    const qualifying = Object.values(allCardMap)
-      .filter((c) => !cards[c.id] && !introductions[c.id])
-      .sort((a, b) => a.tier - b.tier);
-    const first = qualifying[0];
+    const first = selectQualifyingNewCard(allCardMap, cards, introductions);
     if (!first) return;
     introduceCard(first.id, today);
     // eslint-disable-next-line react-hooks/set-state-in-effect

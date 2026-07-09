@@ -5,14 +5,14 @@
 // Pure presentation: callers own state and side-effects.
 // ============================================================
 // DEPENDS ON: @/lib/language (ITALIAN), @/lib/langRegistry (LANGUAGE_REGISTRY,
-//             getSpecialtyPacks), @/lib/entitlement (PRICING),
+//             SPECIALTY_PACKS), @/lib/entitlement (PRICING),
 //             @/content/index (ALL_UNITS)
 // USED BY: app/page.tsx
 // ============================================================
 "use client";
 
 import { ITALIAN } from "@/lib/language";
-import { LANGUAGE_REGISTRY, getSpecialtyPacks } from "@/lib/langRegistry";
+import { LANGUAGE_REGISTRY, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { PRICING } from "@/lib/entitlement";
 import { ALL_UNITS } from "@/content/index";
 
@@ -26,11 +26,19 @@ interface Props {
 }
 
 export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn }: Props) {
-  // Specialty packs for all currently unlocked base languages. Empty until
-  // SPECIALTY_PACKS registry has entries with ready:true (Task #149 wired the loader).
-  const specialtyPacks = LANGUAGE_REGISTRY
-    .filter(entry => isPackUnlocked(entry.code))
-    .flatMap(entry => getSpecialtyPacks(entry.code));
+  // Task #276: Feature flag gate for specialty pack UI. Consistent with featureFlags.ts convention:
+  // the section renders unless NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS is explicitly set to "false".
+  // Provides a kill switch when specialty pack content ships without requiring a deploy.
+  // Evaluated per-render (not at module load time) so tests can stub the env var reliably.
+  const specialtyPacksEnabled = process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS !== "false";
+
+  // Task #278: Use SPECIALTY_PACKS directly rather than iterating unlocked base languages.
+  // Each specialty pack appears exactly once — no deduplication needed.
+  // Filter: base language unlocked OR user has purchased the add-on directly.
+  // This structurally enforces the invariant: an owned add-on is never hidden even if
+  // its base language's lock state changes (e.g. after a subscription lapses).
+  const specialtyPacks = SPECIALTY_PACKS
+    .filter(sp => isPackUnlocked(sp.baseLang) || hasAddOn(sp.code));
 
   return (
     <>
@@ -100,8 +108,8 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
         </div>
       </div>
 
-      {/* Specialty packs — only shown when at least one add-on exists for an unlocked language */}
-      {specialtyPacks.length > 0 && (
+      {/* Specialty packs — gated by feature flag (#276) and non-empty pack list (#278) */}
+      {specialtyPacksEnabled && specialtyPacks.length > 0 && (
         <div className="mb-8">
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Add-ons</p>
           <div className="space-y-2">

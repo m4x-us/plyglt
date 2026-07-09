@@ -106,9 +106,21 @@ const LANGUAGE_MAP: Record<string, LanguageConfig> = {
   es: SPANISH,
 };
 
-/** Returns the LanguageConfig for a target language code, defaulting to Italian. */
+/**
+ * Returns the LanguageConfig for a target language code.
+ * Falls back to ITALIAN for unrecognised codes and logs an error — the fallback is
+ * intentional for graceful degradation, but the error signal prevents silent masking
+ * of misconfigured callers (e.g. a future specialty-pack code passed by mistake).
+ * Add new languages to LANGUAGE_MAP above; the poka-yoke test in tests/language.test.ts
+ * will catch LANGUAGE_MAP / LANGUAGE_REGISTRY drift.
+ */
 export function getLanguageConfig(code: string): LanguageConfig {
-  return LANGUAGE_MAP[code] ?? ITALIAN;
+  const config = LANGUAGE_MAP[code];
+  if (!config) {
+    console.error(`[ERR-LANG-CONFIG-UNKNOWN-${Date.now()}] No LanguageConfig for "${code}" — update LANGUAGE_MAP in lib/language.ts`);
+    return ITALIAN;
+  }
+  return config;
 }
 
 // ── Active language (static export — used for metadata only) ──────────────────

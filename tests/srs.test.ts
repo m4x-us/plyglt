@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { checkAnswer, scheduleCard, defaultProgress, isDue, autoRate, ITALIAN_ARTICLES } from "@/lib/srs";
+import { checkAnswer, scheduleCard, defaultProgress, isDue, autoRate, ITALIAN_ARTICLES, prerequisitesMet } from "@/lib/srs";
 import type { CardProgress, CardState, Grade } from "@/lib/srs";
+import type { Card } from "@/content/types";
 
 // ── checkAnswer — basic matching ──────────────────────────────────────────────
 
@@ -207,6 +208,43 @@ describe("scheduleCard() — review state transitions", () => {
     expect(a.reps).toBe(1);
     expect(b.reps).toBe(2);
     expect(c.reps).toBe(3);
+  });
+});
+
+// ── prerequisitesMet (Batch 18 — relocated from store/srsStore.ts) ──────────
+
+function prereqTestCard(id: string, prerequisites?: string[]): Card {
+  return { id, type: "recognize", prompt: "t", accepted: ["t"], tags: [], tier: 1, ...(prerequisites ? { prerequisites } : {}) };
+}
+function progressAt(id: string, state: CardState): CardProgress {
+  return { cardId: id, state, stability: 5, difficulty: 5, retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 3 };
+}
+
+describe("prerequisitesMet", () => {
+  it("returns true when the card has no prerequisites field", () => {
+    expect(prerequisitesMet(prereqTestCard("c1"), {})).toBe(true);
+  });
+  it("returns true when prerequisites is an empty array", () => {
+    expect(prerequisitesMet(prereqTestCard("c1", []), {})).toBe(true);
+  });
+  it("returns false when a prerequisite has no progress entry at all (the real 'untouched card' shape — scheduleCard never persists state:'new')", () => {
+    // B7: catches an implementation treating a missing entry as automatically met
+    // (e.g. `progressMap[id] === undefined ? true : ...`).
+    expect(prerequisitesMet(prereqTestCard("c2", ["c1"]), {})).toBe(false);
+  });
+  it("returns false when a prerequisite's state is 'learning' (not yet 'review')", () => {
+    // B7: catches an implementation checking mere existence (!!progressMap[id]) instead of
+    // state === "review". "relearning" hits the identical single-equality branch and is not
+    // separately tested — it is not a distinct code path from "learning".
+    expect(prerequisitesMet(prereqTestCard("c2", ["c1"]), { c1: progressAt("c1", "learning") })).toBe(false);
+  });
+  it("returns true when the single prerequisite's state is 'review'", () => {
+    expect(prerequisitesMet(prereqTestCard("c2", ["c1"]), { c1: progressAt("c1", "review") })).toBe(true);
+  });
+  it("returns false when only one of two prerequisites has reached 'review'", () => {
+    // B7: catches an implementation using .some(...) instead of .every(...)
+    const progressMap = { c1: progressAt("c1", "review"), c2: progressAt("c2", "learning") };
+    expect(prerequisitesMet(prereqTestCard("c3", ["c1", "c2"]), progressMap)).toBe(false);
   });
 });
 

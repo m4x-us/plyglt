@@ -6,6 +6,8 @@
 // Replaces SM-2. Models memory as Stability (S) × Difficulty (D).
 // autoRate() maps observable performance signals to a Grade; FSRS does the scheduling.
 
+import type { Card, IntroductionRecord } from "@/content/types";
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type Grade = "again" | "hard" | "good" | "easy";
@@ -188,6 +190,37 @@ export function scheduleCard(
 
 export function isDue(card: CardProgress, now = Date.now()): boolean {
   return card.dueDate <= now;
+}
+
+// ── Prerequisite gating — single source of truth ─────────────────────────────
+// Relocated from store/srsStore.ts (Batch 18) — pure function over Card/CardProgress belongs
+// in lib/, not as a private helper duplicated across every consumer that needs the same
+// content/types.ts Card.prerequisites contract enforced.
+
+// Returns true if all of `card`'s prerequisite cards have reached "review" state in
+// progressMap (or the card has no prerequisites). Single source of truth for prerequisite
+// gating — reused by srsStore.getNewCards (FSRS new-card queue) and selectQualifyingNewCard
+// (introduction-engine new-card gating), so the two subsystems can never diverge on how
+// content/types.ts's Card.prerequisites contract is enforced.
+export function prerequisitesMet(card: Card, progressMap: Record<string, CardProgress>): boolean {
+  if (!card.prerequisites?.length) return true;
+  return card.prerequisites.every((id) => progressMap[id]?.state === "review");
+}
+
+// Returns the first tier-ascending card eligible for introduction (untouched by FSRS, not
+// already introduced, prerequisites satisfied), or null if none qualify. Single source of
+// truth — used by both hooks/useStudySession.ts's mount effect and
+// tests/seam_studyLoop.test.ts, so the seam test exercises the exact same selection logic
+// production runs rather than a hand-duplicated copy that can silently drift.
+export function selectQualifyingNewCard(
+  allCardMap: Record<string, Card>,
+  cards: Record<string, CardProgress>,
+  introductions: Record<string, IntroductionRecord>
+): Card | null {
+  const qualifying = Object.values(allCardMap)
+    .filter((c) => !cards[c.id] && !introductions[c.id] && prerequisitesMet(c, cards))
+    .sort((a, b) => a.tier - b.tier);
+  return qualifying[0] ?? null;
 }
 
 // ── autoRate: performance signals → Grade ────────────────────────────────────

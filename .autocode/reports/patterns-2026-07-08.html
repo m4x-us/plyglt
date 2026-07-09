@@ -1,12 +1,287 @@
-# AutoCode Patterns Log
+<title>Codebase Health Report — plyglt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-alt: #243044;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --orange: #f97316;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--text);
+    margin: 0;
+    padding: 24px;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+  }
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+  h1, h2, h3, p { margin: 0; }
+  a { color: var(--blue); }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  .header h1 { font-size: 26px; font-weight: 700; }
+  .header .meta { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+  .badge-pill {
+    border-radius: 999px;
+    padding: 8px 20px;
+    border: 1.5px solid;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* At a glance */
+  .glance-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
+  .glance-card { flex: 1 1 300px; display: flex; gap: 16px; align-items: center; }
+  .glance-icon {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .glance-text { font-size: 15px; color: var(--text); line-height: 1.4; }
+
+  /* Severe chart section */
+  .severe-section { margin-bottom: 32px; }
+  .legend-row { display: flex; gap: 24px; margin-top: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+  .philosophy-log { margin-top: 20px; }
+  .philosophy-heading {
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;
+  }
+  .philosophy-row {
+    border-left: 3px solid #a855f7;
+    padding-left: 14px;
+    margin-bottom: 10px;
+  }
+  .philosophy-row .cyc { font-size: 13px; font-weight: 600; color: #a855f7; }
+  .philosophy-row .desc { font-size: 14px; color: var(--text); margin-top: 2px; }
+
+  /* Charts grid */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
+  .chart-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .chart-card .subtitle { margin-bottom: 12px; }
+  .chart-container { position: relative; }
+  .donut-center {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none;
+  }
+  .donut-center .pct { font-size: 28px; font-weight: 700; }
+  .donut-center .label { font-size: 12px; color: var(--text-muted); }
+
+  /* Habits to fix */
+  .habits-section { margin-bottom: 32px; }
+  .count-badge {
+    display: inline-block;
+    background: rgba(239,68,68,0.2);
+    color: var(--red);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .habit-card {
+    margin-bottom: 12px;
+    padding-left: 18px;
+  }
+  .habit-top { display: flex; justify-content: space-between; align-items: center; }
+  .habit-name { font-size: 17px; font-weight: 600; }
+  .sev-badge {
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 12px;
+    border: 1px solid;
+    font-weight: 600;
+  }
+  .habit-impact { font-size: 14px; color: var(--text-muted); margin-top: 6px; }
+  .habit-stats { font-size: 13px; color: var(--text-muted); margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .clean-card { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); padding: 16px 20px; border-radius: 12px; }
+
+  /* Table */
+  .table-section { margin-bottom: 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; }
+  thead tr { background: var(--border); font-weight: 600; }
+  tbody tr:nth-child(odd) { background: var(--card); }
+  tbody tr:nth-child(even) { background: var(--card-alt); }
+  .verdict-pill { border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: #0f172a; }
+
+  /* Philosophy candidates */
+  .phil-candidate-card { margin-bottom: 12px; }
+  .phil-candidate-card .name { font-size: 15px; font-weight: 600; }
+  .phil-candidate-card .stats { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--text-muted); font-size: 13px; }
+  pre {
+    font-size: 12px; color: var(--text-muted);
+    overflow-x: auto; white-space: pre-wrap;
+    background: var(--card-alt); padding: 16px; border-radius: 8px; margin-top: 12px;
+  }
+
+  footer {
+    text-align: center; font-size: 12px; color: var(--text-muted);
+    padding-top: 24px; border-top: 1px solid var(--border); margin-top: 32px;
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- SECTION 1: HEADER -->
+  <div class="header">
+    <div>
+      <h1>Codebase Health Report</h1>
+      <div class="meta">2026-07-08 &nbsp;·&nbsp; 37 total cycles</div>
+    </div>
+    <div class="badge-pill" style="border-color:#ef4444; background:rgba(239,68,68,0.15); color:#ef4444;">
+      🔴 SIGNIFICANT DRIFT
+    </div>
+  </div>
+
+  <!-- SECTION 2: AT A GLANCE -->
+  <div class="section-label">At a Glance</div>
+  <div class="glance-row">
+    <div class="card glance-card">
+      <div class="glance-icon" style="background:rgba(59,130,246,0.2);">📊</div>
+      <div class="glance-text">Your dev team has passed <strong>8%</strong> of recent audits (1 of 13 runs).</div>
+    </div>
+    <div class="card glance-card">
+      <div class="glance-icon" style="background:rgba(245,158,11,0.2);">🔁</div>
+      <div class="glance-text">The most common issue is <strong>Test Quality</strong> — it has appeared <strong>43 times</strong> across <strong>22 audit cycles</strong>.</div>
+    </div>
+    <div class="card glance-card">
+      <div class="glance-icon" style="background:rgba(34,197,94,0.2);">📈</div>
+      <div class="glance-text">Quality is <strong>getting better</strong> over the last several tasks — average severity dropped from 5.3 to 4.7 across the most recent cycles.</div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: SEVERE ISSUES OVER TIME -->
+  <div class="severe-section">
+    <div class="section-label">Severe Issues Over Time</div>
+    <div class="subtitle">Findings rated "Fix Now" or worse (severity 7+), measured in cycles. Vertical markers show when coding rules were updated — watch for drops after each change.</div>
+    <div class="card">
+      <canvas id="severeChart" height="280"></canvas>
+      <div class="legend-row">
+        <span>● Red = 3+ severe issues &nbsp; ● Yellow = 1–2 &nbsp; ● Green = clean</span>
+        <span>┊ Purple line = coding rules updated</span>
+      </div>
+    </div>
+    <div class="philosophy-log">
+      <div class="philosophy-heading">What Changed at Each Marker</div>
+      <div class="philosophy-row"><div class="cyc">Cycle 7</div><div class="desc">Added a rule requiring every automated test to enumerate and check ALL the important fields of what it's testing, not just one or two — closes a gap where tests passed even when most of the output was wrong. (Rule 16)</div></div>
+      <div class="philosophy-row"><div class="cyc">Cycle 7</div><div class="desc">Added a rule that code handling permissions or untrusted input must explicitly declare what it trusts rather than silently assuming it. (Rule 17)</div></div>
+      <div class="philosophy-row"><div class="cyc">Cycle 7</div><div class="desc">Added a rule that every test must be provably able to catch a real bug — if deleting the actual feature wouldn't make the test fail, the test doesn't count. (Rule 18)</div></div>
+      <div class="philosophy-row"><div class="cyc">Cycle 9</div><div class="desc">Added a rule that security fixes must cover every similar case across the codebase, not just the one specific spot that was reported. (Rule 19)</div></div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: CHARTS GRID -->
+  <div class="charts-grid">
+    <div class="card chart-card" style="grid-column: 1 / -1;">
+      <h3>Issues by Type</h3>
+      <div class="subtitle">How many times each problem appeared across all cycles</div>
+      <div class="chart-container"><canvas id="typeChart" height="420"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <h3>Audit Results</h3>
+      <div class="subtitle">Pass vs fail across all runs</div>
+      <div class="chart-container" style="max-width:280px; margin:0 auto;">
+        <canvas id="auditDonut" height="200"></canvas>
+        <div class="donut-center"><div class="pct">8%</div><div class="label">pass rate</div></div>
+      </div>
+    </div>
+    <div class="card chart-card">
+      <h3>WorldClass Scores</h3>
+      <div class="subtitle">Target is 95 — higher is better</div>
+      <div class="chart-container"><canvas id="wcChart" height="200"></canvas></div>
+    </div>
+    <div class="card chart-card" style="grid-column: 1 / -1;">
+      <h3>Audit Severity Over Time</h3>
+      <div class="subtitle">Lower is better — fewer serious issues found</div>
+      <div class="chart-container"><canvas id="severityChart" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: HABITS TO FIX -->
+  <div class="habits-section">
+    <div class="section-label" style="display:inline-block;">Habits to Fix<span class="count-badge">9</span></div>
+    <div id="habitsContainer"></div>
+  </div>
+
+  <!-- SECTION 6: TASK HISTORY -->
+  <div class="table-section">
+    <div class="section-label">Task History</div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Task</th><th>Cycles Used</th><th>Severe Issues</th><th>Final Severity</th><th>Verdict</th><th>WorldClass</th></tr>
+        </thead>
+        <tbody id="taskHistoryBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 7: PHILOSOPHY CANDIDATES -->
+  <div class="section-label">Ready to Become Rules</div>
+  <div class="subtitle">These issues have recurred enough times that the team should add them as permanent coding standards. See the terminal to approve or skip each one.</div>
+  <div class="card phil-candidate-card">
+    <div class="name">Feature Completeness</div>
+    <div class="stats">13 occurrences · average severity 6.0 · across 8 audit cycles</div>
+  </div>
+
+  <!-- SECTION 8: TECHNICAL DETAIL -->
+  <details style="margin-bottom:24px;">
+    <summary>Technical detail (for developers)</summary>
+    <pre># AutoCode Patterns Log
 
 ## 2026-07-03 | Task: Batch 1 re-audit
 - tests [Test name 'unrecognised all-languages variant → subscription licenseType, all packs' is a factual lie. Input 'All Languages Extended'.toLowerCase().includes('all languages') = true — the RECOGNISED branch executes, returning ALL_PACK_CODES. The enclosing describe block comment says 'free pack access only — the conservative fallback for any unknown variant', directly contradicting the assertion. No test covers a truly unrecognised variant that resembles 'all languages'.] -- severity 7 | tests/entitlement.test.ts:resolveVariantEntitlement:602 | NEW
 - error-handling [Guard 'if (!res.instance)' is falsy only for null/undefined. An API response with instance: { id: '' } passes the guard and flows to ok:true with instanceId:''. Every subsequent validateLicense/deactivateLicense sends empty instanceId to the Lemon Squeezy API, producing errors surfaced as generic network failures. Fix: change guard to 'if (!res.instance?.id)'.] -- severity 7 | lib/entitlement.ts:activateLicense:139 | NEW
 - tests [Input expires_at: '2027-01-01T00:00:00Z' makes validUntil deterministic (1798761600000). Assertions 'expect(result.validUntil).toEqual(expect.any(Number))' and 'toBeGreaterThan(Date.now())' are banned pseudocode forms per AGENTS.md — a regression returning Date.now()+1 passes both. Fix: 'expect(result.validUntil).toBe(new Date("2027-01-01T00:00:00Z").getTime())'.] -- severity 6 | tests/entitlement.test.ts:activateLicense — S001 ok:true path:344 | NEW
-- tests [Same deterministic-value/pseudocode pattern as the activateLicense test, in the validateLicense ok:true block. Three assertions: expect.any(Number) (banned), .not.toBeNull() (banned, caught by AGENTS.md grep gate), and >Date.now().toBe(true) (proves sign only). Fix: assert the exact timestamp from parseExpiry on the fixed input string.] -- severity 6 | tests/entitlement.test.ts:validateLicense — ok:true with expiresAt path:452 | NEW
-- data-loss [DATE_RE = /^\d{4}-\d{2}-\d{2}$/ validates syntactic form only; accepts calendar-invalid '2026-13-45'. A corrupt stored record with syntactically-structured but calendar-invalid dates passes the regex, is preserved as phaseStartDate, then causes new Date('2026-13-45').getTime() to return NaN in getDayOfPhase, silently hiding the card forever. Fix: add && !isNaN(new Date(value).getTime()) after each DATE_RE.test() call.] -- severity 5 | store/migrations.ts:SRS_MIGRATIONS[3]:55 | NEW
-- data-loss [The migration for-loop casts introductions as Record<string, unknown>. If a stored value is null, accessing record.phaseStartDate throws TypeError. Zustand's persist middleware catches unhandled migration errors and falls back to empty default state, silently discarding all SRS card history. No null guard on record itself exists before property access. No test covers this input.] -- severity 5 | store/migrations.ts:SRS_MIGRATIONS[3]:58 | NEW
+- tests [Same deterministic-value/pseudocode pattern as the activateLicense test, in the validateLicense ok:true block. Three assertions: expect.any(Number) (banned), .not.toBeNull() (banned, caught by AGENTS.md grep gate), and &gt;Date.now().toBe(true) (proves sign only). Fix: assert the exact timestamp from parseExpiry on the fixed input string.] -- severity 6 | tests/entitlement.test.ts:validateLicense — ok:true with expiresAt path:452 | NEW
+- data-loss [DATE_RE = /^\d{4}-\d{2}-\d{2}$/ validates syntactic form only; accepts calendar-invalid '2026-13-45'. A corrupt stored record with syntactically-structured but calendar-invalid dates passes the regex, is preserved as phaseStartDate, then causes new Date('2026-13-45').getTime() to return NaN in getDayOfPhase, silently hiding the card forever. Fix: add &amp;&amp; !isNaN(new Date(value).getTime()) after each DATE_RE.test() call.] -- severity 5 | store/migrations.ts:SRS_MIGRATIONS[3]:55 | NEW
+- data-loss [The migration for-loop casts introductions as Record&lt;string, unknown&gt;. If a stored value is null, accessing record.phaseStartDate throws TypeError. Zustand's persist middleware catches unhandled migration errors and falls back to empty default state, silently discarding all SRS card history. No null guard on record itself exists before property access. No test covers this input.] -- severity 5 | store/migrations.ts:SRS_MIGRATIONS[3]:58 | NEW
 - tests [Migration spread '{ ...record, phaseStartDate }' outputs 11 fields; test asserts only 2 (phaseStartDate and introducedDate). The 8 unasserted fields include dayOfPhase, consecutiveCorrect, and graduated — whose silent loss would cause the worst behavioral regressions. Changing the spread to '{ cardId: record.cardId, phaseStartDate }' drops all non-key fields; this test still passes. Rule 16 violation: 11 output fields, 2 asserted.] -- severity 5 | tests/migrations.test.ts:v2 → v3: adds phaseStartDate:116 | NEW
 - tests [Two failures: (1) migration emits console.error when both phaseStartDate and introducedDate are absent, but no vi.spyOn assertion verifies the log fires — the call is deletable without any test failing. (2) Three assertions on localDateStr() output (genuinely non-deterministic) have zero '// existence-check:' comments as required by AGENTS.md.] -- severity 5 | tests/migrations.test.ts:v2 → v3: record missing introducedDate gets phaseStartDate from today:179 | NEW
 - security [purchaseAddOn(code) appends code to purchasedAddOns with no validation against isSpecialtyPackCode() or SPECIALTY_PACKS. lib/langRegistry.ts exports isSpecialtyPackCode(s) for exactly this purpose. Dormant while SPECIALTY_PACKS is frozen([]), but gap must be closed before specialty packs ship to prevent race conditions or typos storing non-existent codes that hasAddOn() would then confirm as purchased.] -- severity 5 | store/entitlementStore.ts:purchaseAddOn:137 | NEW
@@ -85,7 +360,7 @@
 - tests lib/entitlement.ts+tests/entitlement.test.ts Rule 13 seam test missing: activateLicense→setEntitlement→isPackUnlocked chain not tested end-to-end — severity 6 (worldclass: -4 pts)
 - code-quality lib/entitlement.ts duplicate date-parsing IIFE in parseVariant:79 and validateLicense:123; same anonymous IIFE copy-pasted instead of extracted helper — severity 4 (worldclass: -3 pts)
 - tests components/EntitlementValidator.test.tsx hand-rolled runValidatorEffect() mirrors component logic but diverges silently; not testing the real component — severity 5 (worldclass: -5 pts)
-- tests tests/entitlement.test.ts activateLicense ok:true test asserts validUntil is any Number but not > Date.now(); weaker than S002 which checks future date — severity 4 (worldclass: -3 pts)
+- tests tests/entitlement.test.ts activateLicense ok:true test asserts validUntil is any Number but not &gt; Date.now(); weaker than S002 which checks future date — severity 4 (worldclass: -3 pts)
 - code-quality lib/entitlement.ts validateLicense reuses LsActivateBody (activation response type) as validation response type; lying type — severity 4 (worldclass: -4 pts)
 - tests tests/migrations.test.ts no test for migration chain throw guard; migrateEntitlementStore({},3) when ENTITLEMENT_VERSION=2 is untested — severity 4 (worldclass: -3 pts)
 
@@ -187,14 +462,14 @@
 - code-quality 5 `// existence-check:` comments were added to lines that were not actually one of the three banned patterns the tag exists to exempt (already-exact `.toBe()`/`.not.toBe()` calls in migrations.test.ts and packLoader.test.ts) or were attached to a deleted assertion rather than a retained one (session.test.ts) — misapplying a gate-specific convention as generic non-determinism narration. Caught independently by Agents A, K, V, and W (4-way convergence). Fixed by replacing with plain "Note:" comments where the tag didn't apply — severity 2 | tests/migrations.test.ts:243-252, tests/packLoader.test.ts:122, tests/session.test.ts:69 | NEW
 
 ## 2026-07-07 | Task: Batch 18 — batch-level audit (8 agents: A, B, S, N, K, W, V, Red R)
-- requirements store/srsStore.ts:272 canIntroduceNewCard's cross-day wrong-streak pause (Task #180's own F10 acceptance criterion, BRAND.md "wrong across multiple days → pause new introductions") is dead code — consecutiveWrongToday can never be persisted >= CONSECUTIVE_WRONG_RESET because recordResult (lib/introduction.ts:120-127) resets it to 0 in the exact same write that would push it to the threshold. The only test "proving" this behavior (tests/srsStore.test.ts F10) injects the unreachable state directly via setState, bypassing the only real write path. Converged independently by 7 of 8 auditors (A, B, N, W, K, Red R, V) plus the orchestrating CTO's own trace and empirical grep. Marked COMPLETE despite being non-functional — severity 9 | store/srsStore.ts:272 | NEW
+- requirements store/srsStore.ts:272 canIntroduceNewCard's cross-day wrong-streak pause (Task #180's own F10 acceptance criterion, BRAND.md "wrong across multiple days → pause new introductions") is dead code — consecutiveWrongToday can never be persisted &gt;= CONSECUTIVE_WRONG_RESET because recordResult (lib/introduction.ts:120-127) resets it to 0 in the exact same write that would push it to the threshold. The only test "proving" this behavior (tests/srsStore.test.ts F10) injects the unreachable state directly via setState, bypassing the only real write path. Converged independently by 7 of 8 auditors (A, B, N, W, K, Red R, V) plus the orchestrating CTO's own trace and empirical grep. Marked COMPLETE despite being non-functional — severity 9 | store/srsStore.ts:272 | NEW
 - requirements store/srsStore.ts:246-247, lib/introduction.ts:135-146 the "variety rule" (Task #180, BRAND.md "each encounter uses a different retrieval angle") is inert: recordIntroductionResult is never called with the actually-displayed card type, and nothing anywhere in the codebase reads IntroductionRecord.lastSeenType to select what's shown (StudyCard.tsx renders strictly from the content pack's fixed card.type). getNextCardType's output is written back into lastSeenType purely to satisfy its own unit test — a fully closed loop with zero effect on the user experience. Converged independently by Agents A, B, W plus the orchestrating CTO's own full-repo grep. Poka-yoke: a "wire X into Y" task must include a seam test that traces the value from write to an actual consumer, not just a store-level round-trip test — severity 9 | store/srsStore.ts:246 | NEW
 - code-quality lib/introduction.ts:140-146 getNextCardType is structurally broken independent of the wiring gap above: given the fixed-order ALL_CARD_TYPES array, filtering out only the single lastSeenType always leaves the same earlier-indexed alternative, so the function can only ever oscillate between 2 of the 5 CardTypes (recognize/produce) — conjugate, fill_blank, and passage_cloze are permanently unreachable regardless of how many times it's called. Confirmed empirically (10 sequential calls, only 2 distinct outputs) by the orchestrating CTO and independently by Agent W. Directly defeats BRAND.md's stated premise for the feature ("varied retrieval across encounters produces durable memory") — severity 8 | lib/introduction.ts:140 | NEW
 - requirements lib/introduction.ts:getDayOfPhase:51-62 date validation only checks string shape (DATE_RE) not calendar validity; a shape-valid, calendar-invalid string ("2026-13-45") passes the guard and the function silently returns NaN instead of throwing, directly contradicting its own docstring ("Throws on malformed input... NaN propagation would cause silent card disappearance"). Converged independently by Agents S, W, K, Red R, V plus the orchestrating CTO's own node verification. This is the exact failure mode Task #179 was supposed to eliminate, reintroduced one validation layer down — severity 7 | lib/introduction.ts:51 | NEW
 - data-loss store/migrations.ts:71-90 the v3 migration's isNaN guard (added by Task #184 specifically to reject calendar-invalid dates) does not catch day-of-month rollover — "2026-02-30" passes both DATE_RE and isNaN (JS Date silently normalizes it to March 2, a valid timestamp), so the calendar-invalid string is preserved as-is into the migrated record instead of falling back to today. The guard's own comment overclaims "rejects calendar-invalid strings" as a general class when it only covers month-overflow. Converged independently by Agents K, Red R, V plus the orchestrating CTO's own node verification — severity 6 | store/migrations.ts:77 | NEW
-- data-loss store/migrations.ts:67-91 the null-record recovery path (added by Task #184 to prevent a full-store-reset TypeError) produces an IntroductionRecord with only phaseStartDate populated — 10 of 11 required fields are missing. The next recordResult call computes totalEncounters/consecutiveCorrect as undefined+1 = NaN, permanently corrupting those counters and preventing the card from ever graduating (NaN >= threshold is always false). A "recovery" path that itself introduces silent, permanent data corruption on the one record it recovers. Found by Agent A, confirmed by the orchestrating CTO's own code trace — severity 6 | store/migrations.ts:91 | NEW
+- data-loss store/migrations.ts:67-91 the null-record recovery path (added by Task #184 to prevent a full-store-reset TypeError) produces an IntroductionRecord with only phaseStartDate populated — 10 of 11 required fields are missing. The next recordResult call computes totalEncounters/consecutiveCorrect as undefined+1 = NaN, permanently corrupting those counters and preventing the card from ever graduating (NaN &gt;= threshold is always false). A "recovery" path that itself introduces silent, permanent data corruption on the one record it recovers. Found by Agent A, confirmed by the orchestrating CTO's own code trace — severity 6 | store/migrations.ts:91 | NEW
 - error-handling store/srsStore.ts:getIntroductionDueCardIds:250-264 getDayOfPhase's throw (added by Task #179) is uncaught inside a .filter() over ALL introduction records with no per-record try/catch anywhere in the call chain, and the app has zero ErrorBoundary/componentDidCatch components. One corrupted record now aborts due-card computation for every card, not just the offending one — a larger blast radius than the silent single-card disappearance it replaced. Found by Agents S and K independently — severity 5 | store/srsStore.ts:254 | NEW
-- security lib/langRegistry.ts:48-50 Object.freeze(LANG_CONFIG_MAP) (Task #186) is shallow; the nested LanguageConfig objects (ITALIAN/SPANISH from lib/language.ts) and their uiStrings/cardLabels sub-objects remain fully mutable at runtime despite the Readonly<> type annotation implying full tamper-proofing. Same class as the already-known F07 shallow-freeze gap. Converged independently by Agents S, A, B, Red R (4-way) — severity 5 | lib/langRegistry.ts:48 | NEW
+- security lib/langRegistry.ts:48-50 Object.freeze(LANG_CONFIG_MAP) (Task #186) is shallow; the nested LanguageConfig objects (ITALIAN/SPANISH from lib/language.ts) and their uiStrings/cardLabels sub-objects remain fully mutable at runtime despite the Readonly&lt;&gt; type annotation implying full tamper-proofing. Same class as the already-known F07 shallow-freeze gap. Converged independently by Agents S, A, B, Red R (4-way) — severity 5 | lib/langRegistry.ts:48 | NEW
 - security lib/entitlement.ts:activateLicense:139 the `!res.instance?.id` guard (Task #185) checks truthiness only, not type; a non-string id (e.g. a number) from an untyped IPC response passes the guard and is persisted into a string-typed instanceId field, violating the function's own return type contract. Found by Red Agent R — severity 5 | lib/entitlement.ts:139 | NEW
 - tests tests/commitSession.test.ts:36-47 "all three slices are consistent — no partial application" claims to prove commitSession's atomic single-set()-call contract but only checks final-state values; would pass identically if commitSession made three sequential set() calls instead of one. Rule 18/B7 violation on the exact contract the test's own name and the store's own doc comment claim to guarantee. Converged independently by Agents K and V — severity 6 | tests/commitSession.test.ts:36 | NEW
 - tests tests/useLangPack.test.ts:84-103 the RAW_DISCRIMINANTS/EXPECTED_MESSAGES enumeration (Task #227) omits base_pack_not_loaded — 1 of 5 LoadPackResult error discriminants is never tested, a Rule 16 enumeration gap in a fixture explicitly built to enumerate all discriminants. Found by Agent K — severity 6 | tests/useLangPack.test.ts:93 | NEW
@@ -221,7 +496,7 @@
 - error-handling store/srsStore.ts:239 recordIntroductionResult calls getDayOfPhase with no try/catch — the sibling call site (getIntroductionDueCardIds) was hardened by Task #234 and tested, this one (the highest-traffic path, hit on every card rating from app/study/page.tsx's onRate handler) was left exposed. Converged independently by Agents S, K, A, W (4 of 8) — severity 6 | store/srsStore.ts:239 | REPEATED (partial fix)
 - data-loss lib/packLoader.ts:187,193 the Array.isArray(pack.units) shape guard added by Task #239 covers only 3 of 5 JSON.parse(...) as Pack sites in loadPack; the two "cache hit" paths (sha256-verified hit and the fully-unverified no-manifest offline path) remain unguarded, violating the module's own documented invariant that a corrupted pack is never cached or returned. This is a pre-existing catalogued pattern (patterns.md 2026-06-26) that the remediation only partially closed. Converged independently by Agents K, A, W, B (4 of 8) — severity 5 | lib/packLoader.ts:187 | REPEATED (partial fix)
 - tests tests/srsStore.test.ts:647 `expect(n + 1).toBe(n + 1)` is a vacuous tautology (vitest's toBe uses Object.is, and Object.is(NaN,NaN) is true) that passes for any value of n including NaN; the comment's stated rationale ("NaN propagation check") is false. Harmless since the preceding line does the real check, but fails the Deletion Test on its own. Converged independently by Agents N, A, K, V, B (5 of 8) — severity 4 | tests/srsStore.test.ts:647 | NEW
-- code-quality lib/utils.ts:isCalendarValidDate's round-trip re-format doesn't zero-pad the year component (uses d.getUTCFullYear() directly, unlike month/day which use padStart), so a genuinely calendar-valid date with year <1000 (e.g. "0999-06-15") is incorrectly rejected as calendar-invalid. Confirmed empirically. Low practical impact — the app never handles pre-1000 dates — but a real logic bug relative to the function's own stated contract. Found by Red Agent R — severity 3 | lib/utils.ts:18 | NEW
+- code-quality lib/utils.ts:isCalendarValidDate's round-trip re-format doesn't zero-pad the year component (uses d.getUTCFullYear() directly, unlike month/day which use padStart), so a genuinely calendar-valid date with year &lt;1000 (e.g. "0999-06-15") is incorrectly rejected as calendar-invalid. Confirmed empirically. Low practical impact — the app never handles pre-1000 dates — but a real logic bug relative to the function's own stated contract. Found by Red Agent R — severity 3 | lib/utils.ts:18 | NEW
 - tests tests/langRegistry.test.ts deep-freeze mutation tests cover only 2 of the 3 levels deepFreezeConfig actually freezes (config, uiStrings); the third level (cardLabels), explicitly named in the production fix's own comment, has no dedicated mutation-throws test. Converged independently by Agents K and A — severity 3 | tests/langRegistry.test.ts:130 | NEW
 - tests tests/exportBackup.test.ts:44-46 and tests/importBackup.test.ts:65-67 comments claim "all 7 CardProgress fields asserted" but CardProgress has 8 fields and the tests actually assert all 8 — a miscounted comment, not a coverage gap (repeats the same off-by-one error in two places). Found by Agent V — severity 3 | tests/exportBackup.test.ts:44 | NEW
 - tests lib/utils.ts:isCalendarValidDate is a newly load-bearing exported function (consumed by both lib/introduction.ts and store/migrations.ts) with no direct unit test — only exercised indirectly via its two callers' tests; no leap-year edge case (e.g. Feb 29 in a non-leap year) is tested anywhere. Found by Agent K — severity 3 | lib/utils.ts:9 | NEW
@@ -294,52 +569,297 @@
 - process-integrity Confirmed by direct inspection: loadPack("it", ...) is never actually called in production today. hooks/useLangPack.ts:64 bypasses it entirely via STATIC_PACKS for Italian (the only ready base pack), and Spanish ("es") is registered but not ready, so it short-circuits to invalid_lang before ever touching memCache. The entire packLoader.ts machinery this whole 7-cycle remediation arc has hardened has zero production exercise today — only test coverage. Confirmed independently, surfaced by Agent W, verified directly — severity N/A (context, not a defect) | hooks/useLangPack.ts | INFORMATIONAL
 
 - process-systemic 7 consecutive audit cycles on this batch. Cycle 7's max severity (4-5) is flat-to-marginally-lower than cycles 3-6 (flat at 5), but more importantly: every single finding across all 7 cycles on this subsystem requires either a specialty pack to exist (SPECIALTY_PACKS remains empty) or true concurrent invocation (never exercised in tests or production) — and this cycle confirmed directly that the base-pack loadPack path itself has ZERO production exercise today (Italian bypasses it via static bundling, Spanish isn't ready yet). This batch has now spent 7 audit cycles hardening a code path with no live traffic. Recommend accepting the current state and closing further iteration on this specific file until either specialty packs or a second JSON-based base language actually ships — severity 4 | CROSS-CUTTING | SYNTHESIS
+</pre>
+  </details>
 
-## 2026-07-08 | Task: batch 18 — WorldClass cycle 1
-- edge-case hooks/useStudySession.ts:78-81 introduce-on-mount effect filters candidate cards only by "no existing FSRS progress or introduction record" — it never applies the same prerequisitesMet() gate that store/srsStore.ts's getNewCards correctly enforces. prerequisites: appears 978 times across content/cards/*.ts (live curriculum data), so a low-tier card ordered ahead of its own prerequisite can have its 22-day intensive introduction clock started before the curriculum says it should be offered — severity 7 | worldclass: -10 pts | WORLDCLASS
-- security lib/entitlement.ts:activateLicense,validateLicense log the raw caught IPC error unredacted, while deactivateLicense (Task #074) was hardened to truncate the license key specifically because Tauri IPC errors can echo request params — the same "fixed one site, missed the sibling" pattern this codebase's history is full of, just outside the previously-scrutinized pack-loader area — severity 6 | worldclass: -8 pts | WORLDCLASS
-- edge-case lib/answerCheck.ts:ITALIAN_ARTICLES/SPANISH_ARTICLES regexes have no word-boundary check after the matched article token — verified by execution: stripArticle("isola", ITALIAN_ARTICLES) strips to "sola", so checkAnswer("sola", ["isola"], {diacriticTolerant:true}) grades as "correct" against an unrelated word. Any word starting with i/il/lo/la/le/un/una/uno/gli is affected — this is the core grading engine hit on every card review across an 8,000-word curriculum, and no prior audit cycle caught it since none scoped answerCheck.ts — severity 7 | worldclass: -18 pts | WORLDCLASS
-- feature-flag lib/introduction.ts:getNextCardType BRAND.md's headline "variety rule" (different retrieval angle each encounter) is honestly disclosed via comment as dead code (Task #229) but genuinely unimplemented — the content model has one Card per word+type, so the same card is shown verbatim up to 10x/day for weeks during the intensive introduction phase — severity 5 | worldclass: -8 pts | WORLDCLASS
+  <footer>
+    Generated by /patterns on 2026-07-08 &nbsp;·&nbsp; Saved: .autocode/reports/patterns-2026-07-08.html &nbsp;·&nbsp; Previous reports in .autocode/reports/
+  </footer>
 
-## 2026-07-08 | Task: batch 18 — WorldClass cycle 5 (fresh-eyes pass, no prior context, on the already-remediated code)
-- edge-case lib/answerCheck.ts:checkAnswer's Levenshtein-typo length gate used a.length (the article-INCLUSIVE normalized accepted answer) instead of the article-stripped length — verified by execution: checkAnswer("ne", ["il re"], {diacriticTolerant:true}) graded "close" pre-fix, because "il re" (5 chars) passed the >4 gate even though the true word "re" is only 2 chars — defeating the gate's own purpose of denying typo tolerance to short words. Pre-existing, not introduced by this batch's regex fix; found by an unprimed fresh-eyes re-read of the exact file this cycle was already scoring — severity 6 | worldclass: -8 pts (fresh-eyes pass) | WORLDCLASS
+</div>
 
-## 2026-07-09 | Task: batch 12 — 7-agent audit (A, B, S, N, K, W, V, Red R) — first-ever audit of this batch
-- auth lib/specialtyPackLoader.ts:loadSpecialtyPack:67 entitlement is enforced nowhere in the data layer for specialty packs — loadPack/loadSpecialtyPack never read purchasedAddOns or call hasAddOn; the only gate anywhere is the onClick wiring decision in components/LanguageGrid.tsx:109. Converged independently by all 7 scored auditors (7/7) — the strongest convergence seen in this project's audit history. Given entitlement is honour-system/client-only by design, this UI wiring decision is the only trust boundary and is not a declared one (Rule 17a) — severity 8 | lib/specialtyPackLoader.ts:loadSpecialtyPack:67 | NEW
-- edge-case lib/constants.ts:getTargetLangCode:19 setTargetLangCode("it-medical") stores "en-it-medical"; getTargetLangCode's .split("-")[1] returns "it", silently discarding "-medical" — the entire specialty-pack selection flow is unreachable from the real UI, deterministically, for any hyphenated code. Converged independently by 5 of 7 auditors. Explicitly NOT a mitigating control for the entitlement gap above — an unrelated bug that happens to currently mask it; fixing this bug alone exposes the entitlement gap through the primary UI with zero further code change — severity 8 | lib/constants.ts:getTargetLangCode:19 | NEW
-- security store/entitlementStore.ts:clearEntitlement:111 resets purchasedAddOns to [] but never calls clearSpecialtyCache()/clearSpecialtyPacksForLang() — a license deactivation mid-session leaves already-merged specialty content fully accessible in memCache for the rest of the session; loadedAddOns never resyncs with the store — severity 7 | store/entitlementStore.ts:clearEntitlement:111 | NEW
-- async lib/specialtyPackLoader.ts:loadSpecialtyPack:67 two race conditions with no locking anywhere in the module: same-code concurrent loads both pass the loadedAddOns.includes check before either pushes (duplicate merge); cross-code concurrent loads sharing a base language each read the base pack independently after their own await, and whichever memCache.merge() resolves last silently discards the other's merge while getLoadedAddOns() reports both as loaded — severity 7 | lib/specialtyPackLoader.ts:loadSpecialtyPack:67 | NEW
-- security lib/specialtyPackLoader.ts:loadSpecialtyPack:45 sha256 verification is skipped entirely with no fail-closed branch when manifest?.packs?.[lang] is absent for the requested specialty code — arbitrary content merges into the base pack cache with zero integrity check — severity 8 | lib/specialtyPackLoader.ts:loadSpecialtyPack:45 | NEW
-- code-quality lib/langRegistry.ts:isSpecialtyPackCode:88 zero production callers; lib/packLoader.ts:269 reimplements the same check inline instead of calling it. Converged by 4 of 7 auditors. Rule 6 (duplication) and Rule 20b (zero callers outside tests) violation — severity 5 | lib/langRegistry.ts:isSpecialtyPackCode:88 | NEW
-- code-quality lib/entitlement.ts:hasAddOn:208 zero production callers despite its own doc comment stating it exists "for use outside React" — i.e. purpose-built specifically to close the entitlement-gap finding above and never wired in. store/entitlementStore.ts:133 duplicates the same logic instead of delegating, breaking the in-file pattern the file's own Rule-15 comment documents (isPackUnlocked and needsValidation both correctly delegate to pure-function twins; hasAddOn is the one action that doesn't). Converged by 5 of 7 auditors — severity 6 | lib/entitlement.ts:hasAddOn:208 | NEW
-- requirements lib/packLoader.ts:evictPack:415 guards on isValidPackCode (base-only PackCode type) and cannot evict a specialty code; doc comment "any registered code can be evicted... e.g. after purchase reversal" is false for specialty packs. Converged by 6 of 7 auditors — severity 5 | lib/packLoader.ts:evictPack:415 | NEW
-- data-loss lib/specialtyPackLoader.ts:loadSpecialtyPack:67 specialty packs are never given their own persisted storage key at all — merges directly into the base pack's in-memory entry only, so there is no separate cache entry to evict or re-verify even in principle, beyond the evictPack type-guard bug above — severity 6 | lib/specialtyPackLoader.ts:loadSpecialtyPack:67 | NEW
-- data-loss lib/packLoader.ts:evictPack:415 never calls clearSpecialtyPacksForLang directly when evicting a base pack while a specialty add-on for that language is loaded (only reached internally via clearPackCache in the normal path) — orphans the add-on's code in loadedAddOns, which continues reporting it as active after the data it depends on has been wiped — severity 6 | lib/packLoader.ts:evictPack:415 | NEW
-- error-handling lib/packLoader.ts:evictPack:415 silently returns "evicted nothing" for a specialty code with no error, log entry, or distinguishing return value — Rule 8: Log Everything violation — severity 5 | lib/packLoader.ts:evictPack:415 | NEW
-- error-handling lib/specialtyPackLoader.ts:loadSpecialtyPack:67 unchecked non-null assertion on .find()! is safe only because the sole caller pre-checks; would throw a raw TypeError instead of a typed LoadPackResult error if ever invoked without that pre-check, unlike every other path in the function. Converged by 3 of 7 auditors — severity 4 | lib/specialtyPackLoader.ts:loadSpecialtyPack:67 | NEW
-- data-loss store/migrations.ts:ENTITLEMENT_MIGRATIONS[2] (v2→v3):153 validates Array.isArray(purchasedAddOns) but not element type/shape. Converged by 3 of 7 auditors — severity 5 | store/migrations.ts:153 | NEW
-- data-loss store/migrations.ts:ENTITLEMENT_MIGRATIONS[1] (v1 unlockedPacks guard):133 the same shallow Array.isArray-only validation gap recurs a third time in this same file — a repeating pattern, not a first occurrence — severity 4 | store/migrations.ts:133 | NEW
-- feature-flag components/LanguageGrid.tsx:LanguageGrid:109 no feature flag gates the specialty-pack UI section or loadPack's specialty branch — severity 4 | components/LanguageGrid.tsx:109 | NEW
-- tests tests/langRegistry.test.ts:1 tests mock getSpecialtyPacks/isSpecialtyPackCode/SPECIALTY_PACKS rather than exercising the real filter logic against a populated registry. Converged by 2 of 7 auditors — severity 4 | tests/langRegistry.test.ts:1 | NEW
-- edge-case components/LanguageGrid.tsx:LanguageGrid:109 assumes, undocumented, that a user cannot own a specialty add-on without owning its base language; true only because Italian is always free/unlocked, not structurally enforced — severity 4 | components/LanguageGrid.tsx:109 | NEW
-- error-handling lib/language.ts:getLanguageConfig:111 LANGUAGE_MAP[code] ?? ITALIAN silently falls back to Italian's display config for any unrecognized code — a second independent silent-fallback break beyond the constants.ts bug above, currently masked by it. Converged by 2 of 7 auditors — severity 6 | lib/language.ts:getLanguageConfig:111 | NEW
-- requirements lib/langRegistry.ts:isSpecialtyPackCode vs isValidPackCode:88 the two functions do not agree on what they validate — isSpecialtyPackCode does not check .ready while packLoader.ts's inline reimplementation does. Converged by 2 of 7 auditors — severity 5 | lib/langRegistry.ts:88 | NEW
-- tests tests/langRegistry.test.ts:isSpecialtyPackCode assertions:1 all 4 assertions run with mockSpecialtyPacks reset to length 0 — Array.prototype.some over an empty array returns false regardless of the predicate, so the true/positive branch is never exercised anywhere in the suite. Rule 18/B7 violation — pseudocode test — severity 6 | tests/langRegistry.test.ts:1 | NEW
-- tests hooks/useLangPack.ts:loadPack call site:68 no test anywhere proves loadPack/loadSpecialtyPack itself refuses an unpurchased specialty pack; confirmed unimplemented, not merely untested. Converged by 3 of 7 auditors — severity 6 | hooks/useLangPack.ts:68 | NEW
-- tests components/LanguageGrid.test.tsx:specialty-pack test suite:1 tests inject hasAddOn as a directly-controlled mock prop, never driving the real entitlementStore or loadPack chain — would not catch deletion of the UI lock or the absence of data-layer enforcement. Converged by 2 of 7 auditors — severity 5 | components/LanguageGrid.test.tsx:1 | NEW
-- tests tests/entitlement.test.ts:purchasedAddOns describe block:1 only tests bookkeeping in isolation, no seam test analogous to the file's own existing "seam: activateLicense→setEntitlement→isPackUnlocked" pattern — severity 4 | tests/entitlement.test.ts:1 | NEW
-- security store/entitlementStore.ts:purchaseAddOn:140 unconditional array-append with no payment/license/receipt check, reachable by any code path since it's a plain exported store action — severity 6 | store/entitlementStore.ts:purchaseAddOn:140 | NEW
-- requirements store/entitlementStore.ts:purchaseAddOn:140 name and comment imply a verified purchase-recording function; implementation has no Promise return, no payment token, no verification, and zero production callers anywhere, even as a stub. Converged by 2 of 7 auditors — severity 5 | store/entitlementStore.ts:purchaseAddOn:140 | NEW
-- edge-case store/entitlementStore.ts:purchaseAddOn:140 never validates its code argument against isSpecialtyPackCode; unregistered/malformed strings can be injected and persist forever, with no removal path anywhere — severity 5 | store/entitlementStore.ts:purchaseAddOn:140 | NEW
-- async store/entitlementStore.ts:purchaseAddOn (Zustand persist):140 persist middleware writes localStorage from in-memory state at call time, not merged against the on-disk value — two tabs racing on purchaseAddOn for different codes causes the second write to silently drop the first tab's purchase — severity 6 | store/entitlementStore.ts:purchaseAddOn:140 | NEW
-- data-loss lib/entitlement.ts:backup/restore serialization path:1 no purchasedAddOns field at all in backup/restore — fails closed (a legitimate purchaser loses add-on entitlement on restore) rather than open — severity 4 | lib/entitlement.ts:1 | NEW
-- edge-case lib/packTypes.ts:hasValidUnitsArray:1 validates only Array.isArray(pack.units); does not cross-check unitCount/cardCount against units.length nor validate individual unit/card element shapes; specialtyPackLoader.ts spreads these fields into the merged pack without further checking — severity 5 | lib/packTypes.ts:1 | NEW
-- requirements lib/constants.ts:getTargetLangCode:19 return type is declared string, implying round-trip fidelity with setTargetLangCode; for hyphenated codes it silently returns a truncated substring with no type-level or runtime failure signal — a contract-lie framing distinct from the functional bug above — severity 6 | lib/constants.ts:getTargetLangCode:19 | NEW
+<script>
+const SEVERE_SERIES = [
+  {x:1, y:1}, {x:3, y:0}, {x:6, y:2}, {x:7, y:0}, {x:8, y:2}, {x:9, y:13}, {x:10, y:5},
+  {x:12, y:0}, {x:15, y:0}, {x:19, y:0}, {x:24, y:0}, {x:30, y:0}, {x:37, y:0}
+];
+const TOTAL_CYCLES = 37;
 
-- auth Entitlement enforcement exists nowhere in the data layer for specialty packs: not in loadPack, not in loadSpecialtyPack, not in evictPack's reversal path, not in purchaseAddOn's write path. The purpose-built pure function meant to close this gap (lib/entitlement.ts hasAddOn) was built and never wired in. Every layer of the paid feature is architecturally unenforced, and this is not a dormant nicety — it is the entire trust boundary for a feature explicitly sold as a paid add-on (BRAND.md) — severity 8 | CROSS-CUTTING | SYNTHESIS
-- code-quality Documentation and function/type names repeatedly claim behavior the code does not have: evictPack claims universal eviction and purchase-reversal support it cannot deliver, purchaseAddOn's comment claims a packLoader connection that does not exist, specialtyPackLoader's header claims purity it violates via I/O and module-state mutation, and getTargetLangCode's string return type implies round-trip fidelity it silently breaks — severity 5 | CROSS-CUTTING | SYNTHESIS
-- tests The test suite systematically stops at the exact boundary where the real bugs live: mocking isSpecialtyPackCode/getSpecialtyPacks instead of exercising the real registry, injecting hasAddOn as a controlled prop instead of driving the real entitlementStore, and never exercising isSpecialtyPackCode's true/positive branch at all. No test in the suite would catch deletion of the UI-only entitlement gate or a reversed equality check — severity 6 | CROSS-CUTTING | SYNTHESIS
-- async Every stateful specialty-pack write path lacks concurrency control: loadSpecialtyPack races on concurrent loads (same-code duplicate merge, cross-code silent discard), and purchaseAddOn's Zustand persist races across browser tabs with last-write-wins semantics. Neither path has a lock, CAS, or merge-on-read strategy — severity 6 | CROSS-CUTTING | SYNTHESIS
+function severeColor(y) {
+  if (y === 0) return '#22c55e';
+  if (y <= 2) return '#f59e0b';
+  return '#ef4444';
+}
 
-- process-systemic First-ever audit of this batch (pre-dates the audit SOP, never formally reviewed before). 7-agent independent review converged 7/7 on a single finding (entitlement enforced only at the UI layer, never the data layer) — the strongest convergence recorded in this project's audit history — plus 5/7 convergence on a second, compounding bug (localStorage lang-pair encoding truncates every hyphenated specialty code) that currently masks the first finding entirely. An unprimed naive reader (Agent N, excluded from scoring) additionally found two documented stop-the-line violations neither of the 7 scored auditors caught: lib/constants.ts calls window.localStorage directly instead of routing through lib/storage.ts, and components/LanguageGrid.tsx imports from content/index.ts directly, violating the components/-imports-from-hooks/lib-only rule. Both should be promoted to tasks regardless of scoring exclusion — severity 8 | CROSS-CUTTING | SYNTHESIS
-- edge-case lib/answerCheck.ts:checkAnswer calls stripArticle on the raw untrimmed typed/answer strings; stripArticle's regex is anchored at ^ with no leading \s*, so accidental leading whitespace (e.g. typed " la casa") never matches the article alternation at all — verified by execution: checkAnswer(" la casa", ["casa"]) graded "wrong" pre-fix despite being a legitimate answer. Pre-existing, not introduced by this batch's regex fix; found by the same fresh-eyes pass — severity 5 | worldclass: -5 pts (fresh-eyes pass) | WORLDCLASS
+new Chart(document.getElementById('severeChart'), {
+  type: 'line',
+  data: {
+    datasets: [
+      {
+        label: 'Severe Issues',
+        data: SEVERE_SERIES,
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239,68,68,0.12)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: SEVERE_SERIES.map(p => severeColor(p.y)),
+      },
+      {
+        label: 'zero',
+        data: [{x:0,y:0},{x:TOTAL_CYCLES,y:0}],
+        borderColor: 'transparent',
+        pointRadius: 0,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `Cycle ${ctx.parsed.x}: ${ctx.parsed.y} severe issues`
+        }
+      },
+      annotation: {
+        annotations: {
+          r16: { type: 'line', xMin: 6.8, xMax: 6.8, borderColor: 'rgba(168,85,247,0.7)', borderWidth: 2, borderDash: [6,4],
+            label: { display: true, content: '📌 Cycle 7', position: 'start', backgroundColor: 'rgba(168,85,247,0.15)', color: '#a855f7', font: {size: 11} } },
+          r17: { type: 'line', xMin: 7.0, xMax: 7.0, borderColor: 'rgba(168,85,247,0.7)', borderWidth: 2, borderDash: [6,4] },
+          r18: { type: 'line', xMin: 7.2, xMax: 7.2, borderColor: 'rgba(168,85,247,0.7)', borderWidth: 2, borderDash: [6,4] },
+          r19: { type: 'line', xMin: 9, xMax: 9, borderColor: 'rgba(168,85,247,0.7)', borderWidth: 2, borderDash: [6,4],
+            label: { display: true, content: '📌 Cycle 9', position: 'start', backgroundColor: 'rgba(168,85,247,0.15)', color: '#a855f7', font: {size: 11} } },
+        }
+      }
+    },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Cycle Number', color: '#94a3b8' }, min: 0, max: TOTAL_CYCLES, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+      y: { type: 'linear', title: { display: true, text: 'Severe Issues Found', color: '#94a3b8' }, min: 0, suggestedMax: 14, ticks: { precision: 0, color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }
+  }
+});
+
+// ── Chart A: Issues by Type ──
+const TYPE_DATA = [
+  {label:'Test Quality', count:43, color:'#f59e0b'},
+  {label:'Code Organization', count:40, color:'#3b82f6'},
+  {label:'Documentation Trust', count:17, color:'#f59e0b'},
+  {label:'Feature Completeness', count:13, color:'#f97316'},
+  {label:'Error Protection', count:12, color:'#f59e0b'},
+  {label:'Data Safety', count:9, color:'#f97316'},
+  {label:'Repeated Process Breakdowns', count:8, color:'#f97316'},
+  {label:'Security', count:8, color:'#f97316'},
+  {label:'Functional Defects', count:5, color:'#7f1d1d'},
+  {label:'Test Coverage Quality', count:5, color:'#f97316'},
+  {label:'Reliability', count:4, color:'#f97316'},
+  {label:'Architecture', count:3, color:'#f97316'},
+  {label:'Edge Cases', count:3, color:'#f59e0b'},
+  {label:'Type Safety', count:3, color:'#f97316'},
+  {label:'Team Process', count:3, color:'#f59e0b'},
+  {label:'Input Validation', count:3, color:'#f97316'},
+  {label:'Documentation', count:2, color:'#f59e0b'},
+  {label:'Tooling', count:2, color:'#3b82f6'},
+  {label:'Migrations', count:1, color:'#f97316'},
+  {label:'Data Corruption', count:1, color:'#7f1d1d'},
+  {label:'Feature Switches', count:1, color:'#f59e0b'},
+  {label:'Done Condition', count:1, color:'#3b82f6'},
+  {label:'Scope Drift', count:1, color:'#3b82f6'},
+  {label:'Process Integrity', count:1, color:'#3b82f6'},
+];
+
+new Chart(document.getElementById('typeChart'), {
+  type: 'bar',
+  data: {
+    labels: TYPE_DATA.map(d => d.label),
+    datasets: [{
+      data: TYPE_DATA.map(d => d.count),
+      backgroundColor: TYPE_DATA.map(d => d.color),
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      datalabels: {},
+      tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.x} occurrences` } }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', precision: 0 } },
+      y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: {size: 11} } }
+    }
+  }
+});
+
+// ── Chart B: Audit Results Donut ──
+new Chart(document.getElementById('auditDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['PASS', 'FAIL', 'MAX_CYCLES'],
+    datasets: [{
+      data: [1, 12, 0],
+      backgroundColor: ['#22c55e', '#ef4444', '#f97316'],
+      borderWidth: 0,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: {size: 12} } } }
+  }
+});
+
+// ── Chart C: WorldClass Scores ──
+const WC_ROWS = [
+  {x:3, y:70, verdict:'MAX_CYCLES'},
+  {x:6, y:83, verdict:'MAX_CYCLES'},
+  {x:9, y:93, verdict:'MAX_CYCLES'},
+  {x:12, y:86, verdict:'MAX_CYCLES'},
+  {x:15, y:92, verdict:'MAX_CYCLES'},
+  {x:16, y:98, verdict:'PASS'},
+  {x:17, y:97, verdict:'PASS'},
+  {x:19, y:98, verdict:'PASS'},
+  {x:21, y:96, verdict:'PASS'},
+];
+function wcColor(y) { return y >= 95 ? '#22c55e' : (y >= 80 ? '#f59e0b' : '#ef4444'); }
+
+new Chart(document.getElementById('wcChart'), {
+  type: 'line',
+  data: {
+    datasets: [
+      {
+        label: 'WorldClass Score',
+        data: WC_ROWS.map(r => ({x:r.x, y:r.y})),
+        borderColor: '#a855f7',
+        backgroundColor: 'rgba(168,85,247,0.08)',
+        fill: true,
+        pointRadius: 5,
+        pointBackgroundColor: WC_ROWS.map(r => wcColor(r.y)),
+      },
+      {
+        label: 'World-class threshold',
+        data: [{x:0,y:95},{x:22,y:95}],
+        borderColor: '#22c55e',
+        borderDash: [6,4],
+        pointRadius: 0,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Cycle', color: '#94a3b8' }, min: 0, max: 22, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+      y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+    }
+  }
+});
+
+// ── Chart D: Audit Severity Trend ──
+const SEV_ROWS = [
+  {x:1, y:7, verdict:'FAIL'}, {x:3, y:4, verdict:'PASS'}, {x:6, y:8, verdict:'FAIL'},
+  {x:7, y:7, verdict:'FAIL'}, {x:8, y:7, verdict:'FAIL'}, {x:9, y:9, verdict:'FAIL'},
+  {x:10, y:9, verdict:'FAIL'}, {x:12, y:6, verdict:'FAIL'}, {x:15, y:5, verdict:'FAIL'},
+  {x:19, y:5, verdict:'FAIL'}, {x:24, y:5, verdict:'FAIL'}, {x:30, y:5, verdict:'FAIL'},
+  {x:37, y:4, verdict:'FAIL'}
+];
+function vColor(v) { return v === 'PASS' ? '#22c55e' : (v === 'MAX_CYCLES' ? '#f97316' : '#ef4444'); }
+
+new Chart(document.getElementById('severityChart'), {
+  type: 'line',
+  data: {
+    datasets: [{
+      label: 'Final Severity',
+      data: SEV_ROWS.map(r => ({x:r.x, y:r.y})),
+      borderColor: '#3b82f6',
+      backgroundColor: 'rgba(59,130,246,0.08)',
+      fill: true,
+      pointRadius: 5,
+      pointBackgroundColor: SEV_ROWS.map(r => vColor(r.verdict)),
+    },
+    {
+      label: 'Concern threshold',
+      data: [{x:0,y:5},{x:37,y:5}],
+      borderColor: 'rgba(249,115,22,0.5)',
+      borderDash: [6,4],
+      pointRadius: 0,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Cycle', color: '#94a3b8' }, min: 0, max: 37, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+      y: {
+        min: 0, max: 10,
+        ticks: {
+          color: '#94a3b8',
+          callback: (val) => (val === 1 ? 'Trivial' : val === 5 ? 'Medium' : val === 8 ? 'Critical' : val)
+        },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    }
+  }
+});
+
+// ── Habits to Fix cards ──
+const HABITS = [
+  {name:'Feature Completeness', impact:'Finished features may not fully match what was originally requested.', occ:13, unique:8, last:31, avg:6.00, sevLabel:'Fix Soon', sevColor:'#f97316'},
+  {name:'Repeated Process Breakdowns', impact:'Past fixes addressed only the specific reported example, not the whole class of bug — this habit itself has now recurred enough times to be a pattern.', occ:8, unique:8, last:31, avg:5.88, sevLabel:'Fix Soon', sevColor:'#f97316'},
+  {name:'Security', impact:'The system may be exposed to outside attacks or data breaches.', occ:8, unique:6, last:25, avg:5.75, sevLabel:'Fix Soon', sevColor:'#f97316'},
+  {name:'Data Safety', impact:'Customer data could be permanently lost or corrupted.', occ:9, unique:7, last:30, avg:5.44, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+  {name:'Error Protection', impact:'The app may crash silently or show confusing error messages to customers.', occ:12, unique:8, last:31, avg:4.67, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+  {name:'Team Process', impact:'Minor process/tracking inconsistencies (stale checklists, mismatched task-status markers) that don\'t affect the product but can mislead future audits.', occ:3, unique:3, last:29, avg:4.33, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+  {name:'Test Quality', impact:'Bugs may go undetected until customers find them in production.', occ:43, unique:22, last:31, avg:4.19, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+  {name:'Documentation Trust', impact:'The team loses context and makes avoidable mistakes on existing code.', occ:17, unique:9, last:31, avg:4.12, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+  {name:'Code Organization', impact:'The codebase becomes harder and slower to change over time.', occ:40, unique:16, last:31, avg:3.83, sevLabel:'Worth Fixing', sevColor:'#f59e0b'},
+];
+
+const habitsHtml = HABITS.map(h => `
+  <div class="card habit-card" style="border-left:3px solid ${h.sevColor};">
+    <div class="habit-top">
+      <div class="habit-name">${h.name}</div>
+      <div class="sev-badge" style="color:${h.sevColor}; border-color:${h.sevColor}; background:${h.sevColor}26;">${h.sevLabel}</div>
+    </div>
+    <div class="habit-impact">${h.impact}</div>
+    <div class="habit-stats">
+      <span>Appeared ${h.occ} times</span>
+      <span>Across ${h.unique} audit cycles</span>
+      <span>Last seen: cycle ${h.last}</span>
+    </div>
+  </div>
+`).join('');
+document.getElementById('habitsContainer').innerHTML = habitsHtml;
+
+// ── Task History Table ──
+const TASK_ROWS = [
+  {task:"Batch 18 remediation re-audit cycle 7 (Task #260)", cycles:7, severe:0, sev:4, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 remediation re-audit cycle 6 (Tasks #258-259)", cycles:6, severe:0, sev:5, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 remediation re-audit cycle 5 (Tasks #252-257)", cycles:5, severe:0, sev:5, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 remediation re-audit cycle 4 (Tasks #250-251)", cycles:4, severe:0, sev:5, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 remediation re-audit cycle 3 (Tasks #246-249)", cycles:3, severe:0, sev:5, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 remediation re-audit (Tasks #228-245)", cycles:2, severe:0, sev:6, verdict:'FAIL', wc:'—'},
+  {task:"Batch 18 — Introduction Engine Remediation + Correctness Hardening", cycles:1, severe:5, sev:9, verdict:'FAIL', wc:'—'},
+  {task:"#164 Add tests for the Task #163 OS trigger settings", cycles:1, severe:13, sev:9, verdict:'FAIL', wc:'—'},
+  {task:"Batch 1 re-audit (Task #182 + AGENTS.md + SRS v3)", cycles:1, severe:2, sev:7, verdict:'FAIL', wc:'—'},
+  {task:"Batch 1 — Security + Correctness Foundation", cycles:1, severe:0, sev:7, verdict:'FAIL', wc:'—'},
+  {task:"#001 Delete all lifetime entitlement code (standalone/3rd pass)", cycles:3, severe:2, sev:8, verdict:'FAIL', wc:'—'},
+  {task:"#001 Delete all lifetime entitlement code", cycles:2, severe:0, sev:4, verdict:'PASS', wc:'98'},
+  {task:"#001 Delete all lifetime entitlement code", cycles:1, severe:1, sev:7, verdict:'FAIL', wc:'—'},
+];
+
+function sevColor(v) { return v <= 3 ? '#22c55e' : (v <= 6 ? '#f59e0b' : '#ef4444'); }
+function verdictColor(v) { return v === 'PASS' ? '#22c55e' : (v === 'MAX_CYCLES' ? '#f97316' : '#ef4444'); }
+
+const tbody = document.getElementById('taskHistoryBody');
+tbody.innerHTML = TASK_ROWS.map(r => `
+  <tr>
+    <td>${r.task.slice(0,45)}</td>
+    <td>${r.cycles}</td>
+    <td style="color:${r.severe > 0 ? '#ef4444' : '#22c55e'};">${r.severe}</td>
+    <td style="color:${sevColor(r.sev)};">${r.sev}</td>
+    <td><span class="verdict-pill" style="background:${verdictColor(r.verdict)};">${r.verdict}</span></td>
+    <td>${r.wc}</td>
+  </tr>
+`).join('');
+</script>

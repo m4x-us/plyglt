@@ -71,7 +71,7 @@ const fakeManifest = (sha256 = CORRECT_SHA): Manifest => ({
   },
 });
 
-// ── Add-on pack fixture ───────────────────────────────────────────────────────
+// ── Add-on pack fixtures ──────────────────────────────────────────────────────
 const fakeAddOnPack = (): Pack => ({
   _version: 1,
   lang: "it-medical",
@@ -86,12 +86,38 @@ const fakeAddOnPack = (): Pack => ({
 });
 const ADD_ON_PACK_JSON = JSON.stringify(fakeAddOnPack());
 const ADD_ON_SHA = createHash("sha256").update(ADD_ON_PACK_JSON).digest("hex");
+
+const fakeAddOnBusinessPack = (): Pack => ({
+  _version: 1,
+  lang: "it-business",
+  packVersion: "1.0.0",
+  canonicalSource: "en",
+  name: "Business Italian",
+  nativeName: "Italiano per gli Affari",
+  flag: "🇮🇹",
+  unitCount: 3,
+  cardCount: 30,
+  units: [],
+});
+const ADD_ON_BUSINESS_PACK_JSON = JSON.stringify(fakeAddOnBusinessPack());
+const ADD_ON_BUSINESS_SHA = createHash("sha256").update(ADD_ON_BUSINESS_PACK_JSON).digest("hex");
+
 const fakeAddOnManifest = (): Manifest => ({
   _version: 1,
   generatedAt: "2026-01-01T00:00:00.000Z",
   packs: {
     it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: CORRECT_SHA },
     "it-medical": { name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹", version: "1.0.0", size: 50, sha256: ADD_ON_SHA },
+  },
+});
+
+const fakeTwoAddOnManifest = (): Manifest => ({
+  _version: 1,
+  generatedAt: "2026-01-01T00:00:00.000Z",
+  packs: {
+    it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: CORRECT_SHA },
+    "it-medical": { name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹", version: "1.0.0", size: 50, sha256: ADD_ON_SHA },
+    "it-business": { name: "Business Italian", nativeName: "Italiano per gli Affari", flag: "🇮🇹", version: "1.0.0", size: 40, sha256: ADD_ON_BUSINESS_SHA },
   },
 });
 
@@ -670,6 +696,24 @@ describe("evictPack — allowlist validation", () => {
     // Italian data not collateral-damaged (exact value preserved)
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBe(italianMeta);
   });
+
+  it("#271: evictPack logs a warning when given a registered specialty pack code — no silent no-op", async () => {
+    // Specialty codes pass the isValidPackCode guard as false — Task #271 fix emits a warning
+    // so callers know to evict the base language instead.
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await evictPack("it-medical");
+      const messages = warnSpy.mock.calls.map(args => args[0] as string);
+      // Warning must name the specialty code and the correct base language to evict instead
+      expect(messages.some(msg => msg.includes("it-medical"))).toBe(true);
+      expect(messages.some(msg => msg.includes('"it"'))).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+      mockSpecialtyPacks.length = 0;
+    }
+  });
 });
 
 describe("loadedAddOns — in-memory specialty pack tracking (Task #149)", () => {
@@ -895,5 +939,99 @@ describe("specialty pack merge path", () => {
     // Shape-validation failures must log, same as download/parse failures do (Task #260 follow-up)
     const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
     expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
+  });
+
+  it("#265: returns checksum_mismatch and logs ADDON_NO_MANIFEST when the manifest has no entry for the specialty code", async () => {
+    // Fail-closed: if the manifest entry for the specialty code is absent, the downloaded
+    // content must be rejected without parsing or merging. Before this fix, the sha256 check
+    // was skipped entirely and arbitrary content could be merged with zero integrity verification.
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Load base pack with a manifest that has no "it-medical" entry
+    await loadPack("it", fakeManifest());
+
+    // Attempt to load the add-on — its manifest entry is absent
+    const result = await loadPack("it-medical", fakeManifest());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("checksum_mismatch");
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+    const logMessages = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logMessages.some(msg => msg.includes("ADDON_NO_MANIFEST"))).toBe(true);
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("specialty pack — same-code concurrent load safety (#264)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+  });
+
+  it("#264 same-code: two concurrent loads issue only one fetch and add the code exactly once", async () => {
+    // Without the in-flight dedup, two concurrent calls both pass the loadedAddOns.includes
+    // check before either pushes — resulting in duplicate fetches and duplicate loadedAddOns entries.
+    let addonFetchCount = 0;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if ((url as string).includes("it-medical")) addonFetchCount++;
+      const body = (url as string).includes("it-medical") ? ADD_ON_PACK_JSON : PACK_JSON;
+      return { ok: true, text: async () => body };
+    }));
+
+    await loadPack("it", fakeAddOnManifest());
+    addonFetchCount = 0; // reset after base pack load
+
+    const [r1, r2] = await Promise.all([
+      loadPack("it-medical", fakeAddOnManifest()),
+      loadPack("it-medical", fakeAddOnManifest()),
+    ]);
+
+    expect(r1.ok).toBe(true);
+    expect(r2.ok).toBe(true);
+    expect(addonFetchCount).toBe(1);
+    expect(getLoadedAddOns().filter(c => c === "it-medical")).toHaveLength(1);
+  });
+});
+
+describe("specialty pack — cross-code concurrent load safety (#264)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push(
+      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
+      { code: "it-business", baseLang: "it", name: "Business Italian", ready: true },
+    );
+  });
+
+  it("#264 cross-code: concurrent loads for the same base lang both land without clobbering each other", async () => {
+    // Without cross-code serialization, both loads read the same unmerged base pack snapshot.
+    // Whichever merge resolves last silently discards the other's units when it calls
+    // memCache.merge() with a stale base, yet getLoadedAddOns() still reports both as loaded.
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if ((url as string).includes("it-medical")) return { ok: true, text: async () => ADD_ON_PACK_JSON };
+      if ((url as string).includes("it-business")) return { ok: true, text: async () => ADD_ON_BUSINESS_PACK_JSON };
+      return { ok: true, text: async () => PACK_JSON };
+    }));
+
+    await loadPack("it", fakeTwoAddOnManifest());
+
+    await Promise.all([
+      loadPack("it-medical", fakeTwoAddOnManifest()),
+      loadPack("it-business", fakeTwoAddOnManifest()),
+    ]);
+
+    // Both codes must be tracked
+    expect(getLoadedAddOns()).toContain("it-medical");
+    expect(getLoadedAddOns()).toContain("it-business");
+
+    // The merged pack in memCache must contain units from BOTH add-ons.
+    // Fetching via the idempotency path returns the current memCache state.
+    const merged = await loadPack("it-medical", fakeTwoAddOnManifest());
+    expect(merged.ok).toBe(true);
+    if (merged.ok) {
+      const expected = fakePack().cardCount + fakeAddOnPack().cardCount + fakeAddOnBusinessPack().cardCount;
+      expect(merged.pack.cardCount).toBe(expected);
+    }
   });
 });

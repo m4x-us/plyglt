@@ -79,6 +79,20 @@ function parseExpiry(expiresAt: string | null): number | null {
   return isFinite(t) ? t : null;
 }
 
+/**
+ * Single logging point for every IPC catch block in this module that carries a license key
+ * argument. The raw error is never logged directly — Tauri IPC errors can embed the request
+ * params (including the license key) in their message — so only a truncated key prefix and
+ * the error's type/name are recorded. One shared function, not three independent copies,
+ * so a future 4th IPC-calling function in this module can't reintroduce the same leak.
+ */
+function logLicenseIpcFailure(tag: string, key: string, err: unknown): void {
+  console.error(tag, {
+    licenseKey: key.slice(0, 8) + "...",
+    errType: err instanceof Error ? err.name : typeof err,
+  });
+}
+
 // ── Variant → entitlement parsing ─────────────────────────────────────────────
 
 /**
@@ -122,8 +136,8 @@ export async function activateLicense(key: string): Promise<ActivateResult> {
   let raw: unknown;
   try {
     raw = await invoke<unknown>("ls_activate_license", { licenseKey: key.trim() });
-  } catch (e) {
-    console.error(`[ENTITLEMENT_ACTIVATE_FAIL-${Date.now()}]`, e);
+  } catch (err) {
+    logLicenseIpcFailure(`[ENTITLEMENT_ACTIVATE_FAIL-${Date.now()}]`, key, err);
     return { ok: false, error: ERR_ACTIVATE_NETWORK };
   }
   if (raw == null) {
@@ -166,8 +180,8 @@ export async function validateLicense(key: string, instanceId: string): Promise<
   let raw: unknown;
   try {
     raw = await invoke<unknown>("ls_validate_license", { licenseKey: key, instanceId });
-  } catch (e) {
-    console.error(`[ENTITLEMENT_VALIDATE_FAIL-${Date.now()}]`, e);
+  } catch (err) {
+    logLicenseIpcFailure(`[ENTITLEMENT_VALIDATE_FAIL-${Date.now()}]`, key, err);
     return { ok: false, error: ERR_VALIDATE_NETWORK };
   }
   if (raw == null) {
@@ -190,7 +204,14 @@ export async function validateLicense(key: string, instanceId: string): Promise<
 
 // ── Add-on entitlement ────────────────────────────────────────────────────────
 
-/** Returns true if the given specialty pack code has been purchased as an add-on. */
+/**
+ * Returns true if the given specialty pack code has been purchased as an add-on.
+ *
+ * This is the canonical pure implementation. `store/entitlementStore.ts` exposes a
+ * React-hook-compatible store action with the same name; that action should delegate
+ * here rather than duplicating the logic. Use this function in non-React contexts
+ * (lib/ modules, scripts, or any code that cannot call a Zustand hook directly).
+ */
 export function hasAddOn(state: { purchasedAddOns: string[] }, code: string): boolean {
   return state.purchasedAddOns.includes(code);
 }
@@ -201,9 +222,10 @@ export async function deactivateLicense(key: string, instanceId: string): Promis
   let raw: unknown;
   try {
     raw = await invoke<unknown>("ls_deactivate_license", { licenseKey: key, instanceId });
-  } catch {
-    // IPC error is not logged — it may embed the license key via request params.
-    console.error(`[ENTITLEMENT_DEACTIVATE_FAIL-${Date.now()}]`, { licenseKey: key.slice(0, 8) + "..." });
+  } catch (err) {
+    // Full error not logged directly — it may embed the license key via request params.
+    // logLicenseIpcFailure logs only a redacted key prefix plus the error's type/name.
+    logLicenseIpcFailure(`[ENTITLEMENT_DEACTIVATE_FAIL-${Date.now()}]`, key, err);
     return { ok: false, error: ERR_DEACTIVATE_NETWORK };
   }
   // ls_deactivate_license returns Result<bool, String>. Tauri serialises Ok(true)

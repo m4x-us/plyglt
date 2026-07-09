@@ -10,6 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import type { SpecialtyPack } from "@/lib/langRegistry";
+
+// mockSpecialtyPacks is shared across tests via vi.hoisted so the vi.mock factory can reference it.
+// Each test that needs specialty packs pushes entries directly; beforeEach resets to [].
+const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => []);
 
 // Inline values in vi.mock factories — vi.mock is hoisted so outer-scope
 // variables are not accessible; literals avoid the hoisting trap entirely.
@@ -19,14 +24,14 @@ vi.mock("@/lib/language", () => ({
 
 // Three entries: Italian (free+ready), Spanish (paid+ready), French (paid+not-ready).
 // This lets tests hit all three conditional branches in the paid-language renderer.
-// getSpecialtyPacks is a vi.fn so individual tests can override its return value.
+// SPECIALTY_PACKS is wired to mockSpecialtyPacks so tests can push entries directly.
 vi.mock("@/lib/langRegistry", () => ({
   LANGUAGE_REGISTRY: [
     { code: "it", config: { code: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹" }, isFree: true,  ready: true  },
     { code: "es", config: { code: "es", name: "Spanish", nativeName: "Español",  flag: "🇪🇸" }, isFree: false, ready: true  },
     { code: "fr", config: { code: "fr", name: "French",  nativeName: "Français", flag: "🇫🇷" }, isFree: false, ready: false },
   ],
-  getSpecialtyPacks: vi.fn(() => []),  // default: empty (matches production SPECIALTY_PACKS = [])
+  SPECIALTY_PACKS: mockSpecialtyPacks,  // Task #278: LanguageGrid uses SPECIALTY_PACKS directly
 }));
 
 vi.mock("@/lib/entitlement", () => ({
@@ -38,7 +43,6 @@ vi.mock("@/content/index", () => ({
 }));
 
 import { LanguageGrid } from "./LanguageGrid";
-import { getSpecialtyPacks } from "@/lib/langRegistry";
 
 const onSelect = vi.fn();
 const onUpgradeClick = vi.fn();
@@ -57,7 +61,7 @@ function renderGrid(
   );
 }
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); mockSpecialtyPacks.length = 0; });
 afterEach(() => { cleanup(); });
 
 describe("LanguageGrid", () => {
@@ -138,8 +142,8 @@ describe("LanguageGrid", () => {
 
 describe("LanguageGrid — specialty packs (Task #150)", () => {
   // ── State 1: No specialty packs registered → Add-ons section absent ─────────
-  it("does not render Add-ons section when getSpecialtyPacks returns [] (default production state)", () => {
-    // getSpecialtyPacks mock defaults to returning [] — matches SPECIALTY_PACKS = []
+  it("does not render Add-ons section when SPECIALTY_PACKS is empty (default production state)", () => {
+    // mockSpecialtyPacks is empty (reset by beforeEach) — matches production SPECIALTY_PACKS = []
     renderGrid(() => true);
 
     expect(screen.queryByText("Add-ons")).toBeNull();
@@ -147,12 +151,10 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
   // ── State 2: Purchased + ready specialty pack → selectable ──────────────────
   it("renders a purchased+ready specialty pack as selectable and calls onSelect(sp.code) on click", () => {
-    vi.mocked(getSpecialtyPacks).mockReturnValue([
-      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
-    ]);
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
 
     renderGrid(
-      (code) => code === "it",     // Italian unlocked → its specialty packs shown
+      (code) => code === "it",         // Italian unlocked → its specialty packs shown
       (code) => code === "it-medical", // it-medical purchased
     );
 
@@ -167,9 +169,7 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
   // ── State 3: Not-purchased + ready specialty pack → locked, pricing CTA ──────
   it("renders an unpurchased+ready specialty pack as locked with pricing CTA and calls onUpgradeClick on click", () => {
-    vi.mocked(getSpecialtyPacks).mockReturnValue([
-      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
-    ]);
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
 
     renderGrid(
       (code) => code === "it",  // Italian unlocked
@@ -186,13 +186,11 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
     expect(onSelect).not.toHaveBeenCalledWith("it-medical");
   });
 
-  // ── State 4: Specialty pack exists but base language not unlocked → hidden ───
-  it("does not show specialty packs when their base language is not unlocked", () => {
-    vi.mocked(getSpecialtyPacks).mockReturnValue([
-      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
-    ]);
+  // ── State 4: Specialty pack exists but base language not unlocked AND not purchased → hidden ──
+  it("does not show specialty packs when their base language is not unlocked and the add-on is not purchased", () => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
 
-    // isPackUnlocked returns false for everything — Italian not unlocked → no specialty tiles
+    // isPackUnlocked returns false for everything, hasAddOn defaults to () => false
     renderGrid(() => false);
 
     expect(screen.queryByText("Add-ons")).toBeNull();
@@ -201,9 +199,7 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
   // ── State 5: Not-ready specialty pack → "Coming soon" label ─────────────────
   it("renders a not-ready specialty pack with 'Coming soon' label and calls onUpgradeClick on click", () => {
-    vi.mocked(getSpecialtyPacks).mockReturnValue([
-      { code: "it-cooking", baseLang: "it", name: "Italian Cooking", ready: false },
-    ]);
+    mockSpecialtyPacks.push({ code: "it-cooking", baseLang: "it", name: "Italian Cooking", ready: false });
 
     renderGrid((code) => code === "it");
 
@@ -217,5 +213,33 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
     expect(onUpgradeClick).toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalledWith("it-cooking");
+  });
+
+  // ── State 6 (#276): Feature flag disabled → Add-ons section hidden even with registered packs ──
+  it("#276: does not render Add-ons section when NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS is 'false'", () => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "false");
+
+    renderGrid((code) => code === "it");
+
+    expect(screen.queryByText("Add-ons")).toBeNull();
+    expect(screen.queryByText("Medical Italian")).toBeNull();
+
+    vi.unstubAllEnvs();
+  });
+
+  // ── State 7 (#278): Purchased add-on shown even when base language is not unlocked ───────────
+  it("#278: shows a purchased specialty add-on even when its base language is not currently unlocked", () => {
+    // This tests the structural enforcement added in Task #278: an owned add-on is never hidden
+    // due to base language lock state (e.g. after a subscription lapses but the add-on was bought).
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+
+    renderGrid(
+      () => false,                         // base language NOT unlocked
+      (code) => code === "it-medical",     // BUT the add-on IS purchased
+    );
+
+    expect(screen.getByText("Add-ons")).toBeTruthy();
+    expect(screen.getByText("Medical Italian")).toBeTruthy();
   });
 });

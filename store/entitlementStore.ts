@@ -16,6 +16,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
 import { FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
+import { clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 
 // LicenseType lives in lib/ (lower layer) to avoid lib/→store/ upward imports.
 // Imported for use within this file; re-exported so existing callers of
@@ -108,7 +109,12 @@ export const useEntitlementStore = create<EntitlementState>()(
 
       setEntitlement: (data) => set({ ...data, lastValidated: Date.now() }),
 
-      clearEntitlement: () =>
+      clearEntitlement: () => {
+        // Clear the in-memory specialty pack state so that already-merged add-on
+        // content is not accessible after a license deactivation. Without this,
+        // deactivating mid-session leaves specialty units in memCache for the
+        // remainder of the session. (Task #263)
+        clearSpecialtyCache();
         set({
           licenseKey: null,
           instanceId: null,
@@ -117,7 +123,8 @@ export const useEntitlementStore = create<EntitlementState>()(
           purchasedAddOns: [],
           lastValidated: 0,
           validUntil: null,
-        }),
+        });
+      },
 
       markValidated: (validUntil) => set({ lastValidated: Date.now(), validUntil }),
 
@@ -132,8 +139,10 @@ export const useEntitlementStore = create<EntitlementState>()(
 
       hasAddOn: (code) => get().purchasedAddOns.includes(code),
 
-      // No-op stub — real payment integration (Lemon Squeezy add-on purchase) comes later.
-      // Adds the code optimistically so UI and packLoader can operate on it immediately.
+      // Records a locally-confirmed add-on purchase code. This does NOT initiate
+      // or verify payment — callers must complete payment with the Lemon Squeezy
+      // API before calling this. See lib/checkout.ts for checkout URLs. Full
+      // payment-to-record integration is tracked in Task #285.
       purchaseAddOn: (code) =>
         set((s) => ({
           purchasedAddOns: s.purchasedAddOns.includes(code)
@@ -149,3 +158,23 @@ export const useEntitlementStore = create<EntitlementState>()(
     }
   )
 );
+
+// Cross-tab sync: Zustand persist writes the in-memory state snapshot to
+// localStorage at call time — it does not merge against the on-disk value first.
+// Two browser tabs racing on purchaseAddOn for different add-on codes cause the
+// second tab's write to overwrite and drop the first tab's purchase. Listening
+// for the native 'storage' event re-hydrates in-memory state whenever another
+// tab writes, so the next set() call reads the merged on-disk value rather than
+// a stale snapshot. This guard is browser-only; Tauri uses a file-backed store
+// that is single-process and is not subject to this race. (Task #288)
+
+/** @internal Exported for unit testing; not part of the module's public API. */
+export function _handleCrossTabStorageEvent(e: { key: string | null }): void {
+  if (e.key === ENTITLEMENT_STORE_KEY) {
+    void useEntitlementStore.persist.rehydrate();
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", _handleCrossTabStorageEvent);
+}
