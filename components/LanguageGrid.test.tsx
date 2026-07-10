@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 // ============================================================
-// LanguageGrid.test.tsx — behavioral tests for LanguageGrid (Task #104, #150)
+// LanguageGrid.test.tsx — behavioral tests for LanguageGrid (Task #104, #150, #283)
 // ============================================================
 // Covers all 4 base-language render states: Italian (free), unlocked+ready paid,
 // locked+ready paid, not-ready paid (in development).
 // Also covers specialty pack tile states: empty section, purchased+ready,
 // unpurchased (locked), and hidden when base language is not unlocked.
+//
+// #283: specialty-pack tests drive the real entitlementStore rather than injecting
+// hasAddOn as a directly-controlled mock prop. Each test that needs a purchased
+// add-on calls useEntitlementStore.setState({ purchasedAddOns: [...] }) before
+// rendering; hasAddOn in renderGrid always reads from the real store. This proves
+// that a regression deleting the store→prop wiring would be caught.
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -25,13 +31,22 @@ vi.mock("@/lib/language", () => ({
 // Three entries: Italian (free+ready), Spanish (paid+ready), French (paid+not-ready).
 // This lets tests hit all three conditional branches in the paid-language renderer.
 // SPECIALTY_PACKS is wired to mockSpecialtyPacks so tests can push entries directly.
+// FREE_PACK_CODES and isSpecialtyPackCode are included so that useEntitlementStore
+// (imported below for #283) can initialise its state without errors.
 vi.mock("@/lib/langRegistry", () => ({
   LANGUAGE_REGISTRY: [
     { code: "it", config: { code: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹" }, isFree: true,  ready: true  },
     { code: "es", config: { code: "es", name: "Spanish", nativeName: "Español",  flag: "🇪🇸" }, isFree: false, ready: true  },
     { code: "fr", config: { code: "fr", name: "French",  nativeName: "Français", flag: "🇫🇷" }, isFree: false, ready: false },
   ],
-  SPECIALTY_PACKS: mockSpecialtyPacks,  // Task #278: LanguageGrid uses SPECIALTY_PACKS directly
+  SPECIALTY_PACKS:          mockSpecialtyPacks,
+  FREE_PACK_CODES:           ["it"],
+  ALL_PACK_CODES:            ["it", "es", "fr"],
+  READY_PACK_CODES:          ["it", "es"],
+  isSpecialtyPackCode:       () => false,
+  isReadySpecialtyPackCode:  () => false,
+  isValidPackCode:           (s: string) => ["it", "es", "fr"].includes(s),
+  getSpecialtyPacks:         () => [],
 }));
 
 vi.mock("@/lib/entitlement", () => ({
@@ -43,25 +58,30 @@ vi.mock("@/content/index", () => ({
 }));
 
 import { LanguageGrid } from "./LanguageGrid";
+import { useEntitlementStore } from "@/store/entitlementStore";
 
 const onSelect = vi.fn();
 const onUpgradeClick = vi.fn();
 
-function renderGrid(
-  isPackUnlocked: (code: string) => boolean,
-  hasAddOn: (code: string) => boolean = () => false,
-) {
+// hasAddOn always reads from the real entitlementStore — tests that need a
+// purchased add-on set up store state via useEntitlementStore.setState() before
+// rendering. Tests with no purchased add-ons rely on the beforeEach reset.
+function renderGrid(isPackUnlocked: (code: string) => boolean) {
   render(
     <LanguageGrid
       onSelect={onSelect}
       onUpgradeClick={onUpgradeClick}
       isPackUnlocked={isPackUnlocked}
-      hasAddOn={hasAddOn}
+      hasAddOn={(code) => useEntitlementStore.getState().hasAddOn(code)}
     />
   );
 }
 
-beforeEach(() => { vi.clearAllMocks(); mockSpecialtyPacks.length = 0; });
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockSpecialtyPacks.length = 0;
+  useEntitlementStore.setState({ purchasedAddOns: [] });
+});
 afterEach(() => { cleanup(); });
 
 describe("LanguageGrid", () => {
@@ -152,11 +172,10 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
   // ── State 2: Purchased + ready specialty pack → selectable ──────────────────
   it("renders a purchased+ready specialty pack as selectable and calls onSelect(sp.code) on click", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    // Drive real store state — proves the hasAddOn callback wires store state to the UI.
+    useEntitlementStore.setState({ purchasedAddOns: ["it-medical"] });
 
-    renderGrid(
-      (code) => code === "it",         // Italian unlocked → its specialty packs shown
-      (code) => code === "it-medical", // it-medical purchased
-    );
+    renderGrid((code) => code === "it"); // Italian unlocked → its specialty packs shown
 
     expect(screen.getByText("Add-ons")).toBeTruthy();
     const tile = screen.getByText("Medical Italian").closest("button");
@@ -170,11 +189,9 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
   // ── State 3: Not-purchased + ready specialty pack → locked, pricing CTA ──────
   it("renders an unpurchased+ready specialty pack as locked with pricing CTA and calls onUpgradeClick on click", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    // purchasedAddOns is [] from beforeEach — hasAddOn returns false for all codes.
 
-    renderGrid(
-      (code) => code === "it",  // Italian unlocked
-      () => false,              // nothing purchased
-    );
+    renderGrid((code) => code === "it"); // Italian unlocked
 
     expect(screen.getByText("Add-ons")).toBeTruthy();
     // Verify the specific specialty tile (not any base-language tile) shows the pricing CTA
@@ -189,8 +206,8 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
   // ── State 4: Specialty pack exists but base language not unlocked AND not purchased → hidden ──
   it("does not show specialty packs when their base language is not unlocked and the add-on is not purchased", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    // purchasedAddOns is [] from beforeEach — hasAddOn returns false; isPackUnlocked also returns false.
 
-    // isPackUnlocked returns false for everything, hasAddOn defaults to () => false
     renderGrid(() => false);
 
     expect(screen.queryByText("Add-ons")).toBeNull();
@@ -233,11 +250,10 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
     // This tests the structural enforcement added in Task #278: an owned add-on is never hidden
     // due to base language lock state (e.g. after a subscription lapses but the add-on was bought).
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    // Drive real store state — base language NOT unlocked but the add-on IS purchased.
+    useEntitlementStore.setState({ purchasedAddOns: ["it-medical"] });
 
-    renderGrid(
-      () => false,                         // base language NOT unlocked
-      (code) => code === "it-medical",     // BUT the add-on IS purchased
-    );
+    renderGrid(() => false); // base language NOT unlocked
 
     expect(screen.getByText("Add-ons")).toBeTruthy();
     expect(screen.getByText("Medical Italian")).toBeTruthy();

@@ -1097,6 +1097,53 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
   });
 });
 
+// ── Seam test: purchaseAddOn → purchasedAddOns → hasAddOn (#284) ─────────────
+// Mirrors the activateLicense → setEntitlement → isPackUnlocked seam: calls the
+// real purchaseAddOn through the Tauri IPC mock, then verifies both the store's
+// purchasedAddOns state and the hasAddOn read path (store method + pure function).
+
+describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    reset();
+    vi.clearAllMocks();
+    vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
+    mockInvoke.mockResolvedValue(true);
+  });
+
+  it("purchasing an add-on updates purchasedAddOns and makes hasAddOn return true end-to-end", async () => {
+    const result: PurchaseAddOnResult = await store().purchaseAddOn("it-medical", "tok_seam_receipt");
+
+    // Step 1: purchaseAddOn returns ok:true
+    expect(result).toEqual({ ok: true });
+
+    // Step 2: purchasedAddOns in the store reflects the purchase
+    expect(store().purchasedAddOns).toContain("it-medical");
+    expect(store().purchasedAddOns).toHaveLength(1);
+
+    // Step 3: store method hasAddOn returns true for the purchased code
+    expect(store().hasAddOn("it-medical")).toBe(true);
+
+    // Step 4: lib/entitlement.ts pure function hasAddOn also returns true (the read seam)
+    expect(hasAddOn(store(), "it-medical")).toBe(true);
+
+    // Step 5: an un-purchased code remains inaccessible via both read paths
+    expect(store().hasAddOn("it-business")).toBe(false);
+    expect(hasAddOn(store(), "it-business")).toBe(false);
+  });
+
+  it("clearing entitlement after a purchase removes the add-on via hasAddOn", async () => {
+    await store().purchaseAddOn("it-medical", "tok_seam_receipt");
+    expect(store().hasAddOn("it-medical")).toBe(true);
+
+    store().clearEntitlement();
+
+    expect(store().purchasedAddOns).toEqual([]);
+    expect(store().hasAddOn("it-medical")).toBe(false);
+    expect(hasAddOn(store(), "it-medical")).toBe(false);
+  });
+});
+
 // ── cross-tab sync handler (#288) ────────────────────────────────────────────
 
 describe("cross-tab sync — _handleCrossTabStorageEvent (#288)", () => {

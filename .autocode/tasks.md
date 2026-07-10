@@ -5232,7 +5232,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-10
 
 **What:**
 Specialty packs are never given their own persisted storage key at all; loadSpecialtyPack never calls writeCacheData/writeCacheMeta for the specialty code itself, merging directly into the base pack's in-memory entry only. There is no separate cache entry to evict or independently re-verify even in principle, beyond the evictPack type-guard bug (F008). at lib/specialtyPackLoader.ts:loadSpecialtyPack:67.
@@ -5358,7 +5358,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-10
 
 **What:**
 lib/packLoader.ts is 428 lines, over the 400-line service cap (Rule 1), despite two prior extractions. at lib/packLoader.ts:N/A (file-level):428.
@@ -5512,15 +5512,22 @@ exists.
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09 (resolved as a side effect of Task #261)
 
 **What:**
 No test anywhere proves loadPack/loadSpecialtyPack itself refuses an unpurchased specialty pack. hooks/useLangPack.ts:68 calls loadPack(targetLang, manifest) with no entitlement argument, confirming this is unimplemented in production, not merely untested. Rule 20 violation. Independently found by 3 of 7 auditors. at hooks/useLangPack.ts:loadPack call site:68.
-NEW
+RESOLVED — Wave 9/Stream W9A's Task #261 implemented the entitlement gate AND added the exact
+tests this finding demanded: tests/packLoader.test.ts:950 ("#261: returns invalid_lang without
+fetching when specialty code is not in purchasedAddOns") and :971 ("#261: purchasedAddOns
+defaults to [] when options omitted — specialty code is rejected"), both exercising the real
+loadPack/loadSpecialtyPack functions directly (not mocks), each asserting the specific
+"invalid_lang" error and zero additional fetch calls. Verified 2026-07-09 by reading both tests
+in full. hooks/useLangPack.ts also now threads purchasedAddOns through (Task #261), so the
+"unimplemented in production" half of this finding is resolved too.
 
 **Acceptance Criteria:**
-- [ ] Fix tests issue at hooks/useLangPack.ts:loadPack call site:68
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
+- [x] Fix tests issue at hooks/useLangPack.ts:loadPack call site:68 — resolved via #261
+- [x] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
 
 **Source:** Audit finding F022 — severity 6 — tests
 
@@ -5533,7 +5540,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-10
 
 **What:**
 LanguageGrid.test.tsx's specialty-pack tests inject hasAddOn as a directly-controlled mock prop; they never drive the real entitlementStore or the real loadPack chain. Would not catch a regression that deleted the UI lock entirely, nor the absence of data-layer enforcement. at components/LanguageGrid.test.tsx:specialty-pack test suite:1.
@@ -5554,7 +5561,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-10
 
 **What:**
 The 'purchasedAddOns - add-on entitlement' describe block only tests bookkeeping in isolation, with no seam test analogous to the file's own existing 'seam: activateLicense to setEntitlement to isPackUnlocked' pattern. at tests/entitlement.test.ts:purchasedAddOns describe block:1.

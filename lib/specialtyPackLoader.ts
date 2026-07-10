@@ -3,14 +3,81 @@
  * Inputs: specialty pack code, base language memCache, manifest.
  * Outputs: merged memCache[baseLang] with specialty cards appended; loadedAddOns updated.
  * Called by: lib/packLoader.ts (specialty branch of loadPack).
- * Side effects: fetch() I/O, memCache mutation, loadedAddOns mutation.
+ * Side effects: fetch() I/O, memCache mutation, loadedAddOns mutation, platform storage writes.
  * No React, no Zustand imports.
  */
 
 import { hasValidUnitsArray } from "@/lib/packTypes";
-import type { Pack, LoadPackResult, Manifest, PackMemCache } from "@/lib/packTypes";
+import type { Pack, LoadPackResult, Manifest, PackMemCache, PackMeta } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
+import { createPlatformStorage } from "@/lib/storage";
+
+// ── Platform storage ──────────────────────────────────────────────────────────
+// Same store name and key prefix convention as packLoader.ts — specialty pack keys
+// (e.g. "pack-data-v1-it-medical") coexist with base pack keys ("pack-data-v1-it")
+// in the same underlying Tauri Store file / localStorage origin. (#269)
+
+const CACHE_META_PREFIX = "pack-meta-v1-";
+const CACHE_DATA_PREFIX = "pack-data-v1-";
+
+interface CachedPackMeta {
+  version: string;
+  sha256: string;
+  cachedAt: number;
+}
+
+let _storage: ReturnType<typeof createPlatformStorage> | null = null;
+
+function getSpecialtyStorage() {
+  if (!_storage) {
+    _storage = createPlatformStorage("pack-cache");
+  }
+  return _storage;
+}
+
+async function readSpecialtyCacheMeta(lang: string): Promise<CachedPackMeta | null> {
+  try {
+    const raw = await getSpecialtyStorage().getItem(CACHE_META_PREFIX + lang);
+    if (!raw) return null;
+    return JSON.parse(raw) as CachedPackMeta;
+  } catch (err) {
+    console.error(`[ERR-ADDON-CACHE-META-${lang}]`, err);
+    return null;
+  }
+}
+
+async function readSpecialtyCacheData(lang: string): Promise<string | null> {
+  try {
+    return await getSpecialtyStorage().getItem(CACHE_DATA_PREFIX + lang);
+  } catch (err) {
+    console.error(`[ERR-ADDON-CACHE-DATA-${lang}]`, err);
+    return null;
+  }
+}
+
+async function writeSpecialtyCacheMeta(lang: string, meta: CachedPackMeta): Promise<void> {
+  await getSpecialtyStorage().setItem(CACHE_META_PREFIX + lang, JSON.stringify(meta));
+}
+
+async function writeSpecialtyCacheData(lang: string, json: string): Promise<void> {
+  await getSpecialtyStorage().setItem(CACHE_DATA_PREFIX + lang, json);
+}
+
+async function clearSpecialtyCacheEntry(lang: string): Promise<void> {
+  const [metaResult, dataResult] = await Promise.allSettled([
+    getSpecialtyStorage().removeItem(CACHE_META_PREFIX + lang),
+    getSpecialtyStorage().removeItem(CACHE_DATA_PREFIX + lang),
+  ]);
+  if (metaResult.status === "rejected") {
+    console.error(`[ERR-ADDON-CACHE-CLEAR-META-${lang}]`, metaResult.reason);
+  }
+  if (dataResult.status === "rejected") {
+    console.error(`[ERR-ADDON-CACHE-CLEAR-DATA-${lang}]`, dataResult.reason);
+  }
+}
+
+// ── In-memory tracking ────────────────────────────────────────────────────────
 
 // Track which specialty add-on pack codes have been merged into their base pack
 // this session. Each entry is the specialty code (e.g. "it-medical"); the merged
@@ -33,12 +100,13 @@ export function getLoadedAddOns(): string[] {
 }
 
 /**
- * Resets specialty add-on tracking state.
+ * Resets specialty add-on tracking state and storage singleton.
  * @internal Called by packLoader.clearCacheForTesting — do not call directly in application code.
  */
 export function clearSpecialtyCache(): void {
   loadedAddOns.length = 0;
   inFlight.clear();
+  _storage = null;
 }
 
 /**
@@ -56,42 +124,21 @@ export function clearSpecialtyPacksForLang(baseLang: string): void {
   }
 }
 
-// Core download-verify-merge implementation. Called only after locking checks pass.
-// Precondition: baseLang is present in memCache and lang is not yet in loadedAddOns.
-async function _doLoad(
+// ── Parse-merge-persist helper ────────────────────────────────────────────────
+
+// Parses add-on JSON, merges units into the base pack in memCache, and optionally
+// persists the bytes to platform storage. `manifestEntry` non-null → persist
+// (fresh download with verified bytes); null → already persisted or serving stale cache.
+async function _mergeFromJson(
   lang: string,
   baseLang: string,
   memCache: PackMemCache,
-  manifest: Manifest | null,
+  json: string,
+  manifestEntry: PackMeta | null,
 ): Promise<LoadPackResult> {
-  // Download the add-on pack JSON.
-  let addOnJson: string;
-  try {
-    const res = await fetch(packUrl(lang), { cache: "no-store" });
-    if (!res.ok) return { ok: false, error: "download_failed" };
-    addOnJson = await res.text();
-  } catch (err) {
-    console.error(`[ADDON_DOWNLOAD_FAIL-${lang}]`, err);
-    return { ok: false, error: "download_failed" };
-  }
-
-  // Fail-closed SHA-256 integrity check. If the manifest has no entry for this
-  // add-on code, reject the download entirely — arbitrary content must never be
-  // merged into the base pack without integrity verification. (Task #265)
-  const addOnManifestEntry = manifest?.packs?.[lang];
-  if (!addOnManifestEntry) {
-    console.error(`[ADDON_NO_MANIFEST-${lang}] specialty pack absent from manifest — rejecting to prevent unverified merge`);
-    return { ok: false, error: "checksum_mismatch" };
-  }
-  const actual = await sha256Hex(addOnJson);
-  if (actual !== addOnManifestEntry.sha256) {
-    return { ok: false, error: "checksum_mismatch" };
-  }
-
-  // Parse the add-on pack.
   let addOnPack: Pack;
   try {
-    addOnPack = JSON.parse(addOnJson) as Pack;
+    addOnPack = JSON.parse(json) as Pack;
   } catch (err) {
     console.error(`[ADDON_PARSE_FAIL-${lang}]`, err);
     return { ok: false, error: "parse_error" };
@@ -114,7 +161,113 @@ async function _doLoad(
   // loadedAddOns.push(lang) two lines below. See PackMemCache's doc comment in lib/packTypes.ts.
   memCache.merge(baseLang, merged);
   loadedAddOns.push(lang);
+
+  if (manifestEntry) {
+    // Persist the verified bytes so subsequent sessions don't re-download. (#269)
+    try {
+      await writeSpecialtyCacheData(lang, json);
+      await writeSpecialtyCacheMeta(lang, {
+        version:  manifestEntry.version,
+        sha256:   manifestEntry.sha256,
+        cachedAt: Date.now(),
+      });
+    } catch (err) {
+      console.error(`[ADDON_CACHE_WRITE_FAIL-${lang}] Storage write failed — pack available this session only:`, err);
+    }
+  }
+
   return { ok: true, pack: merged };
+}
+
+// ── Core download-verify-merge implementation ─────────────────────────────────
+
+// Called only after locking checks pass.
+// Precondition: baseLang is present in memCache and lang is not yet in loadedAddOns.
+async function _doLoad(
+  lang: string,
+  baseLang: string,
+  memCache: PackMemCache,
+  manifest: Manifest | null,
+): Promise<LoadPackResult> {
+  const addOnManifestEntry = manifest?.packs?.[lang];
+
+  // Read specialty pack cache from platform storage. (#269: add-ons now have their own keys)
+  const [cachedMeta, initialCachedData] = await Promise.all([
+    readSpecialtyCacheMeta(lang),
+    readSpecialtyCacheData(lang),
+  ]);
+  let cachedData: string | null = initialCachedData;
+
+  // Cache hit: version matches (or manifest absent for offline) and data is present.
+  const cacheVersionMatches =
+    cachedMeta !== null &&
+    cachedData !== null &&
+    (addOnManifestEntry === undefined || cachedMeta.version === addOnManifestEntry.version);
+
+  if (cacheVersionMatches && cachedData) {
+    if (addOnManifestEntry) {
+      // Re-verify sha256 before trusting cached content — never serve unverified bytes.
+      const actual = await sha256Hex(cachedData);
+      if (actual === addOnManifestEntry.sha256) {
+        const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null);
+        if (result.ok) return result;
+        // Parse/shape failure — evict corrupted cache and fall through to re-download.
+        await clearSpecialtyCacheEntry(lang);
+        cachedData = null;
+      } else {
+        // Hash mismatch — evict corrupted cache entry, re-download below.
+        // A003: null out cachedData so the integrity-failed bytes can't be served as stale
+        // fallback on the offline path below (mirrors packLoader.ts's A003 for base packs).
+        await clearSpecialtyCacheEntry(lang);
+        cachedData = null;
+      }
+    } else {
+      // No manifest entry to compare against (manifest null or pack absent from it) —
+      // serve cache as-is for offline graceful degradation.
+      const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null);
+      if (result.ok) return result;
+      // Parse/shape failure — evict and fall through.
+      await clearSpecialtyCacheEntry(lang);
+    }
+  }
+
+  // Download needed.
+  // Fail-closed: require a manifest entry to verify integrity of freshly-downloaded bytes.
+  // If the manifest has no entry for this specialty code AND we have a stale cache (version
+  // mismatch), serve the stale cache — it was previously verified and a missing manifest entry
+  // is indistinguishable from an offline condition for a registered specialty code.
+  if (!addOnManifestEntry) {
+    if (cachedData) {
+      return _mergeFromJson(lang, baseLang, memCache, cachedData, null);
+    }
+    console.error(`[ADDON_NO_MANIFEST-${lang}] specialty pack absent from manifest — rejecting to prevent unverified merge`);
+    return { ok: false, error: "checksum_mismatch" };
+  }
+
+  // Fetch the add-on pack JSON.
+  let addOnJson: string;
+  try {
+    const res = await fetch(packUrl(lang), { cache: "no-store" });
+    if (!res.ok) {
+      // Offline fallback: serve stale cache (version-mismatched) if available.
+      if (cachedData) return _mergeFromJson(lang, baseLang, memCache, cachedData, null);
+      return { ok: false, error: "download_failed" };
+    }
+    addOnJson = await res.text();
+  } catch (err) {
+    console.error(`[ADDON_DOWNLOAD_FAIL-${lang}]`, err);
+    if (cachedData) return _mergeFromJson(lang, baseLang, memCache, cachedData, null);
+    return { ok: false, error: "download_failed" };
+  }
+
+  // Verify sha256.
+  const actual = await sha256Hex(addOnJson);
+  if (actual !== addOnManifestEntry.sha256) {
+    return { ok: false, error: "checksum_mismatch" };
+  }
+
+  // Parse, merge, and persist to storage (manifestEntry non-null → persist).
+  return _mergeFromJson(lang, baseLang, memCache, addOnJson, addOnManifestEntry);
 }
 
 /**
@@ -135,8 +288,9 @@ async function _doLoad(
  * to prevent the later merge from clobbering the earlier one. (Task #264)
  *
  * On success, the merged pack is written back to memCache[spec.baseLang] and the specialty
- * code is added to loadedAddOns. Subsequent calls for the same code return the already-merged
- * base pack immediately.
+ * code is added to loadedAddOns. The verified bytes are also persisted to platform storage
+ * under the specialty code's own keys so subsequent sessions skip the re-download. (#269)
+ * Subsequent calls for the same code return the already-merged base pack immediately.
  */
 export async function loadSpecialtyPack(
   lang: string,

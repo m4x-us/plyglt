@@ -1041,6 +1041,131 @@ describe("specialty pack — same-code concurrent load safety (#264)", () => {
   });
 });
 
+describe("specialty pack — storage persistence (#269)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+  });
+
+  it("#269: persists specialty pack to storage after successful merge", async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(true);
+    // Specialty pack data persisted under its own key — not the base pack key
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBe(ADD_ON_PACK_JSON);
+    const meta = JSON.parse(localStorageMock.getItem("pack-meta-v1-it-medical")!);
+    expect(meta.version).toBe("1.0.0");
+    expect(meta.sha256).toBe(ADD_ON_SHA);
+    // existence-check: cachedAt is Date.now() at write time, non-deterministic
+    expect(typeof meta.cachedAt).toBe("number");
+  });
+
+  it("#269: serves specialty pack from storage on reload without re-fetching", async () => {
+    // First session: load base + specialty pack (2 fetches)
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    // Simulate reload: clear in-memory state; storage (localStorageMock) persists
+    clearCacheForTesting();
+
+    // Second session: no fetches needed — base and specialty both in storage
+    const fetchSpy2 = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy2);
+
+    await loadPack("it", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(true);
+    expect(fetchSpy2).not.toHaveBeenCalled(); // no network call on reload
+    if (result.ok) {
+      expect(result.pack.unitCount).toBe(fakePack().unitCount + fakeAddOnPack().unitCount);
+    }
+  });
+
+  it("#269: evicts corrupted specialty cache and re-fetches when sha256 mismatches", async () => {
+    // Seed with corrupted bytes — version matches manifest but sha256 of data doesn't
+    localStorageMock.setItem("pack-data-v1-it-medical", '{"corrupted":true}');
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({
+      version: "1.0.0", sha256: ADD_ON_SHA, cachedAt: Date.now(),
+    }));
+
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(2); // add-on was re-fetched
+    // Fresh correct bytes now persisted — old corrupted entry overwritten
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBe(ADD_ON_PACK_JSON);
+  });
+
+  it("#269: serves stale specialty cache as offline fallback when download fails (version mismatch)", async () => {
+    // Pre-seed with old version — manifest has "1.0.0" → version mismatch → not a cache hit
+    const oldPack = { ...fakeAddOnPack(), packVersion: "0.9.0" };
+    const oldJson = JSON.stringify(oldPack);
+    localStorageMock.setItem("pack-data-v1-it-medical", oldJson);
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({
+      version: "0.9.0", sha256: createHash("sha256").update(oldJson).digest("hex"), cachedAt: Date.now(),
+    }));
+
+    // Base loads fine; add-on download fails (offline)
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest()); // manifest says "1.0.0" for it-medical
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    // Stale cache served — better than failing cold when offline
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.pack.unitCount).toBe(fakePack().unitCount + fakeAddOnPack().unitCount);
+    }
+    expect(getLoadedAddOns()).toContain("it-medical");
+  });
+
+  it("#269: A003 — integrity-failed specialty cache is not served as offline fallback", async () => {
+    // Seed cache with data whose sha256 doesn't match the manifest (simulates corruption).
+    // After sha256 eviction, cachedData must be nulled so it can't reach the offline fallback.
+    // Without A003: cachedData stays non-null → stale-cache fallback serves corrupt bytes → ok:true.
+    // With A003: cachedData nulled → offline fallback skips → ok:false download_failed.
+    localStorageMock.setItem("pack-data-v1-it-medical", '{"corrupted":true}');
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({
+      version: "1.0.0", sha256: ADD_ON_SHA, cachedAt: Date.now(),
+    }));
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Base loads; add-on download fails after sha256 eviction fires
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce(async () => { throw new Error("Network unavailable"); });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    // Integrity-failed cache must not be served
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("download_failed");
+  });
+});
+
 describe("specialty pack — cross-code concurrent load safety (#264)", () => {
   beforeEach(() => {
     mockSpecialtyPacks.push(

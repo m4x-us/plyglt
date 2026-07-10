@@ -1,10 +1,3 @@
----
-status: done
-agent: charles
-stream: W10C
-wave: 10
----
-
 # Charles — Stream W10C — Wave 10 — 2026-07-09
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
