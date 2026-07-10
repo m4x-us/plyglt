@@ -17,9 +17,13 @@ export function getTargetLangCode(): string {
   if (typeof window === "undefined") return "it";
   const pair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
   // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
-  // like "it-medical" to "it". No-hyphen case falls back to "it" (malformed storage value).
+  // like "it-medical" to "it". No-hyphen means the stored value is malformed.
   const sepIdx = pair.indexOf("-");
-  return sepIdx === -1 ? "it" : (pair.slice(sepIdx + 1) || "it");
+  if (sepIdx === -1) {
+    console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" has no hyphen — expected "en-{lang}" format. Falling back to "it".`);
+    return "it";
+  }
+  return pair.slice(sepIdx + 1) || "it";
 }
 
 /** Writes the active language pair to localStorage. Source language is always "en". */

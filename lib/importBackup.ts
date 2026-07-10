@@ -28,6 +28,7 @@ export interface BackupEntitlement {
   licenseType: LicenseType;
   unlockedPacks: PackCode[];
   validUntil: number | null;
+  purchasedAddOns: string[];
 }
 
 export type ParseBackupResult =
@@ -104,6 +105,7 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   const licenseType: LicenseType = VALID_LICENSE_TYPES.has(rawLicenseType as LicenseType)
     ? (rawLicenseType as LicenseType)
     : "free";
+  const rawAddOns = Array.isArray(e.purchasedAddOns) ? e.purchasedAddOns : [];
   const entitlement: BackupEntitlement = {
     licenseKey:    typeof e.licenseKey   === "string" ? e.licenseKey   : null,
     instanceId:    typeof e.instanceId   === "string" ? e.instanceId   : null,
@@ -114,6 +116,10 @@ export function parseBackup(raw: unknown): ParseBackupResult {
         )
       : [...FREE_PACK_CODES],
     validUntil:    typeof e.validUntil === "number" && isFinite(e.validUntil) ? e.validUntil : null,
+    // Same element-shape guard as store/migrations.ts v3 (Task #273): string-only filter
+    // so corrupt backup data with non-string elements cannot propagate into the store.
+    // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → [] → [].
+    purchasedAddOns: rawAddOns.filter((item): item is string => typeof item === "string"),
   };
 
   // v1 backups pre-date the langPair field — default to Italian (the only language at v1).

@@ -26,11 +26,12 @@ export function useExportImport() {
     const payload = exportBackup(
       { cards: srs.cards, streak: srs.streak, lastStudiedDate: srs.lastStudiedDate },
       {
-        licenseKey: entitlement.licenseKey,
-        instanceId: entitlement.instanceId,
-        licenseType: entitlement.licenseType,
-        unlockedPacks: entitlement.unlockedPacks,
-        validUntil: entitlement.validUntil,
+        licenseKey:      entitlement.licenseKey,
+        instanceId:      entitlement.instanceId,
+        licenseType:     entitlement.licenseType,
+        unlockedPacks:   entitlement.unlockedPacks,
+        validUntil:      entitlement.validUntil,
+        purchasedAddOns: entitlement.purchasedAddOns,
       },
       langPair
     );

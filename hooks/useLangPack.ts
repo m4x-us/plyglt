@@ -23,6 +23,7 @@ export const LOAD_PACK_ERROR_MESSAGES: Record<LoadPackError, string> = {
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
 import type { Unit } from "@/content/types";
 import { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode } from "@/lib/constants";
+import { useEntitlementStore } from "@/store/entitlementStore";
 
 /**
  * @deprecated Import directly from "@/lib/constants". This re-export exists for
@@ -51,6 +52,10 @@ export interface LangPackState {
 export function useLangPack(): LangPackState {
   const targetLang = getTargetLangCode();
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
+  // #261: Thread purchasedAddOns into loadPack so the specialty-pack entitlement gate
+  // has the current state. Zustand maintains referential stability — this only triggers
+  // a re-render (and re-run of the effect) when the array actually changes (new purchase).
+  const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
 
   const [state, setState] = useState<LangPackState>(() => {
     const static_ = STATIC_PACKS[targetLang];
@@ -65,7 +70,7 @@ export function useLangPack(): LangPackState {
 
     let cancelled = false;
     fetchManifest()
-      .then((manifest) => loadPack(targetLang, manifest))
+      .then((manifest) => loadPack(targetLang, manifest, { purchasedAddOns }))
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -83,7 +88,7 @@ export function useLangPack(): LangPackState {
         }
       });
     return () => { cancelled = true; };
-  }, [targetLang, lang]);
+  }, [targetLang, lang, purchasedAddOns]);
 
   return state;
 }

@@ -120,6 +120,12 @@ async function _doLoad(
 /**
  * Loads a specialty add-on pack and merges its units into the base pack in memCache.
  *
+ * `purchasedAddOns` must be the caller's current list of purchased specialty pack codes.
+ * Returns { ok: false, error: "invalid_lang" } when `lang` is not in that list — the
+ * entitlement model is client-only and honour-system (CLAUDE.md §5, decision 2026-06-24),
+ * but "no server check" does NOT mean the client skips its own local purchasedAddOns check.
+ * (Task #261)
+ *
  * Precondition: `lang` must be a ready specialty pack code (SPECIALTY_PACKS entry with ready:true).
  * The base pack (spec.baseLang) must already be present in memCache; if not, returns
  * { ok: false, error: "base_pack_not_loaded" }.
@@ -136,8 +142,22 @@ export async function loadSpecialtyPack(
   lang: string,
   memCache: PackMemCache,
   manifest: Manifest | null,
+  purchasedAddOns: string[],
 ): Promise<LoadPackResult> {
-  const spec = SPECIALTY_PACKS.find(sp => sp.code === lang && sp.ready)!;
+  // #272: Guard against callers that bypass loadPack's isReadySpecialtyPackCode pre-check.
+  // Returns a typed LoadPackResult error instead of throwing a raw TypeError on .baseLang access.
+  const spec = SPECIALTY_PACKS.find(sp => sp.code === lang && sp.ready);
+  if (!spec) {
+    return { ok: false, error: "invalid_lang" };
+  }
+
+  // #261: Client-side entitlement gate. "client-only, honour-system" (CLAUDE.md §5) means no
+  // server verification — it does NOT mean the client is exempt from checking its own local
+  // purchasedAddOns state. Without this check, any user can load any specialty pack for free
+  // by calling loadPack directly with a registered specialty code.
+  if (!purchasedAddOns.includes(lang)) {
+    return { ok: false, error: "invalid_lang" };
+  }
 
   if (!memCache.has(spec.baseLang)) {
     return { ok: false, error: "base_pack_not_loaded" };

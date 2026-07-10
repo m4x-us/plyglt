@@ -27,7 +27,7 @@
  */
 
 import { createPlatformStorage } from "@/lib/storage";
-import { READY_PACK_CODES, SPECIALTY_PACKS, isValidPackCode, type PackCode } from "@/lib/langRegistry";
+import { READY_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, type PackCode } from "@/lib/langRegistry";
 import { loadSpecialtyPack, clearSpecialtyCache, clearSpecialtyPacksForLang } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
@@ -260,13 +260,15 @@ export async function fetchManifest(): Promise<Manifest | null> {
 export async function loadPack(
   lang: string,
   manifest: Manifest | null,
-  options?: { forceRedownload?: boolean }
+  options?: { forceRedownload?: boolean; purchasedAddOns?: string[] }
 ): Promise<LoadPackResult> {
-  // Accept ready base packs (READY_PACK_CODES) and ready specialty packs (SPECIALTY_PACKS with
-  // ready:true). Reject everything else — unknown codes (path traversal) and registered-but-unready
-  // packs. "invalid_lang" is distinct from "download_failed" so callers never retry unknown codes.
+  // Accept ready base packs (READY_PACK_CODES) and ready specialty packs (isReadySpecialtyPackCode).
+  // Reject everything else — unknown codes (path traversal) and registered-but-unready packs.
+  // "invalid_lang" is distinct from "download_failed" so callers never retry unknown codes.
+  // #266: isReadySpecialtyPackCode(lang) replaces the former inline SPECIALTY_PACKS.some(...)
+  // so the .ready check is not duplicated (lib/langRegistry.ts is the single source of truth).
   const isReadyBasePack = READY_PACK_CODES.some(c => c === lang);
-  const isReadySpecialtyPack = SPECIALTY_PACKS.some(sp => sp.code === lang && sp.ready);
+  const isReadySpecialtyPack = isReadySpecialtyPackCode(lang);
   if (!isReadyBasePack && !isReadySpecialtyPack) {
     return { ok: false, error: "invalid_lang" };
   }
@@ -274,8 +276,10 @@ export async function loadPack(
   // ── Specialty pack path ────────────────────────────────────────────────────
   // Delegated to lib/specialtyPackLoader.ts. memCache is passed so the add-on
   // units can be merged into the already-loaded base pack entry.
+  // purchasedAddOns is threaded through so loadSpecialtyPack can enforce the
+  // client-side entitlement gate (Task #261).
   if (isReadySpecialtyPack) {
-    return loadSpecialtyPack(lang, memCache, manifest);
+    return loadSpecialtyPack(lang, memCache, manifest, options?.purchasedAddOns ?? []);
   }
 
   // 1. Memory hit — fastest path, avoids all storage I/O
@@ -404,13 +408,16 @@ export function getInstalledPacks(): PackCode[] {
 }
 
 /**
- * Evicts a cached pack from memory and platform storage
- * (e.g. after purchase reversal or manual reset). clearPackCache itself prunes any specialty
+ * Evicts a base language pack from memory and platform storage
+ * (e.g. after purchase reversal or manual reset). clearPackCache also prunes any specialty
  * add-ons merged into this base pack — see its doc comment.
  *
- * Guard uses isValidPackCode (ALL_PACK_CODES): any registered code can be evicted
- * for cleanup, even unready ones. Rejects unregistered codes to prevent clearPackCache
- * from operating on poisoned storage key namespaces.
+ * Guard uses isValidPackCode (ALL_PACK_CODES = base pack codes only: "it" | "es").
+ * Specialty pack codes are rejected — they cannot be evicted individually because their
+ * units live merged inside the base pack's memCache entry. To evict a specialty add-on,
+ * evict its base language pack (which prunes it via clearPackCache → clearSpecialtyPacksForLang).
+ * Unregistered codes are also rejected to prevent clearPackCache from operating on poisoned
+ * storage key namespaces. (#268)
  */
 export async function evictPack(lang: string): Promise<void> {
   if (!isValidPackCode(lang)) {

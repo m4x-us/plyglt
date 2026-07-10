@@ -12,14 +12,19 @@
 // ===========================================
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent } from "@/store/entitlementStore";
+import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR } from "@/store/entitlementStore";
+import type { PurchaseAddOnResult } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
-import { ALL_PACK_CODES, FREE_PACK_CODES } from "@/lib/langRegistry";
+import { ALL_PACK_CODES, FREE_PACK_CODES, isSpecialtyPackCode } from "@/lib/langRegistry";
 import * as specialtyPackLoader from "@/lib/specialtyPackLoader";
 
 vi.mock("@/lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/tauri")>();
   return { ...actual, invoke: vi.fn() };
+});
+vi.mock("@/lib/langRegistry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
+  return { ...actual, isSpecialtyPackCode: vi.fn() };
 });
 import { invoke } from "@/lib/tauri";
 import { activateLicense, validateLicense, deactivateLicense } from "@/lib/entitlement";
@@ -980,8 +985,17 @@ describe("seam: validateLicense → markValidated → isPackUnlocked", () => {
 
 // ── purchasedAddOns / hasAddOn / purchaseAddOn ────────────────────────────────
 
-describe("purchasedAddOns — add-on entitlement (Task #148)", () => {
-  beforeEach(() => reset());
+describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () => {
+  beforeEach(() => {
+    reset();
+    vi.clearAllMocks();
+    // Tasks #287 + #285: isSpecialtyPackCode is always-false in production (SPECIALTY_PACKS is
+    // frozen empty). Mock it to return true so the code-validation guard passes in happy-path
+    // tests; individual #287 tests override to false to exercise the rejection path.
+    vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
+    // Task #285: mock invoke to simulate Tauri IPC returning a verified receipt by default.
+    mockInvoke.mockResolvedValue(true);
+  });
 
   it("purchasedAddOns defaults to []", () => {
     expect(store().purchasedAddOns).toEqual([]);
@@ -991,38 +1005,39 @@ describe("purchasedAddOns — add-on entitlement (Task #148)", () => {
     expect(store().hasAddOn("it-medical")).toBe(false);
   });
 
-  it("purchaseAddOn adds code to purchasedAddOns", () => {
-    store().purchaseAddOn("it-medical");
+  it("purchaseAddOn adds code to purchasedAddOns and returns ok:true", async () => {
+    const result: PurchaseAddOnResult = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: true });
     expect(store().purchasedAddOns).toContain("it-medical");
     expect(store().purchasedAddOns).toHaveLength(1);
   });
 
-  it("hasAddOn store method returns true after purchaseAddOn", () => {
-    store().purchaseAddOn("it-medical");
+  it("hasAddOn store method returns true after purchaseAddOn", async () => {
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
     expect(store().hasAddOn("it-medical")).toBe(true);
   });
 
-  it("hasAddOn returns false for a different code after purchaseAddOn", () => {
-    store().purchaseAddOn("it-medical");
+  it("hasAddOn returns false for a different code after purchaseAddOn", async () => {
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
     expect(store().hasAddOn("it-business")).toBe(false);
   });
 
-  it("purchaseAddOn is idempotent — calling twice does not duplicate the code", () => {
-    store().purchaseAddOn("it-medical");
-    store().purchaseAddOn("it-medical");
+  it("purchaseAddOn is idempotent — calling twice does not duplicate the code", async () => {
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
     expect(store().purchasedAddOns).toEqual(["it-medical"]);
   });
 
-  it("purchaseAddOn accumulates multiple distinct codes", () => {
-    store().purchaseAddOn("it-medical");
-    store().purchaseAddOn("it-business");
+  it("purchaseAddOn accumulates multiple distinct codes", async () => {
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    await store().purchaseAddOn("it-business", "RECEIPT_TOKEN");
     expect(store().purchasedAddOns).toContain("it-medical");
     expect(store().purchasedAddOns).toContain("it-business");
     expect(store().purchasedAddOns).toHaveLength(2);
   });
 
-  it("clearEntitlement resets purchasedAddOns to []", () => {
-    store().purchaseAddOn("it-medical");
+  it("clearEntitlement resets purchasedAddOns to []", async () => {
+    await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
     expect(store().purchasedAddOns).toHaveLength(1);
     store().clearEntitlement();
     expect(store().purchasedAddOns).toEqual([]);
@@ -1036,6 +1051,49 @@ describe("purchasedAddOns — add-on entitlement (Task #148)", () => {
     store().clearEntitlement();
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
+  });
+
+  // ── Task #287: code-argument validation ──────────────────────────────────────
+
+  it("#287: purchaseAddOn rejects an unregistered code and returns invalid_code", async () => {
+    vi.mocked(isSpecialtyPackCode).mockReturnValueOnce(false);
+    const result = await store().purchaseAddOn("not-a-real-code", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: false, error: ERR_ADDON_INVALID_CODE });
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("#287: purchaseAddOn does not call invoke when the code is invalid", async () => {
+    vi.mocked(isSpecialtyPackCode).mockReturnValueOnce(false);
+    await store().purchaseAddOn("garbage-code", "RECEIPT_TOKEN");
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  // ── Task #285: receipt/payment verification ───────────────────────────────────
+
+  it("#285: purchaseAddOn returns receipt_invalid when invoke returns null (web/browser mode)", async () => {
+    mockInvoke.mockResolvedValueOnce(null);
+    const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: false, error: ERR_ADDON_RECEIPT_INVALID });
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("#285: purchaseAddOn returns receipt_invalid when invoke returns false", async () => {
+    mockInvoke.mockResolvedValueOnce(false);
+    const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: false, error: ERR_ADDON_RECEIPT_INVALID });
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("#285: purchaseAddOn returns ipc_error when invoke throws", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("IPC timeout"));
+    const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: false, error: ERR_ADDON_IPC_ERROR });
+    expect(store().purchasedAddOns).toEqual([]);
+  });
+
+  it("#285: purchaseAddOn calls verify_addon_receipt with the correct code and receiptToken", async () => {
+    await store().purchaseAddOn("it-medical", "tok_abc123");
+    expect(mockInvoke).toHaveBeenCalledWith("verify_addon_receipt", { code: "it-medical", receiptToken: "tok_abc123" });
   });
 });
 

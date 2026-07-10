@@ -41,7 +41,13 @@ vi.stubGlobal("crypto", {
 const mockSpecialtyPacks = vi.hoisted<SpecialtyPack[]>(() => []);
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
-  return { ...actual, SPECIALTY_PACKS: mockSpecialtyPacks };
+  return {
+    ...actual,
+    SPECIALTY_PACKS: mockSpecialtyPacks,
+    // isReadySpecialtyPackCode closes over the module-scope SPECIALTY_PACKS binding, not the
+    // exported one — override it here so it uses the per-test mockSpecialtyPacks array instead.
+    isReadySpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
+  };
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -775,7 +781,7 @@ describe("specialty pack merge path", () => {
     // Load base pack into memCache first — add-on requires it
     await loadPack("it", fakeAddOnManifest());
 
-    const result = await loadPack("it-medical", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -794,7 +800,7 @@ describe("specialty pack merge path", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    const result = await loadPack("it-medical", null);
+    const result = await loadPack("it-medical", null, { purchasedAddOns: ["it-medical"] });
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("base_pack_not_loaded");
@@ -811,11 +817,11 @@ describe("specialty pack merge path", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await loadPack("it", fakeAddOnManifest());
-    await loadPack("it-medical", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     // Second add-on call — must return ok:true from the idempotency path, no 3rd fetch
-    const result = await loadPack("it-medical", fakeAddOnManifest());
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2); // no additional fetch
     expect(getLoadedAddOns()).toContain("it-medical");
@@ -831,7 +837,7 @@ describe("specialty pack merge path", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await loadPack("it", fakeAddOnManifest());
-    await loadPack("it-medical", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(getLoadedAddOns()).toContain("it-medical");
 
     // Evict the base pack — specialty add-on must be pruned
@@ -851,7 +857,7 @@ describe("specialty pack merge path", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await loadPack("it", fakeAddOnManifest());
-    await loadPack("it-medical", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(getLoadedAddOns()).toContain("it-medical");
 
     // Force-redownload the base — must prune the merged add-on from loadedAddOns
@@ -874,7 +880,7 @@ describe("specialty pack merge path", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await loadPack("it", fakeAddOnManifest());
-    await loadPack("it-medical", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(getLoadedAddOns()).toContain("it-medical");
 
     // Force-redownload fails (HTTP error) — falls back to the valid (unmerged) storage-cached
@@ -898,7 +904,7 @@ describe("specialty pack merge path", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await loadPack("it", fakeAddOnManifest());
-    await loadPack("it-medical", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
     expect(getLoadedAddOns()).toContain("it-medical");
 
     vi.stubGlobal("fetch", vi.fn().mockImplementationOnce(async () => { throw new Error("Network error"); }));
@@ -931,7 +937,7 @@ describe("specialty pack merge path", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loadPack("it", manifest);
-    const result = await loadPack("it-medical", manifest);
+    const result = await loadPack("it-medical", manifest, { purchasedAddOns: ["it-medical"] });
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("parse_error");
@@ -939,6 +945,45 @@ describe("specialty pack merge path", () => {
     // Shape-validation failures must log, same as download/parse failures do (Task #260 follow-up)
     const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
     expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
+  });
+
+  it("#261: returns invalid_lang without fetching when specialty code is not in purchasedAddOns", async () => {
+    // Entitlement gate: a registered, ready specialty code with the base pack loaded must be
+    // rejected before any network request if purchasedAddOns does not include it.
+    // This test fails if the purchasedAddOns.includes(lang) check is removed from loadSpecialtyPack.
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Load base pack so the base_pack_not_loaded guard doesn't fire before the entitlement check
+    await loadPack("it", fakeAddOnManifest());
+    const baseFetchCount = fetchSpy.mock.calls.length;
+
+    // purchasedAddOns is empty — "it-medical" is NOT purchased
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: [] });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    // No additional fetch for the add-on — gate fires before network
+    expect(fetchSpy.mock.calls.length).toBe(baseFetchCount);
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+  });
+
+  it("#261: purchasedAddOns defaults to [] when options omitted — specialty code is rejected", async () => {
+    // Mirrors the explicit-empty test above but exercises the options-omitted code path
+    // in loadPack (options?.purchasedAddOns ?? []). Ensures omitting the options arg does not
+    // bypass the entitlement gate.
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    const baseFetchCount = fetchSpy.mock.calls.length;
+
+    // No purchasedAddOns option at all
+    const result = await loadPack("it-medical", fakeAddOnManifest());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    expect(fetchSpy.mock.calls.length).toBe(baseFetchCount);
   });
 
   it("#265: returns checksum_mismatch and logs ADDON_NO_MANIFEST when the manifest has no entry for the specialty code", async () => {
@@ -955,7 +1000,7 @@ describe("specialty pack merge path", () => {
     await loadPack("it", fakeManifest());
 
     // Attempt to load the add-on — its manifest entry is absent
-    const result = await loadPack("it-medical", fakeManifest());
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("checksum_mismatch");
@@ -985,8 +1030,8 @@ describe("specialty pack — same-code concurrent load safety (#264)", () => {
     addonFetchCount = 0; // reset after base pack load
 
     const [r1, r2] = await Promise.all([
-      loadPack("it-medical", fakeAddOnManifest()),
-      loadPack("it-medical", fakeAddOnManifest()),
+      loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] }),
+      loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] }),
     ]);
 
     expect(r1.ok).toBe(true);
@@ -1017,8 +1062,8 @@ describe("specialty pack — cross-code concurrent load safety (#264)", () => {
     await loadPack("it", fakeTwoAddOnManifest());
 
     await Promise.all([
-      loadPack("it-medical", fakeTwoAddOnManifest()),
-      loadPack("it-business", fakeTwoAddOnManifest()),
+      loadPack("it-medical", fakeTwoAddOnManifest(), { purchasedAddOns: ["it-medical", "it-business"] }),
+      loadPack("it-business", fakeTwoAddOnManifest(), { purchasedAddOns: ["it-medical", "it-business"] }),
     ]);
 
     // Both codes must be tracked
@@ -1027,7 +1072,7 @@ describe("specialty pack — cross-code concurrent load safety (#264)", () => {
 
     // The merged pack in memCache must contain units from BOTH add-ons.
     // Fetching via the idempotency path returns the current memCache state.
-    const merged = await loadPack("it-medical", fakeTwoAddOnManifest());
+    const merged = await loadPack("it-medical", fakeTwoAddOnManifest(), { purchasedAddOns: ["it-medical", "it-business"] });
     expect(merged.ok).toBe(true);
     if (merged.ok) {
       const expected = fakePack().cardCount + fakeAddOnPack().cardCount + fakeAddOnBusinessPack().cardCount;

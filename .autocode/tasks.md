@@ -5058,7 +5058,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 Entitlement is enforced nowhere in the data layer for specialty packs. lib/packLoader.ts:loadPack and lib/specialtyPackLoader.ts:loadSpecialtyPack:67 never read purchasedAddOns or call hasAddOn; the only gate is the onClick wiring decision in components/LanguageGrid.tsx:109. hooks/useLangPack.ts:68 calls loadPack(targetLang, manifest) with no entitlement argument at all. Independently found by all 7 auditors. at lib/specialtyPackLoader.ts:loadSpecialtyPack:67.
@@ -5158,20 +5158,26 @@ NEW
 
 ### Task #266: Fix code-quality: isSpecialtyPackCode has zero production callers; lib/packLoader.ts:269 reimplements the sa
 
-**File:** lib/langRegistry.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**File:** Multiple — see What (lib/langRegistry.ts is the anchor; the fix requires editing lib/packLoader.ts:269 to call the real function instead of reimplementing it inline — corrected during Wave 9 planning)
+**Complexity:** ⚡ Direct — 2 files (lib/langRegistry.ts, lib/packLoader.ts), no package boundary, single call-site swap
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 isSpecialtyPackCode has zero production callers; lib/packLoader.ts:269 reimplements the same check inline instead of calling it. Independently found by 4 of 7 auditors. Rule 6 (duplication) and Rule 20b (zero callers outside tests) violation. at lib/langRegistry.ts:isSpecialtyPackCode:88.
+Note (Wave 9 planning, 2026-07-09): Task #280 (Wave 8, complete) added `isReadySpecialtyPackCode`
+to lib/langRegistry.ts specifically as the .ready-checking counterpart this call site needs —
+lib/packLoader.ts:269's inline `SPECIALTY_PACKS.some(sp => sp.code === lang && sp.ready)` should
+be replaced with a call to `isReadySpecialtyPackCode(lang)`, not `isSpecialtyPackCode(lang)` (which
+does not check .ready and would silently change behavior for not-yet-ready specialty codes).
 NEW
 
 **Acceptance Criteria:**
+- [ ] Replace the inline reimplementation at lib/packLoader.ts:269 with a call to isReadySpecialtyPackCode(lang) from lib/langRegistry.ts
 - [ ] Fix code-quality issue at lib/langRegistry.ts:isSpecialtyPackCode:88
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/langRegistry.ts
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/langRegistry.ts lib/packLoader.ts
 
 **Source:** Audit finding F006 — severity 5 — code-quality
 
@@ -5205,7 +5211,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 evictPack guards on isValidPackCode (PackCode = 'it'|'es', base-only) and cannot evict a specialty code. Its doc comment 'any registered code can be evicted... e.g. after purchase reversal' is false for specialty packs. Independently found by 6 of 7 auditors. at lib/packLoader.ts:evictPack:415.
@@ -5289,7 +5295,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 An unchecked non-null assertion on .find()! is safe only because the sole caller pre-checks; it would throw a raw TypeError if ever invoked without that pre-check, unlike every other path in the function, which returns typed LoadPackResult errors. Independently found by 3 of 7 auditors. at lib/specialtyPackLoader.ts:loadSpecialtyPack:67.
@@ -5331,7 +5337,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 The same shallow Array.isArray-only validation gap identified in F013 recurs a third time at store/migrations.ts:133, the v1 unlockedPacks guard -- a repeating pattern within the same file, not a first occurrence. at store/migrations.ts:ENTITLEMENT_MIGRATIONS[1] (v1 unlockedPacks guard):133.
@@ -5478,15 +5484,22 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09 (resolved as a side effect of Task #277)
 
 **What:**
 All 4 isSpecialtyPackCode assertions run with mockSpecialtyPacks reset to length 0; Array.prototype.some over an empty array returns false regardless of the predicate. The true/positive branch of isSpecialtyPackCode is never exercised anywhere in the suite. Rule 18: Test Falsifiability/B7 violation -- pseudocode test. at tests/langRegistry.test.ts:isSpecialtyPackCode assertions:1.
-NEW
+RESOLVED — Wave 8/Stream W8D's Task #277 fix removed the vi.mock/mockSpecialtyPacks scaffolding
+entirely; tests/langRegistry.test.ts now calls the real isSpecialtyPackCode/getSpecialtyPacks/
+SPECIALTY_PACKS exports directly (verified 2026-07-09: no vi.mock, no mockSpecialtyPacks anywhere
+in the file). The pseudocode-mock defect this task named no longer exists. Residual gap (real
+SPECIALTY_PACKS is empty in production, so the true/positive branch still can't be exercised) is
+a different, narrower, currently-unavoidable limitation — not this task's defect — and is
+already documented in Stream W8D's completion notes as deferred until real specialty pack data
+exists.
 
 **Acceptance Criteria:**
-- [ ] Fix tests issue at tests/langRegistry.test.ts:isSpecialtyPackCode assertions:1
-- [ ] Audit passes: bash scripts/deep-audit.sh tests/langRegistry.test.ts
+- [x] Fix tests issue at tests/langRegistry.test.ts:isSpecialtyPackCode assertions:1 — resolved via #277
+- [x] Audit passes: bash scripts/deep-audit.sh tests/langRegistry.test.ts
 
 **Source:** Audit finding F021 — severity 6 — tests
 
@@ -5562,7 +5575,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 purchaseAddOn is an unconditional array-append with no payment, license, or receipt check of any kind, reachable by any code path since it is a plain exported store action. at store/entitlementStore.ts:purchaseAddOn:140.
@@ -5604,7 +5617,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 purchaseAddOn never validates its code argument against isSpecialtyPackCode; unregistered or malformed strings can be injected and persist forever in purchasedAddOns, and no removal path exists anywhere in the codebase. at store/entitlementStore.ts:purchaseAddOn:140.
@@ -5641,20 +5654,22 @@ NEW
 
 ### Task #289: Fix data-loss: Backup/restore has no purchasedAddOns field at all. Fails closed (a legitimate purchaser l
 
-**File:** lib/entitlement.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**File:** Multiple — see What (corrected during Wave 9 planning: lib/entitlement.ts does not contain the backup/restore path; the real serialization lives in lib/exportBackup.ts and lib/importBackup.ts, which defines BackupEntitlement)
+**Complexity:** ⚡ Direct — 2 files (lib/exportBackup.ts, lib/importBackup.ts), no package boundary, single-scope field addition
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
-Backup/restore has no purchasedAddOns field at all. Fails closed (a legitimate purchaser loses add-on entitlement on restore) rather than open -- not a security flaw but a real data-loss defect for a paying user. at lib/entitlement.ts:backup/restore serialization path:1.
+Backup/restore has no purchasedAddOns field at all. Fails closed (a legitimate purchaser loses add-on entitlement on restore) rather than open -- not a security flaw but a real data-loss defect for a paying user. at lib/importBackup.ts:BackupEntitlement interface (line 25) and its construction at line 107; lib/exportBackup.ts:13/26-31 serializes entitlementState without a purchasedAddOns field.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix data-loss issue at lib/entitlement.ts:backup/restore serialization path:1
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/entitlement.ts
+- [ ] Add `purchasedAddOns: string[]` to the `BackupEntitlement` interface in lib/importBackup.ts
+- [ ] lib/exportBackup.ts includes `purchasedAddOns` in the serialized entitlement object
+- [ ] lib/importBackup.ts validates/sanitizes restored purchasedAddOns using the same element-shape filter pattern Task #273 introduced in store/migrations.ts (Array.isArray check + per-element typeof === "string" filter)
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/exportBackup.ts lib/importBackup.ts
 
 **Source:** Audit finding F029 — severity 4 — data-loss
 
@@ -5730,7 +5745,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 hasValidUnitsArray validates only Array.isArray(pack.units); it does not cross-check unitCount/cardCount against units.length, and does not validate individual unit or card element shapes. at lib/packTypes.ts:hasValidUnitsArray:1.
@@ -5751,7 +5766,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-09
 
 **What:**
 getTargetLangCode's return type is declared string, implying round-trip fidelity with setTargetLangCode. For hyphenated codes it silently returns a truncated substring with no type-level or runtime failure signal -- a contract-lie framing distinct from F002's functional-bug framing. at lib/constants.ts:getTargetLangCode:19.

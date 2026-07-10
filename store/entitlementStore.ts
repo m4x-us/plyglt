@@ -15,8 +15,9 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
-import { FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
 import { clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+import { invoke } from "@/lib/tauri";
 
 // LicenseType lives in lib/ (lower layer) to avoid lib/→store/ upward imports.
 // Imported for use within this file; re-exported so existing callers of
@@ -32,6 +33,22 @@ export type { PackCode } from "@/lib/langRegistry";
 // Grace period: subscriptions stay unlocked this long after validUntil so a
 // lapsed renewal or brief offline period doesn't lock users out.
 export const SUBSCRIPTION_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
+
+// ── purchaseAddOn error constants ─────────────────────────────────────────────
+// Named constants prevent string drift between the implementation and callers.
+// Import these — never repeat the string literal inline.
+export const ERR_ADDON_INVALID_CODE   = "invalid_code"    as const; // code is not a registered specialty pack
+export const ERR_ADDON_RECEIPT_INVALID = "receipt_invalid" as const; // verify_addon_receipt returned falsy
+export const ERR_ADDON_IPC_ERROR       = "ipc_error"       as const; // Tauri IPC threw
+
+// purchaseAddOn contract (Tasks #287, #285):
+//   signature: (code: string, receiptToken: string) => Promise<PurchaseAddOnResult>
+//   success:   { ok: true } — code appended to purchasedAddOns
+//   failure:   { ok: false; error: one of the ERR_ADDON_* constants above }
+//   web mode:  invoke() returns null → receipt_invalid — no purchase without Tauri IPC
+export type PurchaseAddOnResult =
+  | { ok: true }
+  | { ok: false; error: typeof ERR_ADDON_INVALID_CODE | typeof ERR_ADDON_RECEIPT_INVALID | typeof ERR_ADDON_IPC_ERROR };
 
 // Poll window: the LS API is called at most once per this interval, preventing
 // hammering on every mount during a network outage.
@@ -61,7 +78,7 @@ interface EntitlementState {
   isPackUnlocked: (lang: string) => boolean;
   needsValidation: () => boolean;
   hasAddOn: (code: string) => boolean;
-  purchaseAddOn: (code: string) => void;
+  purchaseAddOn: (code: string, receiptToken: string) => Promise<PurchaseAddOnResult>;
 }
 
 // ── Pure classification functions (Rule 15) ──────────────────────────────────
@@ -139,16 +156,36 @@ export const useEntitlementStore = create<EntitlementState>()(
 
       hasAddOn: (code) => get().purchasedAddOns.includes(code),
 
-      // Records a locally-confirmed add-on purchase code. This does NOT initiate
-      // or verify payment — callers must complete payment with the Lemon Squeezy
-      // API before calling this. See lib/checkout.ts for checkout URLs. Full
-      // payment-to-record integration is tracked in Task #285.
-      purchaseAddOn: (code) =>
+      // Tasks #287 + #285: Validates the specialty pack code and verifies a Lemon Squeezy
+      // receipt via Tauri IPC before recording the purchase. In web/browser mode invoke()
+      // returns null, so purchases are only possible through the Tauri desktop app.
+      // Tauri command: verify_addon_receipt(code: &str, receipt_token: &str) -> bool
+      purchaseAddOn: async (code, receiptToken) => {
+        // Task #287: reject any code that isn't a registered specialty pack code.
+        // Prevents garbage strings from persisting forever in purchasedAddOns (no removal path exists).
+        if (!isSpecialtyPackCode(code)) {
+          console.warn(`[purchaseAddOn] "${code}" is not a registered specialty pack code — rejected`);
+          return { ok: false, error: ERR_ADDON_INVALID_CODE };
+        }
+        // Task #285: verify receipt via Tauri IPC before persisting the purchase.
+        let verified: boolean | null;
+        try {
+          verified = await invoke<boolean>("verify_addon_receipt", { code, receiptToken });
+        } catch (err) {
+          console.error(`[PURCHASE_ADDON_IPC_FAIL-${Date.now()}]`, { errType: err instanceof Error ? err.name : typeof err });
+          return { ok: false, error: ERR_ADDON_IPC_ERROR };
+        }
+        if (!verified) {
+          console.warn(`[purchaseAddOn] receipt verification rejected for "${code}" — not persisted`);
+          return { ok: false, error: ERR_ADDON_RECEIPT_INVALID };
+        }
         set((s) => ({
           purchasedAddOns: s.purchasedAddOns.includes(code)
             ? s.purchasedAddOns
             : [...s.purchasedAddOns, code],
-        })),
+        }));
+        return { ok: true };
+      },
     }),
     {
       name: ENTITLEMENT_STORE_KEY,

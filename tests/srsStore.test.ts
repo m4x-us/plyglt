@@ -170,6 +170,15 @@ describe("getTargetLangCode", () => {
     expect(getTargetLangCode()).toBe("it");
   });
 
+  it("logs console.error when lang pair is malformed (no hyphen)", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("window", { localStorage: { getItem: () => "nohyphen" } });
+    getTargetLangCode();
+    expect(errorSpy).toHaveBeenCalledOnce();
+    expect(errorSpy.mock.calls[0]![0]!).toMatch(/ERR-LANG-PAIR-MALFORMED/);
+    errorSpy.mockRestore();
+  });
+
   it("returns 'it' when target segment after hyphen is empty string", () => {
     vi.stubGlobal("window", { localStorage: { getItem: () => "en-" } });
     expect(getTargetLangCode()).toBe("it");

@@ -50,14 +50,19 @@ export type LoadPackResult =
 // Shared guard for every JSON.parse(...) as Pack site in lib/packLoader.ts and
 // lib/specialtyPackLoader.ts. sha256 integrity (bytes haven't changed) and this
 // shape check (bytes are at least a valid Pack skeleton) are orthogonal — a pack
-// can pass sha256 yet have non-array units if the content-authoring pipeline
-// produced malformed JSON. Apply both checks at every parse site.
-// NOTE: this checks only that `units` is an array — it does NOT validate the
-// other required Pack fields above or individual Unit/Card element shapes.
-// Name and scope kept deliberately narrow to avoid promising validation this
-// function doesn't perform.
+// can pass sha256 yet have non-array units or malformed unit elements if the
+// content-authoring pipeline produced malformed JSON. Apply both checks at every parse site.
+// Validates: units is an array, and every element has a string id and a cards array.
+// Does NOT validate: unitCount/cardCount cross-totals, individual Card element shapes.
 export function hasValidUnitsArray(pack: Pack): boolean {
-  return Array.isArray(pack.units);
+  if (!Array.isArray(pack.units)) return false;
+  // Cast through unknown[] — pack JSON is untrusted and unit elements may not match
+  // the TypeScript type despite the outer cast, so we validate defensively.
+  return (pack.units as unknown[]).every((u) => {
+    if (u === null || typeof u !== "object") return false;
+    const unit = u as Record<string, unknown>;
+    return typeof unit.id === "string" && Array.isArray(unit.cards);
+  });
 }
 
 /**

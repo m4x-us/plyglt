@@ -21,11 +21,12 @@ const baseSrs: BackupSrs = {
 };
 
 const baseEntitlement: BackupEntitlement = {
-  licenseKey: "TEST-ABCD-1234-EFGH",
-  instanceId: "inst-00001",
-  licenseType: "subscription",
-  unlockedPacks: ["it"],
-  validUntil: 1_800_000_000_000,
+  licenseKey:      "TEST-ABCD-1234-EFGH",
+  instanceId:      "inst-00001",
+  licenseType:     "subscription",
+  unlockedPacks:   ["it"],
+  validUntil:      1_800_000_000_000,
+  purchasedAddOns: [],
 };
 
 describe("exportBackup()", () => {

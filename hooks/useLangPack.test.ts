@@ -46,7 +46,8 @@ describe("useLangPack — hook body behavioral tests", () => {
 
     expect(result.current.error).toBeNull();
     expect(result.current.units).toHaveLength(1);
-    expect(mockLoadPack).toHaveBeenCalledWith("es", null);
+    // #261: hook now threads purchasedAddOns from the entitlement store into loadPack options
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [] });
   });
 
   it("transitions to error state when loadPack returns ok: false", async () => {
@@ -64,14 +65,14 @@ describe("useLangPack — hook body behavioral tests", () => {
     const { rerender } = renderHook(() => useLangPack());
 
     await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
-    expect(mockLoadPack).toHaveBeenCalledWith("es", null);
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [] });
 
     // Switch to a different non-static language; rerender causes hook to re-read localStorage
     localStorage.setItem(LANG_PAIR_KEY, "en-pt");
     rerender();
 
     await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(2));
-    expect(mockLoadPack).toHaveBeenLastCalledWith("pt", null);
+    expect(mockLoadPack).toHaveBeenLastCalledWith("pt", null, { purchasedAddOns: [] });
   });
 
   it("loaded units match mock data — not undefined", async () => {

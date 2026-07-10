@@ -126,11 +126,15 @@ const MIGRATION_VALID_LICENSE_TYPES = new Set<LicenseType>(LICENSE_TYPES);
 const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
     const d = data as Record<string, unknown>;
+    // Element-shape guard mirrors the v3 purchasedAddOns pattern (Task #273):
+    // Array.isArray alone accepts arrays of non-strings — filter to string-only so
+    // corrupt/pre-release blobs with null/number/object elements cannot propagate.
+    const rawPacks = Array.isArray(d.unlockedPacks) ? d.unlockedPacks : [...FREE_PACK_CODES];
     return {
       licenseKey:    typeof d.licenseKey === "string" ? d.licenseKey : null,
       instanceId:    typeof d.instanceId === "string" ? d.instanceId : null,
       licenseType:   typeof d.licenseType === "string" ? d.licenseType : "free",
-      unlockedPacks: Array.isArray(d.unlockedPacks) ? d.unlockedPacks : [...FREE_PACK_CODES],
+      unlockedPacks: rawPacks.filter((item): item is string => typeof item === "string"),
       lastValidated: typeof d.lastValidated === "number" ? d.lastValidated : 0,
       validUntil:    typeof d.validUntil === "number" ? d.validUntil : null,
     };
