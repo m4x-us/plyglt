@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseBackup, CURRENT_BACKUP_VERSION } from "@/lib/importBackup";
@@ -282,6 +282,37 @@ describe("parseBackup", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.langPair).toBe("en-it");
+  });
+
+  it("#327: accepts hyphenated specialty-pack langPair (e.g. en-it-medical)", () => {
+    // The old regex /^[a-z]{2}-[a-z]{2,5}$/ rejected "en-it-medical" because the
+    // target segment "it-medical" contains a hyphen. getTargetLangCode was fixed for
+    // this same class of truncation bug (Task #262/#294); importBackup must be consistent.
+    const backup = validBackup({ langPair: "en-it-medical" });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.langPair).toBe("en-it-medical");
+  });
+
+  it("#327: accepts other hyphenated specialty-pack codes", () => {
+    const backup = validBackup({ langPair: "en-it-business" });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.langPair).toBe("en-it-business");
+  });
+
+  it("#327: logs console.error when langPair is malformed and falls back to en-it", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const backup = validBackup({ langPair: "GARBAGE" });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) { errorSpy.mockRestore(); return; }
+    expect(r.langPair).toBe("en-it");
+    expect(errorSpy).toHaveBeenCalledOnce();
+    expect(errorSpy.mock.calls[0]![0]!).toMatch(/ERR-IMPORT-LANG-PAIR/);
+    errorSpy.mockRestore();
   });
 });
 

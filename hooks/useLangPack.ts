@@ -5,7 +5,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { ALL_UNITS, UNIT_MAP as ITALIAN_UNIT_MAP } from "@/content/index";
-import { loadPack, fetchManifest, type LoadPackResult } from "@/lib/packLoader";
+import { loadPack, fetchManifest, seedMemCache, type LoadPackResult } from "@/lib/packLoader";
+import { isValidPackCode, SPECIALTY_PACKS, isReadySpecialtyPackCode } from "@/lib/langRegistry";
 
 type LoadPackError = Extract<LoadPackResult, { ok: false }>["error"];
 
@@ -50,7 +51,19 @@ export interface LangPackState {
 }
 
 export function useLangPack(): LangPackState {
-  const targetLang = getTargetLangCode();
+  // #323: validate before passing to getLanguageConfig — a corrupted LANG_PAIR_KEY produces an
+  // unrecognised code that makes getLanguageConfig log on every render. Detect once, repair the
+  // stored value (setTargetLangCode writes to localStorage immediately), and fall back to "it"
+  // for this render so the error fires at most once per corrupt value.
+  const rawTargetLang = getTargetLangCode();
+  const isKnownCode =
+    isValidPackCode(rawTargetLang) || SPECIALTY_PACKS.some(sp => sp.code === rawTargetLang);
+  if (!isKnownCode) {
+    console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "it"`);
+    setTargetLangCode("it");
+  }
+  const targetLang = isKnownCode ? rawTargetLang : "it";
+
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
   // #261: Thread purchasedAddOns into loadPack so the specialty-pack entitlement gate
   // has the current state. Zustand maintains referential stability — this only triggers
@@ -60,6 +73,11 @@ export function useLangPack(): LangPackState {
   const [state, setState] = useState<LangPackState>(() => {
     const static_ = STATIC_PACKS[targetLang];
     if (static_) {
+      // #296: seed memCache so loadSpecialtyPack's memCache.has(baseLang) precondition is
+      // satisfied for it-* specialty packs. The STATIC_PACKS early-return bypasses loadPack
+      // entirely, so without this seed memCache["it"] is never populated and all specialty
+      // packs return base_pack_not_loaded unconditionally. seedMemCache is idempotent.
+      seedMemCache(targetLang, static_.units);
       return { ...static_, lang, loading: false, error: null };
     }
     return { units: [], unitMap: {}, lang, loading: true, error: null };
@@ -78,7 +96,14 @@ export function useLangPack(): LangPackState {
           const unitMap = Object.fromEntries(units.map((u) => [u.id, u]));
           setState({ units, unitMap, lang, loading: false, error: null });
         } else {
-          setState({ units: [], unitMap: {}, lang, loading: false, error: LOAD_PACK_ERROR_MESSAGES[result.error] });
+          // #324: invalid_lang is overloaded — it covers both "code not in the allowlist" and
+          // "code is a ready specialty pack but not purchased". Surface distinct messages so a
+          // user who has a pack available to buy sees a purchase prompt rather than a dead end.
+          const errorMsg =
+            result.error === "invalid_lang" && isReadySpecialtyPackCode(targetLang)
+              ? "Add-on not purchased."
+              : LOAD_PACK_ERROR_MESSAGES[result.error];
+          setState({ units: [], unitMap: {}, lang, loading: false, error: errorMsg });
         }
       })
       .catch((e) => {

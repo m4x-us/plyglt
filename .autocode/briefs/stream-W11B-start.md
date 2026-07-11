@@ -1,10 +1,3 @@
----
-status: done
-agent: barry
-stream: W11B
-wave: 11
----
-
 # Barry — Stream W11B — Wave 11 — 2026-07-10
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
@@ -70,14 +63,14 @@ from it; do not edit it.
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** COMPLETE
+**Status:** OPEN
 
 **What:**
 Reimplements lib/packCache.ts's cache I/O layer nearly line-for-line with identical store name and key prefixes, even though packCache.ts's functions are already generic and work unmodified for specialty codes. This is the duplication anti-pattern packCache.ts (Task #275) was extracted to eliminate. at lib/specialtyPackLoader.ts:getStorage/readCacheMeta/writeCacheMeta/readCacheData/writeCacheData:21.
 NEW
 
 **Acceptance Criteria:**
-- [x] Fix code-quality issue at lib/specialtyPackLoader.ts:getStorage/readCacheMeta/writeCacheMeta/readCacheData/writeCacheData:21
+- [ ] Fix code-quality issue at lib/specialtyPackLoader.ts:getStorage/readCacheMeta/writeCacheMeta/readCacheData/writeCacheData:21
 - [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
 
 **Source:** Audit finding F005 — severity 7 — code-quality
@@ -91,7 +84,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE
+**Status:** OPEN
 
 **What:**
 9 error log call sites omit Date.now() from their ref IDs, violating Rule 8's timestamp format. The sibling files lib/packCache.ts and lib/packLoader.ts both timestamp every equivalent error. at lib/specialtyPackLoader.ts:multiple error-log call sites:45.
@@ -101,7 +94,7 @@ error-log call sites after #299 lands, and fix timestamps on whatever remains.
 NEW
 
 **Acceptance Criteria:**
-- [x] Fix error-handling issue at lib/specialtyPackLoader.ts (re-scoped to post-#299 call sites)
+- [ ] Fix error-handling issue at lib/specialtyPackLoader.ts (re-scoped to post-#299 call sites)
 - [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
 
 **Source:** Audit finding F004 — severity 3 — error-handling
@@ -115,14 +108,14 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** COMPLETE
+**Status:** OPEN
 
 **What:**
 A non-null assertion on memCache.get(baseLang) is reachable after multiple awaits inside _doLoad. Concurrent eviction during that window makes the assertion lie and throws a TypeError that propagates through the inFlight-chained promise, failing any other specialty load chained behind it. at lib/specialtyPackLoader.ts:_mergeFromJson:152.
 NEW
 
 **Acceptance Criteria:**
-- [x] Fix async issue at lib/specialtyPackLoader.ts:_mergeFromJson:152
+- [ ] Fix async issue at lib/specialtyPackLoader.ts:_mergeFromJson:152
 - [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
 
 **Source:** Audit finding F016 — severity 7 — async
@@ -136,14 +129,14 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE
+**Status:** OPEN
 
 **What:**
 The header's Inputs list omits the purchasedAddOns parameter that loadSpecialtyPack actually receives and depends on. at lib/specialtyPackLoader.ts:module header:3.
 NEW
 
 **Acceptance Criteria:**
-- [x] Fix code-quality issue at lib/specialtyPackLoader.ts:module header:3
+- [ ] Fix code-quality issue at lib/specialtyPackLoader.ts:module header:3
 - [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
 
 **Source:** Audit finding F026 — severity 3 — code-quality

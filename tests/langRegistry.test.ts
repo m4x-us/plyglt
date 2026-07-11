@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, getSpecialtyPacks, isSpecialtyPackCode } from "@/lib/langRegistry";
+import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, isSpecialtyPackCode } from "@/lib/langRegistry";
 import { ALL_KNOWN_PACKS } from "@/store/entitlementStore";
 
 describe("langRegistry — derived constants are consistent", () => {
@@ -70,12 +70,6 @@ describe("langRegistry — derived constants are consistent", () => {
 describe("SpecialtyPack registry — initial empty state", () => {
   it("SPECIALTY_PACKS is empty — no specialty content registered yet", () => {
     expect(SPECIALTY_PACKS.length).toBe(0);
-  });
-
-  it("getSpecialtyPacks returns empty array for any lang when registry is empty", () => {
-    expect(getSpecialtyPacks("it")).toEqual([]);
-    expect(getSpecialtyPacks("es")).toEqual([]);
-    expect(getSpecialtyPacks("xx")).toEqual([]);
   });
 
   it("isSpecialtyPackCode returns false for base language codes", () => {

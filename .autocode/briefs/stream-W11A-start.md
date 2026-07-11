@@ -1,10 +1,3 @@
----
-status: done
-agent: adam
-stream: W11A
-wave: 11
----
-
 # Adam — Stream W11A — Wave 11 — 2026-07-10
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
@@ -83,7 +76,7 @@ lib/importBackup.ts
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Adam: seedMemCache added to lib/packLoader.ts, called from hooks/useLangPack.ts static-pack path (Option A))
+**Status:** OPEN
 
 **What:**
 The early return for STATIC_PACKS[targetLang] means loadPack is never invoked for lang 'it' in production because Italian is served from bundled content, so memCache is never populated with an 'it' entry via any real call path. loadSpecialtyPack's precondition can never be satisfied through the real useLangPack entry point, so any it-* specialty pack always returns base_pack_not_loaded for a real user. at hooks/useLangPack.ts:useLangPack effect:69.
@@ -104,7 +97,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Adam: console.error added alongside console.warn in evictPack for specialty codes)
+**Status:** OPEN
 
 **What:**
 Silently accepts any specialty code as a no-op with only a console.warn; the function signature implies eviction always occurs, but for a specialty code it never evicts anything and still resolves successfully. at lib/packLoader.ts:evictPack:249.
@@ -125,7 +118,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Adam: corrupted rawTargetLang detected + repaired via setTargetLangCode("it") in useLangPack)
+**Status:** OPEN
 
 **What:**
 getTargetLangCode can return an arbitrary hyphen-suffix string from a corrupted stored value; getLanguageConfig falls back to ITALIAN and logs on every render where targetLang changes, producing continuous console-error spam rather than a one-time repair. at hooks/useLangPack.ts:LOAD_PACK_ERROR_MESSAGES usage / getLanguageConfig:16.
@@ -146,7 +139,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Adam: invalid_lang disambiguated via isReadySpecialtyPackCode — "Add-on not purchased." message)
+**Status:** OPEN
 
 **What:**
 invalid_lang is now returned for two semantically unrelated conditions: an unregistered/unready pack code, and a registered ready unpurchased specialty pack. Both surface identically as 'Pack not available'. at hooks/useLangPack.ts:LOAD_PACK_ERROR_MESSAGES:16.

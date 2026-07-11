@@ -8,8 +8,8 @@
 // ===========================================
 // DEPENDS ON: @/lib/language (LanguageConfig, ITALIAN, SPANISH)
 // USED BY: store/entitlementStore.ts, lib/entitlement.ts, lib/importBackup.ts,
-//          store/migrations.ts, lib/packLoader.ts, app/settings/page.tsx,
-//          app/learn/page.tsx, app/study/page.tsx, components/LanguageGrid.tsx,
+//          store/migrations.ts, lib/packLoader.ts, lib/specialtyPackLoader.ts,
+//          components/LanguageGrid.tsx,
 //          LANG_CONFIG_MAP → (any component rendering language UI)
 // ===========================================
 
@@ -79,24 +79,21 @@ export interface SpecialtyPack {
 // with ready:false, then set ready:true once the pack file and pricing are live.
 export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([]);
 
-/** Returns all specialty packs for a given base language code. */
-export function getSpecialtyPacks(lang: string): SpecialtyPack[] {
-  return SPECIALTY_PACKS.filter(sp => sp.baseLang === lang);
-}
-
 /**
- * Returns true iff s is a registered specialty pack code (any readiness state).
- * Does NOT check .ready — use isReadySpecialtyPackCode for loadability checks.
+ * Returns true iff s is a registered AND ready specialty pack code.
+ * Used by purchaseAddOn as the sole code-validity gate before persisting into
+ * purchasedAddOns (which has no removal path). Requiring .ready prevents a
+ * registered-but-not-yet-shipped pack from being purchased and permanently stored.
  */
 export function isSpecialtyPackCode(s: string): boolean {
-  return SPECIALTY_PACKS.some(sp => sp.code === s);
+  return SPECIALTY_PACKS.some(sp => sp.code === s && sp.ready);
 }
 
 /**
  * Returns true iff s is a registered AND ready specialty pack code.
  * Use for security-sensitive loadability checks (mirrors READY_PACK_CODES for base packs).
- * packLoader's inline `SPECIALTY_PACKS.some(sp => sp.code === lang && sp.ready)` check
- * should delegate here — isSpecialtyPackCode alone does not imply the pack is loadable.
+ * packLoader delegates to this function for its specialty-pack loadability gate,
+ * replacing its former inline SPECIALTY_PACKS.some(...) check (Task #266).
  */
 export function isReadySpecialtyPackCode(s: string): boolean {
   return SPECIALTY_PACKS.some(sp => sp.code === s && sp.ready);

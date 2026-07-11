@@ -1,6 +1,6 @@
 /**
  * specialtyPackLoader — loads and merges specialty packs into their base language pack.
- * Inputs: specialty pack code, base language memCache, manifest.
+ * Inputs: specialty pack code, base language memCache, manifest, purchasedAddOns.
  * Outputs: merged memCache[baseLang] with specialty cards appended; loadedAddOns updated.
  * Called by: lib/packLoader.ts (specialty branch of loadPack).
  * Side effects: fetch() I/O, memCache mutation, loadedAddOns mutation, platform storage writes.
@@ -11,71 +11,14 @@ import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Pack, LoadPackResult, Manifest, PackMemCache, PackMeta } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
-import { createPlatformStorage } from "@/lib/storage";
-
-// ── Platform storage ──────────────────────────────────────────────────────────
-// Same store name and key prefix convention as packLoader.ts — specialty pack keys
-// (e.g. "pack-data-v1-it-medical") coexist with base pack keys ("pack-data-v1-it")
-// in the same underlying Tauri Store file / localStorage origin. (#269)
-
-const CACHE_META_PREFIX = "pack-meta-v1-";
-const CACHE_DATA_PREFIX = "pack-data-v1-";
-
-interface CachedPackMeta {
-  version: string;
-  sha256: string;
-  cachedAt: number;
-}
-
-let _storage: ReturnType<typeof createPlatformStorage> | null = null;
-
-function getSpecialtyStorage() {
-  if (!_storage) {
-    _storage = createPlatformStorage("pack-cache");
-  }
-  return _storage;
-}
-
-async function readSpecialtyCacheMeta(lang: string): Promise<CachedPackMeta | null> {
-  try {
-    const raw = await getSpecialtyStorage().getItem(CACHE_META_PREFIX + lang);
-    if (!raw) return null;
-    return JSON.parse(raw) as CachedPackMeta;
-  } catch (err) {
-    console.error(`[ERR-ADDON-CACHE-META-${lang}]`, err);
-    return null;
-  }
-}
-
-async function readSpecialtyCacheData(lang: string): Promise<string | null> {
-  try {
-    return await getSpecialtyStorage().getItem(CACHE_DATA_PREFIX + lang);
-  } catch (err) {
-    console.error(`[ERR-ADDON-CACHE-DATA-${lang}]`, err);
-    return null;
-  }
-}
-
-async function writeSpecialtyCacheMeta(lang: string, meta: CachedPackMeta): Promise<void> {
-  await getSpecialtyStorage().setItem(CACHE_META_PREFIX + lang, JSON.stringify(meta));
-}
-
-async function writeSpecialtyCacheData(lang: string, json: string): Promise<void> {
-  await getSpecialtyStorage().setItem(CACHE_DATA_PREFIX + lang, json);
-}
-
-async function clearSpecialtyCacheEntry(lang: string): Promise<void> {
-  const [metaResult, dataResult] = await Promise.allSettled([
-    getSpecialtyStorage().removeItem(CACHE_META_PREFIX + lang),
-    getSpecialtyStorage().removeItem(CACHE_DATA_PREFIX + lang),
-  ]);
-  if (metaResult.status === "rejected") {
-    console.error(`[ERR-ADDON-CACHE-CLEAR-META-${lang}]`, metaResult.reason);
-  }
-  if (dataResult.status === "rejected") {
-    console.error(`[ERR-ADDON-CACHE-CLEAR-DATA-${lang}]`, dataResult.reason);
-  }
-}
+import {
+  readCacheMeta,
+  writeCacheMeta,
+  readCacheData,
+  writeCacheData,
+  clearPackCache,
+  type CachedPackMeta,
+} from "@/lib/packCache";
 
 // ── In-memory tracking ────────────────────────────────────────────────────────
 
@@ -100,13 +43,14 @@ export function getLoadedAddOns(): string[] {
 }
 
 /**
- * Resets specialty add-on tracking state and storage singleton.
+ * Resets specialty add-on tracking state.
  * @internal Called by packLoader.clearCacheForTesting — do not call directly in application code.
  */
 export function clearSpecialtyCache(): void {
   loadedAddOns.length = 0;
   inFlight.clear();
-  _storage = null;
+  // Platform storage singleton is owned by lib/packCache.ts; reset happens via
+  // packLoader.clearCacheForTesting → clearPackCacheState.
 }
 
 /**
@@ -140,16 +84,25 @@ async function _mergeFromJson(
   try {
     addOnPack = JSON.parse(json) as Pack;
   } catch (err) {
-    console.error(`[ADDON_PARSE_FAIL-${lang}]`, err);
+    console.error(`[ADDON_PARSE_FAIL-${lang}-${Date.now()}]`, err);
     return { ok: false, error: "parse_error" };
   }
   if (!hasValidUnitsArray(addOnPack)) {
-    console.error(`[SHAPE_INVALID_FAIL-${lang}] add-on pack failed hasValidUnitsArray`);
+    console.error(`[SHAPE_INVALID_FAIL-${lang}-${Date.now()}] add-on pack failed hasValidUnitsArray`);
     return { ok: false, error: "parse_error" };
   }
 
+  // Task #310: guard against concurrent eviction of the base pack between the point where
+  // loadSpecialtyPack checked memCache.has(baseLang) and the point where _doLoad runs
+  // (after any prior in-flight serialization resolves). A non-null assertion here is a lie
+  // if evictPack runs in that window; the thrown TypeError propagates through the inFlight-
+  // chained promise and silently fails any other load chained behind it.
+  const base = memCache.get(baseLang);
+  if (!base) {
+    return { ok: false, error: "base_pack_not_loaded" };
+  }
+
   // Merge add-on units into the base pack — additive, never removes base units.
-  const base = memCache.get(baseLang)!;
   const merged: Pack = {
     ...base,
     units:     [...base.units, ...addOnPack.units],
@@ -165,14 +118,14 @@ async function _mergeFromJson(
   if (manifestEntry) {
     // Persist the verified bytes so subsequent sessions don't re-download. (#269)
     try {
-      await writeSpecialtyCacheData(lang, json);
-      await writeSpecialtyCacheMeta(lang, {
+      await writeCacheData(lang, json);
+      await writeCacheMeta(lang, {
         version:  manifestEntry.version,
         sha256:   manifestEntry.sha256,
         cachedAt: Date.now(),
-      });
+      } satisfies CachedPackMeta);
     } catch (err) {
-      console.error(`[ADDON_CACHE_WRITE_FAIL-${lang}] Storage write failed — pack available this session only:`, err);
+      console.error(`[ADDON_CACHE_WRITE_FAIL-${lang}-${Date.now()}] Storage write failed — pack available this session only:`, err);
     }
   }
 
@@ -193,8 +146,8 @@ async function _doLoad(
 
   // Read specialty pack cache from platform storage. (#269: add-ons now have their own keys)
   const [cachedMeta, initialCachedData] = await Promise.all([
-    readSpecialtyCacheMeta(lang),
-    readSpecialtyCacheData(lang),
+    readCacheMeta(lang),
+    readCacheData(lang),
   ]);
   let cachedData: string | null = initialCachedData;
 
@@ -212,13 +165,13 @@ async function _doLoad(
         const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null);
         if (result.ok) return result;
         // Parse/shape failure — evict corrupted cache and fall through to re-download.
-        await clearSpecialtyCacheEntry(lang);
+        await clearPackCache(lang);
         cachedData = null;
       } else {
         // Hash mismatch — evict corrupted cache entry, re-download below.
         // A003: null out cachedData so the integrity-failed bytes can't be served as stale
         // fallback on the offline path below (mirrors packLoader.ts's A003 for base packs).
-        await clearSpecialtyCacheEntry(lang);
+        await clearPackCache(lang);
         cachedData = null;
       }
     } else {
@@ -227,7 +180,7 @@ async function _doLoad(
       const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null);
       if (result.ok) return result;
       // Parse/shape failure — evict and fall through.
-      await clearSpecialtyCacheEntry(lang);
+      await clearPackCache(lang);
     }
   }
 
@@ -240,7 +193,7 @@ async function _doLoad(
     if (cachedData) {
       return _mergeFromJson(lang, baseLang, memCache, cachedData, null);
     }
-    console.error(`[ADDON_NO_MANIFEST-${lang}] specialty pack absent from manifest — rejecting to prevent unverified merge`);
+    console.error(`[ADDON_NO_MANIFEST-${lang}-${Date.now()}] specialty pack absent from manifest — rejecting to prevent unverified merge`);
     return { ok: false, error: "checksum_mismatch" };
   }
 
@@ -255,7 +208,7 @@ async function _doLoad(
     }
     addOnJson = await res.text();
   } catch (err) {
-    console.error(`[ADDON_DOWNLOAD_FAIL-${lang}]`, err);
+    console.error(`[ADDON_DOWNLOAD_FAIL-${lang}-${Date.now()}]`, err);
     if (cachedData) return _mergeFromJson(lang, baseLang, memCache, cachedData, null);
     return { ok: false, error: "download_failed" };
   }
@@ -291,8 +244,13 @@ async function _doLoad(
  * code is added to loadedAddOns. The verified bytes are also persisted to platform storage
  * under the specialty code's own keys so subsequent sessions skip the re-download. (#269)
  * Subsequent calls for the same code return the already-merged base pack immediately.
+ *
+ * Non-async: this function is deliberately not declared `async` so that the same-code dedup
+ * path (`return existingForCode`) returns the exact same Promise reference rather than a new
+ * async wrapper. This enables callers to observe promise reference equality for concurrent
+ * same-code loads, which `async function` would prevent even with an in-flight guard. (#321)
  */
-export async function loadSpecialtyPack(
+export function loadSpecialtyPack(
   lang: string,
   memCache: PackMemCache,
   manifest: Manifest | null,
@@ -302,7 +260,7 @@ export async function loadSpecialtyPack(
   // Returns a typed LoadPackResult error instead of throwing a raw TypeError on .baseLang access.
   const spec = SPECIALTY_PACKS.find(sp => sp.code === lang && sp.ready);
   if (!spec) {
-    return { ok: false, error: "invalid_lang" };
+    return Promise.resolve({ ok: false, error: "invalid_lang" });
   }
 
   // #261: Client-side entitlement gate. "client-only, honour-system" (CLAUDE.md §5) means no
@@ -310,19 +268,23 @@ export async function loadSpecialtyPack(
   // purchasedAddOns state. Without this check, any user can load any specialty pack for free
   // by calling loadPack directly with a registered specialty code.
   if (!purchasedAddOns.includes(lang)) {
-    return { ok: false, error: "invalid_lang" };
+    return Promise.resolve({ ok: false, error: "invalid_lang" });
   }
 
   if (!memCache.has(spec.baseLang)) {
-    return { ok: false, error: "base_pack_not_loaded" };
+    return Promise.resolve({ ok: false, error: "base_pack_not_loaded" });
   }
 
   // Already merged this session — return the base pack (which has merged units).
   if (loadedAddOns.includes(lang)) {
-    return { ok: true, pack: memCache.get(spec.baseLang)! };
+    return Promise.resolve({ ok: true, pack: memCache.get(spec.baseLang)! });
   }
 
-  // Same-code dedup: return the in-flight promise if this code is already loading.
+  // Same-code dedup: return the SAME in-flight promise reference if this code is already loading.
+  // This function is non-async precisely so that `return existingForCode` returns the exact same
+  // Promise object — an async function would always wrap it in a new Promise. loadPack's
+  // `return loadSpecialtyPack(...)` (also a direct return in a non-async specialtyPack call)
+  // passes the reference through to the caller, making p1 === p2 for concurrent same-code loads.
   const existingForCode = inFlight.get(lang);
   if (existingForCode) return existingForCode;
 

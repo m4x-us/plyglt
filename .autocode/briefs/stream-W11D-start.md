@@ -1,10 +1,3 @@
----
-status: done
-agent: derek
-stream: W11D
-wave: 11
----
-
 # Derek — Stream W11D — Wave 11 — 2026-07-10
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
@@ -63,7 +56,7 @@ lib/langRegistry.ts
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN — reopened 2026-07-10 (Wave 11 — Derek's completion.md claimed this COMPLETE with fabricated detail; verified via grep that store/entitlementStore.ts:157's hasAddOn is unchanged from before the wave. See cto.md Open Escalations #13.)
+**Status:** OPEN
 
 **What:**
 lib/entitlement.ts's hasAddOn doc comment directs this action to delegate rather than duplicate; instead it independently reimplements the identical check. lib/entitlement.ts's own hasAddOn has zero callers outside tests/. at store/entitlementStore.ts:hasAddOn:157.
@@ -84,7 +77,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Derek: tests/entitlementStoreEventWiring.test.ts (new) dispatches real StorageEvent on window)
+**Status:** OPEN
 
 **What:**
 The real production addEventListener('storage', ...) registration is never exercised by any test; all tests call the handler directly as a plain function and never dispatch a real StorageEvent on window. Violates Rule 20a. at store/entitlementStore.ts:_handleCrossTabStorageEvent:216.
@@ -105,7 +98,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN — reopened 2026-07-10 (Wave 11 — Derek's completion.md claimed this COMPLETE with fabricated detail; verified via grep that lib/featureFlags.ts has no specialtyPacks field and components/LanguageGrid.tsx:33 still uses the old inline check. See cto.md Open Escalations #13.)
+**Status:** OPEN
 
 **What:**
 NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS bypasses the canonical lib/featureFlags.ts module: not added to FeatureFlags/getFeatureFlags(), and parses the raw env var inline instead of the shared parseFlag(), which treats 'false'/'0'/'off'/'no' as disabled. Setting this flag to 'off' or '0' silently does nothing. at components/LanguageGrid.tsx:specialtyPacksEnabled:29.
@@ -126,7 +119,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN — reopened 2026-07-10 (Wave 11 — Derek's completion.md claimed this COMPLETE with fabricated detail; verified via grep that lib/packTypes.ts's hasValidUnitsArray is unchanged. See cto.md Open Escalations #13.)
+**Status:** OPEN
 
 **What:**
 Validates only that units is an array, each unit is an object, unit.id is a string, and unit.cards is an array. Downstream code accesses many more fields never checked, and card array elements' shapes are never validated at all. at lib/packTypes.ts:hasValidUnitsArray:57.
@@ -147,7 +140,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN — reopened 2026-07-10 (Wave 11 — Derek's completion.md claimed this COMPLETE with fabricated detail; verified via git diff that tests/packLoader.test.ts has zero changes. Note: Barry (W11B) made loadSpecialtyPack non-async as prep work toward this fix, but the test itself still needs rewriting. See cto.md Open Escalations #13.)
+**Status:** OPEN
 
 **What:**
 Deleting the same-code in-flight short-circuit does not fail this test, because the independently-present cross-code serialization mechanism produces the identical observable result even with the same-code check deleted. at tests/packLoader.test.ts:#264 same-code: two concurrent loads issue only one fetch:1019.
@@ -168,7 +161,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** COMPLETE — 2026-07-10 (Wave 11 — Derek: importBackup.ts langPair regex fixed for hyphenated specialty codes + console.error added)
+**Status:** OPEN
 
 **What:**
 The langPair restore regex was not updated for hyphenated specialty codes even though the sibling parser getTargetLangCode was specifically fixed for this same truncation bug in this batch. A backup restore for a user with an active specialty-pack selection silently resets to en-it with no console.error. at lib/importBackup.ts:parseBackup (langPair restore):128.

@@ -29,7 +29,8 @@
  * 400-line service cap — Rule 1, AGENTS.md/philosophy.md).
  */
 
-import { READY_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, type PackCode } from "@/lib/langRegistry";
+import { READY_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP, type PackCode } from "@/lib/langRegistry";
+import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
@@ -226,6 +227,41 @@ export async function loadPack(
 }
 
 /**
+ * Seeds memCache with a synthetic Pack built from statically-bundled units.
+ *
+ * Italian (lang="it") is served from STATIC_PACKS in useLangPack.ts, bypassing loadPack
+ * entirely — so memCache never gets an "it" entry via the normal load path. Without this
+ * seed, loadSpecialtyPack's memCache.has(baseLang) precondition can never be satisfied for
+ * any it-* specialty pack, making the entire specialty-pack architecture unreachable for the
+ * only language that currently has content. (#296 — Option A chosen over Option B: Option B
+ * would redesign loadSpecialtyPack's precondition inside lib/specialtyPackLoader.ts, which
+ * is more invasive and harder to reason about; Option A seeds memCache as a cheap side-effect
+ * of the existing static-pack fast path, leaving specialtyPackLoader.ts's contract unchanged.)
+ *
+ * Idempotent: no-ops when lang is already in memCache (a network-loaded entry must not be
+ * overwritten by this synthetic one — whichever path populated memCache first is authoritative).
+ *
+ * Called by: hooks/useLangPack.ts — in the useState initializer for static-pack languages.
+ */
+export function seedMemCache(lang: string, units: Unit[]): void {
+  if (memCache.has(lang)) return;
+  const config = LANG_CONFIG_MAP[lang] as (typeof LANG_CONFIG_MAP)[string] | undefined;
+  const pack: Pack = {
+    _version: 1,
+    lang,
+    packVersion: "static",
+    canonicalSource: "en",
+    name:       config?.name       ?? lang,
+    nativeName: config?.nativeName ?? lang,
+    flag:       config?.flag       ?? "",
+    unitCount: units.length,
+    cardCount: units.reduce((acc, u) => acc + u.cards.length, 0),
+    units,
+  };
+  memCache.write(lang, pack);
+}
+
+/**
  * Returns the list of base language codes loaded in the current session.
  * Safe: base pack entries in memCache are only written via loadPack(), which validates
  * against READY_PACK_CODES — so this can never return an unregistered or unready code.
@@ -245,6 +281,11 @@ export function getInstalledPacks(): PackCode[] {
  * evict its base language pack (which prunes it via clearPackCache → clearSpecialtyPacksForLang).
  * Unregistered codes are also rejected to prevent clearPackCache from operating on poisoned
  * storage key namespaces. (#268)
+ *
+ * ⚠ Specialty code caller contract (#325): the returned Promise ALWAYS resolves — no throw,
+ * no rejection. Nothing is evicted. Pass the base language code instead (e.g. evictPack("it")
+ * to clear all "it-medical" units). Callers must not infer that eviction occurred from a
+ * fulfilled promise alone when the input was a specialty code.
  */
 export async function evictPack(lang: string): Promise<void> {
   if (!isValidPackCode(lang)) {
@@ -254,6 +295,8 @@ export async function evictPack(lang: string): Promise<void> {
     const match = SPECIALTY_PACKS.find(sp => sp.code === lang);
     if (match) {
       console.warn(`[evictPack] "${lang}" is a specialty pack — cannot be evicted individually; evict the base language pack ("${match.baseLang}") instead`);
+      // #325: escalate to error — fulfilled promise + no eviction is a silent contract violation.
+      console.error(`[ERR-EVICT-SPECIALTY-${lang}-${Date.now()}] evictPack("${lang}") resolved without evicting anything; call evictPack("${match.baseLang}") to clear specialty units`);
     }
     return;
   }

@@ -123,9 +123,13 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   };
 
   // v1 backups pre-date the langPair field — default to Italian (the only language at v1).
-  // Validate format: must be two lowercase ISO codes separated by a hyphen.
+  // Validate format: base pair (en-it) or hyphenated specialty code (en-it-medical).
   const rawLangPair = typeof data.langPair === "string" ? data.langPair : "en-it";
-  const langPair = /^[a-z]{2}-[a-z]{2,5}$/.test(rawLangPair) ? rawLangPair : "en-it";
+  const LANG_PAIR_RE = /^[a-z]{2}-[a-z]{2,}(-[a-z]{2,})*$/;
+  if (!LANG_PAIR_RE.test(rawLangPair) && rawLangPair !== "en-it") {
+    console.error(`[ERR-IMPORT-LANG-PAIR] Backup langPair "${rawLangPair}" did not match expected format — falling back to "en-it".`);
+  }
+  const langPair = LANG_PAIR_RE.test(rawLangPair) ? rawLangPair : "en-it";
 
   return { ok: true, srs, entitlement, langPair, validCardCount, skippedCardCount };
 }
