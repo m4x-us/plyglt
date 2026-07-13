@@ -79,7 +79,9 @@ export function useLicenseActivation() {
         setLicenseStatus({ type: "error", message: result.error });
         return; // Do NOT clear entitlement — the license slot is still occupied
       }
-      clearEntitlement();
+      // Task #326: clearEntitlement now returns a Promise so the specialty-content
+      // memCache eviction is guaranteed to complete before this handler resolves.
+      await clearEntitlement();
       setLicenseStatus({ type: "idle" });
     } catch (err) {
       console.error(`[ERR-LICENSE-DEACTIVATE-${Date.now()}] deactivateLicense threw unexpectedly`, err);

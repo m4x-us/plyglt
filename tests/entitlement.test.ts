@@ -12,21 +12,61 @@
 // ===========================================
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR } from "@/store/entitlementStore";
 import type { PurchaseAddOnResult } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
 import { ALL_PACK_CODES, FREE_PACK_CODES, isSpecialtyPackCode } from "@/lib/langRegistry";
+import type { SpecialtyPack } from "@/lib/langRegistry";
 import * as specialtyPackLoader from "@/lib/specialtyPackLoader";
+import { memCache } from "@/lib/packCache";
+import type { Pack, Manifest } from "@/lib/packTypes";
+
+// ── localStorage + Web Crypto stubs (mirrors tests/packLoader.test.ts) ────────
+// Needed only by the #326 storage-key-ordering integration test below, which drives a
+// real loadPack/loadSpecialtyPack round trip through lib/packCache.ts's storage layer.
+const localStorageStore: Record<string, string> = {};
+const localStorageMock: Storage = {
+  getItem:    (key)        => localStorageStore[key] ?? null,
+  setItem:    (key, value) => { localStorageStore[key] = value; },
+  removeItem: (key)        => { delete localStorageStore[key]; },
+  clear:      ()           => { for (const k in localStorageStore) delete localStorageStore[k]; },
+  key:        (i)          => Object.keys(localStorageStore)[i] ?? null,
+  get length()             { return Object.keys(localStorageStore).length; },
+};
+vi.stubGlobal("window", { localStorage: localStorageMock });
+vi.stubGlobal("crypto", {
+  subtle: {
+    digest: async (_algorithm: string, data: ArrayBuffer): Promise<ArrayBuffer> => {
+      const hash = createHash("sha256").update(Buffer.from(data)).digest();
+      return hash.buffer as ArrayBuffer;
+    },
+  },
+});
 
 vi.mock("@/lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/tauri")>();
   return { ...actual, invoke: vi.fn() };
 });
+// mockSpecialtyPacksForClearEntitlement is mutated only by the #326 tests below and reset
+// to [] in the global beforeEach — all other tests in this file run with SPECIALTY_PACKS=[]
+// (the real production default) exactly as before this task.
+const mockSpecialtyPacksForClearEntitlement = vi.hoisted<SpecialtyPack[]>(() => []);
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
-  return { ...actual, isSpecialtyPackCode: vi.fn() };
+  return {
+    ...actual,
+    isSpecialtyPackCode: vi.fn(),
+    SPECIALTY_PACKS: mockSpecialtyPacksForClearEntitlement,
+    isReadySpecialtyPackCode: (s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready),
+  };
+});
+vi.mock("@/lib/packLoader", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/packLoader")>();
+  return { ...actual, getLoadedAddOns: vi.fn(actual.getLoadedAddOns) };
 });
 import { invoke } from "@/lib/tauri";
+import { loadPack, getLoadedAddOns } from "@/lib/packLoader";
 import { activateLicense, validateLicense, deactivateLicense } from "@/lib/entitlement";
 const mockInvoke = vi.mocked(invoke);
 
@@ -51,7 +91,12 @@ function reset(overrides: Partial<EntitlementStateOnly> = {}) {
   });
 }
 
-beforeEach(() => reset());
+beforeEach(() => {
+  reset();
+  mockSpecialtyPacksForClearEntitlement.length = 0;
+  memCache.clear();
+  localStorageMock.clear();
+});
 
 // ── BRAND.md compliance — subscription-only model ─────────────────────────────
 // These tests enforce BRAND.md: subscriptions are recurring-only; no permanent access purchases.
@@ -1043,14 +1088,107 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     expect(store().purchasedAddOns).toEqual([]);
   });
 
-  it("#263: clearEntitlement calls clearSpecialtyCache to prune in-memory add-on state", () => {
+  it("#263: clearEntitlement calls clearSpecialtyCache to prune in-memory add-on state", async () => {
     // Without this fix, clearEntitlement only zeros purchasedAddOns in the Zustand store
     // but never clears loadedAddOns in specialtyPackLoader — specialty content merged into
     // memCache remains accessible for the rest of the session after a license deactivation.
+    // Task #326: clearSpecialtyCache() now runs after the memCache eviction Promise settles
+    // (not synchronously) so that eviction's own storage-key pruning can still see the
+    // bookkeeping — this test must await clearEntitlement() to observe that call.
     const spy = vi.spyOn(specialtyPackLoader, "clearSpecialtyCache");
-    store().clearEntitlement();
+    await store().clearEntitlement();
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
+  });
+
+  it("#326: clearEntitlement evicts merged specialty content from memCache, not just bookkeeping", async () => {
+    // Before this fix, clearSpecialtyCache() (proven above) only reset loadedAddOns/inFlight
+    // bookkeeping — the actual merged pack (base units + specialty units) remained in
+    // memCache["it"], fully accessible via loadPack's memory-cache-hit fast path for the
+    // rest of the session. Deleting the eviction loop this test proves would leave
+    // memCache.has("it") true after clearEntitlement, and this test would fail.
+    mockSpecialtyPacksForClearEntitlement.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    const mergedPack: Pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    };
+    memCache.write("it", mergedPack);
+    vi.mocked(getLoadedAddOns).mockReturnValueOnce(["it-medical"]);
+
+    expect(memCache.has("it")).toBe(true); // sanity check: merged pack is present before the fix runs
+
+    await store().clearEntitlement();
+
+    expect(memCache.has("it")).toBe(false);
+  });
+
+  it("#326: clearEntitlement is a no-op on memCache when no specialty content was ever merged", async () => {
+    // Regression guard for the common case: a user with no specialty purchases deactivating
+    // should not have their base pack evicted from memCache — only affected base languages
+    // (per getLoadedAddOns) are targeted.
+    const basePack: Pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    };
+    memCache.write("it", basePack);
+    vi.mocked(getLoadedAddOns).mockReturnValueOnce([]);
+
+    await store().clearEntitlement();
+
+    expect(memCache.has("it")).toBe(true);
+  });
+
+  it("#326: clearEntitlement clears a merged specialty pack's own storage keys too, not just memCache", async () => {
+    // Regression guard for an ordering bug caught in review: clearEntitlement must call
+    // evictPack() (which internally prunes specialty storage keys via
+    // clearSpecialtyPacksForLang) BEFORE clearSpecialtyCache() zeroes the loadedAddOns
+    // array that lookup depends on. Reordering those two calls makes
+    // clearSpecialtyPacksForLang find nothing to prune, and this test's second assertion
+    // fails while memCache eviction (already proven above) still passes — the two
+    // guarantees are independent and both must hold.
+    mockSpecialtyPacksForClearEntitlement.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+
+    const basePackJson = JSON.stringify({
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    } satisfies Pack);
+    const addOnPackJson = JSON.stringify({
+      _version: 1, lang: "it-medical", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    } satisfies Pack);
+    const baseSha = createHash("sha256").update(basePackJson).digest("hex");
+    const addOnSha = createHash("sha256").update(addOnPackJson).digest("hex");
+    const manifest: Manifest = {
+      _version: 1,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      packs: {
+        it:          { name: "Italian",        nativeName: "Italiano",        flag: "🇮🇹", version: "1.0.0", size: basePackJson.length, sha256: baseSha },
+        "it-medical": { name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹", version: "1.0.0", size: addOnPackJson.length, sha256: addOnSha },
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => ({
+      ok: true,
+      text: async () => (url.includes("it-medical") ? addOnPackJson : basePackJson),
+    })));
+
+    // Real end-to-end merge: base pack loads and caches, then the specialty add-on merges
+    // into it and persists its own pack-meta-v1-it-medical / pack-data-v1-it-medical keys.
+    await loadPack("it", manifest);
+    const addOnResult = await loadPack("it-medical", manifest, { purchasedAddOns: ["it-medical"] });
+    expect(addOnResult.ok).toBe(true);
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBe(addOnPackJson);
+    const cachedMeta = JSON.parse(localStorageMock.getItem("pack-meta-v1-it-medical")!) as { sha256: string };
+    expect(cachedMeta.sha256).toBe(addOnSha);
+
+    await store().clearEntitlement();
+
+    expect(memCache.has("it")).toBe(false);
+    expect(localStorageMock.getItem("pack-meta-v1-it-medical")).toBeNull();
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBeNull();
   });
 
   // ── Task #287: code-argument validation ──────────────────────────────────────

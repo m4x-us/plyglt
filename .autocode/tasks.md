@@ -2822,10 +2822,10 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 37 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 37 tasks | [TASKS COMPLETE — pending re-audit to close remediation gate]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
-Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below. Wave 11 closed 14 of the 18 tasks it attempted; #300, #306, #316, #321 were falsely reported complete by one stream and remain OPEN (see cto.md escalation). Gate stays open until a later "/audit batch 12" run PASSes.
+Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below. All 37 tasks now COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326). Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
 Theme: Extend the pack registry, entitlement model, pack loader, and UI to support the concept of sub-packs within a language — so adding a real specialty pack later requires only content and a pricing entry, not architectural changes.
 
 ### Task #147 | architecture | severity 6
@@ -3528,11 +3528,11 @@ NEW
 ### Task #326: Fix security: The claim that clearEntitlement clears in-memory specialty pack state after deactivation i
 
 **File:** Multiple — see What (store/entitlementStore.ts's clearEntitlement needs to actually evict merged specialty content from memCache, which requires calling into lib/packLoader.ts's or lib/packCache.ts's eviction path rather than only resetting clearSpecialtyCache's bookkeeping arrays)
-**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix
+**Complexity:** 🔧 Full — re-classified 2026-07-13 by /task Gate 1: File field is "Multiple" and the fix is a functional security change (memCache eviction on deactivation), not cosmetic
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (clearEntitlement now evicts affected base packs from memCache + their specialty storage keys via evictPack before the final clearSpecialtyCache() sweep; independent review caught and fixed a real ordering bug in the first draft that would have defeated #319's storage-key pruning; clearEntitlement is now () => Promise<void>, awaited by its one caller. 2 lower-severity findings logged to debt.md.)
 
 **What:**
 The claim that clearEntitlement clears in-memory specialty pack state after deactivation is false -- clearSpecialtyCache only resets bookkeeping arrays, never touches memCache. A deactivated user's session retains full access to previously-merged specialty content via loadPack's memory-cache-hit fast path, which never consults purchasedAddOns. at store/entitlementStore.ts:clearEntitlement:129.

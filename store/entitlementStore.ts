@@ -6,7 +6,7 @@
 // which language packs are unlocked, and validation timestamps.
 // ===========================================
 // DEPENDS ON: zustand, @/lib/storage, @/store/migrations,
-//             @/lib/langRegistry, @/lib/entitlement
+//             @/lib/langRegistry, @/lib/entitlement, @/lib/packLoader
 // USED BY: app/settings/page.tsx, components/EntitlementValidator.tsx,
 //          app/learn/page.tsx, app/study/page.tsx
 // ===========================================
@@ -15,8 +15,9 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
-import { FREE_PACK_CODES, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
 import { clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+import { evictPack, getLoadedAddOns } from "@/lib/packLoader";
 import { invoke } from "@/lib/tauri";
 import { hasAddOn as libHasAddOn } from "@/lib/entitlement";
 
@@ -85,7 +86,11 @@ interface EntitlementState {
     unlockedPacks: PackCode[];
     validUntil: number | null;
   }) => void;
-  clearEntitlement: () => void;
+  // Task #326: returns a Promise so callers that need to know the specialty-content
+  // eviction has genuinely completed (not just fired) can await it. The synchronous
+  // state reset (licenseKey, purchasedAddOns, etc.) still happens before this Promise
+  // resolves — callers observe that immediately regardless of whether they await.
+  clearEntitlement: () => Promise<void>;
   markValidated: (validUntil: number | null) => void;
   touchValidated: () => void;
 
@@ -141,11 +146,19 @@ export const useEntitlementStore = create<EntitlementState>()(
       setEntitlement: (data) => set({ ...data, lastValidated: Date.now() }),
 
       clearEntitlement: () => {
-        // Clear the in-memory specialty pack state so that already-merged add-on
-        // content is not accessible after a license deactivation. Without this,
-        // deactivating mid-session leaves specialty units in memCache for the
-        // remainder of the session. (Task #263)
-        clearSpecialtyCache();
+        // Task #326: clearSpecialtyCache() only resets loadedAddOns/inFlight bookkeeping —
+        // it never touches memCache. Without evicting the affected base packs too, a
+        // deactivated user's session retains full access to previously-merged specialty
+        // content via loadPack's memory-cache-hit fast path, which never consults
+        // purchasedAddOns. Capture the affected base languages BEFORE anything mutates
+        // getLoadedAddOns()'s underlying bookkeeping.
+        const affectedBaseLangs = new Set(
+          getLoadedAddOns()
+            .map(code => SPECIALTY_PACKS.find(sp => sp.code === code)?.baseLang)
+            .filter((lang): lang is PackCode => lang !== undefined)
+        );
+        // Reset observable state synchronously — callers that don't await the returned
+        // Promise still see licenseKey/purchasedAddOns/etc. cleared immediately.
         set({
           licenseKey: null,
           instanceId: null,
@@ -154,6 +167,29 @@ export const useEntitlementStore = create<EntitlementState>()(
           purchasedAddOns: [],
           lastValidated: 0,
           validUntil: null,
+        });
+        // Evict each affected base pack from memCache — and, critically, run this BEFORE
+        // clearSpecialtyCache() below. evictPack's clearPackCache internally calls
+        // clearSpecialtyPacksForLang(baseLang) to find which specialty codes to also purge
+        // from their own persisted storage keys (Task #319); that lookup reads the same
+        // loadedAddOns array clearSpecialtyCache() zeroes. Clearing bookkeeping first would
+        // make clearSpecialtyPacksForLang find nothing, silently defeating #319's storage-
+        // key eviction for every deactivation — caught in review before this shipped.
+        // Returned as a Promise so a caller that needs the eviction to have genuinely
+        // completed (not just fired) can await it — evictPack's own clearPackCache never
+        // rejects in practice (storage removal uses Promise.allSettled internally), but the
+        // .catch() keeps this path closed rather than an unhandled rejection if that changes.
+        return Promise.all(
+          Array.from(affectedBaseLangs).map(baseLang =>
+            evictPack(baseLang).catch(err => {
+              console.error(`[ERR-CLEAR-ENTITLEMENT-EVICT-${baseLang}-${Date.now()}] evictPack failed during clearEntitlement — merged specialty content may remain accessible until next reload`, err);
+            })
+          )
+        ).then(() => {
+          // Final bookkeeping sweep — clears inFlight (untouched by per-baseLang eviction
+          // above) and any loadedAddOns entries the per-baseLang pass didn't reach (e.g. a
+          // code whose SPECIALTY_PACKS entry was removed between merge and deactivation).
+          clearSpecialtyCache();
         });
       },
 
