@@ -50,18 +50,33 @@ export type LoadPackResult =
 // Shared guard for every JSON.parse(...) as Pack site in lib/packLoader.ts and
 // lib/specialtyPackLoader.ts. sha256 integrity (bytes haven't changed) and this
 // shape check (bytes are at least a valid Pack skeleton) are orthogonal — a pack
-// can pass sha256 yet have non-array units or malformed unit elements if the
+// can pass sha256 yet have non-array units or malformed elements if the
 // content-authoring pipeline produced malformed JSON. Apply both checks at every parse site.
-// Validates: units is an array, and every element has a string id and a cards array.
-// Does NOT validate: unitCount/cardCount cross-totals, individual Card element shapes.
+// Validates: units is an array; each unit has a string id, string name, and a cards array;
+// each card element has string id, string type, string prompt, array accepted, array tags,
+// and number tier. Does NOT validate: unitCount/cardCount cross-totals.
 export function hasValidUnitsArray(pack: Pack): boolean {
   if (!Array.isArray(pack.units)) return false;
-  // Cast through unknown[] — pack JSON is untrusted and unit elements may not match
+  // Cast through unknown[] — pack JSON is untrusted and elements may not match
   // the TypeScript type despite the outer cast, so we validate defensively.
   return (pack.units as unknown[]).every((u) => {
     if (u === null || typeof u !== "object") return false;
     const unit = u as Record<string, unknown>;
-    return typeof unit.id === "string" && Array.isArray(unit.cards);
+    if (typeof unit.id !== "string") return false;
+    if (typeof unit.name !== "string") return false;
+    if (!Array.isArray(unit.cards)) return false;
+    return (unit.cards as unknown[]).every((c) => {
+      if (c === null || typeof c !== "object") return false;
+      const card = c as Record<string, unknown>;
+      return (
+        typeof card.id === "string" &&
+        typeof card.type === "string" &&
+        typeof card.prompt === "string" &&
+        Array.isArray(card.accepted) &&
+        Array.isArray(card.tags) &&
+        typeof card.tier === "number"
+      );
+    });
   });
 }
 

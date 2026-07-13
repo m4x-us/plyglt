@@ -18,10 +18,14 @@
  * Both guards prevent path traversal and storage key poisoning.
  *
  * Specialty packs: loadPack("it-medical") merges the add-on's units into the base
- * ("it") pack in memCache. The base pack must be loaded first. Merged units are
- * additive — base units are never removed. loadedAddOns tracks which add-ons are
- * merged this session. Since SPECIALTY_PACKS is currently empty, the specialty path
- * never executes — the structure is in place for when content arrives.
+ * ("it") pack in memCache. Merged units are additive — base units are never removed.
+ * loadedAddOns tracks which add-ons are merged this session.
+ *
+ * Italian is served from statically-bundled content, bypassing loadPack entirely —
+ * useLangPack.ts calls seedMemCache("it", units) so that memCache["it"] exists and the
+ * specialty-pack precondition (memCache.has(baseLang)) can be satisfied. SPECIALTY_PACKS
+ * is currently empty, so the specialty branch never executes yet — it is ready for when
+ * registered specialty pack content arrives. See seedMemCache below.
  *
  * Public API: loadPack, getInstalledPacks, getLoadedAddOns, evictPack, fetchManifest, clearCacheForTesting
  *

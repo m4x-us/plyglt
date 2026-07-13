@@ -6,7 +6,7 @@
 // ============================================================
 // DEPENDS ON: @/lib/language (ITALIAN), @/lib/langRegistry (LANGUAGE_REGISTRY,
 //             SPECIALTY_PACKS), @/lib/entitlement (PRICING),
-//             @/content/index (ALL_UNITS)
+//             @/lib/featureFlags (getFeatureFlags), @/content/index (ALL_UNITS)
 // USED BY: app/page.tsx
 // ============================================================
 "use client";
@@ -14,23 +14,24 @@
 import { ITALIAN } from "@/lib/language";
 import { LANGUAGE_REGISTRY, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { PRICING } from "@/lib/entitlement";
+import { getFeatureFlags } from "@/lib/featureFlags";
 import { ALL_UNITS } from "@/content/index";
 
 const PAID_LANGUAGES = LANGUAGE_REGISTRY.filter((l) => !l.isFree);
 
 interface Props {
   onSelect: (code: string) => void;
-  onUpgradeClick: () => void;
+  onUpgradeClick: (code?: string) => void;
   isPackUnlocked: (code: string) => boolean;
   hasAddOn: (code: string) => boolean;
 }
 
 export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn }: Props) {
-  // Task #276: Feature flag gate for specialty pack UI. Consistent with featureFlags.ts convention:
-  // the section renders unless NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS is explicitly set to "false".
-  // Provides a kill switch when specialty pack content ships without requiring a deploy.
-  // Evaluated per-render (not at module load time) so tests can stub the env var reliably.
-  const specialtyPacksEnabled = process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS !== "false";
+  // Task #276/#306: Feature flag gate for specialty pack UI. Reads via the canonical
+  // getFeatureFlags() accessor so parseFlag()'s full falsy-value set ('false','0','off','no')
+  // is respected — not just === "false". NEXT_PUBLIC_* vars are inlined at build time
+  // (next.config.ts sets output:'export'), so changing this flag requires a redeploy.
+  const specialtyPacksEnabled = getFeatureFlags().specialtyPacks;
 
   // Task #278: Use SPECIALTY_PACKS directly rather than iterating unlocked base languages.
   // Each specialty pack appears exactly once — no deduplication needed.
@@ -86,7 +87,7 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
             ) : (
               <button
                 key={entry.code}
-                onClick={onUpgradeClick}
+                onClick={() => onUpgradeClick()}
                 className="w-full flex items-center gap-4 rounded-2xl border border-gray-800 bg-gray-900/30 px-5 py-4 hover:border-yellow-900/50 hover:bg-gray-900/50 transition-all group"
               >
                 <span className="text-3xl opacity-60">{entry.config.flag}</span>
@@ -131,7 +132,7 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
               ) : (
                 <button
                   key={sp.code}
-                  onClick={onUpgradeClick}
+                  onClick={() => onUpgradeClick(sp.code)}
                   className="w-full flex items-center gap-4 rounded-2xl border border-gray-800 bg-gray-900/30 px-5 py-4 hover:border-yellow-900/50 hover:bg-gray-900/50 transition-all group"
                 >
                   <div className="flex-1 text-left">

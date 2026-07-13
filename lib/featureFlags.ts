@@ -2,15 +2,16 @@
 // lib/featureFlags.ts
 // ============================================================
 // DEPENDS ON: lib/licenseTypes (LicenseType)
-// USED BY: components/InterruptHandler.tsx
+// USED BY: components/InterruptHandler.tsx, components/LanguageGrid.tsx
 // ============================================================
 
 import type { LicenseType } from "@/lib/licenseTypes";
 
 export interface FeatureFlags {
-  interruptEngine: boolean; // NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE
-  vacationMode: boolean;    // NEXT_PUBLIC_FLAGS_VACATION_MODE
-  analytics: boolean;       // NEXT_PUBLIC_FLAGS_ANALYTICS
+  interruptEngine: boolean;  // NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE
+  vacationMode: boolean;     // NEXT_PUBLIC_FLAGS_VACATION_MODE
+  analytics: boolean;        // NEXT_PUBLIC_FLAGS_ANALYTICS
+  specialtyPacks: boolean;   // NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS
 }
 
 // Standard env-var falsy values — "false", "0", "off", "no" all disable a flag.
@@ -33,5 +34,6 @@ export function getFeatureFlags(): FeatureFlags {
     interruptEngine: parseFlag(process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE),
     vacationMode:    parseFlag(process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE),
     analytics:       parseFlag(process.env.NEXT_PUBLIC_FLAGS_ANALYTICS),
+    specialtyPacks:  parseFlag(process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS),
   };
 }

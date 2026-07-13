@@ -100,8 +100,7 @@ describe("useLangPack — hook body behavioral tests", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.units).toBeDefined();
-    expect(result.current.units[0]).toBeDefined();
+    expect(result.current.units).toHaveLength(1);
     expect(result.current.units[0]!.id).toBe("es-u01");
   });
 
@@ -114,6 +113,7 @@ describe("useLangPack — hook body behavioral tests", () => {
 
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    // existence-check: Italian static-pack unit count changes as curriculum grows — any non-zero length proves content was bundled
     expect(result.current.units.length).toBeGreaterThan(0);
     expect(mockLoadPack).not.toHaveBeenCalled();
     expect(mockFetchManifest).not.toHaveBeenCalled();

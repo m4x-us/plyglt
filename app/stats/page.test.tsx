@@ -29,7 +29,7 @@ vi.mock("@/store/entitlementStore", () => ({
 }));
 
 vi.mock("@/lib/featureFlags", () => ({
-  getFeatureFlags: vi.fn(() => ({ analytics: true, interruptEngine: true, vacationMode: true })),
+  getFeatureFlags: vi.fn(() => ({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true })),
   isProEnabled: vi.fn((flag: boolean, licenseType: string) => flag && licenseType === "subscription"),
 }));
 
@@ -105,7 +105,7 @@ describe("app/stats/page.tsx — StatsPage", () => {
 
   it("shows upgrade prompt for free users — analytics gate blocks access", () => {
     vi.mocked(useEntitlementStore).mockReturnValue({ licenseType: "free" } as ReturnType<typeof useEntitlementStore>);
-    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true });
+    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true });
     vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
     render(<StatsPage />);
     screen.getByText("Detailed analytics are a Pro feature.");
@@ -114,7 +114,7 @@ describe("app/stats/page.tsx — StatsPage", () => {
 
   it("shows full stats page for Pro users — analytics gate passes", () => {
     vi.mocked(useEntitlementStore).mockReturnValue({ licenseType: "subscription" } as ReturnType<typeof useEntitlementStore>);
-    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true });
+    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true });
     vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
     render(<StatsPage />);
     expect(screen.queryByText("Detailed analytics are a Pro feature.")).toBeNull();
@@ -123,7 +123,7 @@ describe("app/stats/page.tsx — StatsPage", () => {
 
   it("shows upgrade prompt when analytics flag is disabled — blocks even Pro users", () => {
     vi.mocked(useEntitlementStore).mockReturnValue({ licenseType: "subscription" } as ReturnType<typeof useEntitlementStore>);
-    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: false, interruptEngine: true, vacationMode: true });
+    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: false, interruptEngine: true, vacationMode: true, specialtyPacks: true });
     vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
     render(<StatsPage />);
     screen.getByText("Detailed analytics are a Pro feature.");

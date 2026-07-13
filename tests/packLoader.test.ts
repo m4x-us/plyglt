@@ -345,6 +345,45 @@ describe("loadPack", () => {
     expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
   });
 
+  it("returns parse_error when a downloaded pack has units with malformed card elements (#316)", async () => {
+    // Before #316, hasValidUnitsArray checked only unit.id and unit.cards — a pack with
+    // well-formed unit headers but card elements missing required fields (accepted, tags, tier)
+    // would pass as ok:true. After #316, card element shapes are validated too.
+    const malformedPack = {
+      ...fakePack(),
+      units: [
+        {
+          id: "unit-1",
+          name: "Test Unit",
+          level: "A1",
+          theme: "test",
+          emoji: "📚",
+          prerequisiteUnits: [],
+          cards: [
+            // Missing required fields: accepted (array), tags (array), tier (number)
+            { id: "card-1", type: "recognize", prompt: "ciao" },
+          ],
+        },
+      ],
+      unitCount: 1,
+      cardCount: 1,
+    };
+    const malformedJson = JSON.stringify(malformedPack);
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      text: async () => malformedJson,
+    }));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { createHash } = await import("node:crypto");
+    const sha = createHash("sha256").update(malformedJson).digest("hex");
+    const result = await loadPack("it", fakeManifest(sha));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("parse_error");
+    const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
+    expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
+    consoleErrorSpy.mockRestore();
+  });
+
   it("evicts cache and re-downloads when cached data has wrong SHA256", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
@@ -1016,9 +1055,46 @@ describe("specialty pack — same-code concurrent load safety (#264)", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
   });
 
-  it("#264 same-code: two concurrent loads issue only one fetch and add the code exactly once", async () => {
-    // Without the in-flight dedup, two concurrent calls both pass the loadedAddOns.includes
-    // check before either pushes — resulting in duplicate fetches and duplicate loadedAddOns entries.
+  it("#264 same-code dedup: loadSpecialtyPack returns the exact same Promise reference for concurrent same-code calls", async () => {
+    // This test proves the same-code dedup mechanism itself, not just its behavioral outcome.
+    // Cross-code serialization alone also produces one fetch and one loadedAddOns entry (by
+    // chaining the second call behind the first via the base-lang inFlight key, then
+    // early-returning when loadedAddOns.includes re-checks). Fetch-count alone cannot
+    // distinguish the two mechanisms — Promise reference equality is the only observable
+    // difference: same-code dedup returns the EXACT same inFlight Promise; cross-code alone
+    // creates a new p1.then(...) chain. Deleting the same-code check fails this assertion.
+    // loadSpecialtyPack is non-async (Barry, Wave 11) so the reference is visible to callers.
+    // loadPack is async and wraps every call in a new Promise, hiding this invariant. (#321)
+    const { loadSpecialtyPack: lsp } = await import("@/lib/specialtyPackLoader");
+
+    // Minimal PackMemCache with the "it" base pack pre-loaded (mirrors post-loadPack("it") state).
+    const base = fakePack();
+    const _m = new Map<string, Pack>([[base.lang, base]]);
+    const mockMemCache = {
+      has:    (k: string)          => _m.has(k),
+      get:    (k: string)          => _m.get(k),
+      keys:   ()                   => _m.keys(),
+      write:  (k: string, v: Pack) => { _m.set(k, v); },
+      merge:  (k: string, v: Pack) => { _m.set(k, v); },
+      delete: (k: string)          => { _m.delete(k); },
+      clear:  ()                   => { _m.clear(); },
+    };
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, text: async () => ADD_ON_PACK_JSON,
+    }));
+
+    const p1 = lsp("it-medical", mockMemCache, fakeAddOnManifest(), ["it-medical"]);
+    const p2 = lsp("it-medical", mockMemCache, fakeAddOnManifest(), ["it-medical"]);
+    expect(p1).toBe(p2); // same Promise reference — deleting the in-flight check makes p1 !== p2
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1.ok).toBe(true);
+    expect(r2.ok).toBe(true);
+  });
+
+  it("#264 same-code behavioral: two concurrent loadPack calls issue only one add-on fetch and add the code exactly once", async () => {
+    // Regression guard: the combined dedup mechanisms keep fetch-count at 1 and loadedAddOns
+    // clean for two concurrent same-code loadPack calls.
     let addonFetchCount = 0;
     vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
       if ((url as string).includes("it-medical")) addonFetchCount++;

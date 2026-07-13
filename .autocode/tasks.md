@@ -2881,7 +2881,7 @@ Theme: Extend the pack registry, entitlement model, pack loader, and UI to suppo
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Adam: Option C — documented deliberate deferral (no Rust command, no frontend wiring); purchaseAddOn remains an intentionally unreachable stub until specialty content ships)
 
 **What:**
 purchaseAddOn calls invoke('verify_addon_receipt', {code, receiptToken}); that Tauri command does not exist anywhere in src-tauri's generate_handler! list or license.rs. No runtime can ever return {ok:true}. Also has zero callers outside tests/ -- LanguageGrid's locked specialty-tile CTA opens the generic BuyModal with no per-add-on code or receipt-delivery mechanism. Violates Rule 20. at store/entitlementStore.ts:purchaseAddOn:163.
@@ -2923,7 +2923,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Barry: module header corrected to describe seedMemCache populating memCache["it"] for the specialty-pack precondition)
 
 **What:**
 The header states 'the structure is in place for when content arrives', without disclosing that the Italian early-return means loadPack('it',...) is never called in the running app, so the described structure cannot function for the base language every documented specialty-pack example targets. Violates Rule 2. at lib/packLoader.ts:module header:24.
@@ -2986,7 +2986,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Adam: hasAddOn now delegates to lib/entitlement.ts's libHasAddOn instead of reimplementing the check)
 
 **What:**
 lib/entitlement.ts's hasAddOn doc comment directs this action to delegate rather than duplicate; instead it independently reimplements the identical check. lib/entitlement.ts's own hasAddOn has zero callers outside tests/. at store/entitlementStore.ts:hasAddOn:157.
@@ -3028,7 +3028,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Barry: getLanguageConfig now extracts the base-language portion before the first hyphen and returns that config silently for specialty codes)
 
 **What:**
 Once a specialty code becomes the active target language, this logs a false-positive [ERR-LANG-CONFIG-UNKNOWN] error on every render for a legitimately registered specialty pack code. at lib/language.ts:getLanguageConfig:117.
@@ -3049,7 +3049,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Adam: cross-tab comment corrected to describe the actual current use case, cross-referencing #295's finding)
 
 **What:**
 The cross-tab race mitigation defends against two browser tabs both completing a purchase, a scenario that per F001 cannot occur today because purchaseAddOn cannot succeed in any runtime. at store/entitlementStore.ts:_handleCrossTabStorageEvent:199.
@@ -3070,7 +3070,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Adam: _rehydrateInFlight flag added to _handleCrossTabStorageEvent, deduplicating concurrent rehydrate() calls)
 
 **What:**
 The cross-tab fix fires rehydrate() fire-and-forget with no lock or serialization against a concurrent purchaseAddOn set() call, so the doc comment's guarantee against a lost-write race is not actually met. Tests only assert rehydrate is called, never that the race itself is closed. at store/entitlementStore.ts:_handleCrossTabStorageEvent:209.
@@ -3112,7 +3112,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Charles: specialtyPacks added to FeatureFlags/getFeatureFlags(); LanguageGrid.tsx now reads the canonical accessor instead of an inline env check)
 
 **What:**
 NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS bypasses the canonical lib/featureFlags.ts module: not added to FeatureFlags/getFeatureFlags(), and parses the raw env var inline instead of the shared parseFlag(), which treats 'false'/'0'/'off'/'no' as disabled. Setting this flag to 'off' or '0' silently does nothing. at components/LanguageGrid.tsx:specialtyPacksEnabled:29.
@@ -3133,7 +3133,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Charles: stale "kill switch without requiring a deploy" comment corrected — NEXT_PUBLIC_* vars are inlined at build time under output:'export')
 
 **What:**
 Comment claims a kill switch without requiring a deploy, but next.config.ts sets output:'export' (fully static build, no server); Next.js inlines NEXT_PUBLIC_* env vars at build time, so there is no running process whose env var can be flipped post-deploy. at components/LanguageGrid.tsx:specialtyPacksEnabled:33.
@@ -3154,7 +3154,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Charles: onUpgradeClick now takes an optional code param; both LanguageGrid call sites updated to pass it (also resolved the cross-wave TS mismatch))
 
 **What:**
 onUpgradeClick takes zero arguments; sp.code is in scope in the same closure and correctly used for onSelect/hasAddOn, but the locked-tile handler discards it. Even if a future caller wires purchaseAddOn to this callback, the signature cannot identify which specialty pack triggered it. at components/LanguageGrid.tsx:LanguageGrid Props:23.
@@ -3175,7 +3175,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Barry: _mergeFromJson now writes meta before data so a partial write leaves a safe meta-without-data state, not an unverified orphan)
 
 **What:**
 _mergeFromJson persists data then meta as separate awaits in one try/catch; a partial-write failure can leave orphaned data-without-meta on disk. A later load with no manifest entry available merges the orphaned cachedData with zero hash verification anywhere in the call path. at lib/specialtyPackLoader.ts:_doLoad (_mergeFromJson persistence):241.
@@ -3217,7 +3217,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Derek: existence-only assertions in useLangPack.test.ts hardened to exact values; one non-deterministic assertion marked with existence-check comment)
 
 **What:**
 Uses .toBeDefined()/.toBeGreaterThan(0) on deterministic mocked values with no existence-check comment. AGENTS.md's Verification Gate greps only tests/, which does not reach co-located hooks/*.test.ts or components/*.test.tsx, so this batch's UI/hook test additions are exempt from the project's test-quality gate. at hooks/useLangPack.test.ts:test suite:83.
@@ -3238,7 +3238,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Derek: parseBackup now filters purchasedAddOns through isSpecialtyPackCode, not just string-typing)
 
 **What:**
 parseBackup validates unlockedPacks against isValidPackCode but filters purchasedAddOns only to string type, no isSpecialtyPackCode check. setEntitlement spreads every property in data including purchasedAddOns. A hand-edited backup JSON imported through the live Settings import UI can inject any string into purchasedAddOns with zero validation and zero receipt check. Violates Rule 17b. at lib/importBackup.ts:parseBackup:122.
@@ -3280,7 +3280,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Derek: seam test now asserts invoke was called with the exact verify_addon_receipt args)
 
 **What:**
 This seam test's beforeEach unconditionally mocks invoke to return true; deleting the receipt-verification block inside purchaseAddOn does not change the test's outcome. The test's own name claims 'end-to-end' coverage, a specific falsifiable claim the assertions do not actually prove. at tests/entitlement.test.ts:seam: purchaseAddOn to purchasedAddOns to hasAddOn (#284):1114.
@@ -3301,7 +3301,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Derek: same seam test now asserts isSpecialtyPackCode was called with the exact code)
 
 **What:**
 The same seam test's beforeEach also unconditionally mocks isSpecialtyPackCode to return true; deleting the code-validation branch inside purchaseAddOn likewise does not change the outcome. at tests/entitlement.test.ts:seam: purchaseAddOn to purchasedAddOns to hasAddOn (#284):1114.
@@ -3322,7 +3322,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Charles: hasValidUnitsArray now validates unit.name plus every card element's id/type/prompt/accepted/tags/tier shape)
 
 **What:**
 Validates only that units is an array, each unit is an object, unit.id is a string, and unit.cards is an array. Downstream code accesses many more fields never checked, and card array elements' shapes are never validated at all. at lib/packTypes.ts:hasValidUnitsArray:57.
@@ -3385,7 +3385,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Barry: clearSpecialtyPacksForLang now returns pruned codes; clearPackCache clears each pruned specialty code's own storage keys)
 
 **What:**
 Doc comment claims an evicted base pack can never have its merge state left dangling; false with respect to platform storage. Each specialty pack has its own persisted storage keys separate from the in-memory merge, and clearPackCache never clears them. at lib/packCache.ts:clearPackCache:129.
@@ -3427,7 +3427,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Charles: same-code dedup test now asserts Promise reference equality (p1 === p2) via loadSpecialtyPack directly, distinguishing it from cross-code serialization)
 
 **What:**
 Deleting the same-code in-flight short-circuit does not fail this test, because the independently-present cross-code serialization mechanism produces the identical observable result even with the same-code check deleted. at tests/packLoader.test.ts:#264 same-code: two concurrent loads issue only one fetch:1019.
@@ -3448,7 +3448,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-13 (Wave 12 — Adam: !receiptToken.trim() guard added before IPC call, returns ERR_ADDON_RECEIPT_INVALID)
 
 **What:**
 receiptToken is forwarded to invoke() with zero format, length, or non-empty validation before the IPC call; there is no established input-sanitization boundary for it. at store/entitlementStore.ts:purchaseAddOn:163.

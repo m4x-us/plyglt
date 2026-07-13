@@ -10,7 +10,7 @@
 // ===========================================
 
 import { type CardProgress, type CardState } from "@/lib/srs";
-import { isValidPackCode, FREE_PACK_CODES, type PackCode } from "@/lib/langRegistry";
+import { isValidPackCode, FREE_PACK_CODES, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 
 /** Highest backup _version this app can parse. Backups above this were written by a newer app. */
@@ -116,10 +116,11 @@ export function parseBackup(raw: unknown): ParseBackupResult {
         )
       : [...FREE_PACK_CODES],
     validUntil:    typeof e.validUntil === "number" && isFinite(e.validUntil) ? e.validUntil : null,
-    // Same element-shape guard as store/migrations.ts v3 (Task #273): string-only filter
-    // so corrupt backup data with non-string elements cannot propagate into the store.
-    // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → [] → [].
-    purchasedAddOns: rawAddOns.filter((item): item is string => typeof item === "string"),
+    // Validates both type (string) and registration (isSpecialtyPackCode) so a hand-edited
+    // backup JSON cannot inject arbitrary add-on codes without a real receipt check.
+    // Mirrors the unlockedPacks → isValidPackCode gate above. Old backups (pre-purchasedAddOns)
+    // arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
+    purchasedAddOns: rawAddOns.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item)),
   };
 
   // v1 backups pre-date the langPair field — default to Italian (the only language at v1).

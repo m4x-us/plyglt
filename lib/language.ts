@@ -108,15 +108,26 @@ const LANGUAGE_MAP: Record<string, LanguageConfig> = {
 
 /**
  * Returns the LanguageConfig for a target language code.
- * Falls back to ITALIAN for unrecognised codes and logs an error — the fallback is
- * intentional for graceful degradation, but the error signal prevents silent masking
- * of misconfigured callers (e.g. a future specialty-pack code passed by mistake).
- * Add new languages to LANGUAGE_MAP above; the poka-yoke test in tests/language.test.ts
- * will catch LANGUAGE_MAP / LANGUAGE_REGISTRY drift.
+ *
+ * Specialty pack codes (e.g. "it-medical") are not in LANGUAGE_MAP — they share their
+ * base language's config. The base code is extracted by splitting on the first hyphen.
+ * Importing lib/langRegistry.ts to check SPECIALTY_PACKS directly is not possible here
+ * because langRegistry.ts already imports ITALIAN/SPANISH from this file.
+ *
+ * Falls back to ITALIAN with an error log for genuinely unrecognised codes — the fallback
+ * is intentional for graceful degradation, but the error signal prevents silent masking
+ * of misconfigured callers. Add new languages to LANGUAGE_MAP above; the poka-yoke test
+ * in tests/language.test.ts will catch LANGUAGE_MAP / LANGUAGE_REGISTRY drift.
  */
 export function getLanguageConfig(code: string): LanguageConfig {
   const config = LANGUAGE_MAP[code];
   if (!config) {
+    // Specialty pack codes (e.g. "it-medical") carry the base language config silently.
+    const hyphen = code.indexOf("-");
+    if (hyphen !== -1) {
+      const baseConfig = LANGUAGE_MAP[code.slice(0, hyphen)];
+      if (baseConfig) return baseConfig;
+    }
     console.error(`[ERR-LANG-CONFIG-UNKNOWN-${Date.now()}] No LanguageConfig for "${code}" — update LANGUAGE_MAP in lib/language.ts`);
     return ITALIAN;
   }

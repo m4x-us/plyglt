@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseBackup, CURRENT_BACKUP_VERSION } from "@/lib/importBackup";
+
+vi.mock("@/lib/langRegistry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
+  return { ...actual, isSpecialtyPackCode: vi.fn() };
+});
+import { isSpecialtyPackCode } from "@/lib/langRegistry";
 
 function validBackup(overrides: Record<string, unknown> = {}) {
   return {
@@ -313,6 +319,55 @@ describe("parseBackup", () => {
     expect(errorSpy).toHaveBeenCalledOnce();
     expect(errorSpy.mock.calls[0]![0]!).toMatch(/ERR-IMPORT-LANG-PAIR/);
     errorSpy.mockRestore();
+  });
+
+  describe("#312 — purchasedAddOns validated against specialty-pack registry", () => {
+    afterEach(() => { vi.clearAllMocks(); });
+
+    it("#312: registered specialty codes pass through to entitlement", () => {
+      vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
+      const backup = validBackup({
+        entitlement: {
+          licenseKey: null, instanceId: null, licenseType: "free",
+          unlockedPacks: ["it"], validUntil: null,
+          purchasedAddOns: ["it-medical", "it-business"],
+        },
+      });
+      const r = parseBackup(backup);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.entitlement.purchasedAddOns).toEqual(["it-medical"]);
+    });
+
+    it("#312: unregistered strings are filtered out regardless of content", () => {
+      vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
+      const backup = validBackup({
+        entitlement: {
+          licenseKey: null, instanceId: null, licenseType: "free",
+          unlockedPacks: ["it"], validUntil: null,
+          purchasedAddOns: ["not-a-pack", "GARBAGE"],
+        },
+      });
+      const r = parseBackup(backup);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.entitlement.purchasedAddOns).toEqual([]);
+    });
+
+    it("#312: non-string elements are always filtered even when isSpecialtyPackCode would return true", () => {
+      vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
+      const backup = validBackup({
+        entitlement: {
+          licenseKey: null, instanceId: null, licenseType: "free",
+          unlockedPacks: ["it"], validUntil: null,
+          purchasedAddOns: [42, null, "it-medical", true],
+        },
+      });
+      const r = parseBackup(backup);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.entitlement.purchasedAddOns).toEqual(["it-medical"]);
+    });
   });
 });
 

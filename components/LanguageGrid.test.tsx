@@ -49,9 +49,10 @@ vi.mock("@/lib/langRegistry", () => ({
   getSpecialtyPacks:         () => [],
 }));
 
-vi.mock("@/lib/entitlement", () => ({
-  PRICING: { annual: "$34.99/yr" },
-}));
+vi.mock("@/lib/entitlement", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/entitlement")>();
+  return { ...actual, PRICING: { annual: "$34.99/yr" } };
+});
 
 vi.mock("@/content/index", () => ({
   ALL_UNITS: Array.from({ length: 20 }, (_, i) => ({ id: `u${i}` })),

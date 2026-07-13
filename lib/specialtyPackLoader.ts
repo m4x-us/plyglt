@@ -55,17 +55,28 @@ export function clearSpecialtyCache(): void {
 
 /**
  * Removes any specialty add-ons whose baseLang matches the evicted base pack.
- * Called by packLoader.evictPack so evicting a base pack also prunes its merged add-ons.
+ * Returns the list of specialty codes that were pruned. (#319)
+ *
+ * The return value is used by lib/packCache.clearPackCache to also clear each
+ * pruned code's own persisted storage keys (pack-meta-v1-{code} / pack-data-v1-{code}).
+ * Without this, evicting a base pack leaves orphaned specialty storage entries on disk —
+ * they would be merged from cache on the next load without revalidating against the
+ * current manifest or re-verifying sha256, even though their in-memory state was pruned.
+ * Task #326 (store/entitlementStore.ts clearEntitlement) also reads this return value to
+ * enumerate specialty codes to evict from memCache on license deactivation.
  */
-export function clearSpecialtyPacksForLang(baseLang: string): void {
+export function clearSpecialtyPacksForLang(baseLang: string): string[] {
   const codesForBase = new Set(
     SPECIALTY_PACKS.filter(sp => sp.baseLang === baseLang).map(sp => sp.code),
   );
+  const pruned: string[] = [];
   for (let i = loadedAddOns.length - 1; i >= 0; i--) {
     if (codesForBase.has(loadedAddOns[i]!)) {
+      pruned.push(loadedAddOns[i]!);
       loadedAddOns.splice(i, 1);
     }
   }
+  return pruned;
 }
 
 // ── Parse-merge-persist helper ────────────────────────────────────────────────
@@ -116,14 +127,24 @@ async function _mergeFromJson(
   loadedAddOns.push(lang);
 
   if (manifestEntry) {
-    // Persist the verified bytes so subsequent sessions don't re-download. (#269)
+    // Persist to platform storage. Meta is written FIRST so a crash or power-loss between
+    // the two awaits leaves meta-without-data on disk, not data-without-meta. (#309)
+    //
+    // data-without-meta (old order, unsafe): on next launch, readCacheMeta returns null →
+    // cacheVersionMatches = false → _doLoad falls through to the "!addOnManifestEntry"
+    // offline path → if cachedData is non-null, _mergeFromJson is called with zero sha256
+    // verification. The orphaned bytes are served as trusted content with no integrity check.
+    //
+    // meta-without-data (new order, safe): on next launch, readCacheData returns null →
+    // cacheVersionMatches = false (cachedData is null) → _doLoad re-downloads and re-verifies.
+    // The offline stale-cache path is unreachable because cachedData is null. Clean failure.
     try {
-      await writeCacheData(lang, json);
       await writeCacheMeta(lang, {
         version:  manifestEntry.version,
         sha256:   manifestEntry.sha256,
         cachedAt: Date.now(),
       } satisfies CachedPackMeta);
+      await writeCacheData(lang, json);
     } catch (err) {
       console.error(`[ADDON_CACHE_WRITE_FAIL-${lang}-${Date.now()}] Storage write failed — pack available this session only:`, err);
     }

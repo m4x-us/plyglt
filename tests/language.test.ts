@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { getPrompt, getAccepted, ITALIAN, SPANISH, getLanguageConfig } from "@/lib/language";
 import { ALL_PACK_CODES } from "@/lib/langRegistry";
 import { checkAnswer } from "@/lib/srs";
@@ -245,5 +245,16 @@ describe("getLanguageConfig poka-yoke", () => {
   it("falls back to ITALIAN for a code not present in LANGUAGE_MAP", () => {
     const cfg = getLanguageConfig("xx-not-a-real-code");
     expect(cfg).toBe(ITALIAN);
+  });
+
+  it("returns base language config for specialty pack codes without logging an error", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const cfg = getLanguageConfig("it-medical");
+      expect(cfg).toBe(ITALIAN);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -1117,17 +1117,25 @@ describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
     // Step 1: purchaseAddOn returns ok:true
     expect(result).toEqual({ ok: true });
 
-    // Step 2: purchasedAddOns in the store reflects the purchase
+    // Step 2: the code was validated through the specialty-pack registry (#315)
+    // — deleting purchaseAddOn's isSpecialtyPackCode branch makes this assertion fail
+    expect(vi.mocked(isSpecialtyPackCode)).toHaveBeenCalledWith("it-medical");
+
+    // Step 3: the receipt was verified via Tauri IPC (#314)
+    // — deleting purchaseAddOn's receipt-verification block makes this assertion fail
+    expect(mockInvoke).toHaveBeenCalledWith("verify_addon_receipt", { code: "it-medical", receiptToken: "tok_seam_receipt" });
+
+    // Step 4: purchasedAddOns in the store reflects the purchase
     expect(store().purchasedAddOns).toContain("it-medical");
     expect(store().purchasedAddOns).toHaveLength(1);
 
-    // Step 3: store method hasAddOn returns true for the purchased code
+    // Step 5: store method hasAddOn returns true for the purchased code
     expect(store().hasAddOn("it-medical")).toBe(true);
 
-    // Step 4: lib/entitlement.ts pure function hasAddOn also returns true (the read seam)
+    // Step 6: lib/entitlement.ts pure function hasAddOn also returns true (the read seam)
     expect(hasAddOn(store(), "it-medical")).toBe(true);
 
-    // Step 5: an un-purchased code remains inaccessible via both read paths
+    // Step 7: an un-purchased code remains inaccessible via both read paths
     expect(store().hasAddOn("it-business")).toBe(false);
     expect(hasAddOn(store(), "it-business")).toBe(false);
   });

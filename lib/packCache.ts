@@ -125,6 +125,14 @@ export async function writeCacheData(lang: string, json: string): Promise<void> 
  * missed 4 sibling clearPackCache-and-return call sites in the same two blocks it was editing.
  * Folding the prune into clearPackCache itself means every call site, present and any added
  * later, gets the guarantee automatically — there is no longer a second line to remember.
+ *
+ * As of #319: also clears each pruned specialty code's own persisted storage keys. Each
+ * specialty pack has its own pack-meta-v1-{code} and pack-data-v1-{code} entries written by
+ * lib/specialtyPackLoader._mergeFromJson. Without clearing them, evicting a base pack leaves
+ * orphaned specialty bytes on disk — they would be served from cache on the next load without
+ * re-verifying against the current manifest's sha256, even though their in-memory tracking
+ * was pruned. clearSpecialtyPacksForLang now returns the pruned codes so this function can
+ * target their storage keys directly.
  */
 export async function clearPackCache(lang: string): Promise<void> {
   // allSettled: both removals run regardless of whether either throws.
@@ -141,7 +149,27 @@ export async function clearPackCache(lang: string): Promise<void> {
     console.error(`[ERR-CACHE-CLEAR-DATA-${lang}-${Date.now()}] storage removeItem failed — data key may persist`, dataResult.reason);
   }
   memCache.delete(lang);
-  clearSpecialtyPacksForLang(lang);
+  // Prune in-memory add-on tracking and collect the evicted codes so their own
+  // storage entries can also be cleared (#319 — previously only pruned in-memory state).
+  const prunedCodes = clearSpecialtyPacksForLang(lang);
+  if (prunedCodes.length > 0) {
+    const specialtyResults = await Promise.allSettled(
+      prunedCodes.flatMap(code => [
+        getStorage().removeItem(CACHE_META_PREFIX + code),
+        getStorage().removeItem(CACHE_DATA_PREFIX + code),
+      ]),
+    );
+    specialtyResults.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const code = prunedCodes[Math.floor(i / 2)]!;
+        const keyType = i % 2 === 0 ? "meta" : "data";
+        console.error(
+          `[ERR-CACHE-CLEAR-SPECIALTY-${keyType.toUpperCase()}-${code}-${Date.now()}] storage removeItem failed — ${keyType} key may persist`,
+          r.reason,
+        );
+      }
+    });
+  }
 }
 
 // ── Shared parse/validate/cache-or-evict helpers ──────────────────────────────
