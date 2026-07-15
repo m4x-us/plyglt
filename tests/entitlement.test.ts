@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR } from "@/store/entitlementStore";
 import type { PurchaseAddOnResult } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
+import * as entitlementLib from "@/lib/entitlement";
 import { ALL_PACK_CODES, FREE_PACK_CODES, isSpecialtyPackCode } from "@/lib/langRegistry";
 import type { SpecialtyPack } from "@/lib/langRegistry";
 import * as specialtyPackLoader from "@/lib/specialtyPackLoader";
@@ -1032,11 +1033,14 @@ describe("seam: validateLicense → markValidated → isPackUnlocked", () => {
 
 describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () => {
   beforeEach(() => {
-    reset();
+    // purchaseAddOn requires a Pro subscription (gate added by parallel stream).
+    // Set subscription so happy-path and IPC-level tests reach the intended code paths.
+    reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
     // Tasks #287 + #285: isSpecialtyPackCode is always-false in production (SPECIALTY_PACKS is
-    // frozen empty). Mock it to return true so the code-validation guard passes in happy-path
-    // tests; individual #287 tests override to false to exercise the rejection path.
+    // frozen with ready:false entries). Mock it to return true so the code-validation guard
+    // passes in happy-path tests; individual #287 tests override to false to exercise the
+    // rejection path.
     vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
     // Task #285: mock invoke to simulate Tauri IPC returning a verified receipt by default.
     mockInvoke.mockResolvedValue(true);
@@ -1048,6 +1052,19 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
 
   it("hasAddOn store method returns false when code is not in purchasedAddOns", () => {
     expect(store().hasAddOn("it-medical")).toBe(false);
+  });
+
+  it("hasAddOn store action delegates to lib/entitlement.ts hasAddOn — spy proves the call", () => {
+    // Task #300: the action is hasAddOn: (code) => libHasAddOn(get(), code).
+    // Behavioral tests alone can't distinguish delegation from inline reimplementation.
+    // This spy confirms the actual lib function is invoked with the current store state.
+    const spy = vi.spyOn(entitlementLib, "hasAddOn");
+    store().hasAddOn("it-medical");
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ purchasedAddOns: [] }),
+      "it-medical"
+    );
+    spy.mockRestore();
   });
 
   it("purchaseAddOn adds code to purchasedAddOns and returns ok:true", async () => {
@@ -1243,7 +1260,8 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
 describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
-    reset();
+    // purchaseAddOn requires a Pro subscription — set subscription for the seam tests.
+    reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
     vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
     mockInvoke.mockResolvedValue(true);

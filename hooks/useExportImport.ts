@@ -8,7 +8,7 @@ import { useSRSStore } from "@/store/srsStore";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { exportBackup } from "@/lib/exportBackup";
 import { parseBackup } from "@/lib/importBackup";
-import { LANG_PAIR_KEY } from "@/lib/constants";
+import { getLangPair } from "@/lib/constants"; // Task #340: route through canonical lib/constants accessor
 
 export type DataStatus =
   | { type: "idle" }
@@ -22,7 +22,7 @@ export function useExportImport() {
   function handleExport() {
     const srs = useSRSStore.getState();
     const entitlement = useEntitlementStore.getState();
-    const langPair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+    const langPair = getLangPair(); // Task #340: no direct localStorage access outside lib/constants
     const payload = exportBackup(
       { cards: srs.cards, streak: srs.streak, lastStudiedDate: srs.lastStudiedDate },
       {
@@ -64,7 +64,7 @@ export function useExportImport() {
             resolve();
             return;
           }
-          const activeLangPair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+          const activeLangPair = getLangPair(); // Task #340: no direct localStorage access outside lib/constants
           if (result.langPair !== activeLangPair) {
             setDataStatus({
               type: "error",
@@ -75,9 +75,12 @@ export function useExportImport() {
             return;
           }
           useSRSStore.setState({ ...result.srs, activeSession: null });
-          const { licenseKey, instanceId } = result.entitlement;
+          // Task #342: destructure only the fields accepted by setEntitlement's type contract.
+          // purchasedAddOns is intentionally excluded — add-on purchases require server-verified
+          // receipts via purchaseAddOn(); they cannot be restored from an unsigned backup file.
+          const { licenseKey, instanceId, licenseType, unlockedPacks, validUntil } = result.entitlement;
           if (licenseKey && instanceId) {
-            useEntitlementStore.getState().setEntitlement({ ...result.entitlement, licenseKey, instanceId });
+            useEntitlementStore.getState().setEntitlement({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil });
           }
           const skippedNote = result.skippedCardCount > 0
             ? ` (${result.skippedCardCount} card(s) skipped — corrupted data)`

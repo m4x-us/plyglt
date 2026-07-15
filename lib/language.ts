@@ -122,11 +122,16 @@ const LANGUAGE_MAP: Record<string, LanguageConfig> = {
 export function getLanguageConfig(code: string): LanguageConfig {
   const config = LANGUAGE_MAP[code];
   if (!config) {
-    // Specialty pack codes (e.g. "it-medical") carry the base language config silently.
+    // Specialty pack codes (e.g. "it-medical") share their base language's config.
+    // Log on this path so misconfigured callers don't pass silently — the comment
+    // about "preventing silent masking" must be backed by an actual log statement.
     const hyphen = code.indexOf("-");
     if (hyphen !== -1) {
       const baseConfig = LANGUAGE_MAP[code.slice(0, hyphen)];
-      if (baseConfig) return baseConfig;
+      if (baseConfig) {
+        console.warn(`[WARN-LANG-CONFIG-SPECIALTY-${Date.now()}] "${code}" is not in LANGUAGE_MAP — using base-language config "${code.slice(0, hyphen)}". If this is not a registered specialty pack code, update LANGUAGE_MAP.`);
+        return baseConfig;
+      }
     }
     console.error(`[ERR-LANG-CONFIG-UNKNOWN-${Date.now()}] No LanguageConfig for "${code}" — update LANGUAGE_MAP in lib/language.ts`);
     return ITALIAN;

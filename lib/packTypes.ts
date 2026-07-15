@@ -2,7 +2,8 @@
  * packTypes.ts — Shared type definitions for language pack data structures.
  * Single source of truth for: Pack, PackMeta, Manifest, LoadPackResult,
  * hasValidUnitsArray, and PackMemCache.
- * Imported by lib/packLoader.ts and lib/specialtyPackLoader.ts — no React, no Zustand.
+ * Imported by lib/packLoader.ts, lib/specialtyPackLoader.ts, and lib/packCache.ts
+ * (imports hasValidUnitsArray, Pack, LoadPackResult, PackMemCache) — no React, no Zustand.
  */
 
 import type { Unit } from "@/content/types";
@@ -52,10 +53,14 @@ export type LoadPackResult =
 // shape check (bytes are at least a valid Pack skeleton) are orthogonal — a pack
 // can pass sha256 yet have non-array units or malformed elements if the
 // content-authoring pipeline produced malformed JSON. Apply both checks at every parse site.
-// Validates: units is an array; each unit has a string id, string name, and a cards array;
-// each card element has string id, string type, string prompt, array accepted, array tags,
-// and number tier. Does NOT validate: unitCount/cardCount cross-totals.
+// Validates: unitCount/cardCount are numbers (non-numeric values would silently
+// string-concatenate when _mergeFromJson sums them); units is an array; each unit has a
+// string id, string name, and a cards array; each card has string id, string type, string
+// prompt, array accepted, array tags, and number tier.
+// Does NOT validate: unitCount/cardCount cross-totals against actual units/cards lengths.
 export function hasValidUnitsArray(pack: Pack): boolean {
+  if (typeof pack.unitCount !== "number") return false;
+  if (typeof pack.cardCount !== "number") return false;
   if (!Array.isArray(pack.units)) return false;
   // Cast through unknown[] — pack JSON is untrusted and elements may not match
   // the TypeScript type despite the outer cast, so we validate defensively.

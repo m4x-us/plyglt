@@ -6,7 +6,7 @@
 // Used when a user restores progress from a file.
 // ===========================================
 // DEPENDS ON: @/lib/srs, @/lib/langRegistry, @/lib/licenseTypes
-// USED BY: app/settings/page.tsx
+// USED BY: hooks/useExportImport.ts
 // ===========================================
 
 import { type CardProgress, type CardState } from "@/lib/srs";
@@ -105,29 +105,46 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   const licenseType: LicenseType = VALID_LICENSE_TYPES.has(rawLicenseType as LicenseType)
     ? (rawLicenseType as LicenseType)
     : "free";
+
+  // unlockedPacks: validate type AND registration. Log dropped entries so silent data-loss
+  // is observable — mirrors the card skippedCardCount pattern above. (#354)
+  const rawUnlockedPacks = Array.isArray(e.unlockedPacks) ? (e.unlockedPacks as unknown[]) : null;
+  const validUnlockedPacks: PackCode[] = rawUnlockedPacks
+    ? rawUnlockedPacks.filter((c): c is PackCode => typeof c === "string" && isValidPackCode(c))
+    : [...FREE_PACK_CODES];
+  if (rawUnlockedPacks !== null && validUnlockedPacks.length < rawUnlockedPacks.length) {
+    console.warn(
+      `[IMPORT-SKIP-PACKS] ${rawUnlockedPacks.length - validUnlockedPacks.length} unlockedPacks entries dropped — unregistered or invalid codes: ${JSON.stringify(rawUnlockedPacks.filter(c => !(typeof c === "string" && isValidPackCode(c))))}`
+    );
+  }
+
+  // purchasedAddOns: validate type AND specialty-pack registration. Log dropped entries. (#354)
+  // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
   const rawAddOns = Array.isArray(e.purchasedAddOns) ? e.purchasedAddOns : [];
+  const validAddOns: string[] = rawAddOns.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item));
+  if (validAddOns.length < rawAddOns.length) {
+    console.warn(
+      `[IMPORT-SKIP-ADDONS] ${rawAddOns.length - validAddOns.length} purchasedAddOns entries dropped — unregistered or invalid codes: ${JSON.stringify(rawAddOns.filter(item => !(typeof item === "string" && isSpecialtyPackCode(item))))}`
+    );
+  }
+
   const entitlement: BackupEntitlement = {
     licenseKey:    typeof e.licenseKey   === "string" ? e.licenseKey   : null,
     instanceId:    typeof e.instanceId   === "string" ? e.instanceId   : null,
     licenseType,
-    unlockedPacks: Array.isArray(e.unlockedPacks)
-      ? (e.unlockedPacks as unknown[]).filter(
-          (c): c is PackCode => typeof c === "string" && isValidPackCode(c)
-        )
-      : [...FREE_PACK_CODES],
+    unlockedPacks: validUnlockedPacks,
     validUntil:    typeof e.validUntil === "number" && isFinite(e.validUntil) ? e.validUntil : null,
     // Validates both type (string) and registration (isSpecialtyPackCode) so a hand-edited
     // backup JSON cannot inject arbitrary add-on codes without a real receipt check.
-    // Mirrors the unlockedPacks → isValidPackCode gate above. Old backups (pre-purchasedAddOns)
-    // arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
-    purchasedAddOns: rawAddOns.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item)),
+    // Mirrors the unlockedPacks → isValidPackCode gate above.
+    purchasedAddOns: validAddOns,
   };
 
   // v1 backups pre-date the langPair field — default to Italian (the only language at v1).
   // Validate format: base pair (en-it) or hyphenated specialty code (en-it-medical).
   const rawLangPair = typeof data.langPair === "string" ? data.langPair : "en-it";
   const LANG_PAIR_RE = /^[a-z]{2}-[a-z]{2,}(-[a-z]{2,})*$/;
-  if (!LANG_PAIR_RE.test(rawLangPair) && rawLangPair !== "en-it") {
+  if (!LANG_PAIR_RE.test(rawLangPair)) {
     console.error(`[ERR-IMPORT-LANG-PAIR] Backup langPair "${rawLangPair}" did not match expected format — falling back to "en-it".`);
   }
   const langPair = LANG_PAIR_RE.test(rawLangPair) ? rawLangPair : "en-it";

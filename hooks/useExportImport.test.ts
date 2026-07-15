@@ -44,6 +44,9 @@ vi.mock("@/lib/importBackup", () => ({
 
 vi.mock("@/lib/constants", () => ({
   LANG_PAIR_KEY: "plyglt_lang_pair",
+  getLangPair: vi.fn().mockReturnValue("en-it"),
+  getTargetLangCode: vi.fn().mockReturnValue("it"),
+  setTargetLangCode: vi.fn(),
 }));
 
 describe("useExportImport — handleExport", () => {

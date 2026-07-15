@@ -2,8 +2,15 @@
  * specialtyPackLoader — loads and merges specialty packs into their base language pack.
  * Inputs: specialty pack code, base language memCache, manifest, purchasedAddOns.
  * Outputs: merged memCache[baseLang] with specialty cards appended; loadedAddOns updated.
- * Called by: lib/packLoader.ts (specialty branch of loadPack).
- * Side effects: fetch() I/O, memCache mutation, loadedAddOns mutation, platform storage writes.
+ *
+ * Called by:
+ *   lib/packLoader.ts — specialty branch of loadPack (imports loadSpecialtyPack, clearSpecialtyCache,
+ *     getLoadedAddOns re-export). This is the primary consumer.
+ *   store/entitlementStore.ts — imports clearSpecialtyCache directly for the license-clear flow.
+ *
+ * Side effects: fetch() I/O, memCache mutation (via lib/packCache), loadedAddOns mutation
+ *   (via lib/packCache — moved there in Task #328 to break a circular ES-module dependency),
+ *   platform storage writes.
  * No React, no Zustand imports.
  */
 
@@ -17,15 +24,14 @@ import {
   readCacheData,
   writeCacheData,
   clearPackCache,
+  isAddOnLoaded,
+  markAddOnLoaded,
+  clearLoadedAddOns,
   type CachedPackMeta,
 } from "@/lib/packCache";
-
-// ── In-memory tracking ────────────────────────────────────────────────────────
-
-// Track which specialty add-on pack codes have been merged into their base pack
-// this session. Each entry is the specialty code (e.g. "it-medical"); the merged
-// units live inside the base pack's entry in memCache under the baseLang key.
-const loadedAddOns: string[] = [];
+// loadedAddOns tracking (getLoadedAddOns / clearSpecialtyPacksForLang) moved to
+// lib/packCache.ts in Task #328 to break the circular ES-module dependency.
+export { getLoadedAddOns } from "@/lib/packCache";
 
 // In-flight promises, keyed by BOTH specialty code and base language code.
 // Specialty code key → same-code dedup: concurrent calls for the same code share one promise.
@@ -34,49 +40,15 @@ const loadedAddOns: string[] = [];
 const inFlight = new Map<string, Promise<LoadPackResult>>();
 
 /**
- * Returns the list of specialty add-on pack codes merged this session.
- * Each entry is a specialty code (e.g. "it-medical") whose units have been
- * merged into the corresponding base pack entry in memCache.
- */
-export function getLoadedAddOns(): string[] {
-  return [...loadedAddOns];
-}
-
-/**
- * Resets specialty add-on tracking state.
- * @internal Called by packLoader.clearCacheForTesting — do not call directly in application code.
+ * Resets the in-flight promise map.
+ * loadedAddOns is owned by lib/packCache — clearLoadedAddOns() resets it there (#328).
+ * @internal Called by packLoader.clearCacheForTesting and store/entitlementStore.clearEntitlement.
  */
 export function clearSpecialtyCache(): void {
-  loadedAddOns.length = 0;
+  clearLoadedAddOns();
   inFlight.clear();
   // Platform storage singleton is owned by lib/packCache.ts; reset happens via
   // packLoader.clearCacheForTesting → clearPackCacheState.
-}
-
-/**
- * Removes any specialty add-ons whose baseLang matches the evicted base pack.
- * Returns the list of specialty codes that were pruned. (#319)
- *
- * The return value is used by lib/packCache.clearPackCache to also clear each
- * pruned code's own persisted storage keys (pack-meta-v1-{code} / pack-data-v1-{code}).
- * Without this, evicting a base pack leaves orphaned specialty storage entries on disk —
- * they would be merged from cache on the next load without revalidating against the
- * current manifest or re-verifying sha256, even though their in-memory state was pruned.
- * Task #326 (store/entitlementStore.ts clearEntitlement) also reads this return value to
- * enumerate specialty codes to evict from memCache on license deactivation.
- */
-export function clearSpecialtyPacksForLang(baseLang: string): string[] {
-  const codesForBase = new Set(
-    SPECIALTY_PACKS.filter(sp => sp.baseLang === baseLang).map(sp => sp.code),
-  );
-  const pruned: string[] = [];
-  for (let i = loadedAddOns.length - 1; i >= 0; i--) {
-    if (codesForBase.has(loadedAddOns[i]!)) {
-      pruned.push(loadedAddOns[i]!);
-      loadedAddOns.splice(i, 1);
-    }
-  }
-  return pruned;
 }
 
 // ── Parse-merge-persist helper ────────────────────────────────────────────────
@@ -122,9 +94,9 @@ async function _mergeFromJson(
   };
   // merge, not write: this is an additive update to an already-loaded base pack, not a fresh
   // replacement — it must NOT prune specialty tracking, since that would immediately undo the
-  // loadedAddOns.push(lang) two lines below. See PackMemCache's doc comment in lib/packTypes.ts.
+  // markAddOnLoaded(lang) call on the next line. See PackMemCache's doc comment in lib/packTypes.ts.
   memCache.merge(baseLang, merged);
-  loadedAddOns.push(lang);
+  markAddOnLoaded(lang);
 
   if (manifestEntry) {
     // Persist to platform storage. Meta is written FIRST so a crash or power-loss between
@@ -268,8 +240,10 @@ async function _doLoad(
  *
  * Non-async: this function is deliberately not declared `async` so that the same-code dedup
  * path (`return existingForCode`) returns the exact same Promise reference rather than a new
- * async wrapper. This enables callers to observe promise reference equality for concurrent
- * same-code loads, which `async function` would prevent even with an in-flight guard. (#321)
+ * async wrapper. This guarantees p1 === p2 for concurrent direct loadSpecialtyPack calls with
+ * the same code. Note: callers that go through loadPack (which is declared `async`) receive a
+ * new Promise wrapper regardless — reference equality holds only for direct loadSpecialtyPack
+ * callers. (#321, #365)
  */
 export function loadSpecialtyPack(
   lang: string,
@@ -297,15 +271,13 @@ export function loadSpecialtyPack(
   }
 
   // Already merged this session — return the base pack (which has merged units).
-  if (loadedAddOns.includes(lang)) {
+  if (isAddOnLoaded(lang)) {
     return Promise.resolve({ ok: true, pack: memCache.get(spec.baseLang)! });
   }
 
   // Same-code dedup: return the SAME in-flight promise reference if this code is already loading.
   // This function is non-async precisely so that `return existingForCode` returns the exact same
-  // Promise object — an async function would always wrap it in a new Promise. loadPack's
-  // `return loadSpecialtyPack(...)` (also a direct return in a non-async specialtyPack call)
-  // passes the reference through to the caller, making p1 === p2 for concurrent same-code loads.
+  // Promise object — an async function would always wrap it in a new Promise.
   const existingForCode = inFlight.get(lang);
   if (existingForCode) return existingForCode;
 
@@ -317,7 +289,7 @@ export function loadSpecialtyPack(
 
   const promise: Promise<LoadPackResult> = prior.then(async () => {
     // Re-check after the prior load completes: it may have already merged this code.
-    if (loadedAddOns.includes(lang)) {
+    if (isAddOnLoaded(lang)) {
       return { ok: true, pack: memCache.get(spec.baseLang)! } as LoadPackResult;
     }
     return _doLoad(lang, spec.baseLang, memCache, manifest);

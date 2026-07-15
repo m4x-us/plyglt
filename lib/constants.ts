@@ -12,6 +12,15 @@
 /** Single source of truth for the localStorage key that tracks the active language pair. */
 export const LANG_PAIR_KEY = "srs-lang-pair";
 
+// Task #340: This module is the SOLE AUTHORIZED CALLER of window.localStorage for
+// LANG_PAIR_KEY. CLAUDE.md §3 requires all localStorage access to route through
+// lib/storage.ts, but createPlatformStorage() is async and cannot replace these
+// synchronous render-body callers. Consolidating here (rather than calling
+// window.localStorage directly at each use site) is the pragmatic middle ground: one
+// place to audit, one place to change if the storage layer later grows a synchronous
+// accessor. All callers outside this file must use one of the three functions below —
+// never window.localStorage.getItem/setItem(LANG_PAIR_KEY) directly.
+
 /** Returns the stored target language code, defaulting to "it". */
 export function getTargetLangCode(): string {
   if (typeof window === "undefined") return "it";
@@ -31,4 +40,10 @@ export function setTargetLangCode(targetLang: string): void {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(LANG_PAIR_KEY, `en-${targetLang}`);
   }
+}
+
+/** Returns the full active language pair string (e.g. "en-it"). */
+export function getLangPair(): string {
+  if (typeof window === "undefined") return "en-it";
+  return window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
 }

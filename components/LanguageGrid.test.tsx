@@ -46,7 +46,6 @@ vi.mock("@/lib/langRegistry", () => ({
   isSpecialtyPackCode:       () => false,
   isReadySpecialtyPackCode:  () => false,
   isValidPackCode:           (s: string) => ["it", "es", "fr"].includes(s),
-  getSpecialtyPacks:         () => [],
 }));
 
 vi.mock("@/lib/entitlement", async (importOriginal) => {
@@ -60,6 +59,7 @@ vi.mock("@/content/index", () => ({
 
 import { LanguageGrid } from "./LanguageGrid";
 import { useEntitlementStore } from "@/store/entitlementStore";
+import type { LicenseType } from "@/lib/licenseTypes";
 
 const onSelect = vi.fn();
 const onUpgradeClick = vi.fn();
@@ -67,13 +67,16 @@ const onUpgradeClick = vi.fn();
 // hasAddOn always reads from the real entitlementStore — tests that need a
 // purchased add-on set up store state via useEntitlementStore.setState() before
 // rendering. Tests with no purchased add-ons rely on the beforeEach reset.
-function renderGrid(isPackUnlocked: (code: string) => boolean) {
+// licenseType defaults to "free"; pass "subscription" for tests that need isPro=true
+// (specialty packs visible via isPackUnlocked without purchase).
+function renderGrid(isPackUnlocked: (code: string) => boolean, licenseType: LicenseType = "free") {
   render(
     <LanguageGrid
       onSelect={onSelect}
       onUpgradeClick={onUpgradeClick}
       isPackUnlocked={isPackUnlocked}
       hasAddOn={(code) => useEntitlementStore.getState().hasAddOn(code)}
+      licenseType={licenseType}
     />
   );
 }
@@ -90,13 +93,12 @@ describe("LanguageGrid", () => {
   it("renders Italian with 'Free' badge and calls onSelect('it') on click", () => {
     renderGrid(() => false);
 
-    expect(screen.getByText("Free")).toBeTruthy();
-    expect(screen.getByText("Italian")).toBeTruthy();
-    expect(screen.getByText(/20 units/)).toBeTruthy(); // unit count from ALL_UNITS
+    screen.getByText("Free"); // presence assertion — throws if absent
+    screen.getByText("Italian"); // presence assertion
+    screen.getByText(/20 units/); // presence assertion — unit count from ALL_UNITS
 
-    const italianBtn = screen.getByText("Italian").closest("button");
-    expect(italianBtn).not.toBeNull();
-    fireEvent.click(italianBtn!);
+    const italianBtn = screen.getByRole("button", { name: /Italian/i });
+    fireEvent.click(italianBtn);
 
     expect(onSelect).toHaveBeenCalledWith("it");
     expect(onUpgradeClick).not.toHaveBeenCalled();
@@ -106,9 +108,8 @@ describe("LanguageGrid", () => {
   it("renders an unlocked+ready paid language as selectable and calls onSelect on click", () => {
     renderGrid((code) => code === "es"); // Spanish unlocked
 
-    const spanishBtn = screen.getByText("Spanish").closest("button");
-    expect(spanishBtn).not.toBeNull();
-    fireEvent.click(spanishBtn!);
+    const spanishBtn = screen.getByRole("button", { name: /Spanish/i });
+    fireEvent.click(spanishBtn);
 
     expect(onSelect).toHaveBeenCalledWith("es");
     expect(onUpgradeClick).not.toHaveBeenCalled();
@@ -118,15 +119,15 @@ describe("LanguageGrid", () => {
   it("renders locked+ready paid language with pricing string and calls onUpgradeClick on click", () => {
     renderGrid(() => false); // nothing unlocked
 
-    // Pricing string appears for each locked language entry
+    // Pricing string appears for each locked language entry (Spanish locked+ready, French locked+not-ready)
     const pricingEls = screen.getAllByText("$34.99/yr →");
-    expect(pricingEls.length).toBeGreaterThan(0);
+    expect(pricingEls.length).toBe(2);
 
-    // The Spanish button's click must call onUpgradeClick, not onSelect
+    // The Spanish button's click must call onUpgradeClick with no argument (base language CTA)
     const spanishBtn = screen.getByText("Spanish").closest("button");
     fireEvent.click(spanishBtn!);
 
-    expect(onUpgradeClick).toHaveBeenCalled();
+    expect(onUpgradeClick).toHaveBeenCalledWith();
     expect(onSelect).not.toHaveBeenCalledWith("es");
   });
 
@@ -134,13 +135,13 @@ describe("LanguageGrid", () => {
   it("renders a not-ready paid pack with 'In development' and calls onUpgradeClick on click", () => {
     renderGrid(() => false);
 
-    expect(screen.getByText(/In development/)).toBeTruthy();
-    expect(screen.getByText("French")).toBeTruthy();
+    screen.getByText(/In development/); // presence assertion
+    screen.getByText("French"); // presence assertion
 
     const frenchBtn = screen.getByText("French").closest("button");
     fireEvent.click(frenchBtn!);
 
-    expect(onUpgradeClick).toHaveBeenCalled();
+    expect(onUpgradeClick).toHaveBeenCalledWith();
     expect(onSelect).not.toHaveBeenCalledWith("fr");
   });
 
@@ -148,7 +149,7 @@ describe("LanguageGrid", () => {
   it("renders 'Soon' for an unlocked not-ready pack and does not call onSelect on click", () => {
     renderGrid((code) => code === "fr"); // French unlocked but not ready
 
-    expect(screen.getByText("Soon")).toBeTruthy();
+    screen.getByText("Soon"); // presence assertion
     // Verify the French button itself does NOT contain the pricing string
     const frenchBtnForPricingCheck = screen.getByText("French").closest("button");
     expect(frenchBtnForPricingCheck!.textContent).not.toContain("$34.99/yr");
@@ -156,7 +157,7 @@ describe("LanguageGrid", () => {
     const frenchBtn = screen.getByText("French").closest("button");
     fireEvent.click(frenchBtn!);
 
-    expect(onUpgradeClick).toHaveBeenCalled();
+    expect(onUpgradeClick).toHaveBeenCalledWith();
     expect(onSelect).not.toHaveBeenCalledWith("fr");
   });
 });
@@ -178,10 +179,9 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
     renderGrid((code) => code === "it"); // Italian unlocked → its specialty packs shown
 
-    expect(screen.getByText("Add-ons")).toBeTruthy();
-    const tile = screen.getByText("Medical Italian").closest("button");
-    expect(tile).not.toBeNull();
-    fireEvent.click(tile!);
+    screen.getByText("Add-ons"); // presence assertion
+    const tile = screen.getByRole("button", { name: /Medical Italian/i });
+    fireEvent.click(tile);
 
     expect(onSelect).toHaveBeenCalledWith("it-medical");
     expect(onUpgradeClick).not.toHaveBeenCalled();
@@ -192,15 +192,17 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
     // purchasedAddOns is [] from beforeEach — hasAddOn returns false for all codes.
 
-    renderGrid((code) => code === "it"); // Italian unlocked
+    // "subscription" required: filter is hasAddOn(sp.code) || (isPro && isPackUnlocked(sp.baseLang)).
+    // With free tier isPro=false, the unlocked base language alone does not surface the tile.
+    renderGrid((code) => code === "it", "subscription"); // Italian unlocked, Pro tier
 
-    expect(screen.getByText("Add-ons")).toBeTruthy();
+    screen.getByText("Add-ons"); // presence assertion
     // Verify the specific specialty tile (not any base-language tile) shows the pricing CTA
     const tile = screen.getByText("Medical Italian").closest("button");
     expect(tile!.textContent).toContain("$34.99/yr →");
     fireEvent.click(tile!);
 
-    expect(onUpgradeClick).toHaveBeenCalled();
+    expect(onUpgradeClick).toHaveBeenCalledWith("it-medical");
     expect(onSelect).not.toHaveBeenCalledWith("it-medical");
   });
 
@@ -219,17 +221,18 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
   it("renders a not-ready specialty pack with 'Coming soon' label and calls onUpgradeClick on click", () => {
     mockSpecialtyPacks.push({ code: "it-cooking", baseLang: "it", name: "Italian Cooking", ready: false });
 
-    renderGrid((code) => code === "it");
+    // "subscription" required: same isPro filter reasoning as State 3 above.
+    renderGrid((code) => code === "it", "subscription");
 
-    expect(screen.getByText("Add-ons")).toBeTruthy();
-    expect(screen.getByText("Coming soon")).toBeTruthy();
+    screen.getByText("Add-ons"); // presence assertion
+    screen.getByText("Coming soon"); // presence assertion
     // Verify the specialty tile itself does not show pricing (base-language tiles may still show it)
     const tile = screen.getByText("Italian Cooking").closest("button");
     expect(tile!.textContent).not.toContain("$34.99/yr →");
 
     fireEvent.click(tile!);
 
-    expect(onUpgradeClick).toHaveBeenCalled();
+    expect(onUpgradeClick).toHaveBeenCalledWith("it-cooking");
     expect(onSelect).not.toHaveBeenCalledWith("it-cooking");
   });
 
@@ -256,7 +259,10 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
     renderGrid(() => false); // base language NOT unlocked
 
-    expect(screen.getByText("Add-ons")).toBeTruthy();
-    expect(screen.getByText("Medical Italian")).toBeTruthy();
+    screen.getByText("Add-ons"); // presence assertion
+    // Purchased add-on tile is in selectable branch — click proves it is rendered and wired correctly.
+    const tile = screen.getByRole("button", { name: /Medical Italian/i });
+    fireEvent.click(tile);
+    expect(onSelect).toHaveBeenCalledWith("it-medical");
   });
 });

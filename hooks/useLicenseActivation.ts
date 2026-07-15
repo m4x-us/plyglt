@@ -79,10 +79,18 @@ export function useLicenseActivation() {
         setLicenseStatus({ type: "error", message: result.error });
         return; // Do NOT clear entitlement — the license slot is still occupied
       }
-      // Task #326: clearEntitlement now returns a Promise so the specialty-content
+      // Task #326: clearEntitlement returns a Promise so the specialty-content
       // memCache eviction is guaranteed to complete before this handler resolves.
-      await clearEntitlement();
-      setLicenseStatus({ type: "idle" });
+      // Task #351: clearEntitlement rejects if any base-pack eviction fails. The license
+      // IS deactivated (state reset is synchronous) — a rejection here means only that
+      // cached specialty content may persist until the next page load.
+      try {
+        await clearEntitlement();
+        setLicenseStatus({ type: "idle" });
+      } catch (evictErr) {
+        console.error(`[ERR-DEACTIVATE-EVICT-${Date.now()}] specialty-pack eviction failed after deactivation`, evictErr);
+        setLicenseStatus({ type: "error", message: "Deactivated. Restart the app to clear cached content." });
+      }
     } catch (err) {
       console.error(`[ERR-LICENSE-DEACTIVATE-${Date.now()}] deactivateLicense threw unexpectedly`, err);
       setLicenseStatus({ type: "error", message: "Deactivation failed. Check your connection and try again." });

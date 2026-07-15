@@ -9,7 +9,7 @@
 // DEPENDS ON: @/lib/language (LanguageConfig, ITALIAN, SPANISH)
 // USED BY: store/entitlementStore.ts, lib/entitlement.ts, lib/importBackup.ts,
 //          store/migrations.ts, lib/packLoader.ts, lib/specialtyPackLoader.ts,
-//          components/LanguageGrid.tsx,
+//          hooks/useLangPack.ts, components/LanguageGrid.tsx,
 //          LANG_CONFIG_MAP → (any component rendering language UI)
 // ===========================================
 
@@ -75,26 +75,25 @@ export interface SpecialtyPack {
   readonly ready: boolean;     // false until the pack file ships
 }
 
-// Empty until real specialty content exists. To register a future pack: append here
-// with ready:false, then set ready:true once the pack file and pricing are live.
-export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([]);
+// Registered specialty packs. All start with ready:false; set ready:true once the
+// pack file and pricing go live. To add a new pack: append here with ready:false.
+export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([
+  { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: false },
+]);
 
 /**
  * Returns true iff s is a registered AND ready specialty pack code.
  * Used by purchaseAddOn as the sole code-validity gate before persisting into
  * purchasedAddOns (which has no removal path). Requiring .ready prevents a
  * registered-but-not-yet-shipped pack from being purchased and permanently stored.
+ * Also used by packLoader as its specialty-pack loadability gate (Task #266).
  */
 export function isSpecialtyPackCode(s: string): boolean {
   return SPECIALTY_PACKS.some(sp => sp.code === s && sp.ready);
 }
 
 /**
- * Returns true iff s is a registered AND ready specialty pack code.
- * Use for security-sensitive loadability checks (mirrors READY_PACK_CODES for base packs).
- * packLoader delegates to this function for its specialty-pack loadability gate,
- * replacing its former inline SPECIALTY_PACKS.some(...) check (Task #266).
+ * Alias for isSpecialtyPackCode. Kept for callers that imported this name before
+ * the deduplication in Task #332. Migrate call sites to isSpecialtyPackCode via Task #361.
  */
-export function isReadySpecialtyPackCode(s: string): boolean {
-  return SPECIALTY_PACKS.some(sp => sp.code === s && sp.ready);
-}
+export const isReadySpecialtyPackCode = isSpecialtyPackCode;

@@ -4,8 +4,10 @@
 /**
  * packLoader.ts — Fetches, verifies, and caches language pack JSON files.
  *
- * Depends on: @/lib/packCache (in-memory and storage I/O layer), @/lib/langRegistry (allowlist)
- * Used by:    hooks/useLangPack.ts
+ * Depends on: @/lib/packCache (in-memory and storage I/O layer), @/lib/langRegistry (allowlist),
+ *             @/lib/specialtyPackLoader (specialty pack merge path), @/lib/utils (sha256Hex, packUrl),
+ *             @/lib/packTypes (hasValidUnitsArray, Pack, Manifest, LoadPackResult, PackMemCache)
+ * Used by:    hooks/useLangPack.ts, store/entitlementStore.ts (evictPack, getLoadedAddOns)
  *
  * Storage hierarchy (fastest → slowest):
  *   1. In-memory cache (PackMemCache) — per-session, zero-latency
@@ -27,13 +29,13 @@
  * is currently empty, so the specialty branch never executes yet — it is ready for when
  * registered specialty pack content arrives. See seedMemCache below.
  *
- * Public API: loadPack, getInstalledPacks, getLoadedAddOns, evictPack, fetchManifest, clearCacheForTesting
+ * Public API: loadPack, getLoadedAddOns, evictPack, seedMemCache, fetchManifest, clearCacheForTesting
  *
  * Low-level cache I/O lives in lib/packCache.ts (extracted Task #275 to satisfy the
  * 400-line service cap — Rule 1, AGENTS.md/philosophy.md).
  */
 
-import { READY_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP, type PackCode } from "@/lib/langRegistry";
+import { READY_PACK_CODES, FREE_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
 import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 import { sha256Hex, packUrl } from "@/lib/utils";
@@ -92,7 +94,7 @@ export async function fetchManifest(): Promise<Manifest | null> {
 export async function loadPack(
   lang: string,
   manifest: Manifest | null,
-  options?: { forceRedownload?: boolean; purchasedAddOns?: string[] }
+  options?: { forceRedownload?: boolean; purchasedAddOns?: string[]; unlockedLangs?: string[] }
 ): Promise<LoadPackResult> {
   // Accept ready base packs (READY_PACK_CODES) and ready specialty packs (isReadySpecialtyPackCode).
   // Reject everything else — unknown codes (path traversal) and registered-but-unready packs.
@@ -112,6 +114,17 @@ export async function loadPack(
   // client-side entitlement gate (Task #261).
   if (isReadySpecialtyPack) {
     return loadSpecialtyPack(lang, memCache, manifest, options?.purchasedAddOns ?? []);
+  }
+
+  // ── Base-pack entitlement check ───────────────────────────────────────────
+  // Task #350: mirrors the specialty-pack purchasedAddOns gate for defense-in-depth.
+  // Free packs (FREE_PACK_CODES) are always loadable. Non-free packs require the caller
+  // to pass unlockedLangs containing the lang code. The primary gate is the UI layer
+  // (LanguageGrid.tsx, app/page.tsx — isPackUnlocked); this is a secondary loader-layer
+  // guard so the asymmetry with the specialty-pack path is eliminated.
+  const isFreePack = FREE_PACK_CODES.some(c => c === lang);
+  if (!isFreePack && !(options?.unlockedLangs ?? []).includes(lang)) {
+    return { ok: false, error: "invalid_lang" };
   }
 
   // 1. Memory hit — fastest path, avoids all storage I/O
@@ -248,6 +261,12 @@ export async function loadPack(
  * Called by: hooks/useLangPack.ts — in the useState initializer for static-pack languages.
  */
 export function seedMemCache(lang: string, units: Unit[]): void {
+  // Task #337: guard against unregistered/unready codes — memCache must only ever
+  // contain validated pack codes (defense-in-depth for the specialty precondition check).
+  if (!READY_PACK_CODES.some(c => c === lang)) {
+    console.error(`[ERR-SEED-INVALID-LANG-${lang}] seedMemCache called with unregistered or unready lang — write rejected`);
+    return;
+  }
   if (memCache.has(lang)) return;
   const config = LANG_CONFIG_MAP[lang] as (typeof LANG_CONFIG_MAP)[string] | undefined;
   const pack: Pack = {
@@ -263,15 +282,6 @@ export function seedMemCache(lang: string, units: Unit[]): void {
     units,
   };
   memCache.write(lang, pack);
-}
-
-/**
- * Returns the list of base language codes loaded in the current session.
- * Safe: base pack entries in memCache are only written via loadPack(), which validates
- * against READY_PACK_CODES — so this can never return an unregistered or unready code.
- */
-export function getInstalledPacks(): PackCode[] {
-  return Array.from(memCache.keys()) as PackCode[];
 }
 
 /**
@@ -301,6 +311,9 @@ export async function evictPack(lang: string): Promise<void> {
       console.warn(`[evictPack] "${lang}" is a specialty pack — cannot be evicted individually; evict the base language pack ("${match.baseLang}") instead`);
       // #325: escalate to error — fulfilled promise + no eviction is a silent contract violation.
       console.error(`[ERR-EVICT-SPECIALTY-${lang}-${Date.now()}] evictPack("${lang}") resolved without evicting anything; call evictPack("${match.baseLang}") to clear specialty units`);
+    } else {
+      // Task #341: fully unregistered code — log so callers know nothing was evicted.
+      console.warn(`[evictPack] "${lang}" is not a registered base pack or specialty pack code — no-op`);
     }
     return;
   }

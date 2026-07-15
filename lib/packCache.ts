@@ -2,20 +2,29 @@
 // packCache.ts — In-memory cache and platform storage I/O for language packs.
 // ============================================================
 /**
- * packCache.ts — Low-level cache layer extracted from packLoader.ts (Task #275).
+ * packCache.ts — In-memory cache and platform storage I/O for language packs.
  *
  * Owns:
  *   - PackMemCacheImpl / memCache — session-scoped in-memory cache singleton
+ *   - loadedAddOns bookkeeping — which specialty codes are merged this session (#328)
  *   - Platform storage helpers — read/write/clear pack JSON and metadata
  *   - Parse/validate/cache helpers — shared tails for all loadPack origins
  *
  * No React. No Zustand imports.
  *
- * @internal Used by lib/packLoader.ts. Not part of the module's external public API.
+ * Used by: lib/packLoader.ts (primary consumer), lib/specialtyPackLoader.ts
+ *   (imports readCacheMeta, writeCacheMeta, readCacheData, writeCacheData, clearPackCache,
+ *   isAddOnLoaded, markAddOnLoaded, clearLoadedAddOns; re-exports getLoadedAddOns).
+ *
+ * Import history note (#328): packCache previously imported clearSpecialtyPacksForLang from
+ * lib/specialtyPackLoader.ts, creating a genuine circular ES-module dependency (each file
+ * imported from the other). Breaking the cycle required moving loadedAddOns and its management
+ * functions here — they are cache state (tracking what is merged into memCache) and belong
+ * alongside the other cache-state operations already in this file.
  */
 
 import { createPlatformStorage } from "@/lib/storage";
-import { clearSpecialtyPacksForLang } from "@/lib/specialtyPackLoader";
+import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Pack, LoadPackResult, PackMemCache } from "@/lib/packTypes";
 
@@ -25,6 +34,59 @@ export interface CachedPackMeta {
   version: string;
   sha256: string;
   cachedAt: number;
+}
+
+// ── Specialty add-on tracking ─────────────────────────────────────────────────
+//
+// Moved from lib/specialtyPackLoader.ts (#328) to break the circular ES-module dependency.
+// These are cache state — they track which specialty packs are merged into memCache this session.
+// Updating them atomically with cache writes (which already live here) is the correct ownership.
+
+const loadedAddOns: string[] = [];
+
+/** Returns a copy of the specialty pack codes currently merged into memCache this session. */
+export function getLoadedAddOns(): string[] {
+  return [...loadedAddOns];
+}
+
+/** Returns whether a specialty pack code has been merged into memCache this session. */
+export function isAddOnLoaded(lang: string): boolean {
+  return loadedAddOns.includes(lang);
+}
+
+/** Records that a specialty pack code has been merged into memCache. */
+export function markAddOnLoaded(lang: string): void {
+  loadedAddOns.push(lang);
+}
+
+/**
+ * Clears all session add-on tracking without touching memCache or platform storage.
+ * Called by specialtyPackLoader.clearSpecialtyCache (for the entitlementStore eviction flow
+ * and the packLoader.clearCacheForTesting path — both of which independently manage memCache
+ * and storage eviction separately).
+ */
+export function clearLoadedAddOns(): void {
+  loadedAddOns.length = 0;
+}
+
+/**
+ * Removes from loadedAddOns every specialty code whose baseLang matches the given base pack.
+ * Returns the list of pruned codes so the caller can also clear their storage keys.
+ * Called by PackMemCacheImpl.write() (base pack replaced in-memory) and clearPackCache()
+ * (base pack fully evicted including storage) — both below in this file.
+ */
+export function clearSpecialtyPacksForLang(baseLang: string): string[] {
+  const codesForBase = new Set(
+    SPECIALTY_PACKS.filter(sp => sp.baseLang === baseLang).map(sp => sp.code),
+  );
+  const pruned: string[] = [];
+  for (let i = loadedAddOns.length - 1; i >= 0; i--) {
+    if (codesForBase.has(loadedAddOns[i]!)) {
+      pruned.push(loadedAddOns[i]!);
+      loadedAddOns.splice(i, 1);
+    }
+  }
+  return pruned;
 }
 
 // ── In-memory cache ───────────────────────────────────────────────────────────
@@ -49,8 +111,11 @@ class PackMemCacheImpl implements PackMemCache {
   }
 
   write(lang: string, pack: Pack): void {
-    clearSpecialtyPacksForLang(lang);
+    const pruned = clearSpecialtyPacksForLang(lang);
     this.map.set(lang, pack);
+    // Fire-and-forget: in-memory state above is already correct; storage cleanup is best-effort.
+    // Errors are logged inside _clearSpecialtyStorageKeys — nothing is silently swallowed. (#346)
+    void _clearSpecialtyStorageKeys(pruned, "WRITE");
   }
 
   merge(lang: string, mergedPack: Pack): void {
@@ -115,29 +180,44 @@ export async function writeCacheData(lang: string, json: string): Promise<void> 
   await getStorage().setItem(CACHE_DATA_PREFIX + lang, json);
 }
 
+// Clears the persisted storage keys for each pruned specialty code.
+// Called from PackMemCacheImpl.write() (fire-and-forget — in-memory state is already correct;
+// storage cleanup is best-effort, errors are logged) and from clearPackCache() (awaited —
+// full eviction must leave no orphaned bytes on disk).
+async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE" | "CLEAR"): Promise<void> {
+  if (prunedCodes.length === 0) return;
+  const results = await Promise.allSettled(
+    prunedCodes.flatMap(code => [
+      getStorage().removeItem(CACHE_META_PREFIX + code),
+      getStorage().removeItem(CACHE_DATA_PREFIX + code),
+    ]),
+  );
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      const code = prunedCodes[Math.floor(i / 2)]!;
+      const keyType = i % 2 === 0 ? "meta" : "data";
+      console.error(
+        `[ERR-CACHE-${context}-SPECIALTY-${keyType.toUpperCase()}-${code}-${Date.now()}] storage removeItem failed — ${keyType} key may persist`,
+        r.reason,
+      );
+    }
+  });
+}
+
 /**
  * Clears a base pack's cache entries (memory + platform storage) and prunes any specialty
- * add-ons merged into it — the two are inseparable: an evicted base pack can never have its
- * merge state left dangling. Pruning lives INSIDE this function, not at each call site, because
- * 4 consecutive Batch 18 remediation tasks (#250, #251, #253, #259) each independently forgot
- * to pair the two calls at one or more of clearPackCache's several call sites — most recently
- * Task #259 added clearSpecialtyPacksForLang after 3 of loadPack's cache-write call sites but
- * missed 4 sibling clearPackCache-and-return call sites in the same two blocks it was editing.
- * Folding the prune into clearPackCache itself means every call site, present and any added
- * later, gets the guarantee automatically — there is no longer a second line to remember.
- *
- * As of #319: also clears each pruned specialty code's own persisted storage keys. Each
- * specialty pack has its own pack-meta-v1-{code} and pack-data-v1-{code} entries written by
- * lib/specialtyPackLoader._mergeFromJson. Without clearing them, evicting a base pack leaves
- * orphaned specialty bytes on disk — they would be served from cache on the next load without
- * re-verifying against the current manifest's sha256, even though their in-memory tracking
- * was pruned. clearSpecialtyPacksForLang now returns the pruned codes so this function can
- * target their storage keys directly.
+ * add-ons merged into it. Every call site automatically gets all three: memory deletion,
+ * base-pack storage removal, and specialty storage removal. Pruning is delegated to
+ * _clearSpecialtyStorageKeys, which PackMemCacheImpl.write() reuses for the in-memory-
+ * replace case — one composable helper, two callers, no per-call-site boilerplate.
  */
 export async function clearPackCache(lang: string): Promise<void> {
-  // allSettled: both removals run regardless of whether either throws.
-  // memCache.delete always runs after — a storage I/O failure must never leave
-  // a stale in-memory entry that silently bypasses the eviction.
+  // Synchronous state changes run first — before any async I/O — so a concurrent
+  // loadPack or loadSpecialtyPack that completes during the await cannot have its
+  // freshly-written memCache entry wiped when this eviction's delete executes later. (#358)
+  memCache.delete(lang);
+  const prunedCodes = clearSpecialtyPacksForLang(lang);
+  // allSettled: both base-pack removals run regardless of whether either throws.
   const [metaResult, dataResult] = await Promise.allSettled([
     getStorage().removeItem(CACHE_META_PREFIX + lang),
     getStorage().removeItem(CACHE_DATA_PREFIX + lang),
@@ -148,28 +228,7 @@ export async function clearPackCache(lang: string): Promise<void> {
   if (dataResult.status === "rejected") {
     console.error(`[ERR-CACHE-CLEAR-DATA-${lang}-${Date.now()}] storage removeItem failed — data key may persist`, dataResult.reason);
   }
-  memCache.delete(lang);
-  // Prune in-memory add-on tracking and collect the evicted codes so their own
-  // storage entries can also be cleared (#319 — previously only pruned in-memory state).
-  const prunedCodes = clearSpecialtyPacksForLang(lang);
-  if (prunedCodes.length > 0) {
-    const specialtyResults = await Promise.allSettled(
-      prunedCodes.flatMap(code => [
-        getStorage().removeItem(CACHE_META_PREFIX + code),
-        getStorage().removeItem(CACHE_DATA_PREFIX + code),
-      ]),
-    );
-    specialtyResults.forEach((r, i) => {
-      if (r.status === "rejected") {
-        const code = prunedCodes[Math.floor(i / 2)]!;
-        const keyType = i % 2 === 0 ? "meta" : "data";
-        console.error(
-          `[ERR-CACHE-CLEAR-SPECIALTY-${keyType.toUpperCase()}-${code}-${Date.now()}] storage removeItem failed — ${keyType} key may persist`,
-          r.reason,
-        );
-      }
-    });
-  }
+  await _clearSpecialtyStorageKeys(prunedCodes, "CLEAR");
 }
 
 // ── Shared parse/validate/cache-or-evict helpers ──────────────────────────────
@@ -242,5 +301,6 @@ export async function parseValidateAndCache(lang: string, jsonText: string): Pro
  */
 export function clearPackCacheState(): void {
   memCache.clear();
+  loadedAddOns.length = 0;
   _storage = null;
 }

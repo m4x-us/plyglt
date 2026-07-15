@@ -18,7 +18,7 @@
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
 // ===========================================
 
-import { FREE_PACK_CODES } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, isSpecialtyPackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 
@@ -154,12 +154,14 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v2 → v3: adds purchasedAddOns for specialty pack add-on tracking.
   // Default [] — no existing user has purchased any add-ons.
   // Preserves any data already written by a pre-release build (unlikely but safe).
-  // Element-shape guard: filter to string-only so a corrupt/pre-release blob with
-  // non-string elements (null, number, object) cannot propagate into entitlementStore.
+  // Element-shape guard: filter to string AND isSpecialtyPackCode (registered + ready) so a
+  // corrupt/pre-release blob with unregistered codes cannot persist into entitlementStore.
+  // Task #344: mirrors lib/importBackup.ts's purchasedAddOns filter (typeof + isSpecialtyPackCode)
+  // — the v2→v3 migration now applies the same validation rigour as the backup-import path.
   3: (data: unknown) => {
     const d = data as Record<string, unknown>;
     const raw = Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [];
-    return { ...d, purchasedAddOns: raw.filter((item): item is string => typeof item === "string") };
+    return { ...d, purchasedAddOns: raw.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item)) };
   },
 };
 

@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import type { SpecialtyPack } from "@/lib/langRegistry";
 import { loadPack, seedMemCache, clearCacheForTesting, evictPack } from "@/lib/packLoader";
 import type { Pack, Manifest } from "@/lib/packLoader";
+import { markAddOnLoaded, memCache } from "@/lib/packCache";
 
 // ── localStorage stub (mirrors packLoader.test.ts) ───────────────────────────
 
@@ -45,6 +46,12 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
 });
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
+
+const fakeBasePack = (): Pack => ({
+  _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+  name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+  unitCount: 0, cardCount: 0, units: [],
+});
 
 const fakeAddOnPack = (): Pack => ({
   _version: 1, lang: "it-medical", packVersion: "1.0.0", canonicalSource: "en",
@@ -174,5 +181,47 @@ describe("clearPackCache — specialty storage-key eviction (#319)", () => {
     // The next session will re-verify these bytes against the manifest sha256 before serving them.
     expect(localStorageMock.getItem("pack-meta-v1-it-medical")).not.toBe(null);
     expect(localStorageMock.getItem("pack-data-v1-it-medical")).not.toBe(null);
+  });
+});
+
+// ── #346 — write() clears superseded specialty storage keys ──────────────────
+
+describe("PackMemCacheImpl.write() — specialty storage-key cleanup (#346)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", ready: true, name: "Medical Italian" });
+    seedMemCache("it", []);
+  });
+
+  it("#346: replacing a base pack via write() clears the specialty pack's persisted storage keys", async () => {
+    // Seed specialty storage keys as _mergeFromJson would write them after a successful load.
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({
+      version: "1.0.0", sha256: ADD_ON_SHA, cachedAt: Date.now(),
+    }));
+    localStorageMock.setItem("pack-data-v1-it-medical", ADD_ON_PACK_JSON);
+
+    // Mark "it-medical" as loaded so clearSpecialtyPacksForLang will prune it on write().
+    markAddOnLoaded("it-medical");
+
+    // Replace the base pack — this is the write() path (also what cacheAndReturn calls).
+    memCache.write("it", fakeBasePack());
+
+    // write() fires storage cleanup asynchronously. Let pending microtasks drain.
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+    expect(localStorageMock.getItem("pack-meta-v1-it-medical")).toBe(null);
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBe(null);
+  });
+
+  it("#346: replacing a base pack when no specialty was loaded does not disturb other storage keys", async () => {
+    // Seed a key that should be left alone (not a specialty pack key for this base lang).
+    localStorageMock.setItem("pack-meta-v1-es", "spanish-meta");
+
+    // No specialty pack loaded for "it" — loadedAddOns is empty.
+    memCache.write("it", fakeBasePack());
+
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+    // Unrelated key survives.
+    expect(localStorageMock.getItem("pack-meta-v1-es")).toBe("spanish-meta");
   });
 });

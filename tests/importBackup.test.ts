@@ -371,6 +371,66 @@ describe("parseBackup", () => {
   });
 });
 
+describe("#354 — silently dropped backup entries are now logged", () => {
+  afterEach(() => { vi.clearAllMocks(); });
+
+  it("#354: logs IMPORT-SKIP-PACKS warning when unlockedPacks contains invalid entries", () => {
+    // Before #354, invalid unlockedPacks entries were silently dropped via .filter() with no log.
+    // Removing the console.warn call causes this test to fail (no warning emitted).
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
+    const backup = validBackup({
+      entitlement: {
+        licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,
+        unlockedPacks: ["it", "xx-fake", null, 123],
+      },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) { warnSpy.mockRestore(); return; }
+    // 3 entries dropped: "xx-fake" (unregistered string), null, 123 (non-strings)
+    expect(warnSpy).toHaveBeenCalled();
+    const messages = warnSpy.mock.calls.map(args => args[0] as string);
+    expect(messages.some(msg => msg.includes("IMPORT-SKIP-PACKS"))).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it("#354: logs IMPORT-SKIP-ADDONS warning when purchasedAddOns contains invalid entries", () => {
+    // Before #354, invalid purchasedAddOns entries were silently dropped — same violation.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
+    const backup = validBackup({
+      entitlement: {
+        licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,
+        unlockedPacks: ["it"], purchasedAddOns: ["it-medical", "garbage"],
+      },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) { warnSpy.mockRestore(); return; }
+    // "garbage" is dropped — not registered as a specialty pack
+    const messages = warnSpy.mock.calls.map(args => args[0] as string);
+    expect(messages.some(msg => msg.includes("IMPORT-SKIP-ADDONS"))).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it("#354: no warning logged when all unlockedPacks and purchasedAddOns entries are valid", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
+    const backup = validBackup({
+      entitlement: {
+        licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,
+        unlockedPacks: ["it"], purchasedAddOns: ["it-medical"],
+      },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    // No entries dropped — no warning
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
 describe("handleImportFile error handling (Task #007)", () => {
   // reader.onerror and catch(e) logging are verified structurally — full integration coverage
   // is deferred to Batch 2 Task #020 (requires jsdom FileReader mocking).

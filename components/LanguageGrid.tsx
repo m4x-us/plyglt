@@ -6,7 +6,8 @@
 // ============================================================
 // DEPENDS ON: @/lib/language (ITALIAN), @/lib/langRegistry (LANGUAGE_REGISTRY,
 //             SPECIALTY_PACKS), @/lib/entitlement (PRICING),
-//             @/lib/featureFlags (getFeatureFlags), @/content/index (ALL_UNITS)
+//             @/lib/featureFlags (getFeatureFlags, isProEnabled),
+//             @/lib/licenseTypes (LicenseType), @/content/index (ALL_UNITS)
 // USED BY: app/page.tsx
 // ============================================================
 "use client";
@@ -14,32 +15,46 @@
 import { ITALIAN } from "@/lib/language";
 import { LANGUAGE_REGISTRY, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { PRICING } from "@/lib/entitlement";
-import { getFeatureFlags } from "@/lib/featureFlags";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import type { LicenseType } from "@/lib/licenseTypes";
 import { ALL_UNITS } from "@/content/index";
 
 const PAID_LANGUAGES = LANGUAGE_REGISTRY.filter((l) => !l.isFree);
 
 interface Props {
   onSelect: (code: string) => void;
+  // Task #334: code param is intentionally optional — LanguageGrid passes sp.code for
+  // specialty-tile clicks so a future wiring can pre-select the add-on in BuyModal, but
+  // app/page.tsx currently opens the generic subscription BuyModal and discards the arg.
+  // This is a deliberate deferral (#295 precedent): no specialty content exists yet, the
+  // Tauri command and per-add-on pricing are unimplemented. When specialty content ships,
+  // wire code through to BuyModal and remove this comment.
   onUpgradeClick: (code?: string) => void;
   isPackUnlocked: (code: string) => boolean;
   hasAddOn: (code: string) => boolean;
+  // Task #356: required so the Add-ons section can gate on Pro subscription status.
+  licenseType: LicenseType;
 }
 
-export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn }: Props) {
+export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn, licenseType }: Props) {
   // Task #276/#306: Feature flag gate for specialty pack UI. Reads via the canonical
   // getFeatureFlags() accessor so parseFlag()'s full falsy-value set ('false','0','off','no')
   // is respected — not just === "false". NEXT_PUBLIC_* vars are inlined at build time
   // (next.config.ts sets output:'export'), so changing this flag requires a redeploy.
   const specialtyPacksEnabled = getFeatureFlags().specialtyPacks;
 
+  // Task #356: add-on purchases are a Pro-only feature per BRAND.md. A free-tier user
+  // who has the base language unlocked (Italian is always free) should NOT see the "buy
+  // add-on" CTA — they would hit ERR_ADDON_NOT_PRO if they clicked through. Only Pro
+  // subscribers (or users who already own an add-on before a lapse) see the section.
+  const isPro = isProEnabled(specialtyPacksEnabled, licenseType);
+
   // Task #278: Use SPECIALTY_PACKS directly rather than iterating unlocked base languages.
   // Each specialty pack appears exactly once — no deduplication needed.
-  // Filter: base language unlocked OR user has purchased the add-on directly.
-  // This structurally enforces the invariant: an owned add-on is never hidden even if
-  // its base language's lock state changes (e.g. after a subscription lapses).
+  // Filter: show add-on if the user owns it (regardless of Pro status — preserve access
+  // to already-purchased add-ons even after subscription lapses) OR if Pro (can purchase).
   const specialtyPacks = SPECIALTY_PACKS
-    .filter(sp => isPackUnlocked(sp.baseLang) || hasAddOn(sp.code));
+    .filter(sp => hasAddOn(sp.code) || (isPro && isPackUnlocked(sp.baseLang)));
 
   return (
     <>
@@ -109,7 +124,7 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
         </div>
       </div>
 
-      {/* Specialty packs — gated by feature flag (#276) and non-empty pack list (#278) */}
+      {/* Specialty packs — gated by feature flag (#276), Pro status (#356), and non-empty list */}
       {specialtyPacksEnabled && specialtyPacks.length > 0 && (
         <div className="mb-8">
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Add-ons</p>

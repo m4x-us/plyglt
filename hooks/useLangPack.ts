@@ -52,16 +52,12 @@ export interface LangPackState {
 
 export function useLangPack(): LangPackState {
   // #323: validate before passing to getLanguageConfig — a corrupted LANG_PAIR_KEY produces an
-  // unrecognised code that makes getLanguageConfig log on every render. Detect once, repair the
-  // stored value (setTargetLangCode writes to localStorage immediately), and fall back to "it"
-  // for this render so the error fires at most once per corrupt value.
+  // unrecognised code that makes getLanguageConfig log on every render. Detect once, fall back
+  // to "it" for this render. Task #339: repair side-effects (console.error + setTargetLangCode)
+  // moved to useEffect below so the render body remains pure.
   const rawTargetLang = getTargetLangCode();
   const isKnownCode =
     isValidPackCode(rawTargetLang) || SPECIALTY_PACKS.some(sp => sp.code === rawTargetLang);
-  if (!isKnownCode) {
-    console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "it"`);
-    setTargetLangCode("it");
-  }
   const targetLang = isKnownCode ? rawTargetLang : "it";
 
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
@@ -69,6 +65,10 @@ export function useLangPack(): LangPackState {
   // has the current state. Zustand maintains referential stability — this only triggers
   // a re-render (and re-run of the effect) when the array actually changes (new purchase).
   const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
+  // Task #362: subscribe to clearEntitlement's eviction-complete signal. When clearEntitlement
+  // finishes evicting base packs, it increments this counter — the effect below re-seeds
+  // memCache for static languages so specialty-pack loads don't see base_pack_not_loaded.
+  const cacheEvictionGeneration = useEntitlementStore(state => state._cacheEvictionGeneration);
 
   const [state, setState] = useState<LangPackState>(() => {
     const static_ = STATIC_PACKS[targetLang];
@@ -83,8 +83,28 @@ export function useLangPack(): LangPackState {
     return { units: [], unitMap: {}, lang, loading: true, error: null };
   });
 
+  // Task #339: repair side-effects moved out of render body. console.error + setTargetLangCode
+  // are side-effects and must not run in the render body (StrictMode double-invocation fires
+  // them twice). The render body still derives targetLang synchronously (pure); this effect
+  // repairs the stored value so the next render returns the correct code without the fallback.
   useEffect(() => {
-    if (STATIC_PACKS[targetLang]) return; // Already loaded synchronously
+    if (!isKnownCode) {
+      console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "it"`);
+      setTargetLangCode("it");
+    }
+  }, [rawTargetLang, isKnownCode]);
+
+  useEffect(() => {
+    if (STATIC_PACKS[targetLang]) {
+      // Task #362: re-seed memCache when clearEntitlement evicts the base lang.
+      // cacheEvictionGeneration === 0 on first mount — the lazy useState initializer
+      // already seeded at that point. Only re-seed when an eviction has actually fired
+      // (generation > 0), so we don't call seedMemCache twice on initial render.
+      if (cacheEvictionGeneration > 0) {
+        seedMemCache(targetLang, STATIC_PACKS[targetLang].units);
+      }
+      return;
+    }
 
     let cancelled = false;
     fetchManifest()
@@ -113,7 +133,7 @@ export function useLangPack(): LangPackState {
         }
       });
     return () => { cancelled = true; };
-  }, [targetLang, lang, purchasedAddOns]);
+  }, [targetLang, lang, purchasedAddOns, cacheEvictionGeneration]);
 
   return state;
 }

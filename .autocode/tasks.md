@@ -2822,10 +2822,12 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 37 tasks | [TASKS COMPLETE — pending re-audit to close remediation gate]
+## Batch 12 — Specialty Pack Architecture | 83 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
-Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below. All 37 tasks now COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326). Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
+Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
+Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
+Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
 Theme: Extend the pack registry, entitlement model, pack loader, and UI to support the concept of sub-packs within a language — so adding a real specialty pack later requires only content and a pricing entry, not architectural changes.
 
 ### Task #147 | architecture | severity 6
@@ -3566,6 +3568,974 @@ NEW
 **Source:** Audit finding F033 — severity 6 — edge-case
 
 ---
+
+### Task #328: Fix architecture: Genuine circular ES-module dependency between two lib/ files (packCache imports clearSpeci
+
+**File:** lib/packCache.ts:18 + lib/specialtyPackLoader.ts:14-21
+**Complexity:** 🔧 Full — Multiple files/locations, see What
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: moved loadedAddOns + management functions from specialtyPackLoader.ts to packCache.ts; clearSpecialtyCache stays in specialtyPackLoader.ts since off-limits store/entitlementStore.ts imports it from there)
+
+**What:**
+Genuine circular ES-module dependency between two lib/ files (packCache imports clearSpecialtyPacksForLang from specialtyPackLoader; specialtyPackLoader imports 5 symbols from packCache). Violates Rule 3 (Layers Down Only) and Rule 6 (Extract Ready) -- neither module can be extracted independently. Neither file's header acknowledges the cycle. at lib/packCache.ts:18 + lib/specialtyPackLoader.ts:14-21:module-level imports.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at lib/packCache.ts:18 + lib/specialtyPackLoader.ts:14-21:module-level imports
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F001 — severity 6 — architecture
+
+---
+
+### Task #329: Fix documentation-trust: Header claims '@internal Used by lib/packLoader.ts. Not part of the module's external publ
+
+**File:** lib/packCache.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry)
+
+**What:**
+Header claims '@internal Used by lib/packLoader.ts. Not part of the module's external public API' -- false as of this batch; lib/specialtyPackLoader.ts also imports readCacheMeta/writeCacheMeta/readCacheData/writeCacheData/clearPackCache directly. at lib/packCache.ts:module header:14.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/packCache.ts:module header:14
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F002 — severity 5 — documentation-trust
+
+---
+
+### Task #330: Fix documentation-trust: CLAUDE.md states lib/langRegistry.ts exports getSpecialtyPacks(lang); this export does not
+
+**File:** CLAUDE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: removed stale getSpecialtyPacks reference, documented isSpecialtyPackCode as canonical, isReadySpecialtyPackCode as alias pending #361)
+
+**What:**
+CLAUDE.md states lib/langRegistry.ts exports getSpecialtyPacks(lang); this export does not exist in the current file (deleted this batch by Task #301). at CLAUDE.md:Section 6:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at CLAUDE.md:Section 6:0
+- [ ] Audit passes: bash scripts/deep-audit.sh CLAUDE.md
+
+**Source:** Audit finding F003 — severity 5 — documentation-trust
+
+---
+
+### Task #331: Fix documentation-trust: USED BY header omits hooks/useLangPack.ts, which imports isValidPackCode, SPECIALTY_PACKS,
+
+**File:** lib/langRegistry.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: hooks/useLangPack.ts added to USED BY header, verified present in current file. NOTE: Derek's own completion.md misattributes an unrelated, unauthorized change to this task number — see Batch 12 header note above re: SPECIALTY_PACKS production-array population)
+
+**What:**
+USED BY header omits hooks/useLangPack.ts, which imports isValidPackCode, SPECIALTY_PACKS, isReadySpecialtyPackCode directly. at lib/langRegistry.ts:module header:10.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/langRegistry.ts:module header:10
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/langRegistry.ts
+
+**Source:** Audit finding F004 — severity 5 — documentation-trust
+
+---
+
+### Task #332: Fix code-quality: isSpecialtyPackCode and isReadySpecialtyPackCode are byte-identical implementations under
+
+**File:** lib/langRegistry.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: isReadySpecialtyPackCode made a const alias of isSpecialtyPackCode; both names still exported for off-limits callers)
+
+**What:**
+isSpecialtyPackCode and isReadySpecialtyPackCode are byte-identical implementations under two different names with different call sites -- duplicated logic that will silently diverge. Highest-convergence finding in the batch -- 5 independent auditors (A, K, N, Red R, V) flagged this identical issue. at lib/langRegistry.ts:isSpecialtyPackCode/isReadySpecialtyPackCode:88.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/langRegistry.ts:isSpecialtyPackCode/isReadySpecialtyPackCode:88
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/langRegistry.ts
+
+**Source:** Audit finding F005 — severity 6 — code-quality
+
+---
+
+### Task #333: Fix code-quality: Mock still defines getSpecialtyPacks: () => [] though the real module no longer exports it
+
+**File:** components/LanguageGrid.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: removed stale getSpecialtyPacks mock)
+
+**What:**
+Mock still defines getSpecialtyPacks: () => [] though the real module no longer exports it -- stale mock left behind after removal. at components/LanguageGrid.test.tsx:vi.mock("@/lib/langRegistry"):49.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at components/LanguageGrid.test.tsx:vi.mock("@/lib/langRegistry"):49
+- [ ] Audit passes: bash scripts/deep-audit.sh components/LanguageGrid.test.tsx
+
+**Source:** Audit finding F006 — severity 4 — code-quality
+
+---
+
+### Task #334: Fix requirements: Task #308 widened onUpgradeClick to (code?: string) => void and LanguageGrid calls onUpgra
+
+**File:** components/LanguageGrid.tsx:24,135 + app/page.tsx:79
+**Complexity:** 🔧 Full — kept Full 2026-07-13 by /advance Complexity Audit despite only 2 files: this is a real product/architecture decision (does the code param wire to a real purchase flow via BuyModal, or get documented as an intentional no-op like #295?), not a mechanical fix — highest-severity (7), 5-auditor-convergence finding in this re-audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: Option B — app/page.tsx documents the intentional discard via underscore-prefixed `_code` param; wire-through deferred until specialty pricing exists, verified present in current code)
+
+**What:**
+Task #308 widened onUpgradeClick to (code?: string) => void and LanguageGrid calls onUpgradeClick(sp.code), but the only production caller (app/page.tsx:79) discards the argument entirely via a zero-arg closure -- Rule 20 violation (type-signature-only fix, no real caller wired). Five independent auditors (A, K, N, Red R, V) converged on this. at components/LanguageGrid.tsx:24,135 + app/page.tsx:79:onUpgradeClick.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/LanguageGrid.tsx:24,135 + app/page.tsx:79:onUpgradeClick
+- [ ] Audit passes: bash scripts/deep-audit.sh components/LanguageGrid.tsx
+
+**Source:** Audit finding F007 — severity 7 — requirements
+
+---
+
+### Task #335: Fix tests: Never mocks a SPECIALTY_PACKS entry with ready:false, so isSpecialtyPackCode's && sp.ready
+
+**File:** tests/langRegistry.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: added test exercising the && sp.ready clause via Deletion Test — deleting the clause makes isSpecialtyPackCode("it-medical") return true, failing the test)
+
+**What:**
+Never mocks a SPECIALTY_PACKS entry with ready:false, so isSpecialtyPackCode's && sp.ready clause is never exercised against a real conditional -- deleting it breaks no test (Rule 18 violation). at tests/langRegistry.test.ts:SpecialtyPack registry describe block:70.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/langRegistry.test.ts:SpecialtyPack registry describe block:70
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/langRegistry.test.ts
+
+**Source:** Audit finding F008 — severity 5 — tests
+
+---
+
+### Task #336: Fix tests: Task #322's empty-receiptToken rejection has zero test coverage anywhere in tests/entitlem
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+Task #322's empty-receiptToken rejection has zero test coverage anywhere in tests/entitlement.test.ts -- deleting the guard breaks nothing. at store/entitlementStore.ts:purchaseAddOn:228.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at store/entitlementStore.ts:purchaseAddOn:228
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F009 — severity 5 — tests
+
+---
+
+### Task #337: Fix code-quality: seedMemCache takes an unvalidated lang:string and writes directly to the memCache singleto
+
+**File:** lib/packLoader.ts:250-266 + :270-275
+**Complexity:** ⚡ Direct — 1 file (both locations are within lib/packLoader.ts), relabeled 2026-07-13 by /advance Complexity Audit — original label over-counted line-range citations as separate files
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: guard added before memCache.has(lang) idempotency check — unregistered code rejected outright, not silently cached)
+
+**What:**
+seedMemCache takes an unvalidated lang:string and writes directly to the memCache singleton with no isValidPackCode/READY_PACK_CODES check, silently invalidating getInstalledPacks' documented invariant that memCache is only ever populated via validated writes. at lib/packLoader.ts:250-266 + :270-275:seedMemCache / getInstalledPacks.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packLoader.ts:250-266 + :270-275:seedMemCache / getInstalledPacks
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F010 — severity 5 — code-quality
+
+---
+
+### Task #338: Fix documentation-trust: clearEntitlement's final-sweep comment claims clearSpecialtyCache() handles the case of a
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+clearEntitlement's final-sweep comment claims clearSpecialtyCache() handles the case of a specialty pack whose registry entry was removed between merge and deactivation -- false; that orphaned base language is also excluded from affectedBaseLangs (its SPECIALTY_PACKS.find() returns undefined), so evictPack never runs for it either. The memCache-eviction guarantee that is the entire point of Task #326 does not extend to this case, though the comment implies it does. at store/entitlementStore.ts:clearEntitlement:188.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at store/entitlementStore.ts:clearEntitlement:188
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F011 — severity 5 — documentation-trust
+
+---
+
+### Task #339: Fix code-quality: console.error and setTargetLangCode (a localStorage write) execute directly in the hook's
+
+**File:** hooks/useLangPack.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+console.error and setTargetLangCode (a localStorage write) execute directly in the hook's render body rather than inside a useEffect -- impure render function; under double-invoked renders (StrictMode) this can fire more than once, contradicting the adjacent comment's claim of 'at most once per corrupt value.' at hooks/useLangPack.ts:useLangPack:58.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useLangPack.ts:useLangPack:58
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
+
+**Source:** Audit finding F012 — severity 4 — code-quality
+
+---
+
+### Task #340: Fix architecture: Repeated, still-unfixed violation of CLAUDE.md Section 3 (localStorage must route through
+
+**File:** lib/constants.ts:16-34 + hooks/useExportImport.ts:25,67
+**Complexity:** ⚡ Direct — 2 files, no package boundary, mechanical fix following the existing createPlatformStorage pattern — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+Repeated, still-unfixed violation of CLAUDE.md Section 3 (localStorage must route through lib/storage.ts) -- first flagged in the original 2026-07-09 Batch 12 audit. A second, previously-undetected instance found this cycle in hooks/useExportImport.ts, indicating the violation is systemic rather than contained to one file. at lib/constants.ts:16-34 + hooks/useExportImport.ts:25,67:getTargetLangCode/setTargetLangCode.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix architecture issue at lib/constants.ts:16-34 + hooks/useExportImport.ts:25,67:getTargetLangCode/setTargetLangCode
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/constants.ts
+
+**Source:** Audit finding F013 — severity 6 — architecture
+
+---
+
+### Task #341: Fix error-handling: A fully garbage/unregistered code (neither a valid base pack code nor a registered special
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles)
+
+**What:**
+A fully garbage/unregistered code (neither a valid base pack code nor a registered specialty pack) silently no-ops with zero console output -- no warn, no error -- violating Rule 8 (Log Everything). at lib/packLoader.ts:evictPack:294.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at lib/packLoader.ts:evictPack:294
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F014 — severity 4 — error-handling
+
+---
+
+### Task #342: Fix security: Restoring a backup calls setEntitlement({...result.entitlement, licenseKey, instanceId}),
+
+**File:** hooks/useExportImport.ts:78-81 + store/entitlementStore.ts:82-100,146
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope type-contract fix — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: setEntitlement's contract fixed to accept exactly 5 fields; purchasedAddOns intentionally absent — see #343)
+
+**What:**
+Restoring a backup calls setEntitlement({...result.entitlement, licenseKey, instanceId}), which includes purchasedAddOns; setEntitlement blindly spreads it into state with no purchaseAddOn/verify_addon_receipt call. Bounded by the honour-system entitlement model (CLAUDE.md Section 5) and purchaseAddOn's currently-dormant stub status (Task #295), but a real consistency gap worth closing before specialty content ships. at hooks/useExportImport.ts:78-81 + store/entitlementStore.ts:82-100,146:setEntitlement (backup restore path).
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at hooks/useExportImport.ts:78-81 + store/entitlementStore.ts:82-100,146:setEntitlement (backup restore path)
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useExportImport.ts
+
+**Source:** Audit finding F015 — severity 5 — security
+
+---
+
+### Task #343: Fix code-quality: setEntitlement's declared parameter type omits purchasedAddOns entirely even though the on
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: setEntitlement accepts only { licenseKey, instanceId, licenseType, unlockedPacks, validUntil } — purchasedAddOns intentionally excluded; backup restore cannot restore add-on purchases, by design)
+
+**What:**
+setEntitlement's declared parameter type omits purchasedAddOns entirely even though the only call site (hooks/useExportImport.ts) passes it via object spread -- the declared contract is narrower than actual runtime behavior. at store/entitlementStore.ts:setEntitlement (type signature):82.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:setEntitlement (type signature):82
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F016 — severity 4 — code-quality
+
+---
+
+### Task #344: Fix security: The v2->v3 migration filters purchasedAddOns to string-typed elements only with no isSpeci
+
+**File:** store/migrations.ts:159-163 vs lib/importBackup.ts:119-124
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: isSpecialtyPackCode check added alongside typeof === "string" in the v2→v3 migration filter)
+
+**What:**
+The v2->v3 migration filters purchasedAddOns to string-typed elements only with no isSpecialtyPackCode registration/ready check, while lib/importBackup.ts validates both type AND registration for the identical field -- a real enforcement asymmetry between two code paths writing the same security-sensitive field. at store/migrations.ts:159-163 vs lib/importBackup.ts:119-124:ENTITLEMENT_MIGRATIONS v2->v3 / parseBackup.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at store/migrations.ts:159-163 vs lib/importBackup.ts:119-124:ENTITLEMENT_MIGRATIONS v2->v3 / parseBackup
+- [ ] Audit passes: bash scripts/deep-audit.sh store/migrations.ts
+
+**Source:** Audit finding F017 — severity 5 — security
+
+---
+
+### Task #346: Fix code-quality: write() prunes in-memory add-on tracking via clearSpecialtyPacksForLang but never removes
+
+**File:** lib/packCache.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: extracted _clearSpecialtyStorageKeys shared helper — fire-and-forget in write(), awaited in clearPackCache())
+
+**What:**
+write() prunes in-memory add-on tracking via clearSpecialtyPacksForLang but never removes that code's own persisted storage keys, unlike clearPackCache which pairs the identical prune with storage-key removal -- a 5th instance of the exact bug class clearPackCache's own doc comment says 4 prior tasks (#250, #251, #253, #259) already forgot. at lib/packCache.ts:PackMemCacheImpl.write:51.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packCache.ts:PackMemCacheImpl.write:51
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F019 — severity 6 — code-quality
+
+---
+
+### Task #347: Fix async: Drops any storage event arriving while a rehydrate is in flight and never re-triggers rehy
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: _pendingRehydrate module flag added; _triggerRehydrate re-fires after settling if a storage event landed mid-rehydrate. Also closes #363)
+
+**What:**
+Drops any storage event arriving while a rehydrate is in flight and never re-triggers rehydrate() once it settles -- a second cross-tab write mid-rehydrate is never picked up until an unrelated future set() call happens to observe fresh state. at store/entitlementStore.ts:_handleCrossTabStorageEvent:293.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at store/entitlementStore.ts:_handleCrossTabStorageEvent:293
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F020 — severity 5 — async
+
+---
+
+### Task #348: Fix edge-case: hasValidUnitsArray never checks that pack.unitCount/cardCount are numbers; _mergeFromJson
+
+**File:** lib/packTypes.ts:58-81 + lib/specialtyPackLoader.ts:117-122
+**Complexity:** ⚡ Direct — 1 file (lib/packTypes.ts's hasValidUnitsArray; specialtyPackLoader.ts is cited only as the downstream consumer showing impact, needs no edit) — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: typeof !== "number" guards added for unitCount/cardCount)
+
+**What:**
+hasValidUnitsArray never checks that pack.unitCount/cardCount are numbers; _mergeFromJson computes unitCount/cardCount sums directly from these unvalidated fields -- a non-numeric value passes shape validation and silently string-concatenates instead of summing. at lib/packTypes.ts:58-81 + lib/specialtyPackLoader.ts:117-122:hasValidUnitsArray / _mergeFromJson.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at lib/packTypes.ts:58-81 + lib/specialtyPackLoader.ts:117-122:hasValidUnitsArray / _mergeFromJson
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packTypes.ts
+
+**Source:** Audit finding F021 — severity 4 — edge-case
+
+---
+
+### Task #349: Fix error-handling: receiptToken is validated only via .trim() non-empty check -- no max length or charset all
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: length cap + charset regex added, mirroring useLicenseActivation.ts's license-key validation)
+
+**What:**
+receiptToken is validated only via .trim() non-empty check -- no max length or charset allowlist, unlike the structurally identical license-key input in hooks/useLicenseActivation.ts which caps length and enforces a regex before any IPC call. at store/entitlementStore.ts:purchaseAddOn:232.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at store/entitlementStore.ts:purchaseAddOn:232
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F022 — severity 3 — error-handling
+
+---
+
+### Task #350: Fix security: The base-pack branch of loadPack has no entitlement check at all -- isPackUnlocked is enfo
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: FREE_PACK_CODES.some(c => c === lang) / unlockedLangs gate added to loadPack's base-pack branch, verified present in current code)
+
+**What:**
+The base-pack branch of loadPack has no entitlement check at all -- isPackUnlocked is enforced only at the UI layer (LanguageGrid.tsx, app/page.tsx), unlike the specialty-pack branch which independently re-checks purchasedAddOns inside specialtyPackLoader.ts. Real asymmetric defense-in-depth between the two pack types. at lib/packLoader.ts:loadPack:92.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at lib/packLoader.ts:loadPack:92
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F023 — severity 5 — security
+
+---
+
+### Task #351: Fix error-handling: evictPack(...).catch() swallows failure and clearEntitlement's returned Promise always res
+
+**File:** store/entitlementStore.ts:clearEntitlement:182-193 + hooks/useLicenseActivation.ts:84-85
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+evictPack(...).catch() swallows failure and clearEntitlement's returned Promise always resolves; handleDeactivate awaits it then unconditionally reports successful deactivation even if the underlying memCache eviction failed. at store/entitlementStore.ts:clearEntitlement:182-193 + hooks/useLicenseActivation.ts:84-85:clearEntitlement / handleDeactivate.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at store/entitlementStore.ts:clearEntitlement:182-193 + hooks/useLicenseActivation.ts:84-85:clearEntitlement / handleDeactivate
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F024 — severity 5 — error-handling
+
+---
+
+### Task #352: Fix edge-case: 'All languages unlocked' is derived from unlockedPacks.length >= ALL_KNOWN_PACKS.length --
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: .every(c => unlockedPacks.includes(c)) membership check replacing length comparison)
+
+**What:**
+'All languages unlocked' is derived from unlockedPacks.length >= ALL_KNOWN_PACKS.length -- a length comparison, not a membership check. A hand-edited or migrated state with duplicate entries could trigger this incorrectly with no test coverage. at app/settings/page.tsx:SettingsPage:130.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at app/settings/page.tsx:SettingsPage:130
+- [ ] Audit passes: bash scripts/deep-audit.sh app/settings/page.tsx
+
+**Source:** Audit finding F025 — severity 3 — edge-case
+
+---
+
+### Task #353: Fix tests: The banned-weak-assertion grep gate is hard-scoped to tests/ --include=*.test.* only, but
+
+**File:** AGENTS.md Verification Gate + components/LanguageGrid.test.tsx
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix (widen grep scope + fix the specific assertions it now catches) — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: widening the grep gate to components/ was attempted then reverted — 30+ pre-existing violations exist in off-limits component test files that cannot be remediated in this wave. Gate stays scoped to tests/ where it is clean; documented as a known gap, not silently dropped)
+
+**What:**
+The banned-weak-assertion grep gate is hard-scoped to tests/ --include=*.test.* only, but Rule 14 mandates co-located component tests -- components/LanguageGrid.test.tsx contains 12+ banned-pattern assertions with no existence-check comments that are structurally invisible to the automated gate. at AGENTS.md Verification Gate + components/LanguageGrid.test.tsx:weak-assertion grep gate.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at AGENTS.md Verification Gate + components/LanguageGrid.test.tsx:weak-assertion grep gate
+- [ ] Audit passes: bash scripts/deep-audit.sh AGENTS.md
+
+**Source:** Audit finding F026 — severity 6 — tests
+
+---
+
+### Task #354: Fix data-loss: unlockedPacks/purchasedAddOns entries that fail validation are silently dropped via .filte
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: console.warn added with [IMPORT-SKIP-PACKS]/[IMPORT-SKIP-ADDONS] prefixes and specific dropped counts/values)
+
+**What:**
+unlockedPacks/purchasedAddOns entries that fail validation are silently dropped via .filter() with no log, no user-facing warning, and no counter analogous to validCardCount/skippedCardCount computed for cards two blocks above -- violates the stop-the-line rule against silently corrupting persisted user data. at lib/importBackup.ts:parseBackup:113.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at lib/importBackup.ts:parseBackup:113
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/importBackup.ts
+
+**Source:** Audit finding F027 — severity 6 — data-loss
+
+---
+
+### Task #355: Fix tests: Every onUpgradeClick assertion checks only toHaveBeenCalled(), never toHaveBeenCalledWith(
+
+**File:** components/LanguageGrid.test.tsx:129,143,159,203,232
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: rewrote for the licenseType prop added by Adam's #356; strengthened onUpgradeClick assertions to toHaveBeenCalledWith)
+
+**What:**
+Every onUpgradeClick assertion checks only toHaveBeenCalled(), never toHaveBeenCalledWith(...) -- including the specialty-tile test specifically covering Task #308's onUpgradeClick(sp.code) call. Proves the type change was never validated to actually matter (test-side half of F007). at components/LanguageGrid.test.tsx:129,143,159,203,232:onUpgradeClick assertions.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at components/LanguageGrid.test.tsx:129,143,159,203,232:onUpgradeClick assertions
+- [ ] Audit passes: bash scripts/deep-audit.sh components/LanguageGrid.test.tsx
+
+**Source:** Audit finding F028 — severity 6 — tests
+
+---
+
+### Task #356: Fix requirements: BRAND.md states specialty packs are sold as add-ons within the Pro tier, but the Add-ons s
+
+**File:** components/LanguageGrid.tsx:29-42 + store/entitlementStore.ts:110
+**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix (add a licenseType/isProEnabled check to the existing visibility gate) — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: licenseType prop added to LanguageGrid, isProEnabled(specialtyPacksEnabled, licenseType) gate added, verified present in current code)
+
+**What:**
+BRAND.md states specialty packs are sold as add-ons within the Pro tier, but the Add-ons section's visibility gate (isPackUnlocked(sp.baseLang) || hasAddOn(sp.code)) has no licenseType check at all -- once SPECIALTY_PACKS gains a ready entry, every it-* add-on becomes visible/purchasable to a user who has never held Pro. at components/LanguageGrid.tsx:29-42 + store/entitlementStore.ts:110:specialtyPacks visibility gate / isPackUnlocked.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/LanguageGrid.tsx:29-42 + store/entitlementStore.ts:110:specialtyPacks visibility gate / isPackUnlocked
+- [ ] Audit passes: bash scripts/deep-audit.sh components/LanguageGrid.tsx
+
+**Source:** Audit finding F029 — severity 5 — requirements
+
+---
+
+### Task #357: Fix requirements: purchaseAddOn has no check that licenseType === "subscription" before persisting a purchas
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** DEFERRED — 2026-07-14 (Wave 13 — Adam attempted, could not complete: parseFlag(undefined) defaults getFeatureFlags().specialtyPacks to true in any environment without the flag explicitly set false, and the off-limits tests/entitlement.test.ts calls purchaseAddOn with licenseType:"free" without mocking featureFlags — a store-level gate fires there regardless of guard design. The gate must be implemented at the UI/caller layer instead, checking isProEnabled() before calling purchaseAddOn. Verified independently 2026-07-14: current store/entitlementStore.ts:275-282 confirms the gate does NOT exist and documents this exact deferral in a code comment. NOTE: Derek's (Stream W13D) completion.md incorrectly describes this gate as already implemented by "the parallel stream" — that claim does not match the actual code and should be disregarded. This is a genuine carry-forward, not a completed task.**
+
+**What:**
+purchaseAddOn has no check that licenseType === "subscription" before persisting a purchase, unlike app/stats/page.tsx (the other Pro-gated call site) which correctly routes through isProEnabled(flag, licenseType) as CLAUDE.md/AGENTS.md mandate for all Pro-gated features. at store/entitlementStore.ts:purchaseAddOn:221.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at store/entitlementStore.ts:purchaseAddOn:221
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F030 — severity 5 — requirements
+
+---
+
+### Task #358: Fix async: clearPackCache awaits Promise.allSettled for storage removal BEFORE memCache.delete(lang);
+
+**File:** lib/packCache.ts:clearPackCache:137-173 vs cacheAndReturn:189-192
+**Complexity:** ⚡ Direct — 1 file (both cited functions are within lib/packCache.ts) — relabeled 2026-07-13 by /advance Complexity Audit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: memCache.delete(lang) + clearSpecialtyPacksForLang(lang) moved before the Promise.allSettled await — both synchronous, complete atomically before async I/O begins)
+
+**What:**
+clearPackCache awaits Promise.allSettled for storage removal BEFORE memCache.delete(lang); a concurrent loadPack(lang) can complete its own memCache.write in that window and then have its freshly-loaded entry wiped -- no in-flight lock for base-pack loads analogous to specialtyPackLoader's inFlight Map. at lib/packCache.ts:clearPackCache:137-173 vs cacheAndReturn:189-192:clearPackCache.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at lib/packCache.ts:clearPackCache:137-173 vs cacheAndReturn:189-192:clearPackCache
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F031 — severity 5 — async
+
+---
+
+### Task #359: Fix code-quality: The hyphen-split fallback is a third, weakest independent implementation of "is this a spe
+
+**File:** lib/language.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: console.warn added on the hyphen-fallback path — comment's "prevents silent masking" claim is now backed by an actual log statement)
+
+**What:**
+The hyphen-split fallback is a third, weakest independent implementation of "is this a specialty code" logic (alongside langRegistry.ts's two functions) -- accepts any hyphenated string with a matching registered base-language prefix regardless of whether the suffix is a real SPECIALTY_PACKS entry, and logs nothing on that path, contrary to the adjacent comment's claim of preventing silent masking. at lib/language.ts:getLanguageConfig:122.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/language.ts:getLanguageConfig:122
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/language.ts
+
+**Source:** Audit finding F032 — severity 5 — code-quality
+
+---
+
+### Task #360: Fix code-quality: Zero callers outside its own export list and tests/packLoader.test.ts -- Rule 20b orphan-f
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: getInstalledPacks deleted entirely, along with its now-unused PackCode import — verified absent from current lib/packLoader.ts)
+
+**What:**
+Zero callers outside its own export list and tests/packLoader.test.ts -- Rule 20b orphan-function violation. at lib/packLoader.ts:getInstalledPacks:273.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packLoader.ts:getInstalledPacks:273
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F033 — severity 3 — code-quality
+
+---
+
+### Task #362: Fix error-handling: useLangPack's useState initializer calls seedMemCache("it", ...) exactly once at mount wit
+
+**File:** hooks/useLangPack.ts:73-84 + store/entitlementStore.ts:171-193
+**Complexity:** 🔧 Full — kept Full 2026-07-13 by /advance Complexity Audit despite only 2 files: no clean fix pattern exists yet — either clearEntitlement must stop evicting the currently-active language's base memCache entry (no "unmerge specialty units only" primitive exists), or useLangPack needs a re-seed/recovery mechanism after eviction. Real architectural decision, not a mechanical fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: counter-based signal — non-persisted _cacheEvictionGeneration field on the store, incremented by clearEntitlement after eviction settles; useLangPack re-seeds via useEffect when the counter changes)
+
+**What:**
+useLangPack's useState initializer calls seedMemCache("it", ...) exactly once at mount with no re-seed mechanism; clearEntitlement's evictPack can wipe memCache["it"] out from under a still-mounted component. Any specialty-pack load attempted afterward in the same session permanently fails with base_pack_not_loaded until a full page reload, with nothing signaling why. at hooks/useLangPack.ts:73-84 + store/entitlementStore.ts:171-193:useLangPack useState initializer / clearEntitlement.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at hooks/useLangPack.ts:73-84 + store/entitlementStore.ts:171-193:useLangPack useState initializer / clearEntitlement
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
+
+**Source:** Audit finding F035 — severity 6 — error-handling
+
+---
+
+### Task #363: Fix error-handling: useEntitlementStore.persist.rehydrate() is not wrapped in try/catch; a synchronous throw l
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam: _triggerRehydrate() wrapped in try/catch as part of the #347 fix — a synchronous throw no longer leaves _rehydrateInFlight stuck true forever)
+
+**What:**
+useEntitlementStore.persist.rehydrate() is not wrapped in try/catch; a synchronous throw leaves _rehydrateInFlight stuck true forever, permanently and silently disabling cross-tab sync for that tab. at store/entitlementStore.ts:_handleCrossTabStorageEvent:298.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at store/entitlementStore.ts:_handleCrossTabStorageEvent:298
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F036 — severity 5 — error-handling
+
+---
+
+### Task #364: Fix code-quality: clearEntitlement is a public store action reachable from anywhere; two concurrent invocati
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+clearEntitlement is a public store action reachable from anywhere; two concurrent invocations redundantly compute and evict the same base langs, relying on an undocumented idempotency assumption. at store/entitlementStore.ts:clearEntitlement:155.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:clearEntitlement:155
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F037 — severity 4 — code-quality
+
+---
+
+### Task #365: Fix documentation-trust: Doc comment claims p1===p2 holds via loadPack's return for concurrent same-code loads -- f
+
+**File:** lib/specialtyPackLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: doc comment corrected — p1===p2 only holds for direct loadSpecialtyPack callers, not via async loadPack, which always wraps its return in a fresh Promise)
+
+**What:**
+Doc comment claims p1===p2 holds via loadPack's return for concurrent same-code loads -- false; loadPack is declared async and always wraps its return in a fresh Promise, so this is only true for direct loadSpecialtyPack calls. A contradicting comment in tests/packLoader.test.ts added in the same batch disagrees with this exact claim. at lib/specialtyPackLoader.ts:loadSpecialtyPack doc comment:269.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/specialtyPackLoader.ts:loadSpecialtyPack doc comment:269
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
+
+**Source:** Audit finding F038 — severity 5 — documentation-trust
+
+---
+
+### Task #366: Fix code-quality: if (!LANG_PAIR_RE.test(rawLangPair) && rawLangPair !== "en-it") -- since LANG_PAIR_RE matc
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles: dead conditional clause removed — verified LANG_PAIR_RE.test("en-it") already matches unconditionally)
+
+**What:**
+if (!LANG_PAIR_RE.test(rawLangPair) && rawLangPair !== "en-it") -- since LANG_PAIR_RE matches "en-it" unconditionally, the second clause can never be false when the first is true; dead/redundant conditional. at lib/importBackup.ts:parseBackup:130.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/importBackup.ts:parseBackup:130
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/importBackup.ts
+
+**Source:** Audit finding F039 — severity 3 — code-quality
+
+---
+
+### Task #367: Fix code-quality: The function's own doc comment documents 4 prior remediation tasks that each independently
+
+**File:** lib/packCache.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry: accretion-style doc comment replaced with a forward-looking design description of the _clearSpecialtyStorageKeys pattern)
+
+**What:**
+The function's own doc comment documents 4 prior remediation tasks that each independently forgot to pair cleanup logic; this batch's #319 extends the same function with a third bolted-on responsibility rather than a composable pattern, continuing the accretion its own history warns against. at lib/packCache.ts:clearPackCache:118.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packCache.ts:clearPackCache:118
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F040 — severity 3 — code-quality
+
+---
+
+### Task #369: Fix documentation-trust: USED BY header omits app/stats/page.tsx, which imports getFeatureFlags/isProEnabled direct
+
+**File:** lib/featureFlags.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: USED BY header updated to include components/LanguageGrid.tsx)
+
+**What:**
+USED BY header omits app/stats/page.tsx, which imports getFeatureFlags/isProEnabled directly. at lib/featureFlags.ts:module header:4.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/featureFlags.ts:module header:4
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/featureFlags.ts
+
+**Source:** Audit finding F042 — severity 3 — documentation-trust
+
+---
+
+### Task #370: Fix documentation-trust: USED BY header is affirmatively false -- names app/learn/page.tsx and app/study/page.tsx a
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+USED BY header is affirmatively false -- names app/learn/page.tsx and app/study/page.tsx as importers though neither imports this module directly, while omitting six real direct importers (app/page.tsx, app/stats/page.tsx, hooks/useLangPack.ts, hooks/useExportImport.ts, hooks/useLicenseActivation.ts, components/EntitlementValidator.tsx). at store/entitlementStore.ts:module header:10.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at store/entitlementStore.ts:module header:10
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F043 — severity 5 — documentation-trust
+
+---
+
+### Task #371: Fix documentation-trust: DEPENDS ON header omits @/lib/specialtyPackLoader, @/lib/tauri, @/lib/licenseTypes despite
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Adam)
+
+**What:**
+DEPENDS ON header omits @/lib/specialtyPackLoader, @/lib/tauri, @/lib/licenseTypes despite all three being actually imported. at store/entitlementStore.ts:module header:8.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at store/entitlementStore.ts:module header:8
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F044 — severity 3 — documentation-trust
+
+---
+
+### Task #372: Fix documentation-trust: USED BY names app/settings/page.tsx, which does not import this module directly; the real
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles)
+
+**What:**
+USED BY names app/settings/page.tsx, which does not import this module directly; the real direct importer, hooks/useExportImport.ts, is not named anywhere. at lib/importBackup.ts:module header:9.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/importBackup.ts:module header:9
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/importBackup.ts
+
+**Source:** Audit finding F045 — severity 3 — documentation-trust
+
+---
+
+### Task #373: Fix documentation-trust: DEPENDS ON omits @/lib/specialtyPackLoader, @/lib/utils, @/lib/packTypes; USED BY omits st
+
+**File:** lib/packLoader.ts:7-9,30
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Charles)
+
+**What:**
+DEPENDS ON omits @/lib/specialtyPackLoader, @/lib/utils, @/lib/packTypes; USED BY omits store/entitlementStore.ts, which imports evictPack and getLoadedAddOns from this module. at lib/packLoader.ts:7-9,30:module header.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/packLoader.ts:7-9,30:module header
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F046 — severity 3 — documentation-trust
+
+---
+
+### Task #374: Fix documentation-trust: "Called by" claim omits lib/packCache.ts (imports clearSpecialtyPacksForLang) and store/en
+
+**File:** lib/specialtyPackLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry)
+
+**What:**
+"Called by" claim omits lib/packCache.ts (imports clearSpecialtyPacksForLang) and store/entitlementStore.ts (imports clearSpecialtyCache). at lib/specialtyPackLoader.ts:module header:5.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/specialtyPackLoader.ts:module header:5
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
+
+**Source:** Audit finding F047 — severity 3 — documentation-trust
+
+---
+
+### Task #375: Fix documentation-trust: "Imported by" claim omits lib/packCache.ts, which also imports hasValidUnitsArray, Pack, L
+
+**File:** lib/packTypes.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Barry)
+
+**What:**
+"Imported by" claim omits lib/packCache.ts, which also imports hasValidUnitsArray, Pack, LoadPackResult, PackMemCache from this module. at lib/packTypes.ts:module header:5.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix documentation-trust issue at lib/packTypes.ts:module header:5
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packTypes.ts
+
+**Source:** Audit finding F048 — severity 2 — documentation-trust
+
+---
+
+### Task #376: Fix tests: Every hasAddOn test checks only behavioral output (true/false), identical whether the stor
+
+**File:** tests/entitlement.test.ts:1049,1060,1065,1324-1341
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-14 (Wave 13 — Derek: vi.spyOn(entitlementLib, "hasAddOn") delegation-proof test added, verified present in current tests/entitlement.test.ts)
+
+**What:**
+Every hasAddOn test checks only behavioral output (true/false), identical whether the store delegates to libHasAddOn or reverts to inline duplicated logic -- the Task #300 delegation itself is completely unproven by any test (Rule 18 violation). at tests/entitlement.test.ts:1049,1060,1065,1324-1341:hasAddOn tests.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/entitlement.test.ts:1049,1060,1065,1324-1341:hasAddOn tests
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/entitlement.test.ts
+
+**Source:** Audit finding F049 — severity 6 — tests
+
+---
+
+**Gap note (2026-07-14):** Findings F018 (#345), F034 (#361), and F041 (#368) from the 2026-07-13 re-audit were correctly identified as DEFERRED/blocked during Wave 13 planning (blocked respectively by #342/#343, #332, and #347 — all now complete) but their full verbatim task text was lost before this reconciliation and was not recovered from any surviving file (patterns.md and trends.md were also never updated with this audit's findings). These three findings are known to exist and are now unblocked, but must be re-derived — either by re-running a scoped audit pass over the affected files or by asking Max to accept the gap as debt — before Wave 14 planning treats this batch as fully accounted for.
 
 
 ## Batch 13 — Quality Foundation | 3 tasks | [TASKS COMPLETE — pending batch audit]

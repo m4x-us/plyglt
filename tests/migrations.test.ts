@@ -9,7 +9,7 @@
 // USED BY: CI / npm test
 // ===========================================
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   migrateSrsStore,
   migrateEntitlementStore,
@@ -18,6 +18,18 @@ import {
   ENTITLEMENT_VERSION,
   SETTINGS_VERSION,
 } from "@/store/migrations";
+
+// Mock isSpecialtyPackCode so the v2→v3 migration filter (#344) is controllable in tests.
+// Default: returns false (no code is a valid specialty pack) — reset per-test as needed.
+vi.mock("@/lib/langRegistry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
+  return { ...actual, isSpecialtyPackCode: vi.fn().mockReturnValue(false) };
+});
+import { isSpecialtyPackCode } from "@/lib/langRegistry";
+
+beforeEach(() => {
+  vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
+});
 
 // ── Version constants ─────────────────────────────────────────────────────────
 
@@ -466,12 +478,26 @@ describe("migrateEntitlementStore()", () => {
     expect(result.purchasedAddOns).toEqual([]);
   });
 
-  it("v2 → v3: preserves existing purchasedAddOns if already populated (pre-release build)", () => {
-    const existing = ["it-medical"];
+  it("v2 → v3: preserves registered purchasedAddOns if already populated (pre-release build)", () => {
+    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
     const result = migrateEntitlementStore(
-      { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: existing },
+      { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-medical"] },
       2
     ) as Record<string, unknown>;
+    expect(result.purchasedAddOns).toEqual(["it-medical"]);
+  });
+
+  it("v2 → v3: filters out unregistered purchasedAddOns codes (#344)", () => {
+    // Before #344, the filter was typeof item === "string" only — unregistered codes like
+    // "garbage-pack" would survive migration into the entitlementStore, while
+    // lib/importBackup.ts's identical field also ran isSpecialtyPackCode (asymmetry).
+    // After #344, the migration applies the same isSpecialtyPackCode gate.
+    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
+    const result = migrateEntitlementStore(
+      { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-medical", "garbage-pack"] },
+      2
+    ) as Record<string, unknown>;
+    // "garbage-pack" must be filtered out — only "it-medical" passes isSpecialtyPackCode
     expect(result.purchasedAddOns).toEqual(["it-medical"]);
   });
 

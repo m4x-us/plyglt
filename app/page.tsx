@@ -76,9 +76,16 @@ export default function LanguagePicker() {
 
         <LanguageGrid
           onSelect={handleSelect}
-          onUpgradeClick={() => setBuyModalOpen(true)}
+          // Task #334: code is received but intentionally unused until specialty content ships.
+          // LanguageGrid passes sp.code for specialty-tile clicks so a future wiring can
+          // pre-select the add-on in BuyModal. The generic subscription BuyModal currently
+          // has no concept of a per-add-on code or checkout URL. Deliberate deferral (#295
+          // precedent): wire code through to BuyModal when specialty content and per-add-on
+          // pricing are implemented.
+          onUpgradeClick={(_code) => setBuyModalOpen(true)}
           isPackUnlocked={isPackUnlocked}
           hasAddOn={hasAddOn}
+          licenseType={licenseType}
         />
 
         {/* Footer */}

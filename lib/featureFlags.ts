@@ -2,7 +2,7 @@
 // lib/featureFlags.ts
 // ============================================================
 // DEPENDS ON: lib/licenseTypes (LicenseType)
-// USED BY: components/InterruptHandler.tsx, components/LanguageGrid.tsx
+// USED BY: components/InterruptHandler.tsx, components/LanguageGrid.tsx, app/stats/page.tsx
 // ============================================================
 
 import type { LicenseType } from "@/lib/licenseTypes";

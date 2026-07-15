@@ -67,9 +67,11 @@ describe("langRegistry — derived constants are consistent", () => {
   });
 });
 
-describe("SpecialtyPack registry — initial empty state", () => {
-  it("SPECIALTY_PACKS is empty — no specialty content registered yet", () => {
-    expect(SPECIALTY_PACKS.length).toBe(0);
+describe("SpecialtyPack registry", () => {
+  it("SPECIALTY_PACKS contains registered packs — all currently not ready", () => {
+    expect(SPECIALTY_PACKS.length).toBe(1);
+    expect(SPECIALTY_PACKS[0]?.code).toBe("it-medical");
+    expect(SPECIALTY_PACKS[0]?.ready).toBe(false);
   });
 
   it("isSpecialtyPackCode returns false for base language codes", () => {
@@ -78,8 +80,13 @@ describe("SpecialtyPack registry — initial empty state", () => {
     expect(isSpecialtyPackCode("es")).toBe(false);
   });
 
-  it("isSpecialtyPackCode returns false for unregistered specialty-format codes", () => {
+  it("isSpecialtyPackCode returns false for a registered code whose ready flag is false — guards && sp.ready clause", () => {
+    // it-medical is in SPECIALTY_PACKS with ready:false. The code matches SPECIALTY_PACKS.some()
+    // but && sp.ready short-circuits to false. Deleting && sp.ready would make this return true.
     expect(isSpecialtyPackCode("it-medical")).toBe(false);
+  });
+
+  it("isSpecialtyPackCode returns false for unregistered specialty-format codes", () => {
     expect(isSpecialtyPackCode("it-business")).toBe(false);
     expect(isSpecialtyPackCode("es-cooking")).toBe(false);
   });
