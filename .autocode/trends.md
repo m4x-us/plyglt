@@ -16,3 +16,4 @@
 | 2026-07-08 | Batch 18 remediation re-audit cycle 7 (Task #260) | 7 | 4 | FAIL |
 | 2026-07-09 | Batch 12 — Specialty Pack Architecture | 1 | 8 | FAIL |
 | 2026-07-13 | Batch 12 re-audit (8-agent: A/B/S/N/K/W/V/Red-R) | 1 | 7 | FAIL |
+| 2026-07-15 | Batch 12 third re-audit (7 scored: A/B/S/K/W/V/Red-R + unscored N) | 1 | 8 | FAIL |

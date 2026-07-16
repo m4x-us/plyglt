@@ -2822,7 +2822,7 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 83 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 111 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
@@ -4536,6 +4536,596 @@ NEW
 ---
 
 **Gap note (2026-07-14):** Findings F018 (#345), F034 (#361), and F041 (#368) from the 2026-07-13 re-audit were correctly identified as DEFERRED/blocked during Wave 13 planning (blocked respectively by #342/#343, #332, and #347 — all now complete) but their full verbatim task text was lost before this reconciliation and was not recovered from any surviving file (patterns.md and trends.md were also never updated with this audit's findings). These three findings are known to exist and are now unblocked, but must be re-derived — either by re-running a scoped audit pass over the affected files or by asking Max to accept the gap as debt — before Wave 14 planning treats this batch as fully accounted for.
+
+**Third re-audit (2026-07-15, 7 scored agents: A/B/S/K/W/V/Red-R + unscored naive-reader lane N)** ran against Wave 13's committed state (commit 7a26598) FAILed severity 8 — 28 findings (F001-F028) promoted as Task #377-#404 below. Highest-convergence finding (severity 8, 6 of 7 scored auditors independently, plus naive-reader confirmation): `lib/packLoader.ts`'s Task #350 base-pack entitlement gate (`options.unlockedLangs`) has zero production callers — `hooks/useLangPack.ts`, the only real caller, never passes it, so the gate is a live no-op today only because the sole ready base pack ("it") is free. Second-highest (severity 7): selecting a specialty-pack tile never seeds its base pack into memCache, so `loadSpecialtyPack` would permanently fail with `base_pack_not_loaded` via that exact UI path once any specialty pack ships ready. Both are the same systemic pattern — a capability wired at the function-definition layer but never wired at its one real call site — that is this codebase's own historically highest-severity recurring class (Rule 20). Per BATCH_REMEDIATION_GATE, this batch remains `[CURRENT SPRINT]`.
+
+### Task #377: Fix requirements: loadPack's non-free base-pack entitlement gate (unlockedLangs) has zero production callers
+
+**File:** hooks/useLangPack.ts:111 + lib/packLoader.ts:126
+**Complexity:** ⚡ Direct — 2 files, no package boundary, mechanical wire-through mirroring the already-correct purchasedAddOns pattern in the same call (thread useEntitlementStore's unlockedPacks into the existing loadPack call)
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+Rule 20b (orphan-caller) violation. loadPack's non-free base-pack entitlement gate at lib/packLoader.ts:126 checks `(options?.unlockedLangs ?? []).includes(lang)`, but the only production caller, hooks/useLangPack.ts:111, calls `loadPack(targetLang, manifest, { purchasedAddOns })` and never passes unlockedLangs. Dormant only because READY_PACK_CODES currently contains just "it", which is also free. The moment a second base pack ships ready:true, every legitimately-subscribed user hits invalid_lang forever. hooks/useLangPack.test.ts asserts against the broken call signature, so no test would fail if this gap persists. Independently found by 6 of 7 scored auditors plus the naive-reader lane — the strongest convergence in this audit. at hooks/useLangPack.ts:111 + lib/packLoader.ts:126:loadPack / useLangPack.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useLangPack.ts:111 + lib/packLoader.ts:126:loadPack / useLangPack
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
+
+**Source:** Audit finding F001 — severity 8 — requirements
+
+---
+
+### Task #378: Fix requirements: selecting a specialty pack never seeds its base pack, so loadSpecialtyPack permanently fails
+
+**File:** hooks/useLangPack.ts:73 + components/LanguageGrid.tsx:137 + app/page.tsx:33-37
+**Complexity:** 🔧 Full — 3 files and a real design decision (does handleSelect/useLangPack detect a specialty code and seed+load its base pack first, or does useLangPack's STATIC_PACKS-keyed seeding logic need to resolve a specialty code to its baseLang before checking STATIC_PACKS) — not a mechanical fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The useState initializer in useLangPack only seeds memCache via STATIC_PACKS[targetLang], which has exactly one key ("it"). Selecting a specialty pack tile calls components/LanguageGrid.tsx:137's onSelect(sp.code), routed through app/page.tsx:33-37's handleSelect to a full-reload navigation with the specialty code as targetLang. The base pack is never seeded in that case, so loadSpecialtyPack's memCache.has(baseLang) precondition (lib/specialtyPackLoader.ts:269) permanently fails with base_pack_not_loaded. Dormant only because SPECIALTY_PACKS' one entry has ready:false; the UI path that triggers it (LanguageGrid's Add-ons section) already exists and is live. at hooks/useLangPack.ts:73 + components/LanguageGrid.tsx:137 + app/page.tsx:33-37:useLangPack useState initializer / handleSelect.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useLangPack.ts:73 + components/LanguageGrid.tsx:137 + app/page.tsx:33-37:useLangPack useState initializer / handleSelect
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useLangPack.ts
+
+**Source:** Audit finding F002 — severity 7 — requirements
+
+---
+
+### Task #379: Fix security: fetchManifest's !res.ok branch has zero logging and the manifest has no shape validation
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Rule 8 (Log Everything) violation. The `if (!res.ok) return null;` branch at fetchManifest:74 has zero logging, unlike the catch block below it which logs MANIFEST_FETCH_FAIL. Additionally the parsed manifest has no structural shape validation anywhere in the codebase. A CDN error envelope returned as HTTP 200 with a malformed JSON body would be treated as "no manifest available" and silently skip sha256 verification on every fresh pack download, with zero operator-visible log signal. at lib/packLoader.ts:fetchManifest:74.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at lib/packLoader.ts:fetchManifest:74
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F003 — severity 6 — security
+
+---
+
+### Task #380: Fix code-quality: isReadySpecialtyPackCode/isSpecialtyPackCode naming split still unresolved (Task #361 never executed)
+
+**File:** lib/langRegistry.ts + lib/packLoader.ts + hooks/useLangPack.ts
+**Complexity:** ⚡ Direct — 3 files, no package boundary, mechanical rename to the canonical name at the two remaining call sites, then delete the alias
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+isReadySpecialtyPackCode is a bare alias for isSpecialtyPackCode; its own doc comment calls for migration via Task #361, which was never executed. lib/packLoader.ts:38,105 and hooks/useLangPack.ts:9,123 still import and call the deprecated alias while store/entitlementStore.ts, lib/importBackup.ts, and store/migrations.ts use the canonical name. Two names for one function with no behavioral difference. at lib/langRegistry.ts:isReadySpecialtyPackCode:99.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/langRegistry.ts:isReadySpecialtyPackCode:99
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/langRegistry.ts
+
+**Source:** Audit finding F004 — severity 3 — code-quality
+
+---
+
+### Task #381: Fix code-quality: ERR_ADDON_NOT_PRO is a permanently-dead branch of PurchaseAddOnResult
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+ERR_ADDON_NOT_PRO is declared as one of two possible error discriminants in PurchaseAddOnResult's failure variant but is never constructed by purchaseAddOn's implementation and never covered by any test. The Task #357 comment explains it is reserved for a future call-site gate, but as currently shipped it is permanently dead code in the type's own error union. at store/entitlementStore.ts:PurchaseAddOnResult:48.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:PurchaseAddOnResult:48
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F005 — severity 3 — code-quality
+
+---
+
+### Task #382: Fix code-quality: "SPECIALTY_PACKS is currently empty" claim is stale in four separate files
+
+**File:** lib/packLoader.ts + tests/purchaseAddOnGuards.test.ts + hooks/useLangPack.test.ts + .autocode/agents/security.md
+**Complexity:** ⚡ Direct — 4 files, no package boundary, doc/comment-only fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 2 (Human Headers) violation. lib/packLoader.ts's file header states "SPECIALTY_PACKS is currently empty" — false; lib/langRegistry.ts registers one live entry (it-medical, ready:false). The identical false claim is repeated in tests/purchaseAddOnGuards.test.ts:10 and hooks/useLangPack.test.ts:23, and .autocode/agents/security.md separately claims "SPECIALTY_PACKS is Object.freeze([])" — also false. at lib/packLoader.ts:module header:29.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packLoader.ts:module header:29
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F006 — severity 3 — code-quality
+
+---
+
+### Task #383: Fix data-loss: v0->v1 unlockedPacks migration lacks the registration check its v3 sibling has
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The v0->v1 unlockedPacks migration filters elements to typeof==="string" only — it does not check pack-code registration. The sibling v2->v3 purchasedAddOns migration three entries later (Task #344) was explicitly hardened to also require isSpecialtyPackCode(item), and lib/importBackup.ts's equivalent unlockedPacks filter uses isValidPackCode. The v1 migration also logs nothing on drop, unlike importBackup.ts's IMPORT-SKIP-PACKS warning. Same "one call site hardened, sibling left exposed" pattern (Rule 19b) this team has previously logged as recurring. at store/migrations.ts:ENTITLEMENT_MIGRATIONS[1]:137.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at store/migrations.ts:ENTITLEMENT_MIGRATIONS[1]:137
+- [ ] Audit passes: bash scripts/deep-audit.sh store/migrations.ts
+
+**Source:** Audit finding F007 — severity 5 — data-loss
+
+---
+
+### Task #384: Fix data-loss: v2->v3 purchasedAddOns migration validates against a mutable live flag, not a purchase-time record
+
+**File:** store/migrations.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The v2->v3 purchasedAddOns filter validates each stored code against the CURRENT, mutable isSpecialtyPackCode(item) result rather than a historical record of what was purchasable at the time of purchase. If a specialty pack ships ready:true, a user purchases it, and the pack later reverts to ready:false (deprecation or rollback), the next migration run for that user silently drops the paid purchase record with no warning logged anywhere. at store/migrations.ts:ENTITLEMENT_MIGRATIONS[3]:164.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at store/migrations.ts:ENTITLEMENT_MIGRATIONS[3]:164
+- [ ] Audit passes: bash scripts/deep-audit.sh store/migrations.ts
+
+**Source:** Audit finding F008 — severity 5 — data-loss
+
+---
+
+### Task #385: Fix code-quality: clearSpecialtyCache's name overpromises — never touches memCache, needs 3 compensating comments elsewhere
+
+**File:** lib/specialtyPackLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 10 violation. clearSpecialtyCache's name implies it clears specialty-pack cache state, but its body only resets loadedAddOns bookkeeping and the inFlight map — it never touches memCache, where the actual merged pack data lives. This gap is significant enough that three separate call sites carry compensating disclaimer comments warning readers not to assume the name's full scope (lib/specialtyPackLoader.ts:44 itself, and store/entitlementStore.ts's clearEntitlement twice). A name requiring three separate compensating comments to prevent misuse is a Rule 10 failure. at lib/specialtyPackLoader.ts:clearSpecialtyCache:47.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/specialtyPackLoader.ts:clearSpecialtyCache:47
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
+
+**Source:** Audit finding F009 — severity 4 — code-quality
+
+---
+
+### Task #386: Fix code-quality: isPackUnlocked has no explicit-else branch for an out-of-union licenseType value
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 17c (validators enforce what they claim) gap. isPackUnlocked checks licenseType==="free" and licenseType==="subscription" but has no explicit branch for a LicenseType value outside those two — a third value falls through to unlockedPacks.some(...) with no defined behavior documented for that case. Currently unreachable via any live writer, but the function is not structurally exhaustive against its own declared union. at store/entitlementStore.ts:isPackUnlocked:131.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:isPackUnlocked:131
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F010 — severity 3 — code-quality
+
+---
+
+### Task #387: Fix error-handling: readCacheMeta/readCacheData still omit lang from their error ref IDs despite this batch's rewrite
+
+**File:** lib/packCache.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 8 violation, repeat/unfixed across a rewrite. readCacheMeta's and readCacheData's catch blocks still log ref IDs without the lang argument, even though this file was substantially rewritten and extracted from packLoader.ts in this batch (Task #275). A cache-read failure for Spanish vs Italian remains indistinguishable in production logs. at lib/packCache.ts:readCacheMeta:161.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at lib/packCache.ts:readCacheMeta:161
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F011 — severity 4 — error-handling
+
+---
+
+### Task #388: Fix code-quality: Task #357's deferral rationale no longer matches the test file it cites
+
+**File:** store/entitlementStore.ts + tests/entitlement.test.ts
+**Complexity:** 🔧 Full — 2 files, requires a product decision: since the stated blocking reason (tests calling purchaseAddOn with licenseType:"free") no longer holds, re-evaluate whether the Pro gate can now actually be implemented at the store layer, or fix the comment to state the real current blocker (if any) — not a mechanical doc edit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The Task #357 deferral comment states a store-level Pro gate "would break tests/entitlement.test.ts (off-limits) which calls purchaseAddOn with licenseType:'free'" — verified false against the current file: every purchaseAddOn call site now runs under a beforeEach setting licenseType:"subscription" (a Wave 13 change). A companion comment in the test file itself ("purchaseAddOn requires a Pro subscription (gate added by parallel stream)") is also factually wrong — no such gate exists. The deferral's own stated blocking reason no longer matches the file it cites, risking a future engineer accepting a stale rationale instead of re-evaluating whether the gate can now be implemented. at store/entitlementStore.ts:purchaseAddOn:278.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:purchaseAddOn:278
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F012 — severity 5 — code-quality
+
+---
+
+### Task #389: Fix code-quality: app/page.tsx calls window.localStorage directly, violating lib/constants.ts's sole-authorized-caller rule
+
+**File:** app/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Direct window.localStorage.getItem(LANG_PAIR_KEY) call instead of getLangPair(), violating lib/constants.ts's own documented invariant that it is "the SOLE AUTHORIZED CALLER of window.localStorage for LANG_PAIR_KEY." A live, non-dormant rule violation caught by the unprimed naive-reader lane, missed by all 7 scored auditors. at app/page.tsx:LanguagePicker:29.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/page.tsx:LanguagePicker:29
+- [ ] Audit passes: bash scripts/deep-audit.sh app/page.tsx
+
+**Source:** Audit finding F013 — severity 4 — code-quality
+
+---
+
+### Task #390: Fix error-handling: parseBackup checks data.entitlement only by truthiness, unlike the stricter data.srs check on the same line
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+data.entitlement is checked only by truthiness while data.srs on the same line gets a strict shape check (typeof, non-null, non-array). A backup with entitlement:"corrupted" or entitlement:5 passes this guard and silently defaults every entitlement field instead of the backup being rejected the way equally-malformed srs input would be. at lib/importBackup.ts:parseBackup:66.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at lib/importBackup.ts:parseBackup:66
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/importBackup.ts
+
+**Source:** Audit finding F014 — severity 5 — error-handling
+
+---
+
+### Task #391: Fix data-loss: useExportImport silently leaves entitlement state untouched when a backup lacks licenseKey/instanceId
+
+**File:** hooks/useExportImport.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+When a backup's entitlement fields are null/falsy, the import branch silently skips setEntitlement entirely — the current session's entitlement state is left completely untouched with no reset, merge, or flag — while the success message still reports "Restored N card(s) of progress" with no indication entitlement restoration did nothing. at hooks/useExportImport.ts:handleImport:82.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at hooks/useExportImport.ts:handleImport:82
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useExportImport.ts
+
+**Source:** Audit finding F015 — severity 5 — data-loss
+
+---
+
+### Task #392: Fix edge-case: hasValidUnitsArray validates a narrower shape than what downstream UI code unconditionally dereferences
+
+**File:** lib/packTypes.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Validates unit id/name/cards and card id/type/prompt/accepted/tags/tier but not unit.level/theme/emoji/prerequisiteUnits, all non-optional on Unit. components/LevelSection.tsx:55 and app/study/page.tsx:43 unconditionally dereference unit.prerequisiteUnits.every(...) with no guard — a pack passing sha256 and this validator but missing prerequisiteUnits would crash the UI on first render rather than fail at load. The offline authoring-time validator (scripts/validatePack.ts) already checks this field; the runtime guard is strictly weaker than its own mirror. at lib/packTypes.ts:hasValidUnitsArray:61.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at lib/packTypes.ts:hasValidUnitsArray:61
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packTypes.ts
+
+**Source:** Audit finding F016 — severity 6 — edge-case
+
+---
+
+### Task #393: Fix tests: seam_importRestore.test.ts's own stated scope (entitlement restore) has zero actual coverage
+
+**File:** tests/seam_importRestore.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+This file's own header states its purpose is covering the backup-restore path end-to-end, but grep for licenseKey/instanceId/purchasedAddOns/setEntitlement across the file returns nothing — the entitlement-restore branch has zero seam coverage despite being squarely within this test file's stated scope. at tests/seam_importRestore.test.ts:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/seam_importRestore.test.ts:1
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/seam_importRestore.test.ts
+
+**Source:** Audit finding F017 — severity 4 — tests
+
+---
+
+### Task #394: Fix async: specialty-pack load in flight during deactivation can re-populate memCache with stale entitlement
+
+**File:** store/entitlementStore.ts:clearEntitlement + lib/specialtyPackLoader.ts:loadSpecialtyPack
+**Complexity:** 🔧 Full — 2 files, requires a real concurrency-control design (re-validate purchasedAddOns or a deactivation-generation counter inside _mergeFromJson immediately before merging, not just at loadSpecialtyPack's entry) — not a mechanical fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+A specialty-pack load in flight during deactivation takes purchasedAddOns as a one-time snapshot. If clearEntitlement's eviction completes and useLangPack's Task #362 re-seed effect re-populates memCache["it"] before the stale in-flight merge runs, the merge completes using pre-deactivation entitlement after purchasedAddOns has already been reset to []. Dormant only because the one registered specialty code has ready:false. at store/entitlementStore.ts:clearEntitlement:198.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at store/entitlementStore.ts:clearEntitlement:198
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F018 — severity 5 — async
+
+---
+
+### Task #395: Fix auth: purchaseAddOn's Pro gate is enforced only in the UI, not the store action itself
+
+**File:** store/entitlementStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The Pro gate for specialty-pack purchases is enforced only in the UI (LanguageGrid hides the buy button for non-Pro users) — purchaseAddOn itself performs no licenseType check. Any free-tier user could call useEntitlementStore.getState().purchaseAddOn(code, receiptToken) directly from devtools and, given a receiptToken that passed IPC verification, purchase an add-on without holding Pro. Currently inert only because the Tauri command verify_addon_receipt does not exist yet, not because any gate exists in this function. at store/entitlementStore.ts:purchaseAddOn:268.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix auth issue at store/entitlementStore.ts:purchaseAddOn:268
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F019 — severity 3 — auth
+
+---
+
+### Task #396: Fix async: PackMemCacheImpl.write()'s fire-and-forget storage cleanup can delete a concurrent specialty merge's just-written keys
+
+**File:** lib/packCache.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+write() fires its specialty-storage-key cleanup fire-and-forget (not awaited). A base-pack replace racing a concurrent loadSpecialtyPack merge that is persisting its own storage keys can have its just-written keys silently deleted by the trailing cleanup, while loadedAddOns/memCache still report the add-on merged in memory — an unlocked, untested race. at lib/packCache.ts:PackMemCacheImpl.write:118.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at lib/packCache.ts:PackMemCacheImpl.write:118
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packCache.ts
+
+**Source:** Audit finding F020 — severity 5 — async
+
+---
+
+### Task #397: Fix error-handling: clearEntitlement test call sites invoke a rejectable Promise without await/catch
+
+**File:** tests/entitlement.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+store/entitlementStore.ts's clearEntitlement returns a Promise that can reject on eviction failure. Several call sites in tests/entitlement.test.ts invoke it without await or .catch; if an eviction genuinely failed in one of those tests, it would surface as an unhandled rejection. Only hooks/useLicenseActivation.ts's handleDeactivate awaits/catches it in production. at tests/entitlement.test.ts:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at tests/entitlement.test.ts:1
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/entitlement.test.ts
+
+**Source:** Audit finding F021 — severity 3 — error-handling
+
+---
+
+### Task #398: Fix error-handling: evictPack's specialty/garbage-code no-op is indistinguishable from success at the call site
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+evictPack's doc comment accurately states the returned Promise for specialty/garbage-code inputs "ALWAYS resolves — no throw, no rejection" — but for those inputs the function is a no-op after logging, indistinguishable from a successful eviction at the call site unless the caller inspects console output. at lib/packLoader.ts:evictPack:299.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at lib/packLoader.ts:evictPack:299
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F022 — severity 3 — error-handling
+
+---
+
+### Task #399: Fix tests: articles-regex test only proves RegExp instance type, not the correct regex per language
+
+**File:** tests/langRegistry.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 18 (B7) gap. "every ready language has an articles regex" only proves articles is a RegExp instance, not that it is the correct regex for that language — a swapped wrong regex (e.g. Italian's articles regex substituted for Spanish's) would still pass this assertion. at tests/langRegistry.test.ts:35.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/langRegistry.test.ts:35
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/langRegistry.test.ts
+
+**Source:** Audit finding F023 — severity 3 — tests
+
+---
+
+### Task #400: Fix tests: malformed-add-on-pack test doesn't prove delegation to the shared hasValidUnitsArray helper
+
+**File:** tests/packLoader.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Rule 18 (B7) gap, conceded by the test's own comment. "rejects malformed add-on pack" does not prove delegation to the shared hasValidUnitsArray helper specifically — a reverted inline duplicate shape-check would pass this test identically, defeating the single-source-of-truth guarantee the shared helper is meant to provide. at tests/packLoader.test.ts:1034.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/packLoader.test.ts:1034
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/packLoader.test.ts
+
+**Source:** Audit finding F024 — severity 3 — tests
+
+---
+
+### Task #401: Fix code-quality: three module headers carry stale DEPENDS ON/USED BY claims
+
+**File:** store/entitlementStore.ts + lib/importBackup.ts + store/migrations.ts
+**Complexity:** ⚡ Direct — 3 files, no package boundary, doc-only fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+store/entitlementStore.ts's DEPENDS ON header lists @/lib/featureFlags, which this file never imports. lib/importBackup.ts's USED BY header omits lib/exportBackup.ts, which imports CURRENT_BACKUP_VERSION, BackupSrs, and BackupEntitlement directly from it. store/migrations.ts's DEPENDS ON header omits isSpecialtyPackCode, which the file actually imports and uses. at store/entitlementStore.ts:module header:8.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/entitlementStore.ts:module header:8
+- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
+
+**Source:** Audit finding F025 — severity 3 — code-quality
+
+---
+
+### Task #402: Fix code-quality: evictPack double-logs (warn + error) for a single specialty-code event
+
+**File:** lib/packLoader.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+evictPack's specialty-code branch logs both console.warn and console.error for the same single event — a specialty code passed to evictPack — producing two log lines where one, correctly leveled, would suffice. at lib/packLoader.ts:evictPack:311.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/packLoader.ts:evictPack:311
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+
+**Source:** Audit finding F026 — severity 2 — code-quality
+
+---
+
+### Task #403: Fix code-quality: LanguageGrid's Add-ons section visibility check redundantly re-verifies an already-folded flag
+
+**File:** components/LanguageGrid.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+`specialtyPacksEnabled && specialtyPacks.length > 0` re-checks a flag already folded into specialtyPacks' own filter: specialtyPacks filters by `hasAddOn(sp.code) || (isPro && isPackUnlocked(sp.baseLang))`, and isPro is itself `isProEnabled(specialtyPacksEnabled, licenseType)`. The redundant check is easy to misread as an independent gate. at components/LanguageGrid.tsx:128.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at components/LanguageGrid.tsx:128
+- [ ] Audit passes: bash scripts/deep-audit.sh components/LanguageGrid.tsx
+
+**Source:** Audit finding F027 — severity 2 — code-quality
+
+---
+
+### Task #404: Fix code-quality: app/settings/page.tsx still uses the deprecated ALL_KNOWN_PACKS export instead of ALL_PACK_CODES
+
+**File:** app/settings/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+store/entitlementStore.ts re-exports ALL_PACK_CODES as ALL_KNOWN_PACKS with an explicit @deprecated tag directing callers to use ALL_PACK_CODES from @/lib/langRegistry directly. app/settings/page.tsx still imports and uses the deprecated ALL_KNOWN_PACKS name instead — the deprecation notice is unenforced at its one call site. at app/settings/page.tsx:module:1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/settings/page.tsx:module:1
+- [ ] Audit passes: bash scripts/deep-audit.sh app/settings/page.tsx
+
+**Source:** Audit finding F028 — severity 2 — code-quality
+
+---
 
 
 ## Batch 13 — Quality Foundation | 3 tasks | [TASKS COMPLETE — pending batch audit]
