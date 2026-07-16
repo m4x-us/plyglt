@@ -1,0 +1,14 @@
+{
+  "mode": "fff",
+  "diffHash": "3ec01d0a85646b76",
+  "timestamp": "2026-07-16T14:36:30Z",
+  "verdict": "PASS",
+  "note": "Gate scripts (staged-diff-hash.sh/classify-diff-size.sh) and .husky pre-commit absent in this repo; hash = first 16 hex of sha256(git diff --cached). Independent FFF review ran; fixable findings fixed before artifact (getInitialState() reset replacing hand-copied defaults literal; #261 referential-stability comment corrected). Remaining findings logged to .autocode/stream-W14A/debt.md (setup.ts class-fix for RTL cleanup — file outside stream ownership; base-pack invalid_lang UX dead end — needs lib/packTypes.ts owned by another stream; pre-hydration transient lockout — dormant, needs useIsHydrated gate).",
+  "findings": {
+    "fff1": "Instance-fix vs class-fix on RTL zombie-mount hazard (tests/setup.ts one-liner deferred to debt — file not owned by W14A); stale error surface: base-pack invalid_lang has no purchase-prompt disambiguation (deferred to debt — LoadPackResult lives in off-limits lib/packTypes.ts).",
+    "fff2": "Pre-hydration entitlement state now load-bearing without useIsHydrated gate (transient false-lockout on Tauri once a 2nd non-free pack ships) — logged to debt, dormant today. Hardcoded 7-field store-defaults literal in test reset — FIXED: replaced with useEntitlementStore.getInitialState().",
+    "fff3": "Reader-first comments good; #261 comment's blanket referential-stability claim was false across rehydration/cross-tab sync — FIXED: comment now states re-runs occur on rehydrate and are cheap via memCache. unlockedPacks↔unlockedLangs rename-at-boundary acknowledged and documented.",
+    "fff4": "Effect does what it claims (verified by 4 exact-value tests incl. real setEntitlement mutator). File-level afterEach previously reset only 7 enumerated fields — FIXED via getInitialState(), which also covers _cacheEvictionGeneration and future fields.",
+    "fff5": "First-to-break was the hand-copied defaults literal — eliminated by getInitialState(). Expiry-blindness of the loader gate is documented at the call site; grace-period asymmetry noted in debt entry. Manifest refetch on rehydrate accepted (memCache hit)."
+  }
+}

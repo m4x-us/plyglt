@@ -3,9 +3,13 @@
 // ============================================================
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
 import { LANG_PAIR_KEY } from "@/lib/constants";
 import { useLangPack } from "@/hooks/useLangPack";
+// #377: real store, deliberately NOT mocked — Rule 20a requires these tests to drive the
+// actual production selector path (store defaults + setEntitlement), not injected mocks.
+import { useEntitlementStore } from "@/store/entitlementStore";
+import { FREE_PACK_CODES } from "@/lib/langRegistry";
 
 // Mock packLoader — controls the async dynamic-load path (lines 62–84 of hook)
 vi.mock("@/lib/packLoader", () => ({
@@ -37,6 +41,22 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
 import { isReadySpecialtyPackCode } from "@/lib/langRegistry";
 const mockIsReadySpecialtyPackCode = vi.mocked(isReadySpecialtyPackCode);
 
+// #377: the real entitlement store is a shared module singleton across every describe block
+// in this file. Any test that mutates it (setState or setEntitlement) would otherwise leak
+// state into later blocks — reset ALL mutated fields to the store's documented defaults
+// after every test, file-wide, so describe-order changes can never cause phantom failures.
+afterEach(() => {
+  // RTL auto-cleanup is INERT in this repo (vitest globals are disabled and tests/setup.ts
+  // registers no cleanup), so every renderHook tree stays mounted and store-subscribed after
+  // its test ends. Unmount them BEFORE resetting the store — otherwise the setState below
+  // re-renders every zombie component and their effects re-fire loadPack, corrupting the
+  // next test's mock call counts (observed: 16 phantom calls in one test).
+  cleanup();
+  // getInitialState() derives the reset from the store's own initializer — no hand-copied
+  // field list to drift when the store gains fields (parallel-list ban, AGENTS.md).
+  useEntitlementStore.setState(useEntitlementStore.getInitialState());
+});
+
 // Minimal unit shape: hook only reads unit.id when building unitMap
 const MOCK_UNIT = { id: "es-u01", name: "Greetings", emoji: "👋", cards: [], prerequisiteUnits: [] };
 // Minimal pack shape: hook only reads pack.units
@@ -66,8 +86,9 @@ describe("useLangPack — hook body behavioral tests", () => {
 
     expect(result.current.error).toBeNull();
     expect(result.current.units).toHaveLength(1);
-    // #261: hook now threads purchasedAddOns from the entitlement store into loadPack options
-    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [] });
+    // #261: hook threads purchasedAddOns from the entitlement store into loadPack options.
+    // #377: unlockedLangs (from the store's unlockedPacks, default FREE_PACK_CODES) joined it.
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [], unlockedLangs: [...FREE_PACK_CODES] });
   });
 
   it("transitions to error state when loadPack returns ok: false", async () => {
@@ -85,14 +106,14 @@ describe("useLangPack — hook body behavioral tests", () => {
     const { rerender } = renderHook(() => useLangPack());
 
     await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
-    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [] });
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [], unlockedLangs: [...FREE_PACK_CODES] });
 
     // Switch to a different non-static language; rerender causes hook to re-read localStorage
     localStorage.setItem(LANG_PAIR_KEY, "en-pt");
     rerender();
 
     await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(2));
-    expect(mockLoadPack).toHaveBeenLastCalledWith("pt", null, { purchasedAddOns: [] });
+    expect(mockLoadPack).toHaveBeenLastCalledWith("pt", null, { purchasedAddOns: [], unlockedLangs: [...FREE_PACK_CODES] });
   });
 
   it("loaded units match mock data — not undefined", async () => {
@@ -283,5 +304,100 @@ describe("#324 — invalid_lang distinguishes unpurchased specialty packs from u
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe("Couldn't load pack. Try again.");
+  });
+});
+
+describe("#377 — unlockedPacks threaded from entitlement store into loadPack as unlockedLangs", () => {
+  beforeEach(() => {
+    // "es" is not in STATIC_PACKS — routes the hook into the dynamic-load path that
+    // actually calls loadPack. Without this, targetLang defaults to "it" (static pack)
+    // and every toHaveBeenCalledWith below would fail for the wrong reason.
+    localStorage.setItem(LANG_PAIR_KEY, "en-es");
+    mockFetchManifest.mockResolvedValue(null);
+    mockLoadPack.mockResolvedValue(MOCK_PACK_RESULT);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    // Store reset is handled by the file-level afterEach above.
+  });
+
+  it("passes the store's default unlockedPacks as options.unlockedLangs", async () => {
+    // GIVEN the entitlement store at its true default (unlockedPacks = FREE_PACK_CODES)
+    renderHook(() => useLangPack());
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+
+    // THEN the exact default array reaches loadPack — catches wiring unlockedLangs to the
+    // wrong store field (purchasedAddOns also defaults to [], but unlockedPacks is ["it"]).
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: [...FREE_PACK_CODES],
+    });
+  });
+
+  it("passes a mutated unlockedPacks value set before mount", async () => {
+    // GIVEN a store whose unlockedPacks differs from the module-level default — catches a
+    // hardcoded `unlockedLangs: [...FREE_PACK_CODES]` at the call site (the exact class of
+    // never-reads-real-state bug Task #377 exists to prevent).
+    useEntitlementStore.setState({ unlockedPacks: ["it", "es"] });
+
+    renderHook(() => useLangPack());
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: ["it", "es"],
+    });
+  });
+
+  it("re-runs the effect and calls loadPack again when unlockedPacks changes after mount", async () => {
+    // GIVEN the hook mounted and called loadPack once with the default
+    renderHook(() => useLangPack());
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+    expect(mockLoadPack).toHaveBeenNthCalledWith(1, "es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: [...FREE_PACK_CODES],
+    });
+
+    // WHEN unlockedPacks changes (new array reference → effect dep fires)
+    act(() => {
+      useEntitlementStore.setState({ unlockedPacks: ["it", "es"] });
+    });
+
+    // THEN the effect re-runs — deleting unlockedPacks from the dep array leaves the call
+    // count at 1 and this waitFor times out.
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(2));
+    expect(mockLoadPack).toHaveBeenLastCalledWith("es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: ["it", "es"],
+    });
+  });
+
+  it("re-calls loadPack with updated unlockedLangs when setEntitlement — the production mutator — updates unlockedPacks", async () => {
+    // GIVEN the hook mounted against default state
+    renderHook(() => useLangPack());
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+
+    // WHEN entitlement arrives via the REAL production write path (license activation calls
+    // setEntitlement, not raw setState) — Rule 20a: trace the real mutator, so a future
+    // in-place mutation of unlockedPacks inside setEntitlement breaks this test even though
+    // the raw-setState test above would keep passing.
+    act(() => {
+      useEntitlementStore.getState().setEntitlement({
+        licenseKey: "TEST-KEY",
+        instanceId: "TEST-INSTANCE",
+        licenseType: "subscription",
+        unlockedPacks: ["it", "es"],
+        validUntil: null,
+      });
+    });
+
+    // THEN the hook re-fires loadPack with the newly-unlocked list
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(2));
+    expect(mockLoadPack).toHaveBeenLastCalledWith("es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: ["it", "es"],
+    });
   });
 });

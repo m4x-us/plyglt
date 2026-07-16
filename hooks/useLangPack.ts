@@ -62,9 +62,19 @@ export function useLangPack(): LangPackState {
 
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
   // #261: Thread purchasedAddOns into loadPack so the specialty-pack entitlement gate
-  // has the current state. Zustand maintains referential stability — this only triggers
-  // a re-render (and re-run of the effect) when the array actually changes (new purchase).
+  // has the current state. Zustand keeps the reference stable between writes, so the
+  // effect below re-runs only when the array is replaced — on a new purchase, but also on
+  // persist rehydration or a cross-tab storage sync, which write a fresh (possibly
+  // content-identical) array. Those extra re-runs are cheap: loadPack hits memCache.
   const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
+  // #377: thread unlockedPacks into loadPack as options.unlockedLangs so packLoader's
+  // non-free base-pack entitlement gate has a real production caller (Rule 20b — the gate
+  // shipped in Task #350 with zero callers; every subscribed user would have hit
+  // invalid_lang the day a second ready base pack shipped). Rename-at-boundary passthrough
+  // only: no expiry/grace filtering here — the primary expiry-aware gate is the UI layer's
+  // isPackUnlocked (store/entitlementStore.ts); the loader gate is secondary
+  // defense-in-depth and deliberately membership-only. Mirrors the purchasedAddOns pattern.
+  const unlockedPacks = useEntitlementStore(state => state.unlockedPacks);
   // Task #362: subscribe to clearEntitlement's eviction-complete signal. When clearEntitlement
   // finishes evicting base packs, it increments this counter — the effect below re-seeds
   // memCache for static languages so specialty-pack loads don't see base_pack_not_loaded.
@@ -108,7 +118,7 @@ export function useLangPack(): LangPackState {
 
     let cancelled = false;
     fetchManifest()
-      .then((manifest) => loadPack(targetLang, manifest, { purchasedAddOns }))
+      .then((manifest) => loadPack(targetLang, manifest, { purchasedAddOns, unlockedLangs: unlockedPacks }))
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -133,7 +143,7 @@ export function useLangPack(): LangPackState {
         }
       });
     return () => { cancelled = true; };
-  }, [targetLang, lang, purchasedAddOns, cacheEvictionGeneration]);
+  }, [targetLang, lang, purchasedAddOns, unlockedPacks, cacheEvictionGeneration]);
 
   return state;
 }
