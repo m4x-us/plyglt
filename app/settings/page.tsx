@@ -5,7 +5,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS } from "@/store/settingsStore";
-import { useEntitlementStore, ALL_KNOWN_PACKS } from "@/store/entitlementStore";
+import { useEntitlementStore } from "@/store/entitlementStore";
+import { ALL_PACK_CODES } from "@/lib/langRegistry";
 import { runEntitlementValidation } from "@/components/EntitlementValidator";
 import { isTauri, enableAutostart, disableAutostart, openExternalUrl } from "@/lib/tauri";
 import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
@@ -127,7 +128,7 @@ export default function SettingsPage() {
                   <div>
                     <div className="text-sm font-medium text-white capitalize">{licenseType === "subscription" ? "Subscription" : "Free"} license</div>{/* display label — not a feature gate */}
                     <div className="text-xs text-gray-500 mt-0.5">
-                      {ALL_KNOWN_PACKS.every(c => unlockedPacks.includes(c)) ? "All languages unlocked" : `${unlockedPacks.join(", ").toUpperCase()} unlocked`}
+                      {ALL_PACK_CODES.every(c => unlockedPacks.includes(c)) ? "All languages unlocked" : `${unlockedPacks.join(", ").toUpperCase()} unlocked`}
                       {validUntil && <> · active until {new Date(validUntil).toLocaleDateString()}</>}
                     </div>
                   </div>
