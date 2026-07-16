@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, isSpecialtyPackCode } from "@/lib/langRegistry";
+import { LANGUAGE_REGISTRY, ALL_PACK_CODES, FREE_PACK_CODES, LANG_CONFIG_MAP, READY_PACK_CODES, isValidPackCode, SPECIALTY_PACKS, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
 import { ALL_KNOWN_PACKS } from "@/store/entitlementStore";
+import { ITALIAN_ARTICLES, SPANISH_ARTICLES } from "@/lib/answerCheck";
 
 describe("langRegistry — derived constants are consistent", () => {
   it("ALL_KNOWN_PACKS (from entitlementStore) equals ALL_PACK_CODES (from langRegistry)", () => {
@@ -32,9 +33,22 @@ describe("langRegistry — derived constants are consistent", () => {
     }
   });
 
-  it("every ready language has an articles regex (not null)", () => {
-    for (const entry of LANGUAGE_REGISTRY.filter(l => l.ready)) {
-      expect(entry.config.articles).toBeInstanceOf(RegExp);
+  it("every language's articles regex is the canonical regex for that language", () => {
+    // toBeInstanceOf(RegExp) alone would pass with the languages' regexes swapped
+    // (e.g. ITALIAN config pointing at SPANISH_ARTICLES). Compare source + flags against
+    // the canonical constants in lib/answerCheck. Covers ALL registry entries, not just
+    // ready ones — es is ready:false, and a ready-only filter would leave a swap on the
+    // Spanish config untested.
+    const expectedArticles: Record<PackCode, RegExp> = {
+      it: ITALIAN_ARTICLES,
+      es: SPANISH_ARTICLES,
+    };
+    for (const entry of LANGUAGE_REGISTRY) {
+      const expected = expectedArticles[entry.code];
+      expect(entry.config.articles?.source, `articles regex for "${entry.code}" is not that language's canonical regex`)
+        .toBe(expected.source);
+      expect(entry.config.articles?.flags, `articles regex flags for "${entry.code}" differ from the canonical regex`)
+        .toBe(expected.flags);
     }
   });
 
