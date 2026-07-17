@@ -3,8 +3,10 @@
 // Depends on: lib/packLoader, lib/langRegistry (via ALL_PACK_CODES allowlist guard)
 // Coverage: loadPack (download, cache hit, memory hit, SHA-256, allowlist), evictPack, seedMemCache
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import type { Manifest, Pack } from "@/lib/packLoader";
 import { loadPack, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManifest, seedMemCache } from "@/lib/packLoader";
 import type { SpecialtyPack } from "@/lib/langRegistry";
@@ -769,10 +771,11 @@ describe("seedMemCache — #337 allowlist validation", () => {
     // Deleting the guard causes this test to fail because: (a) no console.error is logged,
     // and (b) a subsequent loadPack("garbage", ...) would hit memCache instead of returning invalid_lang.
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    seedMemCache("garbage-code", []);
+    // The boolean return (cycle-2) makes the refusal directly assertable — false = rejected,
+    // nothing written to memCache.
+    expect(seedMemCache("garbage-code", [])).toBe(false);
     const messages = errorSpy.mock.calls.map(args => args[0] as string);
     expect(messages.some(msg => msg.includes("ERR-SEED-INVALID-LANG"))).toBe(true);
-    // Verify the invalid code was NOT written to memCache — a subsequent loadPack must not hit it
     errorSpy.mockRestore();
   });
 
@@ -1357,5 +1360,427 @@ describe("specialty pack — cross-code concurrent load safety (#264)", () => {
       const expected = fakePack().cardCount + fakeAddOnPack().cardCount + fakeAddOnBusinessPack().cardCount;
       expect(merged.pack.cardCount).toBe(expected);
     }
+  });
+});
+
+describe("#378 — concurrent loadPack calls for the same base pack share one in-flight load", () => {
+  it("two concurrent loadPack calls trigger exactly one fetch and resolve to the same result object", async () => {
+    // GIVEN a download we control manually, so both calls are in flight simultaneously.
+    // Without dedup, both pass the memCache.has() check (TOCTOU) and both fetch — the loser's
+    // write would clobber any specialty units merged into memCache in between (pre-mortem F1).
+    let resolveFetch!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn().mockImplementation(
+      () => new Promise<{ ok: boolean; text: () => Promise<string> }>((res) => { resolveFetch = res; })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // WHEN two calls race
+    const p1 = loadPack("it", fakeManifest());
+    const p2 = loadPack("it", fakeManifest());
+    // The fetch fires only after loadPack's async storage reads — wait for it before resolving.
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    resolveFetch({ ok: true, text: async () => PACK_JSON });
+    const [r1, r2] = await Promise.all([p1, p2]);
+
+    // THEN one download, one shared settled result (same object — same underlying promise)
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(r1.ok).toBe(true);
+    if (r1.ok) expect(r1.pack.lang).toBe("it");
+    expect(r2).toBe(r1);
+  });
+
+  it("releases the in-flight slot after completion — a post-eviction call re-fetches", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeManifest());
+    await evictPack("it");
+    const result = await loadPack("it", fakeManifest());
+
+    // A leaked in-flight entry would replay the first (stale) promise with no second fetch.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+  });
+
+  it("forceRedownload bypasses the in-flight dedup — a forced call fetches even while a normal load is pending", async () => {
+    let resolveFirst!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn()
+      .mockImplementationOnce(
+        () => new Promise<{ ok: boolean; text: () => Promise<string> }>((res) => { resolveFirst = res; })
+      )
+      .mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const normal = loadPack("it", fakeManifest());
+    const forced = loadPack("it", fakeManifest(), { forceRedownload: true });
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    resolveFirst({ ok: true, text: async () => PACK_JSON });
+    const [rNormal, rForced] = await Promise.all([normal, forced]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(rNormal.ok).toBe(true);
+    expect(rForced.ok).toBe(true);
+  });
+});
+
+describe("#378 audit remediation — eviction generation, seed behavior, write ordering", () => {
+  it("an eviction during an in-flight load prevents the late resolution from re-populating memCache or storage (F001)", async () => {
+    let resolveFetch!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn().mockImplementation(
+      () => new Promise<{ ok: boolean; text: () => Promise<string> }>((res) => { resolveFetch = res; })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // GIVEN a load in flight
+    const pending = loadPack("it", fakeManifest());
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    // WHEN the pack is evicted mid-flight (clearEntitlement path), THEN the download resolves
+    await evictPack("it");
+    resolveFetch({ ok: true, text: async () => PACK_JSON });
+    const result = await pending;
+
+    // The initiating caller still gets the verified pack for this session...
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pack.lang).toBe("it");
+    // ...but NOTHING is written back — no resurrection in storage or memory.
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBe(null);
+    expect(localStorageMock.getItem("pack-meta-v1-it")).toBe(null);
+    // A fresh load must go to the network again (memCache empty), proving no memory write.
+    fetchSpy.mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    await loadPack("it", fakeManifest());
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("seedMemCache writes a synthesized pack that loadPack then serves from memory with exact derived fields (F015)", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const unit = { id: "it-u01", name: "Greetings", theme: "greetings", emoji: "👋", level: "A1", prerequisiteUnits: [], cards: [{ id: "c1", type: "recognize", prompt: "ciao", tier: 1, accepted: ["hello"], tags: [] }, { id: "c2", type: "produce", prompt: "hello", tier: 1, accepted: ["ciao"], tags: [] }] };
+
+    seedMemCache("it", [unit] as never);
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Exact synthesized fields — deleting memCache.write inside seedMemCache, or breaking
+      // the cardCount reduce, fails these (the old test only asserted no console.error).
+      expect(result.pack.lang).toBe("it");
+      expect(result.pack.packVersion).toBe("static");
+      expect(result.pack.unitCount).toBe(1);
+      expect(result.pack.cardCount).toBe(2);
+      expect(result.pack.units[0]).toBe(unit);
+    }
+    // Served from memory: the seed made the network unnecessary.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("seedMemCache is idempotent — a second seed never overwrites the existing entry (F015/AC7)", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const firstUnits = [{ id: "it-u01", name: "A", theme: "t", emoji: "e", level: "A1", prerequisiteUnits: [], cards: [] }];
+    const secondUnits = [{ id: "it-u99", name: "B", theme: "t", emoji: "e", level: "A1", prerequisiteUnits: [], cards: [] }];
+
+    seedMemCache("it", firstUnits as never);
+    seedMemCache("it", secondUnits as never);
+
+    const result = await loadPack("it", fakeManifest());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pack.units[0]!.id).toBe("it-u01");
+  });
+
+  it("seedMemCache rejects a ready-but-non-free lang — entitlement-blind seeding is restricted to FREE_PACK_CODES (F013)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal("fetch", fetchSpy);
+    mockFreePackCodes.length = 0; // "it" is ready but no longer free
+
+    seedMemCache("it", [] as never);
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-SEED-NONFREE-LANG-it"));
+    // Nothing seeded: a subsequent load cannot be served from memory. ("it" non-free with no
+    // unlockedLangs now hits the #350 entitlement gate — invalid_lang — proving no memory hit.)
+    const result = await loadPack("it", fakeManifest());
+    expect(result).toEqual({ ok: false, error: "invalid_lang" });
+    errorSpy.mockRestore();
+  });
+
+  it("fresh download writes cache META before DATA so an interrupt cannot orphan unverified bytes (F025, mirrors #309)", async () => {
+    const setItemSpy = vi.spyOn(localStorageMock, "setItem");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+
+    await loadPack("it", fakeManifest());
+
+    const packWrites = setItemSpy.mock.calls.map(c => c[0]).filter(k => k === "pack-meta-v1-it" || k === "pack-data-v1-it");
+    expect(packWrites).toEqual(["pack-meta-v1-it", "pack-data-v1-it"]);
+    setItemSpy.mockRestore();
+  });
+
+  it("a non-forced call arriving during a FORCED load shares the forced load's promise — no competing write (F010)", async () => {
+    let resolveFetch!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn().mockImplementation(
+      () => new Promise<{ ok: boolean; text: () => Promise<string> }>((res) => { resolveFetch = res; })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const forced = loadPack("it", fakeManifest(), { forceRedownload: true });
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    const normal = loadPack("it", fakeManifest());
+    resolveFetch({ ok: true, text: async () => PACK_JSON });
+    const [rForced, rNormal] = await Promise.all([forced, normal]);
+
+    // One fetch: the forced load registered its promise and the normal call piggybacked.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(rNormal).toBe(rForced);
+  });
+});
+
+describe("#378 cycle-2 remediation — eviction windows, SHA failure, forced-load supersession, stale integrity", () => {
+  const goodDigest = async (_algorithm: string, data: ArrayBuffer): Promise<ArrayBuffer> => {
+    const hash = createHash("sha256").update(Buffer.from(data)).digest();
+    return hash.buffer as ArrayBuffer;
+  };
+  afterEach(() => {
+    // Restore the file-level Web Crypto stub — some tests below replace digest.
+    vi.stubGlobal("crypto", { subtle: { digest: goodDigest } });
+  });
+
+  it("sha256Hex throwing during fresh-download verification surfaces as a typed checksum_mismatch, never a rejection (K2-002)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+    vi.stubGlobal("crypto", { subtle: { digest: () => Promise.reject(new Error("webcrypto unavailable")) } });
+
+    // Deleting the try/catch around the fresh-download sha256Hex turns this into a
+    // rejected promise — the await below would throw and fail the test.
+    const result = await loadPack("it", fakeManifest());
+
+    expect(result).toEqual({ ok: false, error: "checksum_mismatch" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SHA_VERIFY_FAIL-it"), expect.any(Error));
+    // Fail closed: unverifiable bytes are never cached.
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBe(null);
+    errorSpy.mockRestore();
+  });
+
+  it("an eviction during an in-flight CACHE-HIT serve prevents the memCache write (K2-001a)", async () => {
+    // GIVEN a valid stored cache whose hash re-verification we control
+    localStorageMock.setItem("pack-data-v1-it", PACK_JSON);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: CORRECT_SHA, cachedAt: 1 }));
+    let resolveDigest!: (v: ArrayBuffer) => void;
+    const digestSpy = vi.fn().mockImplementation(() => new Promise<ArrayBuffer>((res) => { resolveDigest = res; }));
+    vi.stubGlobal("crypto", { subtle: { digest: digestSpy } });
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // WHEN eviction fires while the cache-hit hash re-verify is pending
+    const pending = loadPack("it", fakeManifest());
+    await vi.waitFor(() => expect(digestSpy).toHaveBeenCalled());
+    await evictPack("it");
+    resolveDigest(createHash("sha256").update(PACK_JSON).digest().buffer as ArrayBuffer);
+    const result = await pending;
+
+    // THEN the initiating caller is served, but memCache was NOT repopulated: a fresh
+    // load must go to the network (storage was cleared by the eviction). Deleting the
+    // generation guard on the cache-hit path lets validateAndCache write memCache and the
+    // second load below becomes a memory hit with zero fetches.
+    expect(result.ok).toBe(true);
+    vi.stubGlobal("crypto", { subtle: { digest: goodDigest } });
+    await loadPack("it", fakeManifest());
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("an eviction during an in-flight OFFLINE STALE-FALLBACK serve prevents the memCache write (K2-001b)", async () => {
+    // GIVEN a version-stale but integrity-intact cache, and a download we control
+    localStorageMock.setItem("pack-data-v1-it", PACK_JSON);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.9", sha256: CORRECT_SHA, cachedAt: 1 }));
+    let resolveFetch!: (v: { ok: boolean; status: number }) => void;
+    const fetchSpy = vi.fn().mockImplementation(() => new Promise<{ ok: boolean; status: number }>((res) => { resolveFetch = res; }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // WHEN eviction fires while the (failing) download is pending, forcing the stale path
+    const pending = loadPack("it", fakeManifest());
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    await evictPack("it");
+    resolveFetch({ ok: false, status: 503 });
+    const result = await pending;
+
+    // THEN stale bytes are served to the initiating caller without any cache write —
+    // deleting the guard on the fallback path re-caches them and the load below becomes
+    // a zero-fetch memory hit instead of a second network attempt.
+    expect(result.ok).toBe(true);
+    fetchSpy.mockResolvedValue({ ok: true, status: 200, text: async () => PACK_JSON } as never);
+    await loadPack("it", fakeManifest());
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("a forced re-download supersedes a pending normal load's right to cache (N3) — the stale normal bytes cannot clobber the forced fresh bytes", async () => {
+    // Manifest-less load: meta.version comes from pack.packVersion, letting the two loads'
+    // bytes be distinguished by version. Normal load's fetch is held open; forced fetch
+    // resolves immediately with NEWER content.
+    const v1Json = JSON.stringify({ ...fakePack(), packVersion: "1.0.0" });
+    const v2Json = JSON.stringify({ ...fakePack(), packVersion: "2.0.0" });
+    let resolveNormal!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn()
+      .mockImplementationOnce(() => new Promise<{ ok: boolean; text: () => Promise<string> }>((res) => { resolveNormal = res; }))
+      .mockResolvedValue({ ok: true, text: async () => v2Json });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const normal = loadPack("it", null);
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    const forced = loadPack("it", null, { forceRedownload: true });
+    const rForced = await forced;
+    expect(rForced.ok).toBe(true);
+
+    // Stale normal load settles LAST — without the forced-start generation bump its write
+    // would land last and clobber the forced bytes.
+    resolveNormal({ ok: true, text: async () => v1Json });
+    const rNormal = await normal;
+    expect(rNormal.ok).toBe(true);
+
+    // THEN storage and memory hold the forced (v2) bytes, not the stale normal (v1) bytes.
+    const meta = JSON.parse(localStorageMock.getItem("pack-meta-v1-it")!);
+    expect(meta.version).toBe("2.0.0");
+    const memoryHit = await loadPack("it", null);
+    expect(memoryHit.ok).toBe(true);
+    if (memoryHit.ok) expect(memoryHit.pack.packVersion).toBe("2.0.0");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses to serve stale offline bytes that no longer match their recorded sha256 (stale-integrity check)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // GIVEN a version-stale cache whose DATA was tampered after the meta recorded a hash —
+    // valid shape, wrong bytes. Before the stale-integrity check this was served silently.
+    const tamperedJson = JSON.stringify({ ...fakePack(), name: "Tampered Italian" });
+    localStorageMock.setItem("pack-data-v1-it", tamperedJson);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.9", sha256: CORRECT_SHA, cachedAt: 1 }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    const result = await loadPack("it", fakeManifest());
+
+    expect(result).toEqual({ ok: false, error: "download_failed" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("STALE_HASH_MISMATCH"));
+    errorSpy.mockRestore();
+  });
+
+  it("a cache-hit parse failure followed by a failed download reports download_failed, not parse_error (truthful-error null-out)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // GIVEN cached bytes that hash-match their manifest entry but are not valid JSON
+    const invalidJson = "not-json{{{";
+    const invalidSha = createHash("sha256").update(invalidJson).digest("hex");
+    localStorageMock.setItem("pack-data-v1-it", invalidJson);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: invalidSha, cachedAt: 1 }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    const result = await loadPack("it", fakeManifest(invalidSha));
+
+    // Deleting the post-parse-failure `cachedData = null` re-feeds the known-bad bytes to
+    // the offline fallback, which reports parse_error — masking the real network cause.
+    expect(result).toEqual({ ok: false, error: "download_failed" });
+    errorSpy.mockRestore();
+  });
+});
+
+describe("#378 WorldClass remediation — manifest dedup and module boundaries", () => {
+  it("concurrent fetchManifest calls share one network request (V2 — multi-mount dedup)", async () => {
+    let resolveFetch!: (v: { ok: boolean; json: () => Promise<unknown> }) => void;
+    const fetchSpy = vi.fn().mockImplementation(
+      () => new Promise<{ ok: boolean; json: () => Promise<unknown> }>((res) => { resolveFetch = res; })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Multiple useLangPack instances mount concurrently in production (global
+    // InterruptHandler + page components) — each calls fetchManifest on mount.
+    const p1 = fetchManifest();
+    const p2 = fetchManifest();
+    resolveFetch({ ok: true, json: async () => fakeManifest() });
+    const [m1, m2] = await Promise.all([p1, p2]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(m2).toBe(m1); // shared promise → identical resolved object
+
+    // Slot released after settle: a later call fetches fresh.
+    fetchSpy.mockResolvedValue({ ok: true, json: async () => fakeManifest() });
+    await fetchManifest();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("lib/basePackLoader.ts is imported ONLY by lib/packLoader.ts (comment contract, mechanically enforced)", () => {
+    // The basePackLoader header declares packLoader the sole legal importer — a direct
+    // import anywhere else bypasses loadPack's allowlist/entitlement/dedup gates. This
+    // test is the poka-yoke for that contract (an eslint no-restricted-imports rule is
+    // tracked as debt; the config file is outside this stream's ownership).
+    const root = join(__dirname, "..");
+    const importers: string[] = [];
+    const scan = (dir: string) => {
+      for (const entry of readdirSync(join(root, dir))) {
+        const rel = join(dir, entry);
+        const abs = join(root, rel);
+        if (statSync(abs).isDirectory()) { scan(rel); continue; }
+        if (!/\.(ts|tsx)$/.test(entry) || /\.test\./.test(entry)) continue;
+        if (readFileSync(abs, "utf8").includes("@/lib/basePackLoader")) importers.push(rel);
+      }
+    };
+    for (const dir of ["app", "components", "hooks", "lib", "store"]) scan(dir);
+
+    // packResolver imports the LoadPackOptions TYPE only (erased at compile time — it
+    // cannot bypass any runtime gate), so it is an allowed importer alongside packLoader.
+    expect(importers.sort()).toEqual(["lib/packLoader.ts", "lib/packResolver.ts"]);
+  });
+});
+
+describe("#378 WorldClass c3 — post-eviction serve helpers' failure branches", () => {
+  it("a shape-invalid pack served on the post-eviction cache-hit path is refused with parse_error", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // GIVEN cached bytes that hash-match the manifest but fail shape validation (units is
+    // not an array), and a controllable digest so eviction can land mid-verification.
+    const badShapeJson = JSON.stringify({ ...fakePack(), units: "not-an-array" });
+    const badShapeSha = createHash("sha256").update(badShapeJson).digest("hex");
+    localStorageMock.setItem("pack-data-v1-it", badShapeJson);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "1.0.0", sha256: badShapeSha, cachedAt: 1 }));
+    let resolveDigest!: (v: ArrayBuffer) => void;
+    const digestSpy = vi.fn().mockImplementation(() => new Promise<ArrayBuffer>((res) => { resolveDigest = res; }));
+    vi.stubGlobal("crypto", { subtle: { digest: digestSpy } });
+    vi.stubGlobal("fetch", vi.fn());
+
+    const pending = loadPack("it", fakeManifest(badShapeSha));
+    await vi.waitFor(() => expect(digestSpy).toHaveBeenCalled());
+    await evictPack("it");
+    resolveDigest(createHash("sha256").update(badShapeJson).digest().buffer as ArrayBuffer);
+    const result = await pending;
+
+    // validateWithoutCaching's shape-check branch: deleting the hasValidUnitsArray guard
+    // there serves the malformed pack as ok:true and this fails.
+    expect(result).toEqual({ ok: false, error: "parse_error" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SHAPE_INVALID_FAIL-stale"));
+    errorSpy.mockRestore();
+    vi.stubGlobal("crypto", {
+      subtle: {
+        digest: async (_a: string, data: ArrayBuffer): Promise<ArrayBuffer> =>
+          createHash("sha256").update(Buffer.from(data)).digest().buffer as ArrayBuffer,
+      },
+    });
+  });
+
+  it("unparseable stale bytes on the post-eviction offline-fallback path are refused with parse_error", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // GIVEN version-stale cached bytes whose recorded hash matches (so the stale-integrity
+    // check passes) but which are not valid JSON, and a download we control so eviction can
+    // land mid-flight, forcing the post-eviction parseValidateWithoutCaching path.
+    const invalidJson = "not-json{{{";
+    const invalidSha = createHash("sha256").update(invalidJson).digest("hex");
+    localStorageMock.setItem("pack-data-v1-it", invalidJson);
+    localStorageMock.setItem("pack-meta-v1-it", JSON.stringify({ version: "0.9.9", sha256: invalidSha, cachedAt: 1 }));
+    let resolveFetch!: (v: { ok: boolean; status: number }) => void;
+    const fetchSpy = vi.fn().mockImplementation(() => new Promise<{ ok: boolean; status: number }>((res) => { resolveFetch = res; }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const pending = loadPack("it", fakeManifest());
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    await evictPack("it");
+    resolveFetch({ ok: false, status: 503 });
+    const result = await pending;
+
+    // parseValidateWithoutCaching's catch branch: deleting its try/catch turns this into a
+    // rejection; the typed result below fails either way without the branch.
+    expect(result).toEqual({ ok: false, error: "parse_error" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("STALE_PARSE_FAIL"), expect.any(Error));
+    errorSpy.mockRestore();
   });
 });

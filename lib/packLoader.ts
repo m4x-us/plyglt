@@ -4,10 +4,13 @@
 /**
  * packLoader.ts — Fetches, verifies, and caches language pack JSON files.
  *
- * Depends on: @/lib/packCache (in-memory and storage I/O layer), @/lib/langRegistry (allowlist),
- *             @/lib/specialtyPackLoader (specialty pack merge path), @/lib/utils (sha256Hex, packUrl),
- *             @/lib/packTypes (hasValidUnitsArray, Pack, Manifest, LoadPackResult, PackMemCache)
- * Used by:    hooks/useLangPack.ts, store/entitlementStore.ts (evictPack, getLoadedAddOns)
+ * Depends on: @/lib/langRegistry (canonical ready/valid predicates + registry constants),
+ *             @/lib/specialtyPackLoader (specialty pack merge path),
+ *             @/lib/basePackLoader (storage/network load mechanics + eviction guard —
+ *             the Rule 1 extraction this file delegates to),
+ *             @/lib/packCache (memCache + cache clearing), @/lib/packTypes (types)
+ * Used by:    hooks/useLangPack.ts (via lib/packResolver.ts for load orchestration),
+ *             store/entitlementStore.ts (evictPack, getLoadedAddOns)
  *
  * Storage hierarchy (fastest → slowest):
  *   1. In-memory cache (PackMemCache) — per-session, zero-latency
@@ -26,35 +29,32 @@
  * Italian is served from statically-bundled content, bypassing loadPack entirely —
  * useLangPack.ts calls seedMemCache("it", units) so that memCache["it"] exists and the
  * specialty-pack precondition (memCache.has(baseLang)) can be satisfied. SPECIALTY_PACKS
- * is currently empty, so the specialty branch never executes yet — it is ready for when
- * registered specialty pack content arrives. See seedMemCache below.
+ * currently holds one entry (it-medical, ready:false) — the ready gate, not emptiness,
+ * keeps the specialty branch dormant until real specialty content ships. (#378 audit F008;
+ * the wider stale-doc sweep is Task #382.)
  *
  * Public API: loadPack, getLoadedAddOns, evictPack, seedMemCache, fetchManifest, clearCacheForTesting
  *
  * Low-level cache I/O lives in lib/packCache.ts (extracted Task #275 to satisfy the
  * 400-line service cap — Rule 1, AGENTS.md/philosophy.md).
+ *
+ * Comment reference convention: #NNN cites a task; FNNN / K2-* / N* / F-C2-* cite audit
+ * findings. Resolve any of them via `git log -S "<ref>"` or the .autocode/ history — the
+ * inline text always carries the WHY on its own even if the citation is lost.
  */
 
-import { READY_PACK_CODES, FREE_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
+import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
 import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
-import { sha256Hex, packUrl } from "@/lib/utils";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
-import { hasValidUnitsArray } from "@/lib/packTypes";
+// Storage/network load mechanics + eviction-generation guard live in lib/basePackLoader.ts
+// (Rule 1 extraction, #378 remediation). That module's loader is exported for THIS file only.
+import { loadBasePackFromStorageOrNetwork, bumpEvictionGeneration } from "@/lib/basePackLoader";
+import type { LoadPackOptions } from "@/lib/basePackLoader";
+export type { LoadPackOptions } from "@/lib/basePackLoader";
 import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 export type { PackMeta, Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
-import {
-  memCache,
-  readCacheMeta,
-  readCacheData,
-  writeCacheData,
-  writeCacheMeta,
-  clearPackCache,
-  cacheAndReturn,
-  validateAndCache,
-  parseValidateAndCache,
-  clearPackCacheState,
-} from "@/lib/packCache";
+import { memCache, clearPackCache, clearPackCacheState } from "@/lib/packCache";
 
 // ── Pack URL helpers ──────────────────────────────────────────────────────────
 
@@ -64,44 +64,70 @@ function manifestUrl(): string {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Multiple useLangPack instances mount concurrently in production (InterruptHandler in the
+// global layout plus page components) and each triggers a manifest fetch on mount — share
+// one in-flight request so N instances cost one network round-trip, mirroring the base-pack
+// dedup below. Cleared on settle so a later refresh still refetches. (#378 WorldClass V2)
+let inFlightManifest: Promise<Manifest | null> | null = null;
+
 /**
- * Fetches and parses the pack manifest.
+ * Fetches and parses the pack manifest. Concurrent callers share one request.
  * Returns null if the network is unavailable (caller uses cached version).
  */
-export async function fetchManifest(): Promise<Manifest | null> {
-  try {
-    const res = await fetch(manifestUrl(), { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as Manifest;
-  } catch (err) {
-    // Log before returning null — a silent network error here causes loadPack to skip
-    // SHA-256 verification, which is a silent security downgrade. Ref ID aids diagnosis.
-    console.error(`[MANIFEST_FETCH_FAIL-${Date.now()}]`, err);
-    return null;
-  }
+export function fetchManifest(): Promise<Manifest | null> {
+  if (inFlightManifest) return inFlightManifest;
+  const request = (async (): Promise<Manifest | null> => {
+    try {
+      const res = await fetch(manifestUrl(), { cache: "no-store" });
+      if (!res.ok) return null;
+      return (await res.json()) as Manifest;
+    } catch (err) {
+      // Log before returning null — a silent network error here causes loadPack to skip
+      // SHA-256 verification, which is a silent security downgrade. Ref ID aids diagnosis.
+      console.error(`[MANIFEST_FETCH_FAIL-${Date.now()}]`, err);
+      return null;
+    }
+  })();
+  inFlightManifest = request;
+  const release = () => { if (inFlightManifest === request) inFlightManifest = null; };
+  void request.then(release, release);
+  return request;
 }
+
+// Shared-promise registry for in-flight base-pack loads, keyed by lang. Entries are removed
+// by their own promise's compare-and-delete handler above (then(cb, cb) — robust to both
+// settlement outcomes). basePackLoader's declared failure paths all return { ok: false }
+// results rather than rejecting; cleanup does not depend on that holding. Post-eviction
+// note (#378 cycle-2 N4): evictPack also drops the evicted lang's entry so NEW callers
+// re-load fresh; callers already attached to the old promise are still served the
+// pre-eviction bytes uncached — entitlement-safe because every caller passed its own
+// gates before reaching the map. (#378)
+const inFlightBaseLoads = new Map<string, Promise<LoadPackResult>>();
 
 /**
  * Loads a pack for the given language code.
  *
- * Strategy:
+ * Strategy (in order):
+ * 0. Validation gates — ready-code allowlist, specialty delegation, base-pack entitlement.
  * 1. Memory cache hit — return immediately (same-session repeated calls).
- * 2. Platform storage hit with valid version — return from storage.
- * 3. Download → verify sha256 → write to storage → cache in memory → return.
- * 4. If download fails but a cached (possibly stale) version exists → return it
- *    (offline graceful degradation).
+ * 2. In-flight dedup — a concurrent load for the same lang shares one promise (#378).
+ * 3. Platform storage hit with valid version — return from storage.
+ * 4. Download → verify sha256 → write to storage → cache in memory → return.
+ * 5. If download fails but a cached (possibly stale) version exists → re-verify it against
+ *    the sha256 recorded at cache time when one exists (shape-validation only otherwise),
+ *    then return it (offline graceful degradation).
  */
 export async function loadPack(
   lang: string,
   manifest: Manifest | null,
-  options?: { forceRedownload?: boolean; purchasedAddOns?: string[]; unlockedLangs?: string[] }
+  options?: LoadPackOptions
 ): Promise<LoadPackResult> {
-  // Accept ready base packs (READY_PACK_CODES) and ready specialty packs (isReadySpecialtyPackCode).
-  // Reject everything else — unknown codes (path traversal) and registered-but-unready packs.
-  // "invalid_lang" is distinct from "download_failed" so callers never retry unknown codes.
-  // #266: isReadySpecialtyPackCode(lang) replaces the former inline SPECIALTY_PACKS.some(...)
-  // so the .ready check is not duplicated (lib/langRegistry.ts is the single source of truth).
-  const isReadyBasePack = READY_PACK_CODES.some(c => c === lang);
+  // Accept ready base packs and ready specialty packs — both via the registry's canonical
+  // predicates. Reject everything else: unknown codes (path traversal) and
+  // registered-but-unready packs. "invalid_lang" is distinct from "download_failed" so
+  // callers never retry unknown codes. (#266 removed the inline specialty predicate;
+  // Task #378 WorldClass removed the inline base predicate the same way.)
+  const isReadyBasePack = isReadyBasePackCode(lang);
   const isReadySpecialtyPack = isReadySpecialtyPackCode(lang);
   if (!isReadyBasePack && !isReadySpecialtyPack) {
     return { ok: false, error: "invalid_lang" };
@@ -132,115 +158,36 @@ export async function loadPack(
     return { ok: true, pack: memCache.get(lang)! };
   }
 
-  const manifestEntry = manifest?.packs?.[lang];
-  const [cachedMeta, initialCachedData] = await Promise.all([
-    readCacheMeta(lang),
-    readCacheData(lang),
-  ]);
-  let cachedData: string | null = initialCachedData;
-
-  // Cache hit: version matches and data is present
-  const cacheValid =
-    !options?.forceRedownload &&
-    cachedMeta !== null &&
-    cachedData !== null &&
-    (manifestEntry === undefined || cachedMeta.version === manifestEntry.version);
-
-  if (cacheValid && cachedData) {
-    try {
-      if (manifestEntry) {
-        // Re-verify hash — never trust data that might have been corrupted since caching
-        const actual = await sha256Hex(cachedData);
-        if (actual !== manifestEntry.sha256) {
-          // clearPackCache also prunes specialty tracking for lang (see its doc comment) — this
-          // branch is only reachable when memCache.has(lang) was already false (step 1's
-          // memory-hit check would have short-circuited otherwise), so there is never a merged
-          // specialty pack in memCache here to worry about pruning stale; the prune still runs,
-          // it's simply a no-op in that case. The guarantee holds regardless of this invariant.
-          await clearPackCache(lang);
-          cachedData = null; // A003: prevent integrity-failed bytes from reaching stale-cache fallback
-          // fall through to re-download
-        } else {
-          // JSON.parse stays inside this outer try (not routed through parseValidateAndCache) so a
-          // throw here falls through to attempt a fresh download below, rather than erroring
-          // immediately — no download has been attempted yet at this point in the function.
-          const pack = JSON.parse(cachedData) as Pack;
-          return await validateAndCache(lang, pack);
-        }
-      } else {
-        // No manifest to compare against — serve cache as-is (offline degradation).
-        // Same fall-through-on-parse-throw reasoning as the branch above.
-        const pack = JSON.parse(cachedData) as Pack;
-        return await validateAndCache(lang, pack);
-      }
-    } catch (err) {
-      console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
-      await clearPackCache(lang);
-      // fall through to re-download
-    }
+  // 2. In-flight dedup (#378): the memCache.has() check above is a TOCTOU gap — two
+  // concurrent calls (StrictMode double-invoke, specialty base-load racing a direct load)
+  // both see a miss and both download; the later write would clobber a specialty merge
+  // performed in between (memCache.write clears specialty tracking for the lang). Sharing
+  // one promise per lang closes the double-write class for every pairing: a non-forced
+  // call consumes any in-flight promise, and a forced load REGISTERS its own promise
+  // (without consuming — a forced caller demands fresh bytes) so later non-forced callers
+  // piggyback on it instead of starting a competing write (#378 audit F010).
+  if (!options?.forceRedownload) {
+    const inFlight = inFlightBaseLoads.get(lang);
+    if (inFlight) return inFlight;
+  } else {
+    // A forced load supersedes any already-pending normal load's right to cache: bump the
+    // generation so the pending load (whose snapshot is now stale) skips its writes and
+    // cannot clobber the forced load's fresh bytes if it settles later (#378 cycle-2 N3).
+    // The forced load itself snapshots AFTER this bump, so its own writes land.
+    bumpEvictionGeneration();
   }
-
-  // Download needed
-  let json: string;
-  try {
-    const res = await fetch(packUrl(lang), { cache: "no-store" });
-    if (!res.ok) {
-      // Offline fallback: serve stale cache if available
-      if (cachedData) {
-        return await parseValidateAndCache(lang, cachedData);
-      }
-      return { ok: false, error: "download_failed" };
-    }
-    json = await res.text();
-  } catch (err) {
-    // Network error — serve stale cache
-    console.error(`[PACK_DOWNLOAD_FAIL-${Date.now()}]`, err);
-    if (cachedData) {
-      return await parseValidateAndCache(lang, cachedData);
-    }
-    return { ok: false, error: "download_failed" };
-  }
-
-  // Verify sha256 if manifest is available — never serve a corrupted pack
-  if (manifestEntry) {
-    const actual = await sha256Hex(json);
-    if (actual !== manifestEntry.sha256) {
-      // Do NOT write corrupted data to cache
-      return { ok: false, error: "checksum_mismatch" };
-    }
-  }
-
-  // Parse. Failure here is NOT routed through parseValidateAndCache/evictAndReject: these are
-  // freshly-downloaded bytes, not previously-cached ones, so there is nothing of this data's own
-  // to evict — a malformed server response must not blow away an existing, still-good local cache.
-  let pack: Pack;
-  try {
-    pack = JSON.parse(json) as Pack;
-  } catch (err) {
-    console.error(`[PACK_PARSE_FAIL-${Date.now()}]`, err);
-    return { ok: false, error: "parse_error" };
-  }
-
-  if (!hasValidUnitsArray(pack)) {
-    console.error(`[SHAPE_INVALID_FAIL-${lang}-${Date.now()}] freshly-downloaded pack failed hasValidUnitsArray`);
-    return { ok: false, error: "parse_error" };
-  }
-
-  // Atomic-style cache write: data first, then meta.
-  // If tab closes between writes, meta will be missing → triggers fresh download next time.
-  // QuotaExceededError is caught here — the pack is still valid and goes into memCache for
-  // this session. It will be re-downloaded on next launch.
-  try {
-    await writeCacheData(lang, json);
-    await writeCacheMeta(lang, {
-      version: manifestEntry?.version ?? pack.packVersion,
-      sha256: manifestEntry?.sha256 ?? "",
-      cachedAt: Date.now(),
-    });
-  } catch (err) {
-    console.error(`[PACK_CACHE_WRITE_FAIL-${lang}] Storage write failed — pack available this session only:`, err);
-  }
-  return cacheAndReturn(lang, pack);
+  const load = loadBasePackFromStorageOrNetwork(lang, manifest, options);
+  inFlightBaseLoads.set(lang, load);
+  // Compare-and-delete: a forced load may have replaced this entry — only the entry's own
+  // owner removes it, mirroring specialtyPackLoader's inFlight cleanup. then(cb, cb) rather
+  // than .finally(): a bare void .finally() chain would surface a global unhandledrejection
+  // if a future basePackLoader path ever rejected — cleanup must never add an error as a
+  // side effect (poka-yoke; #378 cycle-2 K2-005).
+  const releaseSlot = () => {
+    if (inFlightBaseLoads.get(lang) === load) inFlightBaseLoads.delete(lang);
+  };
+  void load.then(releaseSlot, releaseSlot);
+  return load;
 }
 
 /**
@@ -258,16 +205,31 @@ export async function loadPack(
  * Idempotent: no-ops when lang is already in memCache (a network-loaded entry must not be
  * overwritten by this synthetic one — whichever path populated memCache first is authoritative).
  *
- * Called by: hooks/useLangPack.ts — in the useState initializer for static-pack languages.
+ * Returns true when memCache holds the lang on exit (seeded now, or already present);
+ * false when the write was rejected by a guard. A void return hid the refusal from callers
+ * entirely — the first symptom was a causally-distant base_pack_not_loaded (#378 cycle-2
+ * naive finding; Rule 8).
+ *
+ * Called by: hooks/useLangPack.ts — static-pack languages and specialty base seeding.
  */
-export function seedMemCache(lang: string, units: Unit[]): void {
+export function seedMemCache(lang: string, units: Unit[]): boolean {
   // Task #337: guard against unregistered/unready codes — memCache must only ever
   // contain validated pack codes (defense-in-depth for the specialty precondition check).
-  if (!READY_PACK_CODES.some(c => c === lang)) {
+  if (!isReadyBasePackCode(lang)) {
     console.error(`[ERR-SEED-INVALID-LANG-${lang}] seedMemCache called with unregistered or unready lang — write rejected`);
-    return;
+    return false;
   }
-  if (memCache.has(lang)) return;
+  // #378 audit F013: seeding has no entitlement context, so it must only ever populate
+  // FREE packs. A non-free statically-bundled language would otherwise be seedable by the
+  // specialty flow, and the specialty merge returns the FULL base pack — owning only the
+  // add-on would grant the whole base language. Fail closed now so extending STATIC_PACKS
+  // to a paid language forces an explicit entitlement-aware design instead of silently
+  // reopening this hole.
+  if (!FREE_PACK_CODES.some(c => c === lang)) {
+    console.error(`[ERR-SEED-NONFREE-LANG-${lang}] seedMemCache called with a non-free lang — entitlement-blind seeding is restricted to FREE_PACK_CODES; write rejected`);
+    return false;
+  }
+  if (memCache.has(lang)) return true;
   const config = LANG_CONFIG_MAP[lang] as (typeof LANG_CONFIG_MAP)[string] | undefined;
   const pack: Pack = {
     _version: 1,
@@ -282,6 +244,7 @@ export function seedMemCache(lang: string, units: Unit[]): void {
     units,
   };
   memCache.write(lang, pack);
+  return true;
 }
 
 /**
@@ -317,6 +280,16 @@ export async function evictPack(lang: string): Promise<void> {
     }
     return;
   }
+  // #378 audit F001: bump BEFORE clearing so any base-pack load already in flight sees a
+  // stale generation snapshot and skips its cache writes — an in-flight load must never
+  // resurrect the pack this eviction is about to clear. Placed AFTER the validation guard
+  // (WorldClass V4): a rejected no-op call must not void every in-flight load's caching
+  // rights globally.
+  bumpEvictionGeneration();
+  // #378 cycle-2 N4: drop the evicted lang's in-flight entry so NEW callers start a fresh,
+  // gate-checked load instead of piggybacking on the pre-eviction promise. Already-attached
+  // callers still receive that promise's (uncached) result — see the registry doc above.
+  inFlightBaseLoads.delete(lang);
   await clearPackCache(lang);
 }
 
@@ -327,4 +300,8 @@ export async function evictPack(lang: string): Promise<void> {
 export function clearCacheForTesting(): void {
   clearPackCacheState();  // resets memCache and _storage (lib/packCache.ts)
   clearSpecialtyCache();  // resets loadedAddOns and inFlight (lib/specialtyPackLoader.ts)
+  inFlightBaseLoads.clear();  // resets base-pack load dedup (#378)
+  // #378 cycle-2 F-C2-6: a load left in flight by a previous test must not write into the
+  // cache this reset just cleared — same resurrection class evictPack guards against.
+  bumpEvictionGeneration();
 }

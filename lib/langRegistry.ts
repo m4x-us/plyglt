@@ -9,7 +9,7 @@
 // DEPENDS ON: @/lib/language (LanguageConfig, ITALIAN, SPANISH)
 // USED BY: store/entitlementStore.ts, lib/entitlement.ts, lib/importBackup.ts,
 //          store/migrations.ts, lib/packLoader.ts, lib/specialtyPackLoader.ts,
-//          hooks/useLangPack.ts, components/LanguageGrid.tsx,
+//          lib/packResolver.ts, hooks/useLangPack.ts, components/LanguageGrid.tsx,
 //          LANG_CONFIG_MAP → (any component rendering language UI)
 // ===========================================
 
@@ -61,6 +61,17 @@ export const LANG_CONFIG_MAP: Readonly<Record<string, LanguageConfig>> = Object.
 /** Type guard: returns true iff s is a registered PackCode (member of ALL_PACK_CODES). */
 export function isValidPackCode(s: string): s is PackCode {
   return ALL_PACK_CODES.some(code => code === s);
+}
+
+/**
+ * Returns true iff s is a registered AND ready base pack code — the loadability check for
+ * base packs, sibling of isSpecialtyPackCode below. Extracted (Task #378 WorldClass) so the
+ * predicate exists once: lib/packLoader.ts's allowlist gate and hooks/useLangPack.ts's
+ * isKnownCode repair check both route through it instead of hand-rolling
+ * READY_PACK_CODES.some(...) at each site.
+ */
+export function isReadyBasePackCode(s: string): s is PackCode {
+  return READY_PACK_CODES.some(code => code === s);
 }
 
 // ── Specialty pack registry ───────────────────────────────────────────────────

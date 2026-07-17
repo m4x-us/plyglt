@@ -1,12 +1,21 @@
 // ============================================================
-// useLangPack.ts — Hook: loads and caches the active language pack from static JSON
+// useLangPack.ts — Hook: resolves the active language pack (bundled Italian content, or
+// network-loaded packs via lib/packLoader) into render-ready state
+// Comment refs (#NNN = task, FNNN/K2-*/N*/F-C2-*/V* = audit findings): resolve via
+// `git log -S "<ref>"` or .autocode/ history; the prose carries the WHY on its own.
 // ============================================================
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { ALL_UNITS, UNIT_MAP as ITALIAN_UNIT_MAP } from "@/content/index";
 import { loadPack, fetchManifest, seedMemCache, type LoadPackResult } from "@/lib/packLoader";
-import { isValidPackCode, SPECIALTY_PACKS, isReadySpecialtyPackCode } from "@/lib/langRegistry";
+import { isReadyBasePackCode, isReadySpecialtyPackCode } from "@/lib/langRegistry";
+import { resolveTargetPack } from "@/lib/packResolver";
+import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
+import type { Unit } from "@/content/types";
+import { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode } from "@/lib/constants";
+import { useEntitlementStore } from "@/store/entitlementStore";
+import { useIsHydrated } from "@/lib/storage";
 
 type LoadPackError = Extract<LoadPackResult, { ok: false }>["error"];
 
@@ -21,10 +30,6 @@ export const LOAD_PACK_ERROR_MESSAGES: Record<LoadPackError, string> = {
   checksum_mismatch:     "Pack data corrupted. Try again.",
   parse_error:           "Couldn't read pack. Try again.",
 };
-import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
-import type { Unit } from "@/content/types";
-import { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode } from "@/lib/constants";
-import { useEntitlementStore } from "@/store/entitlementStore";
 
 /**
  * @deprecated Import directly from "@/lib/constants". This re-export exists for
@@ -39,6 +44,12 @@ export { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode };
 const STATIC_PACKS: Record<string, { units: Unit[]; unitMap: Record<string, Unit> }> = {
   it: { units: ALL_UNITS, unitMap: ITALIAN_UNIT_MAP },
 };
+
+// #378 cycle-2 F-C2-2: how long the dynamic-load effect waits for entitlement-store
+// hydration before proceeding with store defaults. Generous vs. a storage read (~ms) so it
+// only ever fires on the genuine failure/race paths it exists to unblock. Exported so the
+// boundary test asserts against the real constant, not a duplicated literal.
+export const HYDRATION_GRACE_MS = 3000;
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
@@ -56,8 +67,16 @@ export function useLangPack(): LangPackState {
   // to "it" for this render. Task #339: repair side-effects (console.error + setTargetLangCode)
   // moved to useEffect below so the render body remains pure.
   const rawTargetLang = getTargetLangCode();
+  // #378 audit F011 + WorldClass V1: BOTH halves require readiness — a registered-but-
+  // unready code (base OR specialty) is unloadable by everything downstream, so treating it
+  // as "known" would strand the user on a permanent "Pack not available." screen with no
+  // self-heal; letting the #339 repair below reset it to "it" is the only path that
+  // recovers. (READY_PACK_CODES, not isValidPackCode/ALL_PACK_CODES: "es" is registered
+  // but ready:false today — a stale persisted "en-es" must repair, not strand. Both halves
+  // use the registry's canonical ready-checks — one predicate each, no inline copies that
+  // could drift.)
   const isKnownCode =
-    isValidPackCode(rawTargetLang) || SPECIALTY_PACKS.some(sp => sp.code === rawTargetLang);
+    isReadyBasePackCode(rawTargetLang) || isReadySpecialtyPackCode(rawTargetLang);
   const targetLang = isKnownCode ? rawTargetLang : "it";
 
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
@@ -65,7 +84,10 @@ export function useLangPack(): LangPackState {
   // has the current state. Zustand keeps the reference stable between writes, so the
   // effect below re-runs only when the array is replaced — on a new purchase, but also on
   // persist rehydration or a cross-tab storage sync, which write a fresh (possibly
-  // content-identical) array. Those extra re-runs are cheap: loadPack hits memCache.
+  // content-identical) array. Each such re-run re-issues fetchManifest over the network
+  // (cache: "no-store") before loadPack short-circuits on memCache — cheap for the pack,
+  // not free for the manifest (#378 audit F027; acceptable at the current 1-2 re-runs per
+  // session, revisit if rehydration frequency ever grows).
   const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
   // #377: thread unlockedPacks into loadPack as options.unlockedLangs so packLoader's
   // non-free base-pack entitlement gate has a real production caller (Rule 20b — the gate
@@ -75,6 +97,33 @@ export function useLangPack(): LangPackState {
   // isPackUnlocked (store/entitlementStore.ts); the loader gate is secondary
   // defense-in-depth and deliberately membership-only. Mirrors the purchasedAddOns pattern.
   const unlockedPacks = useEntitlementStore(state => state.unlockedPacks);
+  // #378 audit F014: the entitlement store hydrates asynchronously (Tauri IPC storage; on
+  // web the async storage wrapper still defers hydration by a microtask) — reading
+  // unlockedPacks/purchasedAddOns before hydration yields the store defaults, which would
+  // make a legitimately-subscribed user transiently hit invalid_lang on a non-free pack.
+  // The dynamic-load effect waits for hydration; the static-pack branch does not need to
+  // (free content, no entitlement input).
+  const entitlementHydrated = useIsHydrated(useEntitlementStore);
+  // #378 cycle-2 F-C2-2: zustand's persist NEVER finishes hydration when storage.getItem
+  // rejects (verified against the middleware source — hasHydrated stays false and
+  // onFinishHydration never fires on the failure path), and useIsHydrated has a narrow
+  // subscribe race (see lib/storage.ts follow-up). Without a fallback, either condition
+  // would leave this hook waiting forever: a permanent silent spinner. After a bounded
+  // grace period, proceed with the store defaults — exactly the pre-#378 behavior, i.e. a
+  // transient, recoverable wrong-entitlement read instead of an unrecoverable hang. Rule 8:
+  // taking the fallback path is logged.
+  const [hydrationGraceExpired, setHydrationGraceExpired] = useState(false);
+  useEffect(() => {
+    // Scoped to the dynamic-load case: the static-pack branch never consults entitlement,
+    // so arming the timer there would only produce a misleading timeout error for a slow
+    // hydration with zero actual consequence (WorldClass cycle-3).
+    if (entitlementHydrated || STATIC_PACKS[targetLang]) return;
+    const timer = setTimeout(() => {
+      console.error(`[ERR-ENTITLEMENT-HYDRATION-TIMEOUT-${Date.now()}] entitlement store did not hydrate within ${HYDRATION_GRACE_MS}ms — proceeding with defaults (pack loads may see stale entitlement until hydration completes)`);
+      setHydrationGraceExpired(true);
+    }, HYDRATION_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [entitlementHydrated, targetLang]);
   // Task #362: subscribe to clearEntitlement's eviction-complete signal. When clearEntitlement
   // finishes evicting base packs, it increments this counter — the effect below re-seeds
   // memCache for static languages so specialty-pack loads don't see base_pack_not_loaded.
@@ -83,11 +132,10 @@ export function useLangPack(): LangPackState {
   const [state, setState] = useState<LangPackState>(() => {
     const static_ = STATIC_PACKS[targetLang];
     if (static_) {
-      // #296: seed memCache so loadSpecialtyPack's memCache.has(baseLang) precondition is
-      // satisfied for it-* specialty packs. The STATIC_PACKS early-return bypasses loadPack
-      // entirely, so without this seed memCache["it"] is never populated and all specialty
-      // packs return base_pack_not_loaded unconditionally. seedMemCache is idempotent.
-      seedMemCache(targetLang, static_.units);
+      // Pure initializer — the #296 memCache seed for static langs lives in the effect
+      // below, NOT here: a module-cache write in the render body is exactly the class of
+      // side effect this file's own #339 rule forbids (StrictMode double-invocation).
+      // (#378 cycle-2 naive finding.) Nothing reads memCache between render and effect.
       return { ...static_, lang, loading: false, error: null };
     }
     return { units: [], unitMap: {}, lang, loading: true, error: null };
@@ -105,21 +153,54 @@ export function useLangPack(): LangPackState {
   }, [rawTargetLang, isKnownCode]);
 
   useEffect(() => {
-    if (STATIC_PACKS[targetLang]) {
-      // Task #362: re-seed memCache when clearEntitlement evicts the base lang.
-      // cacheEvictionGeneration === 0 on first mount — the lazy useState initializer
-      // already seeded at that point. Only re-seed when an eviction has actually fired
-      // (generation > 0), so we don't call seedMemCache twice on initial render.
-      if (cacheEvictionGeneration > 0) {
-        seedMemCache(targetLang, STATIC_PACKS[targetLang].units);
-      }
+    const staticTarget = STATIC_PACKS[targetLang];
+    if (staticTarget) {
+      // #296 seed (moved here from the useState initializer — render bodies stay pure) and
+      // #362 re-seed after clearEntitlement's eviction (this effect re-runs via the
+      // cacheEvictionGeneration dep). Unconditional: seedMemCache is idempotent, so the
+      // generation check the old code gated on bought nothing but a comment.
+      // Return value deliberately ignored HERE (unlike the resolver, which maps a refusal
+      // to base_pack_not_loaded): this branch serves the bundled static content regardless
+      // — the seed only feeds the specialty precondition, and a refusal already logs its
+      // own ref-ID inside seedMemCache.
+      seedMemCache(targetLang, staticTarget.units);
+      // #378 cycle-2 (naive finding): a post-mount transition INTO a static lang (e.g.
+      // "pt" → "it" after a #339 repair or an in-app switch) must also publish the static
+      // pack — the lazy initializer only covers mount-time static targets; without this,
+      // the hook kept returning the PREVIOUS language's units forever. Functional update
+      // with a reference bail so mount-time static renders (initializer already correct)
+      // don't loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the reference-bail functional update settles in exactly one extra render on a real transition and zero on mount; the alternative (setState during render) violates this file's #339 purity rule
+      setState(prev =>
+        prev.units === staticTarget.units && !prev.loading && prev.error === null
+          ? prev
+          : { units: staticTarget.units, unitMap: staticTarget.unitMap, lang, loading: false, error: null }
+      );
       return;
     }
 
+    // #378 audit F014 / cycle-2 F-C2-2: don't read entitlement state before it has
+    // hydrated — but never wait forever (grace fallback above; the effect re-fires via
+    // the entitlementHydrated and hydrationGraceExpired deps).
+    if (!entitlementHydrated && !hydrationGraceExpired) return;
+
     let cancelled = false;
     fetchManifest()
-      .then((manifest) => loadPack(targetLang, manifest, { purchasedAddOns, unlockedLangs: unlockedPacks }))
-      .then((result) => {
+      // What to load, in which order (specialty base seeding/loading, failure propagation)
+      // is pure orchestration — it lives in lib/packResolver.ts (unit-tested there), not in
+      // this hook. The io argument is this module's imported primitives, so the resolver
+      // composes whatever loadPack/seedMemCache the module system provides (real in
+      // production, mocks under test).
+      .then((manifest) =>
+        resolveTargetPack(
+          targetLang,
+          manifest,
+          { purchasedAddOns, unlockedLangs: unlockedPacks },
+          STATIC_PACKS,
+          { loadPack, seedMemCache }
+        )
+      )
+      .then(({ result, baseFailed }) => {
         if (cancelled) return;
         if (result.ok) {
           const { units } = result.pack;
@@ -129,8 +210,12 @@ export function useLangPack(): LangPackState {
           // #324: invalid_lang is overloaded — it covers both "code not in the allowlist" and
           // "code is a ready specialty pack but not purchased". Surface distinct messages so a
           // user who has a pack available to buy sees a purchase prompt rather than a dead end.
+          // #378 (audit F007): the "Add-on not purchased." prompt applies ONLY when the
+          // SPECIALTY pack itself was refused — a propagated BASE-pack invalid_lang means the
+          // base language is locked, so it gets the base message ("Pack not available."),
+          // never a misleading add-on purchase prompt.
           const errorMsg =
-            result.error === "invalid_lang" && isReadySpecialtyPackCode(targetLang)
+            result.error === "invalid_lang" && !baseFailed && isReadySpecialtyPackCode(targetLang)
               ? "Add-on not purchased."
               : LOAD_PACK_ERROR_MESSAGES[result.error];
           setState({ units: [], unitMap: {}, lang, loading: false, error: errorMsg });
@@ -143,7 +228,7 @@ export function useLangPack(): LangPackState {
         }
       });
     return () => { cancelled = true; };
-  }, [targetLang, lang, purchasedAddOns, unlockedPacks, cacheEvictionGeneration]);
+  }, [targetLang, lang, purchasedAddOns, unlockedPacks, cacheEvictionGeneration, entitlementHydrated, hydrationGraceExpired]);
 
   return state;
 }
