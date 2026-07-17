@@ -44,7 +44,6 @@ vi.mock("@/lib/langRegistry", () => ({
   ALL_PACK_CODES:            ["it", "es", "fr"],
   READY_PACK_CODES:          ["it", "es"],
   isSpecialtyPackCode:       () => false,
-  isReadySpecialtyPackCode:  () => false,
   isValidPackCode:           (s: string) => ["it", "es", "fr"].includes(s),
 }));
 

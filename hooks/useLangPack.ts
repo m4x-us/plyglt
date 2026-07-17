@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { ALL_UNITS, UNIT_MAP as ITALIAN_UNIT_MAP } from "@/content/index";
 import { loadPack, fetchManifest, seedMemCache, type LoadPackResult } from "@/lib/packLoader";
-import { isReadyBasePackCode, isReadySpecialtyPackCode } from "@/lib/langRegistry";
+import { isReadyBasePackCode, isSpecialtyPackCode } from "@/lib/langRegistry";
 import { resolveTargetPack } from "@/lib/packResolver";
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
 import type { Unit } from "@/content/types";
@@ -76,7 +76,7 @@ export function useLangPack(): LangPackState {
   // use the registry's canonical ready-checks — one predicate each, no inline copies that
   // could drift.)
   const isKnownCode =
-    isReadyBasePackCode(rawTargetLang) || isReadySpecialtyPackCode(rawTargetLang);
+    isReadyBasePackCode(rawTargetLang) || isSpecialtyPackCode(rawTargetLang);
   const targetLang = isKnownCode ? rawTargetLang : "it";
 
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
@@ -215,7 +215,7 @@ export function useLangPack(): LangPackState {
           // base language is locked, so it gets the base message ("Pack not available."),
           // never a misleading add-on purchase prompt.
           const errorMsg =
-            result.error === "invalid_lang" && !baseFailed && isReadySpecialtyPackCode(targetLang)
+            result.error === "invalid_lang" && !baseFailed && isSpecialtyPackCode(targetLang)
               ? "Add-on not purchased."
               : LOAD_PACK_ERROR_MESSAGES[result.error];
           setState({ units: [], unitMap: {}, lang, loading: false, error: errorMsg });

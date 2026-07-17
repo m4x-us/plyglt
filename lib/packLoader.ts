@@ -43,7 +43,7 @@
  * inline text always carries the WHY on its own even if the citation is lost.
  */
 
-import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isReadySpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
+import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
 import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
@@ -166,7 +166,7 @@ export async function loadPack(
   // callers never retry unknown codes. (#266 removed the inline specialty predicate;
   // Task #378 WorldClass removed the inline base predicate the same way.)
   const isReadyBasePack = isReadyBasePackCode(lang);
-  const isReadySpecialtyPack = isReadySpecialtyPackCode(lang);
+  const isReadySpecialtyPack = isSpecialtyPackCode(lang);
   if (!isReadyBasePack && !isReadySpecialtyPack) {
     return { ok: false, error: "invalid_lang" };
   }

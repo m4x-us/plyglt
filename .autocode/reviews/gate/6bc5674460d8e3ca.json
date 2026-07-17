@@ -1,0 +1,14 @@
+{
+  "mode": "fff",
+  "diffHash": "6bc5674460d8e3ca",
+  "timestamp": "2026-07-17T21:01:48Z",
+  "verdict": "PASS",
+  "note": "Task #380 Direct. Alias rename+deletion, referentially identical in production (same function object). Spot check WARN 5 items sev<=3: DSC-1 CLAUDE.md alias doc FIXED; DSC-3 mock var rename FIXED; DSC-4 shared-file staging FIXED (other streams' hunks unstaged; my mechanical mock fixes in tests/entitlement.test.ts + tests/specialtyPackLoader.test.ts ride uncommitted for their owners — documented in completion.md); DSC-2/5 (off-limits comment lines) debt-logged.",
+  "findings": {
+    "fff1": "Hard part done right: five mock blocks audited incl. the two-impls-under-two-names entitlement merge; docs half finished in-cycle after review.",
+    "fff2": "Structural weakness named: hand-maintained registry mock blocks — shared helper debt-logged.",
+    "fff3": "Users: zero delta by construction. Readers: tombstone + consumer enumeration + CLAUDE.md now consistent.",
+    "fff4": "All three call sites literally satisfy their one-predicate comments; #326 e2e proves the base route post-rename.",
+    "fff5": "Two-names bifurcation class now unconstructible; residual doc rot in off-limits file tracked."
+  }
+}

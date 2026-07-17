@@ -50,9 +50,9 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
     ...actual,
     SPECIALTY_PACKS: mockSpecialtyPacks,
     FREE_PACK_CODES: mockFreePackCodes,
-    // isReadySpecialtyPackCode closes over the module-scope SPECIALTY_PACKS binding, not the
+    // isSpecialtyPackCode closes over the module-scope SPECIALTY_PACKS binding, not the
     // exported one — override it here so it uses the per-test mockSpecialtyPacks array instead.
-    isReadySpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
+    isSpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
   };
 });
 

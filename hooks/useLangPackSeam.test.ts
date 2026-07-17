@@ -24,7 +24,6 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
       ...actual.SPECIALTY_PACKS,
       { code: "it-legal", baseLang: "it", name: "Legal Italian", ready: true },
     ],
-    isReadySpecialtyPackCode: (s: string) => s === "it-legal",
     isSpecialtyPackCode: (s: string) => s === "it-legal",
   };
 });

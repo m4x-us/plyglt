@@ -97,14 +97,12 @@ export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([
  * Used by purchaseAddOn as the sole code-validity gate before persisting into
  * purchasedAddOns (which has no removal path). Requiring .ready prevents a
  * registered-but-not-yet-shipped pack from being purchased and permanently stored.
- * Also used by packLoader as its specialty-pack loadability gate (Task #266).
+ * Also used by packLoader as its specialty-pack loadability gate (Task #266) and
+ * hooks/useLangPack.ts's isKnownCode repair check (Task #380 completed the #361 rename).
  */
 export function isSpecialtyPackCode(s: string): boolean {
   return SPECIALTY_PACKS.some(sp => sp.code === s && sp.ready);
 }
 
-/**
- * Alias for isSpecialtyPackCode. Kept for callers that imported this name before
- * the deduplication in Task #332. Migrate call sites to isSpecialtyPackCode via Task #361.
- */
-export const isReadySpecialtyPackCode = isSpecialtyPackCode;
+// isReadySpecialtyPackCode (the pre-#332 alias) was deleted in Task #380 — every call site
+// now uses isSpecialtyPackCode directly. Do not reintroduce: one predicate, one name.

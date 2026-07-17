@@ -45,7 +45,7 @@ const mockLoadPack = vi.mocked(loadPack);
 const mockSeedMemCache = vi.mocked(seedMemCache);
 const mockUseIsHydrated = vi.mocked(useIsHydrated);
 
-// Mock langRegistry — override isReadySpecialtyPackCode so #324 behaviour can be tested
+// Mock langRegistry — override isSpecialtyPackCode so #324 behaviour can be tested
 // without registering real specialty packs (SPECIALTY_PACKS is empty in the base registry).
 // isValidPackCode is also extended to accept "pt" — pt was removed from LANGUAGE_REGISTRY
 // (2026-06-27) but the existing language-switch test uses it as a second non-static language;
@@ -62,13 +62,13 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
     READY_PACK_CODES: mockReadyPackCodes,
     // isReadyBasePackCode closes over the module-scope READY_PACK_CODES binding, not the
     // exported one — override it to read the mutable mock list (same technique the
-    // packLoader test file documents for isReadySpecialtyPackCode).
+    // packLoader test file documents for isSpecialtyPackCode).
     isReadyBasePackCode: (s: string) => mockReadyPackCodes.includes(s),
     // Registry-driven default matching the mocked SPECIALTY_PACKS ready entries below —
     // the hook routes BOTH isKnownCode and the #324 message branch through this canonical
     // predicate, so its default must reflect the mocked registry, not a blanket false.
     // Individual tests still override per-scenario (vi.fn allows mockReturnValue).
-    isReadySpecialtyPackCode: vi.fn((s: string) => ["it-legal", "es-business"].includes(s)),
+    isSpecialtyPackCode: vi.fn((s: string) => ["it-legal", "es-business"].includes(s)),
     // #378: test-only specialty entries exercising both branches of the base-pack resolution
     // logic — "it-legal" (static base, seeded) and "es-business" (network base, loaded via
     // loadPack). Real registry entries (it-medical, ready:false) stay available via the spread.
@@ -80,8 +80,8 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
   };
 });
 
-import { isReadySpecialtyPackCode } from "@/lib/langRegistry";
-const mockIsReadySpecialtyPackCode = vi.mocked(isReadySpecialtyPackCode);
+import { isSpecialtyPackCode } from "@/lib/langRegistry";
+const mockIsSpecialtyPackCode = vi.mocked(isSpecialtyPackCode);
 
 // #377: the real entitlement store is a shared module singleton across every describe block
 // in this file. Any test that mutates it (setState or setEntitlement) would otherwise leak
@@ -104,7 +104,7 @@ afterEach(() => {
   // and the specialty predicate a test may have overridden with mockReturnValue.
   mockReadyPackCodes.length = 0;
   mockReadyPackCodes.push("it", "es", "pt");
-  mockIsReadySpecialtyPackCode.mockImplementation((s: string) => ["it-legal", "es-business"].includes(s));
+  mockIsSpecialtyPackCode.mockImplementation((s: string) => ["it-legal", "es-business"].includes(s));
 });
 
 // Minimal unit shape: hook only reads unit.id when building unitMap
@@ -348,7 +348,7 @@ describe("#324 — invalid_lang distinguishes unpurchased specialty packs from u
     // "es" exercises the dynamic-load path
     localStorage.setItem(LANG_PAIR_KEY, "en-es");
     mockFetchManifest.mockResolvedValue(null);
-    mockIsReadySpecialtyPackCode.mockReturnValue(false);
+    mockIsSpecialtyPackCode.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -358,7 +358,7 @@ describe("#324 — invalid_lang distinguishes unpurchased specialty packs from u
 
   it("shows 'Pack not available.' for invalid_lang on a non-specialty code", async () => {
     mockLoadPack.mockResolvedValue({ ok: false as const, error: "invalid_lang" as const });
-    mockIsReadySpecialtyPackCode.mockReturnValue(false);
+    mockIsSpecialtyPackCode.mockReturnValue(false);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -369,8 +369,8 @@ describe("#324 — invalid_lang distinguishes unpurchased specialty packs from u
   it("shows 'Add-on not purchased.' for invalid_lang when targetLang is a ready specialty pack code", async () => {
     // Simulate a user who has "es" as their lang (non-static path) and the code is a ready specialty
     mockLoadPack.mockResolvedValue({ ok: false as const, error: "invalid_lang" as const });
-    // isReadySpecialtyPackCode returns true → user has a purchasable add-on, not an unknown code
-    mockIsReadySpecialtyPackCode.mockReturnValue(true);
+    // isSpecialtyPackCode returns true → user has a purchasable add-on, not an unknown code
+    mockIsSpecialtyPackCode.mockReturnValue(true);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -380,7 +380,7 @@ describe("#324 — invalid_lang distinguishes unpurchased specialty packs from u
 
   it("non-invalid_lang errors are not affected by the specialty check", async () => {
     mockLoadPack.mockResolvedValue({ ok: false as const, error: "download_failed" as const });
-    mockIsReadySpecialtyPackCode.mockReturnValue(true); // should not affect download_failed
+    mockIsSpecialtyPackCode.mockReturnValue(true); // should not affect download_failed
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -578,7 +578,7 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
   it("surfaces the BASE pack's own message ('Pack not available.') when the base fails with invalid_lang — never the add-on purchase prompt (#378 F007)", async () => {
     localStorage.setItem(LANG_PAIR_KEY, "en-es-business");
     mockLoadPack.mockResolvedValue({ ok: false as const, error: "invalid_lang" as const });
-    mockIsReadySpecialtyPackCode.mockReturnValue(true);
+    mockIsSpecialtyPackCode.mockReturnValue(true);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -600,7 +600,7 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
         ? Promise.resolve(MOCK_PACK_RESULT)
         : Promise.resolve({ ok: false as const, error: "invalid_lang" as const })
     );
-    mockIsReadySpecialtyPackCode.mockReturnValue(true);
+    mockIsSpecialtyPackCode.mockReturnValue(true);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -618,7 +618,7 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     // of this task's file scope — logged as debt.
     localStorage.setItem(LANG_PAIR_KEY, "en-es-business");
     mockLoadPack.mockResolvedValue({ ok: false as const, error: "invalid_lang" as const });
-    mockIsReadySpecialtyPackCode.mockReturnValue(true);
+    mockIsSpecialtyPackCode.mockReturnValue(true);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
