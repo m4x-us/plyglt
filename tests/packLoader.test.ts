@@ -553,6 +553,65 @@ describe("fetchManifest — network error logging", () => {
       expect.any(Error),
     );
   });
+
+  it("logs MANIFEST_FETCH_HTTP with the status when the server responds non-ok (#379)", async () => {
+    // Before #379 the !res.ok branch returned null with ZERO logging — loadPack then skips
+    // sha256 verification for the whole session with no operator-visible signal (Rule 8).
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 503 }));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchManifest();
+
+    expect(result).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("MANIFEST_FETCH_HTTP-503"));
+  });
+
+  it("rejects a valid-JSON non-manifest body (CDN error envelope) with a MANIFEST_SHAPE_INVALID log (#379)", async () => {
+    // An HTTP-200 error envelope ({"error":"..."}) previously passed the `as Manifest` cast
+    // silently; loadPack saw manifest.packs === undefined and skipped verification.
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => ({ error: "origin unavailable" }) }));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchManifest();
+
+    expect(result).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("MANIFEST_SHAPE_INVALID"));
+  });
+
+  it("rejects a manifest whose pack entries lack the fields loadPack consumes (version/sha256) (#379)", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({ _version: 1, generatedAt: "x", packs: { it: { name: "Italian" } } }),
+    }));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchManifest();
+
+    expect(result).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("MANIFEST_SHAPE_INVALID"));
+  });
+
+  it("rejects an array packs body and an empty packs record — vacuous-truth guard (#379 DSC-2)", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Arrays pass typeof "object" and .every() is vacuously true on {} — both previously
+    // slipped through and reproduced the silent verification skip.
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => ({ packs: [] }) }));
+    expect(await fetchManifest()).toBeNull();
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => ({ packs: {} }) }));
+    expect(await fetchManifest()).toBeNull();
+    const shapeLogs = consoleErrorSpy.mock.calls.filter(
+      args => typeof args[0] === "string" && (args[0] as string).includes("MANIFEST_SHAPE_INVALID")
+    );
+    expect(shapeLogs).toHaveLength(2);
+  });
+
+  it("accepts a well-formed manifest unchanged (#379 — shape gate must not reject real manifests)", async () => {
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => fakeManifest() }));
+
+    const result = await fetchManifest();
+
+    expect(result).toEqual(fakeManifest());
+  });
 });
 
 describe("loadPack — QuotaExceededError handling", () => {
