@@ -43,7 +43,7 @@
  * inline text always carries the WHY on its own even if the citation is lost.
  */
 
-import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP } from "@/lib/langRegistry";
+import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP, type PackCode } from "@/lib/langRegistry";
 import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
@@ -285,6 +285,18 @@ export function seedMemCache(lang: string, units: Unit[]): boolean {
   return true;
 }
 
+/** Result of evictPack (#398): a fulfilled promise alone no longer hides a no-op — the
+ * result says exactly what happened, so callers can branch instead of parsing console
+ * output. `useInstead` names the base language whose eviction clears a specialty code's
+ * merged units. Discriminant is `evicted` (not LoadPackResult's `ok`): this is a
+ * did-the-side-effect-happen report, not a data-or-error result. Lives here rather than
+ * lib/packTypes.ts only because that file is owned by a concurrent stream this wave —
+ * relocation tracked in stream debt. */
+export type EvictPackResult =
+  | { evicted: true }
+  | { evicted: false; reason: "specialty_code"; useInstead: PackCode }
+  | { evicted: false; reason: "unregistered_code" };
+
 /**
  * Evicts a base language pack from memory and platform storage
  * (e.g. after purchase reversal or manual reset). clearPackCache also prunes any specialty
@@ -297,12 +309,18 @@ export function seedMemCache(lang: string, units: Unit[]): boolean {
  * Unregistered codes are also rejected to prevent clearPackCache from operating on poisoned
  * storage key namespaces. (#268)
  *
- * ⚠ Specialty code caller contract (#325): the returned Promise ALWAYS resolves — no throw,
- * no rejection. Nothing is evicted. Pass the base language code instead (e.g. evictPack("it")
- * to clear all "it-medical" units). Callers must not infer that eviction occurred from a
- * fulfilled promise alone when the input was a specialty code.
+ * Caller contract (#325 → #398): the returned Promise ALWAYS resolves and the RESULT
+ * states whether anything was evicted. The guard branches return synchronously; the real
+ * eviction path's non-rejection additionally relies on clearPackCache swallowing storage
+ * failures internally (Promise.allSettled + logs, lib/packCache.ts) — a cross-file
+ * invariant, which is why clearEntitlement's defensive .catch remains live, not dead code.
+ * The former #325 caveat
+ * ("callers must not infer eviction from a fulfilled promise") is now enforced by type:
+ * check `.evicted`. Rejected inputs log one warn each (#271/#341) — the previous second,
+ * escalated error log existed only because the no-op was invisible to callers; the typed
+ * result is that signal now (also resolves the #402 double-log finding).
  */
-export async function evictPack(lang: string): Promise<void> {
+export async function evictPack(lang: string): Promise<EvictPackResult> {
   if (!isValidPackCode(lang)) {
     // Task #271: log specialty codes — a silent no-op violates Rule 8 (Log Everything).
     // Specialty packs cannot be evicted individually; evict the base language pack, which
@@ -310,13 +328,11 @@ export async function evictPack(lang: string): Promise<void> {
     const match = SPECIALTY_PACKS.find(sp => sp.code === lang);
     if (match) {
       console.warn(`[evictPack] "${lang}" is a specialty pack — cannot be evicted individually; evict the base language pack ("${match.baseLang}") instead`);
-      // #325: escalate to error — fulfilled promise + no eviction is a silent contract violation.
-      console.error(`[ERR-EVICT-SPECIALTY-${lang}-${Date.now()}] evictPack("${lang}") resolved without evicting anything; call evictPack("${match.baseLang}") to clear specialty units`);
-    } else {
-      // Task #341: fully unregistered code — log so callers know nothing was evicted.
-      console.warn(`[evictPack] "${lang}" is not a registered base pack or specialty pack code — no-op`);
+      return { evicted: false, reason: "specialty_code", useInstead: match.baseLang };
     }
-    return;
+    // Task #341: fully unregistered code — log so callers know nothing was evicted.
+    console.warn(`[evictPack] "${lang}" is not a registered base pack or specialty pack code — no-op`);
+    return { evicted: false, reason: "unregistered_code" };
   }
   // #378 audit F001: bump BEFORE clearing so any base-pack load already in flight sees a
   // stale generation snapshot and skips its cache writes — an in-flight load must never
@@ -329,6 +345,7 @@ export async function evictPack(lang: string): Promise<void> {
   // callers still receive that promise's (uncached) result — see the registry doc above.
   inFlightBaseLoads.delete(lang);
   await clearPackCache(lang);
+  return { evicted: true };
 }
 
 /**

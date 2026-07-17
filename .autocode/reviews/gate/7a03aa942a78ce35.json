@@ -1,0 +1,14 @@
+{
+  "mode": "fff",
+  "diffHash": "7a03aa942a78ce35",
+  "timestamp": "2026-07-17T21:07:26Z",
+  "verdict": "PASS",
+  "note": "Task #398 Direct. Typed EvictPackResult replaces the invisible no-op (and the #325 escalated duplicate log — deliberately resolving deferred #402). Spot check WARN 4 items sev<=3: DSC-1 regression guard moved to the changed branch, DSC-2 doc claim scoped + cross-file invariant cited, DSC-3 hook mock made honest — all fixed in-cycle; DSC-4 type relocation + storage-throw contract test debt-logged (cross-stream file / follow-up fixture).",
+  "findings": {
+    "fff1": "Right path taken in production (machine-readable no-op vs just deleting a log line); test easy-path corrected in-cycle (guard now on the specialty branch).",
+    "fff2": "Type-home decision + discriminant choice now recorded inline; blanket no-rejection claim scoped to what is structurally true.",
+    "fff3": "Console-only user delta; reader hazard around clearEntitlement's defensive .catch neutralized by the scoped doc.",
+    "fff4": "All three result branches verified doing what they claim; evicted:true semantics (memCache authoritative, storage attempted) noted.",
+    "fff5": "Additive contract migration; remaining decay vectors (type home, storage-throw test) tracked as debt."
+  }
+}

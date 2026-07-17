@@ -423,7 +423,9 @@ describe("evictPack", () => {
     await loadPack("it", fakeManifest());
     expect(fetchSpy).toHaveBeenCalledOnce();
 
-    await evictPack("it");
+    const evictResult = await evictPack("it");
+    // #398: a real eviction reports itself in the result, not just via side effects
+    expect(evictResult).toEqual({ evicted: true });
     // Pack cleared from storage
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
@@ -795,7 +797,9 @@ describe("evictPack — allowlist validation", () => {
     const italianMeta = JSON.stringify({ version: "1.0.0", sha256: "", cachedAt: Date.now() });
     localStorageMock.setItem("pack-meta-v1-it", italianMeta);
 
-    await evictPack("../evil");
+    const evictResult = await evictPack("../evil");
+    // #398: the no-op is now visible at the call site as a typed result
+    expect(evictResult).toEqual({ evicted: false, reason: "unregistered_code" });
 
     // Guard fired — clearPackCache was NOT called — poisoned entries must still exist
     expect(localStorageMock.getItem("pack-meta-v1-../evil")).toBe("poison");
@@ -810,13 +814,24 @@ describe("evictPack — allowlist validation", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await evictPack("it-medical");
+      const evictResult = await evictPack("it-medical");
+      // #398: the specialty no-op names the base language to evict instead — in the RESULT,
+      // so callers branch on data rather than parsing console output. The former second
+      // (escalated error) log is gone: the typed result IS that signal now (#402 resolved).
+      expect(evictResult).toEqual({ evicted: false, reason: "specialty_code", useInstead: "it" });
       const messages = warnSpy.mock.calls.map(args => args[0] as string);
       // Warning must name the specialty code and the correct base language to evict instead
       expect(messages.some(msg => msg.includes("it-medical"))).toBe(true);
       expect(messages.some(msg => msg.includes('"it"'))).toBe(true);
+      // #398/#402 regression guard ON THE BRANCH THAT CHANGED: exactly one warn, and the
+      // former escalated ERR-EVICT-SPECIALTY console.error must not return — the typed
+      // result replaced it. Reintroducing either fails here.
+      expect(warnSpy.mock.calls.filter(a => (a[0] as string).includes("it-medical"))).toHaveLength(1);
+      expect(errorSpy.mock.calls.filter(a => typeof a[0] === "string" && (a[0] as string).includes("EVICT"))).toHaveLength(0);
     } finally {
+      errorSpy.mockRestore();
       warnSpy.mockRestore();
       mockSpecialtyPacks.length = 0;
     }
@@ -851,9 +866,16 @@ describe("evictPack — #341 garbage-code warning", () => {
     // Before #341, evictPack silently no-oped for garbage codes — violating Rule 8 (Log Everything).
     // Deleting the else-branch console.warn causes this test to fail.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await evictPack("garbage-xyz");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const evictResult = await evictPack("garbage-xyz");
+    expect(evictResult).toEqual({ evicted: false, reason: "unregistered_code" });
     const messages = warnSpy.mock.calls.map(args => args[0] as string);
     expect(messages.some(msg => msg.includes("garbage-xyz"))).toBe(true);
+    // #398/#402: exactly ONE log per rejected call — the typed result replaced the
+    // escalated duplicate error log.
+    expect(warnSpy.mock.calls.filter(a => (a[0] as string).includes("garbage-xyz"))).toHaveLength(1);
+    expect(errorSpy.mock.calls.filter(a => typeof a[0] === "string" && (a[0] as string).includes("EVICT"))).toHaveLength(0);
+    errorSpy.mockRestore();
     warnSpy.mockRestore();
   });
 });

@@ -23,7 +23,7 @@ vi.mock("@/lib/packLoader", () => ({
   // #378 cycle-2 F-C2-5: clearEntitlement (the real eviction-generation mutator) calls
   // these packLoader exports — they must exist on the mock so eviction tests can drive
   // the REAL store action instead of injecting _cacheEvictionGeneration via setState.
-  evictPack: vi.fn().mockResolvedValue(undefined),
+  evictPack: vi.fn().mockResolvedValue({ evicted: true }), // honest EvictPackResult (#398)
   getLoadedAddOns: vi.fn(() => []),
 }));
 
