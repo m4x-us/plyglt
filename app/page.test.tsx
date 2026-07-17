@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { LANG_PAIR_KEY } from "@/lib/constants";
 import { useEntitlementStore } from "@/store/entitlementStore";
 
 // ── vi.hoisted: values closed over by vi.mock factories ───────────────────────
@@ -119,6 +120,19 @@ afterEach(() => { cleanup(); });
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("LanguagePicker — app/page.tsx", () => {
+  // Task #389: the returning-user redirect must key on stored PRESENCE (via
+  // lib/constants.hasStoredLangPair), not on getters that synthesize defaults.
+  it("redirects a returning user (stored lang pair) to /learn on mount", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "en-it");
+    render(<LanguagePicker />);
+    expect(mockRouterReplace).toHaveBeenCalledWith("/learn");
+  });
+
+  it("does NOT redirect a first-run user (nothing stored) — the picker must render", () => {
+    render(<LanguagePicker />);
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+  });
+
   // Test 1: LanguageGrid isPackUnlocked reflects entitlement state
   it("passes isPackUnlocked to LanguageGrid — free pack shows unlocked, locked pack shows Unlock CTA", () => {
     // Italian is in unlockedPacks → isPackUnlocked("it") = true

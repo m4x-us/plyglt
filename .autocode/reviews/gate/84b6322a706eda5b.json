@@ -1,0 +1,14 @@
+{
+  "mode": "fff",
+  "diffHash": "84b6322a706eda5b",
+  "timestamp": "2026-07-17T20:52:01Z",
+  "verdict": "PASS",
+  "note": "Task #389 Direct (documented scope escalation into lib/constants.ts — the audit finding's suggested getLangPair() swap would have shipped a first-run redirect bug; presence accessor was the only correct shape, verified by the independent reviewer). Spot check WARN, 4 items sev<=2: DSC-001/002/003 fixed in-cycle, DSC-004 (store/srsStore.ts residual class instance) debt-logged for its owning stream.",
+  "findings": {
+    "fff1": "Easy path (literal getLangPair swap) refused — negative first-run test makes it fail forever; contract-sentence and hardcoded-key residues fixed in-cycle.",
+    "fff2": "Contract count made count-free; LANG_PAIR_KEY imported in the new test; empty-string edge documented in JSDoc.",
+    "fff3": "Users: behavior pinned both directions. Readers: rationale at both ends, enforced by the negative test.",
+    "fff4": "Both changed units verified doing what they claim; router.replace (not push) semantics preserved; 8/8 tests observe real behavior.",
+    "fff5": "Centralized presence semantics durable; residual srsStore raw read + grep guard tracked as debt."
+  }
+}

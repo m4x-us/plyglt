@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { openExternalUrl } from "@/lib/tauri";
-import { LANG_PAIR_KEY, setTargetLangCode } from "@/lib/constants";
+import { hasStoredLangPair, setTargetLangCode } from "@/lib/constants";
 import { BuyModal } from "@/components/BuyModal";
 import { LanguageGrid } from "@/components/LanguageGrid";
 
@@ -26,8 +26,11 @@ export default function LanguagePicker() {
   const { isPackUnlocked, licenseType, hasAddOn } = useEntitlementStore();
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(LANG_PAIR_KEY);
-    if (saved) router.replace("/learn");
+    // Task #389: presence check via lib/constants — the module's sole-authorized-caller
+    // rule forbids direct window.localStorage reads of LANG_PAIR_KEY here. getLangPair()
+    // would not work: it synthesizes "en-it" when nothing is stored, which would redirect
+    // first-run users straight past the picker.
+    if (hasStoredLangPair()) router.replace("/learn");
   }, [router]);
 
   const handleSelect = (targetCode: string) => {

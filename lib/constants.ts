@@ -18,7 +18,7 @@ export const LANG_PAIR_KEY = "srs-lang-pair";
 // synchronous render-body callers. Consolidating here (rather than calling
 // window.localStorage directly at each use site) is the pragmatic middle ground: one
 // place to audit, one place to change if the storage layer later grows a synchronous
-// accessor. All callers outside this file must use one of the three functions below —
+// accessor. All callers outside this file must use the exported functions below —
 // never window.localStorage.getItem/setItem(LANG_PAIR_KEY) directly.
 
 /** Returns the stored target language code, defaulting to "it". */
@@ -46,4 +46,16 @@ export function setTargetLangCode(targetLang: string): void {
 export function getLangPair(): string {
   if (typeof window === "undefined") return "en-it";
   return window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+}
+
+/** Returns true iff a language pair has been explicitly stored. The getters above
+ * synthesize defaults ("it" / "en-it") when nothing is stored, so they cannot answer
+ * "has the user picked a language yet?" — first-run detection needs raw presence.
+ * Added for app/page.tsx's returning-user redirect (Task #389), which previously read
+ * window.localStorage directly in violation of this module's sole-authorized-caller rule.
+ * Edge note: "stored" means key presence — a tampered value (even "") counts as stored;
+ * downstream getters repair malformed values with a logged fallback. */
+export function hasStoredLangPair(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(LANG_PAIR_KEY) !== null;
 }
