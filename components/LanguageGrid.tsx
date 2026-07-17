@@ -51,10 +51,17 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
 
   // Task #278: Use SPECIALTY_PACKS directly rather than iterating unlocked base languages.
   // Each specialty pack appears exactly once — no deduplication needed.
+  // Task #403: the #276 feature flag gates ALL specialty UI in ONE place — this list. Flag
+  // off → empty list → section hidden, INCLUDING already-owned add-ons (the hasAddOn half
+  // of the filter ignores isPro, so a separate flag check at the render site used to be
+  // load-bearing for exactly that case and read like a redundant double-gate; folding it
+  // here leaves a single source of visibility truth). isPro (which also folds the flag,
+  // per the isProEnabled contract) stays in the purchase half unchanged.
   // Filter: show add-on if the user owns it (regardless of Pro status — preserve access
   // to already-purchased add-ons even after subscription lapses) OR if Pro (can purchase).
-  const specialtyPacks = SPECIALTY_PACKS
-    .filter(sp => hasAddOn(sp.code) || (isPro && isPackUnlocked(sp.baseLang)));
+  const specialtyPacks = specialtyPacksEnabled
+    ? SPECIALTY_PACKS.filter(sp => hasAddOn(sp.code) || (isPro && isPackUnlocked(sp.baseLang)))
+    : [];
 
   return (
     <>
@@ -124,8 +131,9 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
         </div>
       </div>
 
-      {/* Specialty packs — gated by feature flag (#276), Pro status (#356), and non-empty list */}
-      {specialtyPacksEnabled && specialtyPacks.length > 0 && (
+      {/* Specialty packs — the #276 flag, #356 Pro status, and ownership are all folded
+          into specialtyPacks above; a non-empty list IS the visibility decision (#403) */}
+      {specialtyPacks.length > 0 && (
         <div className="mb-8">
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Add-ons</p>
           <div className="space-y-2">

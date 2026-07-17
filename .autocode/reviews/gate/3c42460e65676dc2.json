@@ -1,0 +1,14 @@
+{
+  "mode": "fff",
+  "diffHash": "3c42460e65676dc2",
+  "timestamp": "2026-07-17T21:11:33Z",
+  "verdict": "PASS",
+  "note": "Task #403 Direct. Audit premise re-derived and found half-wrong (the outer flag check was load-bearing for owned+flag-off); fix folds the #276 flag into list construction — single visibility source, identical behavior in all four flag-by-ownership quadrants, mutation-verified owned+flag-off test. Spot check WARN 1 item sev2 (env-stub leak on assertion failure) — fixed in-cycle with a file-level afterEach.",
+  "findings": {
+    "fff1": "The audit's literal prescription would have shipped a kill-switch regression; the builder re-derived the truth table and achieved the intent without the bug.",
+    "fff2": "isPro's residual tautological fold correctly left (isProEnabled combinator is contract-mandated); env cleanup hoisted to afterEach.",
+    "fff3": "Users: invisible by design. Readers: non-empty list IS the decision; test comment protects the near-duplicate from future dedup.",
+    "fff4": "Fold verified against isProEnabled contract; mutation reasoning independently confirmed; sanity assertion prevents vacuous pass.",
+    "fff5": "Future render sites of specialtyPacks inherit flag-gating for free — the double-gate bug class is gone."
+  }
+}

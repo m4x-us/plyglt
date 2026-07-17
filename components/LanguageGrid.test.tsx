@@ -85,7 +85,12 @@ beforeEach(() => {
   mockSpecialtyPacks.length = 0;
   useEntitlementStore.setState({ purchasedAddOns: [] });
 });
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+  // #403 DSC-1: env stubs must not leak between tests when an assertion throws before the
+  // in-body unstub — file-level cleanup makes the in-body calls belt-and-braces only.
+  vi.unstubAllEnvs();
+});
 
 describe("LanguageGrid", () => {
   // ── State 1: Italian (always free) ───────────────────────────────────────────
@@ -233,6 +238,26 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
     expect(onUpgradeClick).toHaveBeenCalledWith("it-cooking");
     expect(onSelect).not.toHaveBeenCalledWith("it-cooking");
+  });
+
+  // ── State 6b (#403): flag off must hide even OWNED add-ons — the case that made the
+  // former render-site flag check load-bearing (hasAddOn bypasses isPro in the filter).
+  // Deleting the flag fold in the specialtyPacks list makes this fail.
+  it("#403: does not render Add-ons section for an OWNED add-on when the feature flag is off", () => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "false");
+    // Ownership state injected directly — the purchase FLOW has its own gated tests; this
+    // test is about rendering given owned state. The sanity assertion keeps it falsifiable:
+    // if ownership were not actually set, the section would be hidden for the wrong reason.
+    useEntitlementStore.setState({ purchasedAddOns: ["it-medical"] });
+    expect(useEntitlementStore.getState().hasAddOn("it-medical")).toBe(true);
+
+    renderGrid((code) => code === "it");
+
+    expect(screen.queryByText("Add-ons")).toBeNull();
+    expect(screen.queryByText("Medical Italian")).toBeNull();
+
+    vi.unstubAllEnvs();
   });
 
   // ── State 6 (#276): Feature flag disabled → Add-ons section hidden even with registered packs ──
