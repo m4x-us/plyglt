@@ -10,15 +10,15 @@
 // - ONLY add new entries when bumping the corresponding *_VERSION constant.
 // - Throw on a missing migration step — silent fallbacks corrupt user data.
 // ===========================================
-// DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES),
+// DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES, SPECIALTY_PACKS),
 //             @/lib/licenseTypes (LICENSE_TYPES, LicenseType),
-//             @/lib/utils (localDateStr)
+//             @/lib/utils (localDateStr, isCalendarValidDate)
 // USED BY: store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts
 // EXPORTS: IDLE_THRESHOLD_DEFAULT_MINUTES — single source of truth for the idle default;
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
 // ===========================================
 
-import { FREE_PACK_CODES, isSpecialtyPackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 
@@ -154,14 +154,30 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v2 → v3: adds purchasedAddOns for specialty pack add-on tracking.
   // Default [] — no existing user has purchased any add-ons.
   // Preserves any data already written by a pre-release build (unlikely but safe).
-  // Element-shape guard: filter to string AND isSpecialtyPackCode (registered + ready) so a
-  // corrupt/pre-release blob with unregistered codes cannot persist into entitlementStore.
-  // Task #344: mirrors lib/importBackup.ts's purchasedAddOns filter (typeof + isSpecialtyPackCode)
-  // — the v2→v3 migration now applies the same validation rigour as the backup-import path.
+  // Element-shape guard: filter to string AND registration (Task #384). Validation of
+  // persisted PAID purchase records must check REGISTRATION (the code exists in
+  // SPECIALTY_PACKS — structural), never READINESS (isSpecialtyPackCode requires
+  // ready:true, a mutable business flag). A pack purchased while ready:true that later
+  // reverts to ready:false (deprecation, rollback) must keep its purchase record —
+  // readiness gates purchasing (purchaseAddOn) and loading (loadSpecialtyPack), not
+  // retention. Same policy as lib/importBackup.ts's purchasedAddOns filter (#384 fixed
+  // both sites together — keep them in sync).
+  // Dropped entries (unregistered codes from corrupt/pre-release blobs) are logged —
+  // silently discarding persisted user data is a stop-the-line violation.
   3: (data: unknown) => {
     const d = data as Record<string, unknown>;
     const raw = Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [];
-    return { ...d, purchasedAddOns: raw.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item)) };
+    const valid = raw.filter(
+      (item): item is string => typeof item === "string" && SPECIALTY_PACKS.some(sp => sp.code === item)
+    );
+    if (valid.length < raw.length) {
+      console.warn(
+        `[plyglt] migration v3: dropped ${raw.length - valid.length} unregistered purchasedAddOns entries: ${JSON.stringify(
+          raw.filter(item => !(typeof item === "string" && SPECIALTY_PACKS.some(sp => sp.code === item)))
+        )}`
+      );
+    }
+    return { ...d, purchasedAddOns: valid };
   },
 };
 

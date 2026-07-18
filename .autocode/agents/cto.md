@@ -1150,3 +1150,104 @@ Independent audit (targeted single-agent adversarial review, not the standard 8-
 Done-when: PASS — store/entitlementStore.ts:clearEntitlement:129 issue fixed; `bash scripts/deep-audit.sh store/entitlementStore.ts` not run (script does not exist in this repo — verified via `ls scripts/deep-audit.sh`), substituted with the full verification gate + independent review above
 Fixed this cycle: F032 (original finding) plus a self-inflicted ordering regression caught before commit | Still open: 2 items in debt.md (sev:5 TOCTOU, sev:3 silent-failure signal) | New findings: 1 (the ordering bug, fixed same cycle — not left open) | Regression signal: NO
 CTO diagnosis run: NO — Full task, first cycle, no repeated findings to diagnose
+
+### Task #399 | Fix tests: articles-regex test only proves RegExp instance type, not the correct regex per language | Status: COMPLETE | Cycle 1 | Completed: 2026-07-16
+
+#### Cycle 1 — 2026-07-16 — Direct Task (Builder path)
+Build approach: tests/langRegistry.test.ts:35 — rewrote "every ready language has an articles regex" as "every language's articles regex is the canonical regex for that language"; asserts entry.config.articles .source and .flags against ITALIAN_ARTICLES/SPANISH_ARTICLES (imported from @/lib/answerCheck) via a Record<PackCode, RegExp> map; iterates ALL of LANGUAGE_REGISTRY (not just ready:true) so the es-config swap is also guarded
+Scripts: PASS (tsc 0 errors, 1168/1168 tests, lint 0 errors; deep-audit.sh/staged-diff-hash.sh not present in repo — skipped per graceful degradation)
+Spot check: PASS (independent B7 verification: YES — swap of lib/language.ts:60 to SPANISH_ARTICLES fails the assertion)
+Done-when: PASS (weak toBeInstanceOf assertion removed; new per-language source/flags assertions green)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #404 | Fix code-quality: app/settings/page.tsx still uses the deprecated ALL_KNOWN_PACKS export instead of ALL_PACK_CODES | Status: COMPLETE | Cycle 1 | Completed: 2026-07-16
+
+#### Cycle 1 — 2026-07-16 — Direct Task (Builder path)
+Build approach: app/settings/page.tsx:8 — replaced `import { useEntitlementStore, ALL_KNOWN_PACKS } from "@/store/entitlementStore"` with separate imports (useEntitlementStore from the store; ALL_PACK_CODES from @/lib/langRegistry); app/settings/page.tsx:131 (SettingsPage License section) — ALL_KNOWN_PACKS.every → ALL_PACK_CODES.every
+Scripts: PASS (tsc clean for this diff verified in isolated worktree against HEAD 0a34c54 — live-tree tsc errors are all in lib/packCache.ts, a parallel W14 stream's uncommitted in-flight edit; lint 0 errors in owned files; 1184/1184 tests)
+Spot check: PASS (behavioral identity confirmed — alias re-exports the same frozen array; app/→lib/ import is layer-legal)
+Done-when: PASS (grep -c ALL_KNOWN_PACKS app/settings/page.tsx = 0)
+Fixed this cycle: — | Still open: — | New findings: — (observation, not a finding: app/settings/page.test.tsx:19,404 still uses the alias — test file outside TASK_FILES; candidate for the Task #361 migration sweep) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #377 | Fix requirements: loadPack's non-free base-pack entitlement gate (unlockedLangs) has zero production callers | Status: COMPLETE | Cycle 1 | Completed: 2026-07-16
+
+#### Cycle 1 — 2026-07-16 — Direct Task (Builder path, stream W14A)
+Build approach: hooks/useLangPack.ts:useLangPack — added unlockedPacks selector (state.unlockedPacks), threaded as options.unlockedLangs into the loadPack call in the fetchManifest().then chain, added unlockedPacks to the effect dep array; hooks/useLangPack.test.ts — 3 stale exact-match assertions updated, new #377 describe (4 tests incl. real setEntitlement mutator per Rule 20a), file-level afterEach(cleanup() + setState(getInitialState())) fixing zombie-mount store-subscription leak (RTL auto-cleanup inert: vitest globals off, tests/setup.ts registers no cleanup)
+Scripts: PASS (tsc, 1195 tests, coverage 90.9/82.6/88.45/88.22 vs floors 84/81/79/82, lint 0 errors)
+Spot check: PASS (2 informational sev≤2; DSC-1 defaults-literal fixed post-FFF via getInitialState)
+Done-when: PASS (gate has production caller, proven by exact-call tests); scripts/deep-audit.sh DEFERRED — script does not exist in repo
+Fixed this cycle: — | Still open: — | New findings: 4 debt entries logged to stream-W14A/debt.md (RTL cleanup class-fix in tests/setup.ts sev4; base-pack invalid_lang UX dead end sev4; pre-hydration transient lockout sev3; specialty/base cross-gate taxonomy sev3) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #378 | Fix requirements: selecting a specialty pack never seeds its base pack | Status: In Progress | Cycle 1 | Started: 2026-07-16
+
+#### Cycle 1 — 2026-07-16 (stream W14A)
+Build approach: hooks/useLangPack.ts:useLangPack effect — SPECIALTY_PACKS.find resolution, static-base seedMemCache(baseLang) before loadPack(specialty), network-base loadPack(baseLang) awaited with failure propagation; lib/packLoader.ts:loadPack — inFlightBaseLoads dedup map + loadBasePackFresh extraction; 7 hook tests + 3 dedup tests
+Scripts: PASS (tsc, 1205 tests, coverage, lint)
+Audit findings (structured): 30 findings F001-F030 — see patterns.md 2026-07-16 entry for the sev>=4 list; headline: [F001|sev:7|async|lib/packLoader.ts:loadBasePackFresh:156|no eviction-generation guard on shared in-flight load|NEW], naive gate HARD FAIL on 2 pre-existing pseudocode assertions (hooks/useLangPack.test.ts:149,211)
+Fixed this cycle: — | Still open: F001-F030 | New findings introduced: F028 (lib/specialtyPackLoader.ts), F029/F030 (app/learn/page.tsx) — all pre-existing defects in out-of-scope files surfaced by audit, not regressions from this diff | Regression signal: NO
+CTO diagnosis run: NO — first cycle
+Naive reader findings: 2 pseudocode assertions (test file lines 149, 211-214) + data/meta ordering + unguarded sha256Hex + fetchManifest-per-rerun disclosure gap — Agent K owns formal citation next cycle
+
+#### Cycle 2 — 2026-07-17 (stream W14A) — Task #378
+Build approach: full 30-finding remediation — lib/basePackLoader.ts NEW (Rule 1 extraction, eviction-generation guard w/ double-check at cacheAndReturn, sha256 try/catch, meta-first writes, stale-bytes hash re-verification, truthful-error null-out); lib/packLoader.ts (LoadPackOptions type, forced-load registration+supersession bump, evictPack in-flight delete, then(cb,cb) cleanup, seedMemCache boolean+FREE guard); hooks/useLangPack.ts (ready filters, baseFailed messaging, useIsHydrated gate + 3s grace fallback, seed out of render body, dynamic→static transition fix); hooks/useLangPackSeam.test.ts NEW (Rule 13, mutation-verified); 20+ new/strengthened tests
+Scripts: PASS (tsc, 1225 tests, coverage 91.06/83.11/89.05/88.55, lint 0 errors)
+Audit findings (structured): cycle-2 verdict PASS — [C2J-001|sev:1|tests|tests/packLoader.test.ts:775|stale comment promising absent assertion|FIXED post-verdict]; ROUTED (excluded from verdict per file ownership): N1/F-C2-3 (lib/storage.ts useIsHydrated race — carry-forward), N7, N8, 2 naive minors (debt)
+Fixed this cycle: F001-F027 (cycle 1) + K2-001..005, F-C2-1/2/4/5/6/7, N2-N6, naive items | Still open: — in scope | New findings introduced: none in scope | Regression signal: NO
+CTO diagnosis run: NO — cycle-1 findings all closed at root cause per Agent A table + Agent K verification
+Naive reader findings: cycle-2 N cleared the pseudocode gate after cancellation-test rework (stale-language-switch discriminator added)
+
+#### Task #378 close — 2026-07-17
+Status: COMPLETE | Audit: PASS (cycle 2 of 2; 30 cycle-1 findings closed at root cause) | WorldClass: 95/100 (cycle 4: Arch 92 + post-score header fixes, Vibes 100, AC 11/11 PASS) | Committed: 8f6c634
+
+### Task #379 | Fix security: fetchManifest !res.ok logging + manifest shape validation | Status: COMPLETE | Cycle 1 | Completed: 2026-07-17
+
+#### Cycle 1 — 2026-07-17 — Direct Task (Builder path, stream W14A)
+Build approach: lib/packLoader.ts:fetchManifest — MANIFEST_FETCH_HTTP-{status} ref-ID log on !res.ok; isValidManifestShape structural gate (packs object, non-empty, non-array, every entry string version+sha256) logging MANIFEST_SHAPE_INVALID; raw:unknown flow replaces the bare as-Manifest cast. tests/packLoader.test.ts — 5 new tests (HTTP log, envelope rejection, missing-fields, vacuous-truth guard, real-manifest acceptance)
+Scripts: PASS (tsc, 1247 tests, lint 0 errors)
+Spot check: WARN (3 items sev<=2 — DSC-2 fixed+tested in-cycle, DSC-3 fixed, DSC-1 to debt.md)
+Done-when: PASS (fix + tests verified); scripts/deep-audit.sh DEFERRED — script does not exist in repo
+Fixed this cycle: DSC-2, DSC-3 | Still open: — | New findings: DSC-1 (debt) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #389 | Fix code-quality: app/page.tsx direct localStorage | Status: COMPLETE | Cycle 1 | Completed: 2026-07-17
+
+#### Cycle 1 — 2026-07-17 — Direct Task (Builder path, stream W14A)
+Build approach: lib/constants.ts:hasStoredLangPair (new presence accessor — SCOPE ESCALATION beyond the declared app/page.tsx, documented: the finding's suggested getLangPair() swap synthesizes "en-it" and would redirect first-run users past the picker); app/page.tsx:useEffect swapped to hasStoredLangPair(); 2 tests in new tests/constants.test.ts + 2 redirect tests in app/page.test.tsx
+Scripts: PASS (tsc, 1251 tests, lint 0 errors)
+Spot check: WARN (4 items sev<=2 — DSC-001 contract sentence, DSC-002 hardcoded key, DSC-003 empty-string edge doc: all fixed in-cycle; DSC-004 store/srsStore.ts residual class instance → debt for owning stream)
+Done-when: PASS (grep: zero direct window.localStorage code callers outside lib/ remain in app/components/hooks); scripts/deep-audit.sh DEFERRED — absent
+Fixed this cycle: DSC-001..003 | Still open: — | New findings: DSC-004 (debt) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #380 | isReadySpecialtyPackCode/isSpecialtyPackCode naming split resolved | Status: COMPLETE | Cycle 1 | Completed: 2026-07-17
+
+#### Cycle 1 — 2026-07-17 — Direct Task (Builder path, stream W14A)
+Build approach: lib/langRegistry.ts — alias export deleted (tombstone left, canonical doc updated); lib/packLoader.ts:loadPack gate + hooks/useLangPack.ts (isKnownCode + #324 message branch) renamed to isSpecialtyPackCode; five test-file mocks re-keyed (hooks/useLangPack.test.ts incl. var rename, seam file duplicate key dropped, tests/packLoader.test.ts per brief mandate, tests/specialtyPackLoader.test.ts + tests/entitlement.test.ts mechanical fixes LEFT UNCOMMITTED — those shared files carry other streams' live hunks; my fixes ride with their owners' commits); CLAUDE.md §6 alias sentence corrected
+Scripts: PASS (tsc, 1251 tests, lint 0 errors)
+Spot check: WARN (5 items sev<=3 — DSC-1 CLAUDE.md fixed, DSC-3 var rename fixed, DSC-4 shared-file staging unwound, DSC-2/5 off-limits comment lines to debt)
+Done-when: PASS (grep: zero code references to the alias remain anywhere; only tombstone/off-limits comments)
+Fixed this cycle: DSC-1, DSC-3, DSC-4 | Still open: — | New findings: DSC-2/5 + shared-mock-helper (debt) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #398 | evictPack no-op distinguishability | Status: COMPLETE | Cycle 1 | Completed: 2026-07-17
+
+#### Cycle 1 — 2026-07-17 — Direct Task (Builder path, stream W14A)
+Build approach: lib/packLoader.ts:evictPack — Promise<EvictPackResult> discriminated union ({evicted:true} | {evicted:false, reason:specialty_code+useInstead | unregistered_code}); #325 escalated duplicate console.error removed (typed result is the signal — resolves deferred #402); doc contract scoped with the cross-file allSettled invariant cited; tests assert exact results + one-log-only on the changed branch
+Scripts: PASS (tsc, 1251 tests, lint 0 errors)
+Spot check: WARN (4 items sev<=3 — DSC-1/2/3 fixed in-cycle; DSC-4 type relocation + storage-throw fixture to debt)
+Done-when: PASS; scripts/deep-audit.sh DEFERRED — absent
+Fixed this cycle: DSC-1..3 | Still open: — | New findings: DSC-4 + storage-throw test (debt) | Regression signal: NO
+CTO diagnosis run: NO — Direct task
+
+### Task #403 | LanguageGrid redundant Add-ons condition | Status: COMPLETE | Cycle 1 | Completed: 2026-07-17
+
+#### Cycle 1 — 2026-07-17 — Direct Task (Builder path, stream W14A)
+Build approach: components/LanguageGrid.tsx — audit premise re-derived (outer flag check was LOAD-BEARING for owned+flag-off via the hasAddOn filter half); #276 flag folded into specialtyPacks list construction (flag off → []); render gate reduced to length>0 (single visibility source, identical behavior all 4 quadrants); components/LanguageGrid.test.tsx — mutation-verified owned+flag-off test + file-level unstubAllEnvs afterEach
+Scripts: PASS (tsc, 1252 tests, lint 0 errors)
+Spot check: WARN (1 item sev2 — env-stub leak, fixed in-cycle)
+Done-when: PASS; scripts/deep-audit.sh DEFERRED — absent
+Fixed this cycle: DSC-1 | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task

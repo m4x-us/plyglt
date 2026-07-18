@@ -4,7 +4,9 @@
 // Task #336: tests/entitlement.test.ts is off-limits for modification; this
 // supplementary file covers the input-validation guards added in W12A–W13A.
 // Task #349: receiptToken length/charset validation mirrors useLicenseActivation.ts.
-// Task #357: Pro subscription gate DEFERRED — see store comment for rationale.
+// Task #388: the store-level Pro gate is now IMPLEMENTED (isProEnabled, before the
+// receipt guards) — the beforeEach below sets licenseType:"subscription" so these
+// tests reach the guards behind it. Gate coverage lives in tests/entitlement.test.ts.
 //
 // Mocking rationale:
 //   - SPECIALTY_PACKS is Object.freeze([]) in production (deliberate W12A deferral #295).
@@ -135,9 +137,8 @@ describe("purchaseAddOn — unregistered code guard", () => {
   });
 });
 
-// ── #357: Pro subscription gate — DEFERRED ───────────────────────────────────
-// The Pro gate (ERR_ADDON_NOT_PRO) is not enforced at the store level because
-// getFeatureFlags().specialtyPacks defaults to true (parseFlag(undefined) = true),
-// which would break tests/entitlement.test.ts (off-limits). The gate will be
-// implemented at the UI/caller layer when specialty content ships. ERR_ADDON_NOT_PRO
-// is retained in the exported type for that future wiring.
+// ── #357/#388: Pro subscription gate — IMPLEMENTED at the store level ─────────
+// purchaseAddOn rejects non-subscription purchasers with ERR_ADDON_NOT_PRO via
+// isProEnabled(getFeatureFlags().specialtyPacks, licenseType), placed after the
+// code-validity guard and before the receipt guards. Gate regression tests live in
+// tests/entitlement.test.ts ("#388" cases).

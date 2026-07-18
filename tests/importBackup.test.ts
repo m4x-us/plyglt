@@ -3,11 +3,20 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseBackup, CURRENT_BACKUP_VERSION } from "@/lib/importBackup";
 
+// Mock SPECIALTY_PACKS so parseBackup's purchasedAddOns filter (#312, #384) is deterministic.
+// One ready:true and one ready:false entry — the filter must check REGISTRATION only
+// (membership in SPECIALTY_PACKS); the mutable ready flag must never drop a paid purchase
+// record from a restored backup (Task #384 data-loss fix).
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
-  return { ...actual, isSpecialtyPackCode: vi.fn() };
+  return {
+    ...actual,
+    SPECIALTY_PACKS: [
+      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
+      { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
+    ],
+  };
 });
-import { isSpecialtyPackCode } from "@/lib/langRegistry";
 
 function validBackup(overrides: Record<string, unknown> = {}) {
   return {
@@ -68,6 +77,17 @@ describe("parseBackup", () => {
     expect(parseBackup({ _version: 1, srs: "hello", entitlement: {} })).toEqual({ ok: false, error: expect.any(String) });
     expect(parseBackup({ _version: 1, srs: true, entitlement: {} })).toEqual({ ok: false, error: expect.any(String) });
     expect(parseBackup({ _version: 1, srs: [], entitlement: {} })).toEqual({ ok: false, error: expect.any(String) });
+  });
+
+  it("#390: rejects non-object entitlement field — truthy scalars are not a valid entitlement container", () => {
+    // Before #390, entitlement was checked only by truthiness — entitlement:"corrupted"
+    // or entitlement:5 passed the guard and every entitlement field was silently
+    // defaulted instead of the backup being rejected like equally-malformed srs input.
+    const srs = { cards: {}, streak: 0, lastStudiedDate: null };
+    expect(parseBackup({ _version: 1, srs, entitlement: "corrupted" })).toEqual({ ok: false, error: expect.any(String) });
+    expect(parseBackup({ _version: 1, srs, entitlement: 5 })).toEqual({ ok: false, error: expect.any(String) });
+    expect(parseBackup({ _version: 1, srs, entitlement: true })).toEqual({ ok: false, error: expect.any(String) });
+    expect(parseBackup({ _version: 1, srs, entitlement: [] })).toEqual({ ok: false, error: expect.any(String) });
   });
 
   it("skips a card with an invalid state and counts it in skippedCardCount", () => {
@@ -325,7 +345,7 @@ describe("parseBackup", () => {
     afterEach(() => { vi.clearAllMocks(); });
 
     it("#312: registered specialty codes pass through to entitlement", () => {
-      vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
+      // "it-medical" is registered in the mocked SPECIALTY_PACKS; "it-business" is not.
       const backup = validBackup({
         entitlement: {
           licenseKey: null, instanceId: null, licenseType: "free",
@@ -340,7 +360,6 @@ describe("parseBackup", () => {
     });
 
     it("#312: unregistered strings are filtered out regardless of content", () => {
-      vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
       const backup = validBackup({
         entitlement: {
           licenseKey: null, instanceId: null, licenseType: "free",
@@ -354,8 +373,7 @@ describe("parseBackup", () => {
       expect(r.entitlement.purchasedAddOns).toEqual([]);
     });
 
-    it("#312: non-string elements are always filtered even when isSpecialtyPackCode would return true", () => {
-      vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
+    it("#312: non-string elements are always filtered even when the code would be registered", () => {
       const backup = validBackup({
         entitlement: {
           licenseKey: null, instanceId: null, licenseType: "free",
@@ -368,6 +386,25 @@ describe("parseBackup", () => {
       if (!r.ok) return;
       expect(r.entitlement.purchasedAddOns).toEqual(["it-medical"]);
     });
+
+    it("#384: a registered-but-not-ready code survives restore — the ready flag never drops a paid record", () => {
+      // Data-loss regression guard (Task #384): "it-legal" is registered with ready:false —
+      // the state a pack enters when deprecated or rolled back AFTER the backup was written
+      // while it was ready:true. The old filter used isSpecialtyPackCode (registration AND
+      // ready:true), which silently destroyed the paid purchase record on restore. The fixed
+      // filter checks registration only.
+      const backup = validBackup({
+        entitlement: {
+          licenseKey: null, instanceId: null, licenseType: "free",
+          unlockedPacks: ["it"], validUntil: null,
+          purchasedAddOns: ["it-legal"],
+        },
+      });
+      const r = parseBackup(backup);
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.entitlement.purchasedAddOns).toEqual(["it-legal"]);
+    });
   });
 });
 
@@ -378,7 +415,6 @@ describe("#354 — silently dropped backup entries are now logged", () => {
     // Before #354, invalid unlockedPacks entries were silently dropped via .filter() with no log.
     // Removing the console.warn call causes this test to fail (no warning emitted).
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
     const backup = validBackup({
       entitlement: {
         licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,
@@ -398,7 +434,6 @@ describe("#354 — silently dropped backup entries are now logged", () => {
   it("#354: logs IMPORT-SKIP-ADDONS warning when purchasedAddOns contains invalid entries", () => {
     // Before #354, invalid purchasedAddOns entries were silently dropped — same violation.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
     const backup = validBackup({
       entitlement: {
         licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,
@@ -416,7 +451,6 @@ describe("#354 — silently dropped backup entries are now logged", () => {
 
   it("#354: no warning logged when all unlockedPacks and purchasedAddOns entries are valid", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
     const backup = validBackup({
       entitlement: {
         licenseKey: null, instanceId: null, licenseType: "free", validUntil: null,

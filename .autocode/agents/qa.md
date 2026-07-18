@@ -109,3 +109,8 @@ Rule 14 is now FULLY COMPLETE for all app pages and components.
 
 ## Run History
 10 runs total. Blind spots: Task #056 misattributed (run 2); test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid.tsx Rule 14 gap first flagged run 5; projected test count 908 was wrong — actual 843 (confirmed run 6); Batch 9 closed all Rule 14 gaps for app pages (run 7); Batch 12 added +32 tests post-Task #148-150 (run 8 count was 888); Batch 13 added +3 (run 9 — 891 total); Two minor issues found in Batch 12-13 code: redundant toBeDefined assertions (6 instances) and untested getSpecialtyPacks filter predicate (run 9 — both resolved by run 10). Run 10: clean pass at 897. One minor open: PRICING.annual exact value not pinned by real-constant test.
+
+## Past Findings — Resolved (Task #378, 2026-07-17, stream W14A)
+- Pseudocode assertions in hooks/useLangPack.test.ts (#296 expect.any(Array)+length>0; units.length>0 with invalid existence-check tag) — resolved: reference-identity assertions to ALL_UNITS.
+- Cancellation tests proved nothing (React 18 silent no-op) — resolved: stale-language-switch test discriminates the cancelled guard; unmount tests renamed to their honest cache-warming claim.
+- Rule 20a gaps: eviction-generation tests drove setState injection — resolved: both now call the real clearEntitlement; RTL auto-cleanup inertness (vitest globals off, setup.ts registers no cleanup) documented and worked around file-level; repo-wide fix still open debt (tests/setup.ts one-liner).

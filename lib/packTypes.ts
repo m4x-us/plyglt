@@ -7,6 +7,15 @@
  */
 
 import type { Unit } from "@/content/types";
+import type { Level } from "@/content/types";
+
+// Runtime mirror of the Level union — `satisfies` rejects any entry that is not a valid
+// Level, so this set cannot drift into typos. It cannot detect a MISSING entry (TypeScript
+// has no exhaustiveness check for arrays), so when a new level is added to content/types.ts
+// it must be added here and in scripts/validatePack.ts's VALID_LEVELS. (#392)
+const VALID_LEVELS: ReadonlySet<string> = new Set(
+  ["A1", "A2", "B1", "B2"] satisfies readonly Level[],
+);
 
 export interface PackMeta {
   version: string;
@@ -55,8 +64,14 @@ export type LoadPackResult =
 // content-authoring pipeline produced malformed JSON. Apply both checks at every parse site.
 // Validates: unitCount/cardCount are numbers (non-numeric values would silently
 // string-concatenate when _mergeFromJson sums them); units is an array; each unit has a
-// string id, string name, and a cards array; each card has string id, string type, string
-// prompt, array accepted, array tags, and number tier.
+// string id, string name, a registered level, string theme, string emoji, and a
+// prerequisiteUnits array (all non-optional on Unit — components/LevelSection.tsx and
+// app/study/page.tsx dereference unit.prerequisiteUnits.every(...) with no guard, so a
+// pack missing it would pass sha256 yet crash the UI on first render instead of failing
+// at load; #392); each unit has a cards array; each card has string id, string type,
+// string prompt, array accepted, array tags, and number tier.
+// This is the runtime mirror of scripts/validatePack.ts's validateUnit — keep the two in
+// sync: any field the UI dereferences unconditionally must be checked in BOTH places.
 // Does NOT validate: unitCount/cardCount cross-totals against actual units/cards lengths.
 export function hasValidUnitsArray(pack: Pack): boolean {
   if (typeof pack.unitCount !== "number") return false;
@@ -69,6 +84,10 @@ export function hasValidUnitsArray(pack: Pack): boolean {
     const unit = u as Record<string, unknown>;
     if (typeof unit.id !== "string") return false;
     if (typeof unit.name !== "string") return false;
+    if (typeof unit.level !== "string" || !VALID_LEVELS.has(unit.level)) return false;
+    if (typeof unit.theme !== "string") return false;
+    if (typeof unit.emoji !== "string") return false;
+    if (!Array.isArray(unit.prerequisiteUnits)) return false;
     if (!Array.isArray(unit.cards)) return false;
     return (unit.cards as unknown[]).every((c) => {
       if (c === null || typeof c !== "object") return false;

@@ -11,3 +11,4 @@
 | 2026-06-25 | Task #003: Fix lang-injection vulnerability in packLoader | 2 | 98 | PASS |
 | 2026-06-28 | Task #053: Extract duplicate error string literals to named con | 2 | 96 | PASS |
 | 2026-07-08 | batch 18 — Introduction Engine Remediation + Correctness Harde | 5 | 96 | PASS |
+| 2026-07-17 | Task #378: specialty pack base seeding + loader hardening (W14A) | 4 | 95 | PASS |

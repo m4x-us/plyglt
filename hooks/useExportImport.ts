@@ -79,13 +79,21 @@ export function useExportImport() {
           // purchasedAddOns is intentionally excluded — add-on purchases require server-verified
           // receipts via purchaseAddOn(); they cannot be restored from an unsigned backup file.
           const { licenseKey, instanceId, licenseType, unlockedPacks, validUntil } = result.entitlement;
+          // Task #391: a backup without both licenseKey and instanceId cannot restore a license —
+          // setEntitlement's contract requires both. Deliberately keep the session's current
+          // entitlement untouched (an unsigned backup file must never downgrade an active
+          // license), but say so in the status message instead of silently reporting only the
+          // card restore. tests/seam_importRestore.test.ts (#393, next wave) asserts this seam.
+          let licenseRestored = false;
           if (licenseKey && instanceId) {
             useEntitlementStore.getState().setEntitlement({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil });
+            licenseRestored = true;
           }
           const skippedNote = result.skippedCardCount > 0
             ? ` (${result.skippedCardCount} card(s) skipped — corrupted data)`
             : "";
-          setDataStatus({ type: "success", message: `Restored ${result.validCardCount} card(s) of progress.${skippedNote}` });
+          const licenseNote = licenseRestored ? "" : " No license in backup — license unchanged.";
+          setDataStatus({ type: "success", message: `Restored ${result.validCardCount} card(s) of progress.${skippedNote}${licenseNote}` });
         } catch (e) {
           console.error(`[ERR-IMPORT-PARSE-${Date.now()}]`, e);
           setDataStatus({ type: "error", message: "Could not read the file — is it a valid backup?" });

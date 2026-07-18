@@ -6,11 +6,12 @@
 // Used when a user restores progress from a file.
 // ===========================================
 // DEPENDS ON: @/lib/srs, @/lib/langRegistry, @/lib/licenseTypes
-// USED BY: hooks/useExportImport.ts
+// USED BY: hooks/useExportImport.ts,
+//          lib/exportBackup.ts (imports CURRENT_BACKUP_VERSION, BackupSrs, BackupEntitlement)
 // ===========================================
 
 import { type CardProgress, type CardState } from "@/lib/srs";
-import { isValidPackCode, FREE_PACK_CODES, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
+import { isValidPackCode, FREE_PACK_CODES, SPECIALTY_PACKS, type PackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 
 /** Highest backup _version this app can parse. Backups above this were written by a newer app. */
@@ -63,7 +64,15 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     return { ok: false, error: "Invalid backup — not a JSON object." };
 
   const data = raw as Record<string, unknown>;
-  if (!data._version || typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) || !data.entitlement)
+  // Task #390: entitlement gets the same strict shape check as srs (object, non-null,
+  // non-array). A truthiness-only check accepted entitlement:"corrupted" or entitlement:5
+  // and silently defaulted every entitlement field instead of rejecting the backup the
+  // way equally-malformed srs input is rejected.
+  if (
+    !data._version ||
+    typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) ||
+    typeof data.entitlement !== "object" || data.entitlement === null || Array.isArray(data.entitlement)
+  )
     return { ok: false, error: "Invalid backup file — missing required fields." };
 
   if (typeof data._version === "number" && data._version > CURRENT_BACKUP_VERSION) {
@@ -118,13 +127,20 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     );
   }
 
-  // purchasedAddOns: validate type AND specialty-pack registration. Log dropped entries. (#354)
+  // purchasedAddOns: validate type AND specialty-pack REGISTRATION (membership in
+  // SPECIALTY_PACKS), never READINESS. Log dropped entries. (#354, #384)
+  // Task #384: isSpecialtyPackCode requires ready:true — a mutable business flag. A backup
+  // written while a pack was ready:true must not lose the paid purchase record on restore
+  // after the pack reverts to ready:false. Registration-only still blocks arbitrary
+  // hand-edited codes, and a not-ready code cannot be loaded anyway (loadSpecialtyPack
+  // gates on ready). Same policy as store/migrations.ts's v2→v3 filter — keep in sync.
   // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
+  const isRegisteredSpecialtyCode = (s: string): boolean => SPECIALTY_PACKS.some(sp => sp.code === s);
   const rawAddOns = Array.isArray(e.purchasedAddOns) ? e.purchasedAddOns : [];
-  const validAddOns: string[] = rawAddOns.filter((item): item is string => typeof item === "string" && isSpecialtyPackCode(item));
+  const validAddOns: string[] = rawAddOns.filter((item): item is string => typeof item === "string" && isRegisteredSpecialtyCode(item));
   if (validAddOns.length < rawAddOns.length) {
     console.warn(
-      `[IMPORT-SKIP-ADDONS] ${rawAddOns.length - validAddOns.length} purchasedAddOns entries dropped — unregistered or invalid codes: ${JSON.stringify(rawAddOns.filter(item => !(typeof item === "string" && isSpecialtyPackCode(item))))}`
+      `[IMPORT-SKIP-ADDONS] ${rawAddOns.length - validAddOns.length} purchasedAddOns entries dropped — unregistered or invalid codes: ${JSON.stringify(rawAddOns.filter(item => !(typeof item === "string" && isRegisteredSpecialtyCode(item))))}`
     );
   }
 
@@ -134,9 +150,9 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     licenseType,
     unlockedPacks: validUnlockedPacks,
     validUntil:    typeof e.validUntil === "number" && isFinite(e.validUntil) ? e.validUntil : null,
-    // Validates both type (string) and registration (isSpecialtyPackCode) so a hand-edited
-    // backup JSON cannot inject arbitrary add-on codes without a real receipt check.
-    // Mirrors the unlockedPacks → isValidPackCode gate above.
+    // Validates both type (string) and registration (SPECIALTY_PACKS membership) so a
+    // hand-edited backup JSON cannot inject arbitrary add-on codes without a real receipt
+    // check. Mirrors the unlockedPacks → isValidPackCode gate above.
     purchasedAddOns: validAddOns,
   };
 

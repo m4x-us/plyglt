@@ -2822,7 +2822,7 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 111 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 113 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
@@ -4164,7 +4164,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** DEFERRED — 2026-07-14 (Wave 13 — Adam attempted, could not complete: parseFlag(undefined) defaults getFeatureFlags().specialtyPacks to true in any environment without the flag explicitly set false, and the off-limits tests/entitlement.test.ts calls purchaseAddOn with licenseType:"free" without mocking featureFlags — a store-level gate fires there regardless of guard design. The gate must be implemented at the UI/caller layer instead, checking isProEnabled() before calling purchaseAddOn. Verified independently 2026-07-14: current store/entitlementStore.ts:275-282 confirms the gate does NOT exist and documents this exact deferral in a code comment. NOTE: Derek's (Stream W13D) completion.md incorrectly describes this gate as already implemented by "the parallel stream" — that claim does not match the actual code and should be disregarded. This is a genuine carry-forward, not a completed task.**
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — closed as a consequence of Barry's #388 fix, not by dedicated work under this number. #388's investigation found the Wave 13 deferral rationale above was stale — tests/entitlement.test.ts no longer calls purchaseAddOn with licenseType:"free" — and implemented the Pro gate at store/entitlementStore.ts:purchaseAddOn using isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType). Independently verified 2026-07-17 by reading the current function body: the gate is real, correctly positioned before the receipt checks, and test-covered. See #388 and #395 for the same fix from two audit angles, and #381 for the ERR_ADDON_NOT_PRO branch this makes live.)
 
 **What:**
 purchaseAddOn has no check that licenseType === "subscription" before persisting a purchase, unlike app/stats/page.tsx (the other Pro-gated call site) which correctly routes through isProEnabled(flag, licenseType) as CLAUDE.md/AGENTS.md mandate for all Pro-gated features. at store/entitlementStore.ts:purchaseAddOn:221.
@@ -4544,6 +4544,7 @@ NEW
 **File:** hooks/useLangPack.ts:111 + lib/packLoader.ts:126
 **Complexity:** ⚡ Direct — 2 files, no package boundary, mechanical wire-through mirroring the already-correct purchasedAddOns pattern in the same call (thread useEntitlementStore's unlockedPacks into the existing loadPack call)
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit afae4f9)
 **Blocked by:** Nothing
 **Priority:** P1
 **Status:** OPEN
@@ -4565,6 +4566,7 @@ NEW
 **File:** hooks/useLangPack.ts:73 + components/LanguageGrid.tsx:137 + app/page.tsx:33-37
 **Complexity:** 🔧 Full — 3 files and a real design decision (does handleSelect/useLangPack detect a specialty code and seed+load its base pack first, or does useLangPack's STATIC_PACKS-keyed seeding logic need to resolve a specialty code to its baseLang before checking STATIC_PACKS) — not a mechanical fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit 8f6c634)
 **Blocked by:** Nothing
 **Priority:** P1
 **Status:** OPEN
@@ -4586,6 +4588,7 @@ NEW
 **File:** lib/packLoader.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit 97224ff)
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4605,8 +4608,9 @@ NEW
 ### Task #380: Fix code-quality: isReadySpecialtyPackCode/isSpecialtyPackCode naming split still unresolved (Task #361 never executed)
 
 **File:** lib/langRegistry.ts + lib/packLoader.ts + hooks/useLangPack.ts
-**Complexity:** ⚡ Direct — 3 files, no package boundary, mechanical rename to the canonical name at the two remaining call sites, then delete the alias
+**Complexity:** ⚡ Direct — 3 files, no package boundary — kept Direct despite mechanically qualifying as Full (3 files) by /advance Complexity Audit: purely a rename-to-canonical + delete-alias, no design decision, all 3 call sites already identified above
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit 4713d33)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4630,7 +4634,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — closed as a consequence of Barry's #388 fix. ERR_ADDON_NOT_PRO is no longer dead code: purchaseAddOn now returns it when isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType) is false, and this branch is test-covered. Verified 2026-07-17 by reading the current function body — no deletion was needed since the constant became genuinely live.)
 
 **What:**
 ERR_ADDON_NOT_PRO is declared as one of two possible error discriminants in PurchaseAddOnResult's failure variant but is never constructed by purchaseAddOn's implementation and never covered by any test. The Task #357 comment explains it is reserved for a future call-site gate, but as currently shipped it is permanently dead code in the type's own error union. at store/entitlementStore.ts:PurchaseAddOnResult:48.
@@ -4647,7 +4651,7 @@ NEW
 ### Task #382: Fix code-quality: "SPECIALTY_PACKS is currently empty" claim is stale in four separate files
 
 **File:** lib/packLoader.ts + tests/purchaseAddOnGuards.test.ts + hooks/useLangPack.test.ts + .autocode/agents/security.md
-**Complexity:** ⚡ Direct — 4 files, no package boundary, doc/comment-only fix
+**Complexity:** ⚡ Direct — 4 files, no package boundary — kept Direct despite mechanically qualifying as Full (4 files) by /advance Complexity Audit: identical one-line comment fix repeated verbatim at each site, no design decision
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
@@ -4691,6 +4695,7 @@ NEW
 **File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4712,6 +4717,7 @@ NEW
 **File:** lib/specialtyPackLoader.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4733,6 +4739,7 @@ NEW
 **File:** store/entitlementStore.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4754,6 +4761,7 @@ NEW
 **File:** lib/packCache.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Charles (W14C))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4775,6 +4783,7 @@ NEW
 **File:** store/entitlementStore.ts + tests/entitlement.test.ts
 **Complexity:** 🔧 Full — 2 files, requires a product decision: since the stated blocking reason (tests calling purchaseAddOn with licenseType:"free") no longer holds, re-evaluate whether the Pro gate can now actually be implemented at the store layer, or fix the comment to state the real current blocker (if any) — not a mechanical doc edit
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B) — implemented the Pro gate; also substantively closes #357/#395/#381, see below)
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4796,6 +4805,7 @@ NEW
 **File:** app/page.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit 91c0b58)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4817,6 +4827,7 @@ NEW
 **File:** lib/importBackup.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4838,6 +4849,7 @@ NEW
 **File:** hooks/useExportImport.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Charles (W14C))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4859,6 +4871,7 @@ NEW
 **File:** lib/packTypes.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Charles (W14C))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4901,6 +4914,7 @@ NEW
 **File:** store/entitlementStore.ts:clearEntitlement + lib/specialtyPackLoader.ts:loadSpecialtyPack
 **Complexity:** 🔧 Full — 2 files, requires a real concurrency-control design (re-validate purchasedAddOns or a deactivation-generation counter inside _mergeFromJson immediately before merging, not just at loadSpecialtyPack's entry) — not a mechanical fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4924,7 +4938,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — same underlying fix as #357 and #388, closed together. The devtools-bypass attack this finding describes is closed: purchaseAddOn now enforces the Pro gate at the store layer regardless of caller, verified 2026-07-17 against the current function body.)
 
 **What:**
 The Pro gate for specialty-pack purchases is enforced only in the UI (LanguageGrid hides the buy button for non-Pro users) — purchaseAddOn itself performs no licenseType check. Any free-tier user could call useEntitlementStore.getState().purchaseAddOn(code, receiptToken) directly from devtools and, given a receiptToken that passed IPC verification, purchase an add-on without holding Pro. Currently inert only because the Tauri command verify_addon_receipt does not exist yet, not because any gate exists in this function. at store/entitlementStore.ts:purchaseAddOn:268.
@@ -4943,6 +4957,7 @@ NEW
 **File:** lib/packCache.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Charles (W14C))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4964,6 +4979,7 @@ NEW
 **File:** tests/entitlement.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -4985,6 +5001,7 @@ NEW
 **File:** lib/packLoader.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit 1aae732)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5006,6 +5023,7 @@ NEW
 **File:** tests/langRegistry.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Derek (W14D) — commit 0a34c54)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5046,8 +5064,9 @@ NEW
 ### Task #401: Fix code-quality: three module headers carry stale DEPENDS ON/USED BY claims
 
 **File:** store/entitlementStore.ts + lib/importBackup.ts + store/migrations.ts
-**Complexity:** ⚡ Direct — 3 files, no package boundary, doc-only fix
+**Complexity:** ⚡ Direct — 3 files, no package boundary — kept Direct despite mechanically qualifying as Full (3 files) by /advance Complexity Audit: three independent one-line header edits, no shared logic or design decision
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Barry (W14B))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5090,6 +5109,7 @@ NEW
 **File:** components/LanguageGrid.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Adam (W14A) — commit e43adea)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5111,6 +5131,7 @@ NEW
 **File:** app/settings/page.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-17 (Wave 14 — Derek (W14D) — commit 2e05d28)
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5124,6 +5145,47 @@ NEW
 - [ ] Audit passes: bash scripts/deep-audit.sh app/settings/page.tsx
 
 **Source:** Audit finding F028 — severity 2 — code-quality
+
+---
+
+### Task #405: Fix error-handling: unguarded sha256Hex in lib/specialtyPackLoader.ts
+
+**File:** lib/specialtyPackLoader.ts
+**Complexity:** ⚡ Direct — 1 file, wrap two await sha256Hex sites in try/catch with ref-ID log + typed checksum_mismatch return
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+sha256Hex calls at lib/specialtyPackLoader.ts:198 (cached-copy verify) and :252 (fresh add-on verify) are outside any try/catch — a crypto.subtle failure rejects the shared in-flight promise for every concurrent specialty requester instead of returning the typed { ok:false } contract every other branch honors. Exact sibling of the base-loader defect fixed in Task #378 cycle 2 (lib/basePackLoader.ts SHA_VERIFY_FAIL pattern) — copy that fix shape.
+
+**Acceptance Criteria:**
+- [ ] Both sha256Hex sites wrapped; failure logs a ref-ID and returns { ok:false, error:"checksum_mismatch" }
+- [ ] Test proving a throwing crypto.subtle surfaces as a typed error, not a rejection
+
+**Source:** Carry-forward from Task #378 (Wave 14, Stream W14A) — Audit finding F028 — severity 5 — error-handling
+
+---
+
+### Task #406: Fix async: useIsHydrated hydration-completion race + no-finish-on-failure hang (lib/storage.ts)
+
+**File:** lib/storage.ts
+**Complexity:** ⚡ Direct — 1 file: re-check store.persist.hasHydrated() inside the effect before subscribing, and document/handle the zustand persist behavior where hydration NEVER finishes when storage.getItem rejects
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Two combined findings from Task #378 cycle 2 (a) useIsHydrated snapshots hasHydrated() at render and subscribes to onFinishHydration in an effect — hydration completing in that window strands hydrated=false forever (onFinishHydration does not fire for already-finished hydration); (b) zustand persist's failure path (storage.getItem rejection) never sets hasHydrated and never fires onFinishHydration, so useIsHydrated can NEVER become true after a hydration failure. hooks/useLangPack.ts now depends on this hook for its entitlement gate — it carries a 3s grace-timeout fallback (HYDRATION_GRACE_MS) as a local mitigation, but every OTHER useIsHydrated consumer (app/learn/page.tsx gating on useSRSStore, etc.) is exposed to a permanent false. Fix at root in useIsHydrated: re-check hasHydrated() inside the effect before subscribing; consider surfacing hydration failure explicitly.
+
+**Acceptance Criteria:**
+- [ ] Effect re-checks hasHydrated() before subscribing (closes the subscribe race)
+- [ ] Behavior on hydration FAILURE is explicit and tested (documented terminal state, not a silent forever-false)
+- [ ] Test that completes hydration between render and effect and asserts hydrated flips true
+
+**Source:** Carry-forward from Task #378 (Wave 14, Stream W14A) — Audit findings N1 + F-C2-2/F-C2-3 — severity 5 — async
 
 ---
 

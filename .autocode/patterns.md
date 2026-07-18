@@ -405,3 +405,43 @@
 - data-loss The "one call site hardened, sibling left exposed" pattern (Rule 19b) recurs within this batch's own migration and validation code. store/migrations.ts's v1 unlockedPacks migration lacks the registration check its v3 sibling was explicitly given three entries later. lib/importBackup.ts validates srs's shape strictly on the same line where entitlement gets only a truthiness check. In each case a validation was hardened on one path during remediation without a grep sweep of structurally identical sibling paths in the same file — severity 5 | CROSS-CUTTING | SYNTHESIS
 - error-handling Multiple independent functions return an apparent-success or silent no-op state when the correct behavior is to surface a failure or partial-failure signal: fetchManifest's !res.ok branch returns null with no logging; useExportImport's entitlement-restore branch silently skips while still reporting import success; evictPack resolves its Promise without evicting anything for a specialty/garbage code. Each is a case where a caller who doesn't inspect logs cannot tell "succeeded" from "silently did nothing" — severity 5 | CROSS-CUTTING | SYNTHESIS
 
+
+## 2026-07-16 | Task: #378 (stream W14A, cycle 1)
+- [async] No eviction-generation guard on shared in-flight base load; evictPack racing loadBasePackFresh resurrects evicted pack in memCache and storage; Rule 19b symmetry violated vs specialtyPackLoader #394 — severity 7 | lib/packLoader.ts:loadBasePackFresh:156 | NEW
+- [data-loss] Data-then-meta write ordering is the unsafe ordering #309 reversed in specialtyPackLoader; orphaned meta-less bytes served by offline fallback with zero sha256 re-verification — severity 6 | lib/packLoader.ts:loadBasePackFresh:267 | NEW
+- [error-handling] Fresh-download sha256Hex unguarded; contradicts never-rejects comment; cache-hit sibling IS wrapped — severity 5 | lib/packLoader.ts:loadBasePackFresh:240 | NEW
+- [async] Shared promise rejects whole dedup cohort on single throw (fault-isolation regression) — severity 5 | lib/packLoader.ts:loadPack:146 | NEW
+- [tests] No Rule 13 seam test for the hook→loader handoff #378 exists to fix — severity 5 | hooks/useLangPack.test.ts:vi.mock:18 | NEW
+- [code-quality] Base invalid_lang for specialty target shows Add-on not purchased.; pinned instead of fixed — severity 5 | hooks/useLangPack.ts:useLangPack:164 | NEW
+- [edge-case] forceRedownload bypasses dedup and does not register; TOCTOU class remains for forced-vs-normal pairing — severity 5 | lib/packLoader.ts:loadPack:142 | NEW
+- [code-quality] Non-canonical ready-unfiltered specialty lookups (isKnownCode, effect find); unready code with network base triggers useless base download — severity 5 | hooks/useLangPack.ts:useLangPack:128 | NEW
+- [security] seedMemCache has no FREE_PACK_CODES invariant; future non-free static base + add-on purchase grants full base pack — severity 5 | lib/packLoader.ts:seedMemCache:297 | NEW
+- [async] No useIsHydrated gate; pre-hydration unlockedPacks default causes transient invalid_lang for future non-free packs — severity 5 | hooks/useLangPack.ts:useLangPack:77 | NEW
+- [tests] seedMemCache happy-path test asserts only console.error absence; deleting memCache.write stays green — severity 5 | tests/packLoader.test.ts:seedMemCache:779 | NEW
+- [tests] LANG_PAIR pin test passes with entire #378 logic deleted — severity 5 | hooks/useLangPack.test.ts:pin:516 | NEW
+- [tests] #296 seedMemCache payload assertions pass for any non-empty array — severity 5 | hooks/useLangPack.test.ts:296-test:211 | NEW
+- [error-handling] Unguarded sha256Hex in specialty loader (sibling of F002; off-limits file) — severity 5 | lib/specialtyPackLoader.ts:198 | NEW
+- [code-quality] Duplicated options type literal created by extraction — severity 4 | lib/packLoader.ts:loadBasePackFresh:167 | NEW
+- [requirements] Network-base branch unreachable under real registry state — severity 4 | hooks/useLangPack.ts:useLangPack:140 | NEW
+- [code-quality] Stale header: SPECIALTY_PACKS "currently empty" is false — severity 4 | lib/packLoader.ts:header:28 | NEW
+- [tests] Eviction-generation re-seed tested for static-base branch only — severity 4 | hooks/useLangPack.test.ts:557 | NEW
+- [async] Specialty precondition blind to in-flight base loads (dormant; hook sequences) — severity 4 | lib/packLoader.ts:loadPack:115 | NEW
+- [code-quality] Three mutually-unaware concurrency mechanisms across two loaders — severity 4 | lib/packLoader.ts:module:156 | NEW
+- [code-quality] STATIC_PACKS is a hook-local parallel registry vs langRegistry — severity 4 | hooks/useLangPack.ts:STATIC_PACKS:39 | NEW
+- [tests] Invalid existence-check tag on deterministic units.length assertion — severity 4 | hooks/useLangPack.test.ts:149 | NEW
+- [edge-case] forceRedownload silently dropped for specialty codes — severity 4 | lib/packLoader.ts:loadPack:116 | NEW
+- [error-handling] tray-listener registration has no catch (off-limits file) — severity 4 | app/learn/page.tsx:41 | NEW
+- [async] Hardening applied to specialtyPackLoader with base-pack peer left open across three protections (Rule 19b) — severity 7 | CROSS-CUTTING | SYNTHESIS
+- [code-quality] Comments and identifiers claiming contracts the code does not enforce (7 instances incl. new #378 comments) — severity 5 | CROSS-CUTTING | SYNTHESIS
+- [tests] Non-falsifiable tests pinning the exact behaviors #378 claims to deliver — severity 6 | CROSS-CUTTING | SYNTHESIS
+
+## 2026-07-17 | Task: #378 (stream W14A, cycle 2 — PASS)
+- [async] useIsHydrated subscribe race + zustand persist never finishes hydration on storage failure — now load-bearing for pack loads; hook carries 3s grace fallback, root fix routed to lib/storage.ts owner — severity 5 | lib/storage.ts:useIsHydrated:101 | ROUTED
+
+## 2026-07-17 | Task: #378 — WorldClass cycle 1 (83/100)
+- [edge-case] isKnownCode base-pack half lacks ready filter — persisted unready base code (en-es) strands user with no self-heal; same class F011 fixed for specialty codes — severity 6 | worldclass: -6 pts | WORLDCLASS
+- [code-quality] Generation-guard primitive duplicated between basePackLoader and specialtyPackLoader, self-acknowledged in comments but never extracted — severity 5 | worldclass: -5 pts | WORLDCLASS
+- [code-quality] 30 lines of specialty base-resolution business logic inline in useLangPack effect instead of a pure lib function — severity 4 | worldclass: -4 pts | WORLDCLASS
+- [tests] Compound hydration recovery path (grace expiry then late hydration self-heal) untested — severity 4 | worldclass: -4 pts combined | WORLDCLASS
+- [performance] N concurrent useLangPack mounts multiply uncached fetchManifest calls and grace timers — severity 4 | worldclass: -3 pts | WORLDCLASS
+- [security] basePackLoader only-packLoader-may-import contract enforced by comment alone — severity 4 | worldclass: -2 pts | WORLDCLASS

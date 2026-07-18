@@ -9,7 +9,7 @@
 // USED BY: CI / npm test
 // ===========================================
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   migrateSrsStore,
   migrateEntitlementStore,
@@ -19,16 +19,19 @@ import {
   SETTINGS_VERSION,
 } from "@/store/migrations";
 
-// Mock isSpecialtyPackCode so the v2→v3 migration filter (#344) is controllable in tests.
-// Default: returns false (no code is a valid specialty pack) — reset per-test as needed.
+// Mock SPECIALTY_PACKS so the v2→v3 migration filter (#344, #384) is deterministic in tests.
+// One ready:true and one ready:false entry — the filter must check REGISTRATION only
+// (membership in SPECIALTY_PACKS); the mutable ready flag must never drop a persisted
+// paid purchase record (Task #384 data-loss fix).
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
-  return { ...actual, isSpecialtyPackCode: vi.fn().mockReturnValue(false) };
-});
-import { isSpecialtyPackCode } from "@/lib/langRegistry";
-
-beforeEach(() => {
-  vi.mocked(isSpecialtyPackCode).mockReturnValue(false);
+  return {
+    ...actual,
+    SPECIALTY_PACKS: [
+      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
+      { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
+    ],
+  };
 });
 
 // ── Version constants ─────────────────────────────────────────────────────────
@@ -479,7 +482,6 @@ describe("migrateEntitlementStore()", () => {
   });
 
   it("v2 → v3: preserves registered purchasedAddOns if already populated (pre-release build)", () => {
-    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
     const result = migrateEntitlementStore(
       { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-medical"] },
       2
@@ -487,18 +489,60 @@ describe("migrateEntitlementStore()", () => {
     expect(result.purchasedAddOns).toEqual(["it-medical"]);
   });
 
-  it("v2 → v3: filters out unregistered purchasedAddOns codes (#344)", () => {
+  it("v2 → v3: filters out unregistered purchasedAddOns codes and logs the drop (#344, #384)", () => {
     // Before #344, the filter was typeof item === "string" only — unregistered codes like
-    // "garbage-pack" would survive migration into the entitlementStore, while
-    // lib/importBackup.ts's identical field also ran isSpecialtyPackCode (asymmetry).
-    // After #344, the migration applies the same isSpecialtyPackCode gate.
-    vi.mocked(isSpecialtyPackCode).mockImplementation((s) => s === "it-medical");
-    const result = migrateEntitlementStore(
-      { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-medical", "garbage-pack"] },
-      2
-    ) as Record<string, unknown>;
-    // "garbage-pack" must be filtered out — only "it-medical" passes isSpecialtyPackCode
-    expect(result.purchasedAddOns).toEqual(["it-medical"]);
+    // "garbage-pack" would survive migration into the entitlementStore. After #384, drops
+    // are also logged — silently discarding persisted user data is a stop-the-line violation.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore(
+        { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-medical", "garbage-pack"] },
+        2
+      ) as Record<string, unknown>;
+      // "garbage-pack" is not in SPECIALTY_PACKS — filtered out; "it-medical" is registered
+      expect(result.purchasedAddOns).toEqual(["it-medical"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`dropped 1 unregistered purchasedAddOns entries: ["garbage-pack"]`)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("v2 → v3: preserves a registered-but-not-ready purchase — the ready flag never drops a paid record (#384)", () => {
+    // Data-loss regression guard (Task #384): "it-legal" is registered in the mocked
+    // SPECIALTY_PACKS with ready:false — the state a pack enters when it is deprecated or
+    // rolled back AFTER a user purchased it while ready:true. The old filter used
+    // isSpecialtyPackCode (registration AND ready:true), which silently destroyed the paid
+    // purchase record on the next migration run. The fixed filter checks registration only.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore(
+        { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: ["it-legal"] },
+        2
+      ) as Record<string, unknown>;
+      expect(result.purchasedAddOns).toEqual(["it-legal"]);
+      // Nothing was dropped — no warning may fire for a fully-registered list.
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("v2 → v3: drops non-string purchasedAddOns elements (corrupt blob) and logs them (#384)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore(
+        { licenseKey: null, instanceId: null, licenseType: "subscription", unlockedPacks: ["it"], lastValidated: 0, validUntil: null, purchasedAddOns: [null, 42, "it-medical"] },
+        2
+      ) as Record<string, unknown>;
+      expect(result.purchasedAddOns).toEqual(["it-medical"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("dropped 2 unregistered purchasedAddOns entries: [null,42]")
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("v2 → v3: preserves all other fields unchanged", () => {

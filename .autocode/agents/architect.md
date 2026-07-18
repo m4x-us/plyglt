@@ -269,3 +269,10 @@ Batch 14 is now active (Tasks #154–#164 in .autocode/tasks.md). Remaining:
 
 ## Run History
 9 runs total. Blind spots: missed importBackup upward import (run 1); missed stats/page.tsx Rule 1 (run 2); missed app/page.tsx 253-line violation until run 4; missed Task #001 W-series stale checkboxes in tasks.md; missed featureFlags.ts Rule 2 comment until run 6; Batch 9 closed all open arch findings (run 7); run 8 — corrected Batch 14 actual state; new Rule 1 violation (packLoader 426 lines); stop-the-line duplicate revalidation; 3 Rust files missing headers. Run 9 — Task #154/#155/#121/#120 COMPLETE; new Rule 1 violation (stats/page.tsx 158 lines); duplicate sha256Hex/packUrl across packLoader+specialtyPackLoader; type-circular dependency; 2 stale CLAUDE.md entries.
+
+## Past Findings — Resolved (Task #378, 2026-07-17, stream W14A)
+- Specialty base-pack seeding gap (base_pack_not_loaded after full-reload selection) — resolved: lib/packResolver.ts orchestrates seed/load-first; seam test proves the real handoff.
+- packLoader eviction-resurrection race (no generation guard, Rule 19b asymmetry vs #394) — resolved: lib/generationGuard.ts primitive + basePackLoader adoption, all 5 write sites guarded + double-check at cacheAndReturn; specialtyPackLoader adoption is tracked debt.
+- Data-then-meta cache-write ordering (sibling of #309) — resolved: meta-first + order test; stale offline serve now re-verifies recorded sha256.
+- packLoader.ts Rule 1 breach (458 lines) — resolved via basePackLoader extraction (304/273); import boundary mechanically tested.
+- NEW OPEN (routed): lib/storage.ts useIsHydrated subscribe race + zustand persist never finishing hydration on failure — carry-forward task written; useLangPack carries a 3s grace fallback.

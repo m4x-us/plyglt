@@ -115,6 +115,9 @@ class PackMemCacheImpl implements PackMemCache {
     this.map.set(lang, pack);
     // Fire-and-forget: in-memory state above is already correct; storage cleanup is best-effort.
     // Errors are logged inside _clearSpecialtyStorageKeys — nothing is silently swallowed. (#346)
+    // Not awaited, but NOT unordered: the removals claim per-code slots in the storage
+    // mutation chain synchronously (#396), so a concurrent loadSpecialtyPack re-merge that
+    // persists fresh keys for a pruned code afterwards cannot have them deleted by this call.
     void _clearSpecialtyStorageKeys(pruned, "WRITE");
   }
 
@@ -150,6 +153,41 @@ function getStorage() {
 const CACHE_META_PREFIX = "pack-meta-v1-";
 const CACHE_DATA_PREFIX = "pack-data-v1-";
 
+// ── Per-code storage mutation serialization (#396) ───────────────────────────
+//
+// Every storage MUTATION (setItem/removeItem) for a given pack code is chained behind the
+// previous mutation for that same code, so mutations execute in the order they were
+// initiated. Without this, PackMemCacheImpl.write()'s fire-and-forget specialty cleanup
+// could execute AFTER a concurrent loadSpecialtyPack re-merge persisted fresh keys for the
+// same code — silently deleting the just-written bytes while loadedAddOns/memCache still
+// report the add-on merged in memory. With the chain, a cleanup initiated before the
+// re-merge's writes always completes before them; the fresh keys survive.
+//
+// Reads (readCacheMeta/readCacheData) are deliberately NOT chained: getItem is atomic per
+// key, and the meta-before-data write ordering (#309 in lib/specialtyPackLoader.ts) already
+// makes a torn meta/data pair fail closed on the next load.
+const _storageMutationChains = new Map<string, Promise<void>>();
+
+// Chains `op` behind all previously-enqueued mutations for `code` and returns a promise
+// that settles with `op`'s outcome. A rejected op still propagates to ITS caller, but never
+// poisons the chain for subsequent mutations. The map entry is removed once the chain
+// drains, so the map cannot grow beyond the set of codes with in-flight mutations.
+// `op` returns `unknown` because Zustand's StateStorage declares setItem/removeItem as
+// returning unknown | Promise<unknown>; the chain only needs settlement, not the value.
+function _enqueueStorageMutation(code: string, op: () => unknown): Promise<void> {
+  const prior = _storageMutationChains.get(code) ?? Promise.resolve();
+  const next = prior.then(() => op()).then(() => undefined);
+  const tail = next.catch(() => {
+    // Swallow ONLY on the chain tail — the caller of _enqueueStorageMutation still receives
+    // the rejection via `next`. Nothing is silently discarded.
+  });
+  _storageMutationChains.set(code, tail);
+  void tail.then(() => {
+    if (_storageMutationChains.get(code) === tail) _storageMutationChains.delete(code);
+  });
+  return next;
+}
+
 // ── Async storage helpers ─────────────────────────────────────────────────────
 
 export async function readCacheMeta(lang: string): Promise<CachedPackMeta | null> {
@@ -158,38 +196,48 @@ export async function readCacheMeta(lang: string): Promise<CachedPackMeta | null
     if (!raw) return null;
     return JSON.parse(raw) as CachedPackMeta;
   } catch (err) {
-    console.error(`[ERR-CACHE-META-${Date.now()}]`, err);
+    // #387: lang in the ref ID — a cache-read failure for "es" vs "it" must be
+    // distinguishable in production logs. Every ref ID in this file carries lang.
+    console.error(`[ERR-CACHE-META-${lang}-${Date.now()}]`, err);
     return null;
   }
 }
 
 export async function writeCacheMeta(lang: string, meta: CachedPackMeta): Promise<void> {
-  await getStorage().setItem(CACHE_META_PREFIX + lang, JSON.stringify(meta));
+  await _enqueueStorageMutation(lang, () =>
+    getStorage().setItem(CACHE_META_PREFIX + lang, JSON.stringify(meta)),
+  );
 }
 
 export async function readCacheData(lang: string): Promise<string | null> {
   try {
     return await getStorage().getItem(CACHE_DATA_PREFIX + lang);
   } catch (err) {
-    console.error(`[ERR-CACHE-DATA-${Date.now()}]`, err);
+    // #387: lang in the ref ID — see readCacheMeta above.
+    console.error(`[ERR-CACHE-DATA-${lang}-${Date.now()}]`, err);
     return null;
   }
 }
 
 export async function writeCacheData(lang: string, json: string): Promise<void> {
-  await getStorage().setItem(CACHE_DATA_PREFIX + lang, json);
+  await _enqueueStorageMutation(lang, () =>
+    getStorage().setItem(CACHE_DATA_PREFIX + lang, json),
+  );
 }
 
 // Clears the persisted storage keys for each pruned specialty code.
 // Called from PackMemCacheImpl.write() (fire-and-forget — in-memory state is already correct;
 // storage cleanup is best-effort, errors are logged) and from clearPackCache() (awaited —
 // full eviction must leave no orphaned bytes on disk).
+// The enqueue loop below runs synchronously (before this function's first await), so the
+// removals claim their slot in each code's mutation chain at CALL time — a later re-merge's
+// writeCacheMeta/writeCacheData for the same code always lands after them, never under. (#396)
 async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE" | "CLEAR"): Promise<void> {
   if (prunedCodes.length === 0) return;
   const results = await Promise.allSettled(
     prunedCodes.flatMap(code => [
-      getStorage().removeItem(CACHE_META_PREFIX + code),
-      getStorage().removeItem(CACHE_DATA_PREFIX + code),
+      _enqueueStorageMutation(code, () => getStorage().removeItem(CACHE_META_PREFIX + code)),
+      _enqueueStorageMutation(code, () => getStorage().removeItem(CACHE_DATA_PREFIX + code)),
     ]),
   );
   results.forEach((r, i) => {
@@ -218,9 +266,11 @@ export async function clearPackCache(lang: string): Promise<void> {
   memCache.delete(lang);
   const prunedCodes = clearSpecialtyPacksForLang(lang);
   // allSettled: both base-pack removals run regardless of whether either throws.
+  // Enqueued on the same per-code chain as writeCacheMeta/writeCacheData (#396) so an
+  // eviction initiated before a concurrent re-download's writes cannot execute after them.
   const [metaResult, dataResult] = await Promise.allSettled([
-    getStorage().removeItem(CACHE_META_PREFIX + lang),
-    getStorage().removeItem(CACHE_DATA_PREFIX + lang),
+    _enqueueStorageMutation(lang, () => getStorage().removeItem(CACHE_META_PREFIX + lang)),
+    _enqueueStorageMutation(lang, () => getStorage().removeItem(CACHE_DATA_PREFIX + lang)),
   ]);
   if (metaResult.status === "rejected") {
     console.error(`[ERR-CACHE-CLEAR-META-${lang}-${Date.now()}] storage removeItem failed — meta key may persist`, metaResult.reason);
@@ -287,7 +337,9 @@ export async function parseValidateAndCache(lang: string, jsonText: string): Pro
   try {
     pack = JSON.parse(jsonText) as Pack;
   } catch (err) {
-    console.error(`[CACHE_PARSE_FAIL-${Date.now()}]`, err);
+    // #387 sibling: same missing-lang class as readCacheMeta/readCacheData — fixed together
+    // so the pattern cannot survive in this file at a site the finding didn't name.
+    console.error(`[CACHE_PARSE_FAIL-${lang}-${Date.now()}]`, err);
     return evictAndReject(lang);
   }
   return validateAndCache(lang, pack);
@@ -303,4 +355,7 @@ export function clearPackCacheState(): void {
   memCache.clear();
   loadedAddOns.length = 0;
   _storage = null;
+  // #396: drop any queued-but-unexecuted mutation chains so one test's in-flight storage
+  // ops cannot leak into the next test's freshly-mocked storage.
+  _storageMutationChains.clear();
 }

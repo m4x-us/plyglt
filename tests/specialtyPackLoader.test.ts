@@ -8,6 +8,7 @@ import type { SpecialtyPack } from "@/lib/langRegistry";
 import { loadPack, seedMemCache, clearCacheForTesting, evictPack } from "@/lib/packLoader";
 import type { Pack, Manifest } from "@/lib/packLoader";
 import { markAddOnLoaded, memCache } from "@/lib/packCache";
+import { resetSpecialtyLoadState, getLoadedAddOns } from "@/lib/specialtyPackLoader";
 
 // ── localStorage stub (mirrors packLoader.test.ts) ───────────────────────────
 
@@ -41,7 +42,8 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
   return {
     ...actual,
     SPECIALTY_PACKS:          mockSpecialtyPacks,
-    isReadySpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
+    // Task #380: key renamed with the alias deletion — packLoader now imports the canonical name.
+    isSpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
   };
 });
 
@@ -223,5 +225,57 @@ describe("PackMemCacheImpl.write() — specialty storage-key cleanup (#346)", ()
 
     // Unrelated key survives.
     expect(localStorageMock.getItem("pack-meta-v1-es")).toBe("spanish-meta");
+  });
+});
+
+// ── #394 — deactivation during an in-flight specialty load ───────────────────
+
+describe("loadSpecialtyPack — deactivation generation guard (#394)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", ready: true, name: "Medical Italian" });
+    seedMemCache("it", []);
+  });
+
+  it("#394: a load in flight when resetSpecialtyLoadState runs aborts instead of merging stale entitlement", async () => {
+    // Sequence under test: the load passes its purchasedAddOns gate (one-time snapshot),
+    // then a deactivation (clearEntitlement → eviction → resetSpecialtyLoadState → useLangPack
+    // #362 re-seed) completes BEFORE the download resolves. Without the generation
+    // re-check inside _mergeFromJson, the stale merge lands on the re-seeded base pack —
+    // post-deactivation access to paid content.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let resolveFetch!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(res => { resolveFetch = res; })));
+
+    const loadPromise = loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    // Deactivation completes mid-flight, then the base pack is re-seeded (what
+    // useLangPack's _cacheEvictionGeneration effect does after eviction). Ordering
+    // mirrors clearEntitlement: evictions settle first, then resetSpecialtyLoadState.
+    await evictPack("it");
+    resetSpecialtyLoadState();
+    seedMemCache("it", []);
+
+    resolveFetch({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    const result = await loadPromise;
+
+    expect(result).toEqual({ ok: false, error: "invalid_lang" });
+    expect(warnSpy.mock.calls.some(args => String(args[0]).includes("ADDON_STALE_ENTITLEMENT"))).toBe(true);
+    // The re-seeded base pack was NOT mutated by the stale merge (add-on has unitCount 5).
+    expect(memCache.get("it")!.unitCount).toBe(0);
+    // Bookkeeping was not re-marked and the stale bytes were not re-persisted post-eviction.
+    expect(getLoadedAddOns()).toEqual([]);
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBe(null);
+    expect(localStorageMock.getItem("pack-meta-v1-it-medical")).toBe(null);
+    warnSpy.mockRestore();
+  });
+
+  it("#394: a load with no intervening deactivation still merges normally (generation guard is not overzealous)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => ADD_ON_PACK_JSON }));
+
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(true);
+    expect(memCache.get("it")!.unitCount).toBe(5);
+    expect(getLoadedAddOns()).toEqual(["it-medical"]);
   });
 });

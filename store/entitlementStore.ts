@@ -19,10 +19,11 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
 import { FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
-import { clearSpecialtyCache } from "@/lib/specialtyPackLoader";
+import { resetSpecialtyLoadState } from "@/lib/specialtyPackLoader";
 import { evictPack, getLoadedAddOns } from "@/lib/packLoader";
 import { invoke } from "@/lib/tauri";
 import { hasAddOn as libHasAddOn } from "@/lib/entitlement";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
 
 // LicenseType lives in lib/ (lower layer) to avoid lib/→store/ upward imports.
 // Imported for use within this file; re-exported so existing callers of
@@ -128,14 +129,25 @@ export function isPackUnlocked(
 ): boolean {
   if (FREE_PACK_CODES.some(c => c === lang)) return true;
   const { licenseType, unlockedPacks, validUntil } = state;
-  if (licenseType === "free") return false;
-  // Users migrated from a prior app version may have validUntil:null if their old
-  // licenseType was coerced to subscription by migration v2. validUntil:null means
-  // no expiry — intentional: these users retain access until they re-activate.
-  if (licenseType === "subscription" && validUntil !== null) {
-    if (Date.now() > validUntil + SUBSCRIPTION_GRACE_PERIOD_MS) return false;
+  // Task #386 (Rule 17c): structurally exhaustive over the LicenseType union. The default
+  // branch fails closed for an out-of-union runtime value (corrupt persisted state) —
+  // no paid access; free packs already returned true above. `satisfies never` turns
+  // "added a LicenseType without deciding its unlock policy here" into a compile error.
+  switch (licenseType) {
+    case "free":
+      return false;
+    case "subscription":
+      // Users migrated from a prior app version may have validUntil:null if their old
+      // licenseType was coerced to subscription by migration v2. validUntil:null means
+      // no expiry — intentional: these users retain access until they re-activate.
+      if (validUntil !== null && Date.now() > validUntil + SUBSCRIPTION_GRACE_PERIOD_MS) {
+        return false;
+      }
+      return unlockedPacks.some(code => code === lang);
+    default:
+      licenseType satisfies never;
+      return false;
   }
-  return unlockedPacks.some(code => code === lang);
 }
 
 /** Returns true if a subscription validation call to LS is due. */
@@ -177,10 +189,10 @@ export const useEntitlementStore = create<EntitlementState>()(
         // already-empty slot is a no-op). Concurrent calls are not expected in practice
         // (the only caller, useLicenseActivation.ts, awaits before returning), but are safe.
         //
-        // Task #326: clearSpecialtyCache() only resets loadedAddOns/inFlight bookkeeping —
-        // it never touches memCache. Without evicting the affected base packs too, a
-        // deactivated user's session retains full access to previously-merged specialty
-        // content via loadPack's memory-cache-hit fast path, which never consults
+        // Task #326: resetSpecialtyLoadState() resets load bookkeeping only (per its name)
+        // — merged pack data lives in memCache. Without evicting the affected base packs
+        // too, a deactivated user's session retains full access to previously-merged
+        // specialty content via loadPack's memory-cache-hit fast path, which never consults
         // purchasedAddOns. Capture the affected base languages BEFORE anything mutates
         // getLoadedAddOns()'s underlying bookkeeping.
         const affectedBaseLangs = new Set(
@@ -200,10 +212,10 @@ export const useEntitlementStore = create<EntitlementState>()(
           validUntil: null,
         });
         // Evict each affected base pack from memCache — and, critically, run this BEFORE
-        // clearSpecialtyCache() below. evictPack's clearPackCache internally calls
+        // resetSpecialtyLoadState() below. evictPack's clearPackCache internally calls
         // clearSpecialtyPacksForLang(baseLang) to find which specialty codes to also purge
         // from their own persisted storage keys (Task #319); that lookup reads the same
-        // loadedAddOns array clearSpecialtyCache() zeroes. Clearing bookkeeping first would
+        // loadedAddOns array resetSpecialtyLoadState() zeroes. Clearing bookkeeping first would
         // make clearSpecialtyPacksForLang find nothing, silently defeating #319's storage-
         // key eviction for every deactivation — caught in review before this shipped.
         // Returned as a Promise so a caller that needs the eviction to have genuinely
@@ -222,12 +234,13 @@ export const useEntitlementStore = create<EntitlementState>()(
             })
           )
         ).then(() => {
-          // Task #338: clearSpecialtyCache() resets loadedAddOns bookkeeping and the
-          // inFlight flag for any pending specialty-pack load. It does NOT handle base-pack
-          // eviction — that is done in the Promise.all above for each affectedBaseLang.
+          // Task #338: resetSpecialtyLoadState() resets loadedAddOns bookkeeping, the
+          // inFlight map, and the deactivation generation (#394 — invalidates any
+          // specialty load still in flight so it cannot merge stale entitlement after the
+          // re-seed below). Base-pack eviction is done in the Promise.all above.
           // Any specialty code whose SPECIALTY_PACKS entry was removed between merge and
           // deactivation (making baseLang resolution impossible) is also cleared here.
-          clearSpecialtyCache();
+          resetSpecialtyLoadState();
           // Task #362: increment _cacheEvictionGeneration AFTER evictions complete so
           // useLangPack's useEffect runs its re-seed AFTER memCache has been cleared,
           // not before (which would cause a race where eviction clears the re-seeded entry).
@@ -272,14 +285,24 @@ export const useEntitlementStore = create<EntitlementState>()(
           console.warn(`[purchaseAddOn] "${code}" is not a registered specialty pack code — rejected`);
           return { ok: false, error: ERR_ADDON_INVALID_CODE };
         }
-        // Task #357 — DEFERRED: the Pro gate (ERR_ADDON_NOT_PRO) belongs at the UI/caller
-        // layer, not this store stub. Rationale: (1) parseFlag(undefined) returns true, so
-        // getFeatureFlags().specialtyPacks is true in all environments where the env var is
-        // unset — a store-level gate would break tests/entitlement.test.ts (off-limits) which
-        // calls purchaseAddOn with licenseType:"free"; (2) this function is already an
-        // unreachable stub (no production caller — see #295). The Pro gate will be wired at
-        // the call site when specialty content ships. ERR_ADDON_NOT_PRO is reserved in the
-        // PurchaseAddOnResult type for that future implementation.
+        // Tasks #357/#388/#395: Pro gate. Specialty packs are add-ons within the Pro tier
+        // (BRAND.md), so the purchaser must hold an active subscription. Enforced HERE at
+        // the store layer — not only in the UI — so a direct devtools call to
+        // purchaseAddOn cannot bypass it. Routed through isProEnabled(), the single
+        // mandated combinator for all Pro-gated features (CLAUDE.md / lib/featureFlags.ts).
+        // getFeatureFlags().specialtyPacks defaults to true when the env var is unset, so
+        // in ordinary runtimes this reduces to licenseType === "subscription".
+        //
+        // Deferral history (#357, Wave 13): a store-level gate was blocked because
+        // tests/entitlement.test.ts (then off-limits) called purchaseAddOn under
+        // licenseType:"free". Wave 13 moved those tests to licenseType:"subscription";
+        // Wave 14 (#388) verified every purchaseAddOn test call site
+        // (tests/entitlement.test.ts, tests/purchaseAddOnGuards.test.ts) now runs under
+        // subscription — the stated blocker no longer existed, so the gate was implemented.
+        if (!isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType)) {
+          console.warn(`[purchaseAddOn] purchaser does not hold a Pro subscription — rejected`);
+          return { ok: false, error: ERR_ADDON_NOT_PRO };
+        }
         // Task #322: reject an empty receiptToken before it reaches the IPC boundary.
         // An empty token always fails verification — rejecting early avoids an IPC round-trip.
         if (!receiptToken.trim()) {

@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR } from "@/store/entitlementStore";
+import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR, ERR_ADDON_NOT_PRO } from "@/store/entitlementStore";
 import type { PurchaseAddOnResult } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
 import * as entitlementLib from "@/lib/entitlement";
@@ -57,9 +57,12 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
   return {
     ...actual,
-    isSpecialtyPackCode: vi.fn(),
     SPECIALTY_PACKS: mockSpecialtyPacksForClearEntitlement,
-    isReadySpecialtyPackCode: (s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready),
+    // Task #380 (mechanical, forced by the alias deletion): the registry-driven impl that
+    // lived under the deleted isReadySpecialtyPackCode key now backs the canonical name —
+    // same registry-driven default (falsy when the mock list is empty), still a vi.fn so
+    // per-test mockReturnValue overrides keep working.
+    isSpecialtyPackCode: vi.fn((s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready)),
   };
 });
 vi.mock("@/lib/packLoader", async (importOriginal) => {
@@ -287,9 +290,12 @@ describe("touchValidated()", () => {
 // ── clearEntitlement ──────────────────────────────────────────────────────────
 
 describe("clearEntitlement()", () => {
-  it("resets everything to free defaults", () => {
+  it("resets everything to free defaults", async () => {
     reset({ licenseKey: "ABC", instanceId: "i1", licenseType: "subscription", unlockedPacks: ["it", "es"] });
-    store().clearEntitlement();
+    // #397: clearEntitlement returns a Promise that rejects on eviction failure — always
+    // await it in tests so a genuine failure surfaces as a test failure, not an
+    // unhandled rejection. (Same at every call site in this file.)
+    await store().clearEntitlement();
     const s = store();
     expect(s.licenseKey).toBeNull();
     expect(s.instanceId).toBeNull();
@@ -701,6 +707,16 @@ describe("isPackUnlocked() — pure function", () => {
       )
     ).toBe(false);
   });
+
+  it("#386: an out-of-union licenseType fails closed — no paid access even for listed packs", () => {
+    // Rule 17c regression guard: a corrupt persisted value outside the LicenseType union
+    // must hit the explicit default branch and deny paid access. Before #386, it fell
+    // through to unlockedPacks.some(...) and granted access with no defined policy.
+    const corrupt = "lifetime" as unknown as import("@/lib/licenseTypes").LicenseType;
+    expect(isPackUnlocked({ licenseType: corrupt, unlockedPacks: ["es"], validUntil: null }, "es")).toBe(false);
+    // Free packs remain unlocked regardless — the free-pack check precedes the switch.
+    expect(isPackUnlocked({ licenseType: corrupt, unlockedPacks: [], validUntil: null }, "it")).toBe(true);
+  });
 });
 
 // ── needsValidation (pure function — W008) ────────────────────────────────────
@@ -933,8 +949,9 @@ describe("seam: activateLicense → setEntitlement → isPackUnlocked", () => {
     if (!paidPack) throw new Error("Test setup: no paid pack found in ALL_PACK_CODES");
     expect(store().isPackUnlocked(paidPack)).toBe(true);
 
-    // After clearEntitlement the paid pack should be locked again
-    store().clearEntitlement();
+    // After clearEntitlement the paid pack should be locked again (#397: await — the
+    // Promise rejects on eviction failure and must fail the test, not leak unhandled)
+    await store().clearEntitlement();
     expect(store().isPackUnlocked(paidPack)).toBe(false);
   });
 });
@@ -976,7 +993,8 @@ describe("seam: deactivateLicense ok:true → clearEntitlement → pack locked",
     expect(deactivateResult.ok).toBe(true);
 
     // Step 3: caller (settings page) invokes clearEntitlement after ok:true
-    store().clearEntitlement();
+    // (#397: awaited so an eviction failure fails the test instead of leaking unhandled)
+    await store().clearEntitlement();
 
     // Step 4: paid pack must now be locked — the deactivation chain is complete
     expect(store().isPackUnlocked(paidPack)).toBe(false);
@@ -1033,7 +1051,7 @@ describe("seam: validateLicense → markValidated → isPackUnlocked", () => {
 
 describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () => {
   beforeEach(() => {
-    // purchaseAddOn requires a Pro subscription (gate added by parallel stream).
+    // purchaseAddOn requires a Pro subscription — store-level isProEnabled gate (#388).
     // Set subscription so happy-path and IPC-level tests reach the intended code paths.
     reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
@@ -1101,25 +1119,26 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
   it("clearEntitlement resets purchasedAddOns to []", async () => {
     await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
     expect(store().purchasedAddOns).toHaveLength(1);
-    store().clearEntitlement();
+    await store().clearEntitlement(); // #397: rejects on eviction failure — must not leak unhandled
     expect(store().purchasedAddOns).toEqual([]);
   });
 
-  it("#263: clearEntitlement calls clearSpecialtyCache to prune in-memory add-on state", async () => {
+  it("#263: clearEntitlement calls resetSpecialtyLoadState to prune in-memory add-on state", async () => {
     // Without this fix, clearEntitlement only zeros purchasedAddOns in the Zustand store
     // but never clears loadedAddOns in specialtyPackLoader — specialty content merged into
     // memCache remains accessible for the rest of the session after a license deactivation.
-    // Task #326: clearSpecialtyCache() now runs after the memCache eviction Promise settles
-    // (not synchronously) so that eviction's own storage-key pruning can still see the
-    // bookkeeping — this test must await clearEntitlement() to observe that call.
-    const spy = vi.spyOn(specialtyPackLoader, "clearSpecialtyCache");
+    // Task #326: resetSpecialtyLoadState() (formerly clearSpecialtyCache, renamed #385) now
+    // runs after the memCache eviction Promise settles (not synchronously) so that
+    // eviction's own storage-key pruning can still see the bookkeeping — this test must
+    // await clearEntitlement() to observe that call.
+    const spy = vi.spyOn(specialtyPackLoader, "resetSpecialtyLoadState");
     await store().clearEntitlement();
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
   });
 
   it("#326: clearEntitlement evicts merged specialty content from memCache, not just bookkeeping", async () => {
-    // Before this fix, clearSpecialtyCache() (proven above) only reset loadedAddOns/inFlight
+    // Before this fix, resetSpecialtyLoadState() (proven above) only reset loadedAddOns/inFlight
     // bookkeeping — the actual merged pack (base units + specialty units) remained in
     // memCache["it"], fully accessible via loadPack's memory-cache-hit fast path for the
     // rest of the session. Deleting the eviction loop this test proves would leave
@@ -1160,12 +1179,19 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
   it("#326: clearEntitlement clears a merged specialty pack's own storage keys too, not just memCache", async () => {
     // Regression guard for an ordering bug caught in review: clearEntitlement must call
     // evictPack() (which internally prunes specialty storage keys via
-    // clearSpecialtyPacksForLang) BEFORE clearSpecialtyCache() zeroes the loadedAddOns
+    // clearSpecialtyPacksForLang) BEFORE resetSpecialtyLoadState() zeroes the loadedAddOns
     // array that lookup depends on. Reordering those two calls makes
     // clearSpecialtyPacksForLang find nothing to prune, and this test's second assertion
     // fails while memCache eviction (already proven above) still passes — the two
     // guarantees are independent and both must hold.
     mockSpecialtyPacksForClearEntitlement.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    // Task #380 (mechanical): this end-to-end test routes REAL loadPack calls through the
+    // canonical isSpecialtyPackCode, which the describe-level beforeEach blankets to true
+    // for the purchase-gate tests — a blanket true sends the BASE "it" load down the
+    // specialty branch. Restore the registry-driven behavior for this test only.
+    vi.mocked(isSpecialtyPackCode).mockImplementation(
+      (s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready)
+    );
 
     const basePackJson = JSON.stringify({
       _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
@@ -1250,6 +1276,45 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     await store().purchaseAddOn("it-medical", "tok_abc123");
     expect(mockInvoke).toHaveBeenCalledWith("verify_addon_receipt", { code: "it-medical", receiptToken: "tok_abc123" });
   });
+
+  // ── Tasks #357/#388/#395: store-level Pro gate ──────────────────────────────
+  // Specialty packs are add-ons within the Pro tier (BRAND.md). The gate lives in the
+  // store action — not only the UI — so a direct devtools call cannot bypass it.
+
+  it("#388: purchaseAddOn returns not_pro for a free-tier user and persists nothing", async () => {
+    reset({ licenseType: "free" });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+      expect(result).toEqual({ ok: false, error: ERR_ADDON_NOT_PRO });
+      expect(store().purchasedAddOns).toEqual([]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("#388: purchaseAddOn never reaches the IPC boundary for a free-tier user", async () => {
+    reset({ licenseType: "free" });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+      expect(mockInvoke).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("#388: an unregistered code is rejected as invalid_code even for a free user — code guard precedes the Pro gate", async () => {
+    reset({ licenseType: "free" });
+    vi.mocked(isSpecialtyPackCode).mockReturnValueOnce(false);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await store().purchaseAddOn("garbage-code", "RECEIPT_TOKEN");
+      expect(result).toEqual({ ok: false, error: ERR_ADDON_INVALID_CODE });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 // ── Seam test: purchaseAddOn → purchasedAddOns → hasAddOn (#284) ─────────────
@@ -1260,7 +1325,7 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
 describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
-    // purchaseAddOn requires a Pro subscription — set subscription for the seam tests.
+    // purchaseAddOn requires a Pro subscription (store-level gate, #388) — set subscription.
     reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
     vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
@@ -1300,7 +1365,7 @@ describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
     await store().purchaseAddOn("it-medical", "tok_seam_receipt");
     expect(store().hasAddOn("it-medical")).toBe(true);
 
-    store().clearEntitlement();
+    await store().clearEntitlement(); // #397: rejects on eviction failure — must not leak unhandled
 
     expect(store().purchasedAddOns).toEqual([]);
     expect(store().hasAddOn("it-medical")).toBe(false);
