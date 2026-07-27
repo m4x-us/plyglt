@@ -13,7 +13,7 @@
  * use `useIsHydrated()` to gate UI that needs the full state.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import type { StateStorage } from "zustand/middleware";
 import { isTauri } from "./tauri";
 
@@ -89,6 +89,19 @@ type PersistApi = {
   };
 };
 
+// Bounded fallback for a hydration that never finishes. Zustand persist's hydrate()
+// awaits storage.getItem() before setting hasHydrated=true and firing onFinishHydration
+// listeners (see node_modules/zustand/esm/middleware.mjs); if that promise rejects,
+// persist's own .catch() branch runs instead and NEITHER ever happens — hasHydrated
+// stays false forever with no signal any consumer can observe (Task #406). getItem's
+// error-propagating contract itself must stay intact (lib/packCache.ts's readCacheMeta/
+// readCacheData rely on it rejecting to log ERR-CACHE-META/ERR-CACHE-DATA), so the fix
+// lives here instead, in the one shared place every hydration-gated screen already goes
+// through: after this many ms with no successful hydration, stop waiting and report
+// hydrated anyway (whatever state persist has, defaults if nothing loaded), logging the
+// failure explicitly so it is never silent.
+export const HYDRATION_FAILSAFE_MS = 3000;
+
 /**
  * Returns true once the Zustand persist middleware has finished reading from
  * async storage. On web (localStorage) this is synchronous — always true on
@@ -99,13 +112,34 @@ type PersistApi = {
  *        if (!hydrated) return <LoadingScreen />;
  */
 export function useIsHydrated(store: PersistApi): boolean {
-  const [hydrated, setHydrated] = useState(() => store.persist.hasHydrated());
+  // useSyncExternalStore (not useState+useEffect) is the correct primitive here: it
+  // re-reads getSnapshot() itself immediately after subscribing and forces a re-render
+  // if the value changed in the window between the initial render and the subscribe
+  // call — exactly the render/effect race that stranded hydrated=false forever when
+  // hydration finished in that window (#406). Mirroring that re-check by hand with a
+  // synchronous setState call in the effect body is also a react-hooks/set-state-in-effect
+  // violation; useSyncExternalStore has no such call.
+  const hydrated = useSyncExternalStore(
+    (onStoreChange) => store.persist.onFinishHydration(onStoreChange),
+    () => store.persist.hasHydrated(),
+    () => false // getServerSnapshot: no persisted storage exists during SSR
+  );
+
+  // Bounded fallback for a hydration that never finishes (see HYDRATION_FAILSAFE_MS
+  // above). setFailsafeExpired is only ever called from the setTimeout callback below,
+  // never synchronously in the effect body.
+  const [failsafeExpired, setFailsafeExpired] = useState(false);
   useEffect(() => {
     if (hydrated) return;
-    return store.persist.onFinishHydration(() => setHydrated(true));
-    // store is a module-level singleton (stable reference); hydrated is excluded
-    // because adding it would unsubscribe/resubscribe on every hydration tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return hydrated;
+    const failsafe = setTimeout(() => {
+      if (store.persist.hasHydrated()) return;
+      console.error(
+        `[plyglt] [ERR-HYDRATION-TIMEOUT] hydration did not finish within ${HYDRATION_FAILSAFE_MS}ms — proceeding as hydrated with whatever state is present (likely a storage read failure)`
+      );
+      setFailsafeExpired(true);
+    }, HYDRATION_FAILSAFE_MS);
+    return () => clearTimeout(failsafe);
+  }, [store, hydrated]);
+
+  return hydrated || failsafeExpired;
 }

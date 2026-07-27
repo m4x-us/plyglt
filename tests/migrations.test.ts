@@ -435,9 +435,51 @@ describe("migrateEntitlementStore()", () => {
     expect(result.validUntil).toBe(expiry);
   });
 
-  it("preserves existing unlockedPacks array", () => {
-    const result = migrateEntitlementStore({ unlockedPacks: ["it", "es", "fr"] }, 0) as Record<string, unknown>;
-    expect(result.unlockedPacks).toEqual(["it", "es", "fr"]);
+  it("preserves existing unlockedPacks array of registered codes", () => {
+    const result = migrateEntitlementStore({ unlockedPacks: ["it", "es"] }, 0) as Record<string, unknown>;
+    expect(result.unlockedPacks).toEqual(["it", "es"]);
+  });
+
+  it("v0 → v1: filters out unregistered unlockedPacks codes and logs the drop (#383)", () => {
+    // Before #383, the filter was typeof item === "string" only — an unregistered code like
+    // "fr" (never registered in lib/langRegistry.ts) would survive migration and could poison
+    // a storage key lookup downstream. Mirrors the v2->v3 purchasedAddOns fix (#384).
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore({ unlockedPacks: ["it", "fr"] }, 0) as Record<string, unknown>;
+      expect(result.unlockedPacks).toEqual(["it"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`dropped 1 unregistered unlockedPacks entries: ["fr"]`)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("v0 → v1: drops non-string unlockedPacks elements (corrupt blob) and logs them (#383)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore({ unlockedPacks: [null, 42, "it"] }, 0) as Record<string, unknown>;
+      expect(result.unlockedPacks).toEqual(["it"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("dropped 2 unregistered unlockedPacks entries: [null,42]")
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("v0 → v1: preserves a registered-but-not-ready pack — the ready flag never drops it (#383)", () => {
+    // "es" is registered in lib/langRegistry.ts with ready:false. Registration validation
+    // (isValidPackCode) must never key off the mutable ready flag — same policy as #384.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = migrateEntitlementStore({ unlockedPacks: ["es"] }, 0) as Record<string, unknown>;
+      expect(result.unlockedPacks).toEqual(["es"]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("is a no-op when already at current version", () => {

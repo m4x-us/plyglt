@@ -195,7 +195,16 @@ async function _doLoad(
   if (cacheVersionMatches && cachedData) {
     if (addOnManifestEntry) {
       // Re-verify sha256 before trusting cached content — never serve unverified bytes.
-      const actual = await sha256Hex(cachedData);
+      // Wrapped in try/catch (#405, mirrors basePackLoader's #378 F002 SHA_VERIFY_FAIL
+      // pattern): a crypto.subtle failure must surface as a typed { ok: false } result
+      // with a ref-ID log, not a rejection of the shared in-flight promise.
+      let actual: string;
+      try {
+        actual = await sha256Hex(cachedData);
+      } catch (err) {
+        console.error(`[SHA_VERIFY_FAIL-${lang}-${Date.now()}] sha256Hex threw during cached-copy verification — treating pack as unverifiable`, err);
+        return { ok: false, error: "checksum_mismatch" };
+      }
       if (actual === addOnManifestEntry.sha256) {
         const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
         if (result.ok) return result;
@@ -249,7 +258,16 @@ async function _doLoad(
   }
 
   // Verify sha256.
-  const actual = await sha256Hex(addOnJson);
+  // Wrapped in try/catch (#405, mirrors basePackLoader's #378 F002 SHA_VERIFY_FAIL
+  // pattern): a crypto.subtle failure must surface as a typed { ok: false } result
+  // with a ref-ID log, not a rejection of the shared in-flight promise.
+  let actual: string;
+  try {
+    actual = await sha256Hex(addOnJson);
+  } catch (err) {
+    console.error(`[SHA_VERIFY_FAIL-${lang}-${Date.now()}] sha256Hex threw during fresh-download verification — treating pack as unverifiable`, err);
+    return { ok: false, error: "checksum_mismatch" };
+  }
   if (actual !== addOnManifestEntry.sha256) {
     return { ok: false, error: "checksum_mismatch" };
   }

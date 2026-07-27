@@ -9,8 +9,10 @@
 // tests reach the guards behind it. Gate coverage lives in tests/entitlement.test.ts.
 //
 // Mocking rationale:
-//   - SPECIALTY_PACKS is Object.freeze([]) in production (deliberate W12A deferral #295).
-//     Tests mock "it-medical" as a valid code so guards AFTER the code check can be reached.
+//   - SPECIALTY_PACKS holds one entry (it-medical, ready:false) in production — the ready
+//     gate, not emptiness, keeps isSpecialtyPackCode("it-medical") false (#378 audit F008).
+//     Tests mock isSpecialtyPackCode to return true for "it-medical" so guards AFTER the
+//     code check can be reached.
 // ============================================================
 
 import { describe, it, expect, beforeEach, vi } from "vitest";

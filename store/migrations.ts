@@ -18,7 +18,7 @@
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
 // ===========================================
 
-import { FREE_PACK_CODES, SPECIALTY_PACKS } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, SPECIALTY_PACKS, isValidPackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 
@@ -126,15 +126,25 @@ const MIGRATION_VALID_LICENSE_TYPES = new Set<LicenseType>(LICENSE_TYPES);
 const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
     const d = data as Record<string, unknown>;
-    // Element-shape guard mirrors the v3 purchasedAddOns pattern (Task #273):
-    // Array.isArray alone accepts arrays of non-strings — filter to string-only so
-    // corrupt/pre-release blobs with null/number/object elements cannot propagate.
+    // Element-shape + registration guard mirrors the v3 purchasedAddOns pattern (Task #384):
+    // Array.isArray alone accepts arrays of non-strings, and typeof-only accepts unregistered
+    // codes. Validate against REGISTRATION (isValidPackCode / ALL_PACK_CODES — structural),
+    // never READINESS — same policy as lib/importBackup.ts's unlockedPacks filter. Dropped
+    // entries are logged — silently discarding persisted user data is a stop-the-line violation.
     const rawPacks = Array.isArray(d.unlockedPacks) ? d.unlockedPacks : [...FREE_PACK_CODES];
+    const validPacks = rawPacks.filter((item): item is string => typeof item === "string" && isValidPackCode(item));
+    if (validPacks.length < rawPacks.length) {
+      console.warn(
+        `[plyglt] migration v1: dropped ${rawPacks.length - validPacks.length} unregistered unlockedPacks entries: ${JSON.stringify(
+          rawPacks.filter(item => !(typeof item === "string" && isValidPackCode(item)))
+        )}`
+      );
+    }
     return {
       licenseKey:    typeof d.licenseKey === "string" ? d.licenseKey : null,
       instanceId:    typeof d.instanceId === "string" ? d.instanceId : null,
       licenseType:   typeof d.licenseType === "string" ? d.licenseType : "free",
-      unlockedPacks: rawPacks.filter((item): item is string => typeof item === "string"),
+      unlockedPacks: validPacks,
       lastValidated: typeof d.lastValidated === "number" ? d.lastValidated : 0,
       validUntil:    typeof d.validUntil === "number" ? d.validUntil : null,
     };

@@ -4648,22 +4648,23 @@ NEW
 
 ---
 
-### Task #382: Fix code-quality: "SPECIALTY_PACKS is currently empty" claim is stale in four separate files
+### Task #382: Fix code-quality: "SPECIALTY_PACKS is currently empty" claim is stale in three remaining files
 
-**File:** lib/packLoader.ts + tests/purchaseAddOnGuards.test.ts + hooks/useLangPack.test.ts + .autocode/agents/security.md
-**Complexity:** ⚡ Direct — 4 files, no package boundary — kept Direct despite mechanically qualifying as Full (4 files) by /advance Complexity Audit: identical one-line comment fix repeated verbatim at each site, no design decision
+**File:** tests/purchaseAddOnGuards.test.ts + hooks/useLangPack.test.ts + .autocode/agents/security.md
+**Complexity:** ⚡ Direct — 3 files, no package boundary — kept Direct despite mechanically qualifying as Full (3 files) by /advance Complexity Audit: identical one-line comment fix repeated verbatim at each site, no design decision
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Derek (W15D))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
 
 **What:**
-Rule 2 (Human Headers) violation. lib/packLoader.ts's file header states "SPECIALTY_PACKS is currently empty" — false; lib/langRegistry.ts registers one live entry (it-medical, ready:false). The identical false claim is repeated in tests/purchaseAddOnGuards.test.ts:10 and hooks/useLangPack.test.ts:23, and .autocode/agents/security.md separately claims "SPECIALTY_PACKS is Object.freeze([])" — also false. at lib/packLoader.ts:module header:29.
+Rule 2 (Human Headers) violation. Originally 4 files; lib/packLoader.ts's copy was independently corrected during Task #378's remediation (audit F008) and now explicitly cross-references this task for the rest — verified 2026-07-18, no longer in scope here. The stale claim ("SPECIALTY_PACKS is currently empty" / "is Object.freeze([])" — false; lib/langRegistry.ts registers one live entry, it-medical, ready:false) remains in tests/purchaseAddOnGuards.test.ts:12, hooks/useLangPack.test.ts:49, and .autocode/agents/security.md. at tests/purchaseAddOnGuards.test.ts:12 + hooks/useLangPack.test.ts:49 + .autocode/agents/security.md.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at lib/packLoader.ts:module header:29
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/packLoader.ts
+- [ ] Fix code-quality issue at tests/purchaseAddOnGuards.test.ts:12 + hooks/useLangPack.test.ts:49 + .autocode/agents/security.md
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/purchaseAddOnGuards.test.ts
 
 **Source:** Audit finding F006 — severity 3 — code-quality
 
@@ -4674,6 +4675,7 @@ NEW
 **File:** store/migrations.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Barry (W15B))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -4893,6 +4895,7 @@ NEW
 **File:** tests/seam_importRestore.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Charles (W15C))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5045,6 +5048,7 @@ NEW
 **File:** tests/packLoader.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Adam (W15A))
 **Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
@@ -5090,7 +5094,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-18 (Wave 14 — closed as a verified consequence of Adam's #398 fix, not by dedicated work under this number. #398 changed evictPack's return type from void to a typed EvictPackResult; the doc comment at lib/packLoader.ts:312-321 explicitly documents this as also closing #402 — the escalated second console.error is gone, exactly one console.warn remains per rejected call, and the typed .evicted field is now the caller-facing signal instead of a log. Verified 2026-07-18 by reading the current evictPack body directly.)
 
 **What:**
 evictPack's specialty-code branch logs both console.warn and console.error for the same single event — a specialty code passed to evictPack — producing two log lines where one, correctly leveled, would suffice. at lib/packLoader.ts:evictPack:311.
@@ -5153,6 +5157,7 @@ NEW
 **File:** lib/specialtyPackLoader.ts
 **Complexity:** ⚡ Direct — 1 file, wrap two await sha256Hex sites in try/catch with ref-ID log + typed checksum_mismatch return
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Adam (W15A))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN
@@ -5173,6 +5178,7 @@ sha256Hex calls at lib/specialtyPackLoader.ts:198 (cached-copy verify) and :252 
 **File:** lib/storage.ts
 **Complexity:** ⚡ Direct — 1 file: re-check store.persist.hasHydrated() inside the effect before subscribing, and document/handle the zustand persist behavior where hydration NEVER finishes when storage.getItem rejects
 **Owner:** —
+**Status:** COMPLETE — 2026-07-27 (Wave 15 — Barry (W15B))
 **Blocked by:** Nothing
 **Priority:** P2
 **Status:** OPEN

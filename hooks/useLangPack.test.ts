@@ -46,7 +46,8 @@ const mockSeedMemCache = vi.mocked(seedMemCache);
 const mockUseIsHydrated = vi.mocked(useIsHydrated);
 
 // Mock langRegistry — override isSpecialtyPackCode so #324 behaviour can be tested
-// without registering real specialty packs (SPECIALTY_PACKS is empty in the base registry).
+// without registering real specialty packs (SPECIALTY_PACKS holds one entry in the base
+// registry — it-medical, ready:false — the ready gate, not emptiness, keeps it dormant).
 // isValidPackCode is also extended to accept "pt" — pt was removed from LANGUAGE_REGISTRY
 // (2026-06-27) but the existing language-switch test uses it as a second non-static language;
 // without this, the #323 repair fires on "pt" and redirects to the Italian static path,

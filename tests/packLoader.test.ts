@@ -10,6 +10,7 @@ import { join } from "node:path";
 import type { Manifest, Pack } from "@/lib/packLoader";
 import { loadPack, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManifest, seedMemCache } from "@/lib/packLoader";
 import type { SpecialtyPack } from "@/lib/langRegistry";
+import * as packTypesLib from "@/lib/packTypes";
 
 // ── localStorage stub ────────────────────────────────────────────────────────
 
@@ -970,6 +971,20 @@ describe("specialty pack merge path", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
   });
 
+  // Some tests below stub crypto.subtle.digest to reject, to prove the sha256Hex call sites
+  // are guarded (#405). Restore the real digest after every test in this block so a leftover
+  // rejecting stub can never leak into a later test.
+  afterEach(() => {
+    vi.stubGlobal("crypto", {
+      subtle: {
+        digest: async (_algorithm: string, data: ArrayBuffer): Promise<ArrayBuffer> => {
+          const hash = createHash("sha256").update(Buffer.from(data)).digest();
+          return hash.buffer as ArrayBuffer;
+        },
+      },
+    });
+  });
+
   it("fetches add-on, verifies sha256, merges units into base pack, and tracks in loadedAddOns", async () => {
     // This test fails if the isReadySpecialtyPack merge block in packLoader.ts is removed:
     // without it, loadPack("it-medical") loads as a standalone pack → unitCount=5, not 1+5=6.
@@ -1146,6 +1161,85 @@ describe("specialty pack merge path", () => {
     // Shape-validation failures must log, same as download/parse failures do (Task #260 follow-up)
     const logKeys = consoleErrorSpy.mock.calls.map(args => args[0] as string);
     expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL"))).toBe(true);
+  });
+
+  it("#400: malformed add-on pack rejection delegates to the shared hasValidUnitsArray helper, not an inline duplicate check", async () => {
+    // Task #400 (audit F024): the test above proves the REJECTION BEHAVIOR but not delegation
+    // — a reverted inline Array.isArray(...) copy in specialtyPackLoader.ts would pass that
+    // test's assertions identically, defeating the single-source-of-truth guarantee the shared
+    // packTypes.ts helper is meant to provide. This test spies on the actual exported function
+    // (same pattern as tests/entitlement.test.ts's "hasAddOn store action delegates to
+    // lib/entitlement.ts hasAddOn" test) and asserts specialtyPackLoader.ts calls it with the
+    // parsed malformed add-on object. Reverting to an inline duplicate check would leave this
+    // spy uncalled and fail the test, even though the behavioral rejection would still hold.
+    const malformedAddOnJson = JSON.stringify({ ...fakeAddOnPack(), units: "not-an-array" });
+    const malformedSha = createHash("sha256").update(malformedAddOnJson).digest("hex");
+    const baseManifest = fakeAddOnManifest();
+    const manifest: Manifest = {
+      ...baseManifest,
+      packs: {
+        ...baseManifest.packs,
+        "it-medical": { ...baseManifest.packs["it-medical"]!, sha256: malformedSha },
+      },
+    };
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => malformedAddOnJson });
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const hasValidUnitsArraySpy = vi.spyOn(packTypesLib, "hasValidUnitsArray");
+
+    await loadPack("it", manifest);
+    const result = await loadPack("it-medical", manifest, { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(false);
+    expect(hasValidUnitsArraySpy).toHaveBeenCalledWith(
+      expect.objectContaining({ units: "not-an-array" })
+    );
+  });
+
+  it("#405: sha256Hex throwing during fresh add-on download verification surfaces as a typed checksum_mismatch, never a rejection", async () => {
+    // Mirrors K2-002's base-pack test for the specialtyPackLoader fresh-download site.
+    // Deleting the try/catch around the fresh-download sha256Hex in specialtyPackLoader.ts's
+    // _doLoad turns this into a rejected promise — the await below would throw and fail the test.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeAddOnManifest()); // base pack loads fine with the good crypto stub
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => ADD_ON_PACK_JSON }));
+    vi.stubGlobal("crypto", { subtle: { digest: () => Promise.reject(new Error("webcrypto unavailable")) } });
+
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "checksum_mismatch" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SHA_VERIFY_FAIL-it-medical"), expect.any(Error));
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+    errorSpy.mockRestore();
+  });
+
+  it("#405: sha256Hex throwing during cached-copy re-verification surfaces as a typed checksum_mismatch, never a rejection", async () => {
+    // Mirrors the fresh-download test above for the OTHER guarded site: re-verifying a
+    // previously-cached add-on's bytes before trusting them. Preset a valid, previously-cached
+    // add-on entry whose sha256 matches the manifest (mirrors the "malformed add-on pack" test's
+    // localStorage-preset pattern), then reject the digest call that re-verifies it.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    localStorageMock.setItem("pack-data-v1-it-medical", ADD_ON_PACK_JSON);
+    localStorageMock.setItem(
+      "pack-meta-v1-it-medical",
+      JSON.stringify({ version: "1.0.0", sha256: ADD_ON_SHA, cachedAt: 1 })
+    );
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeAddOnManifest()); // base pack loads fine with the good crypto stub
+
+    vi.stubGlobal("crypto", { subtle: { digest: () => Promise.reject(new Error("webcrypto unavailable")) } });
+
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "checksum_mismatch" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SHA_VERIFY_FAIL-it-medical"), expect.any(Error));
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+    errorSpy.mockRestore();
   });
 
   it("#261: returns invalid_lang without fetching when specialty code is not in purchasedAddOns", async () => {

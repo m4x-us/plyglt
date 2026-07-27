@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // ===========================================
 // SEAM TEST — parseBackup → setState → getDueCards
 // ===========================================
@@ -5,12 +6,22 @@
 // seam into store/srsStore.ts. Guards against: parseBackup returning valid data
 // that nonetheless corrupts store state (e.g. wrong dueDate types), and
 // getDueCards silently returning wrong results after a restore.
+//
+// Task #393: also covers the entitlement-restore seam through
+// hooks/useExportImport.ts's readFile — a license-less backup must never
+// downgrade an active subscription (Task #391), and the success message must
+// say so. jsdom environment is required here for FileReader/File and the
+// useRef/useState hooks inside useExportImport.
 // ===========================================
 
 import { describe, it, expect, beforeEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
 import type { Card } from "@/content/types";
 import { parseBackup } from "@/lib/importBackup";
 import { useSRSStore } from "@/store/srsStore";
+import { useEntitlementStore } from "@/store/entitlementStore";
+import { useExportImport } from "@/hooks/useExportImport";
+import type { PackCode } from "@/lib/langRegistry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -69,11 +80,32 @@ function makeCard(id: string): Card {
   };
 }
 
+function resetEntitlementState() {
+  useEntitlementStore.setState({
+    licenseKey: null,
+    instanceId: null,
+    licenseType: "free",
+    unlockedPacks: [],
+    purchasedAddOns: [],
+    lastValidated: 0,
+    validUntil: null,
+  });
+}
+
+/** Wraps JSON in a real File so FileReader (used by readFile) can read it. */
+function makeBackupFile(backup: unknown): File {
+  return new File([JSON.stringify(backup)], "backup.json", { type: "application/json" });
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   // Reset store to empty state before each test
   useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
+  resetEntitlementState();
+  // getLangPair() falls back to "en-it" when unset, matching makeBackupJson's default
+  // langPair — clear any value a prior test left behind so that fallback is deterministic.
+  window.localStorage.clear();
 });
 
 describe("seam: parseBackup → setState → getDueCards", () => {
@@ -170,5 +202,86 @@ describe("seam: parseBackup → setState → getDueCards", () => {
   it("parseBackup returns ok:false for a backup missing required fields", () => {
     const result = parseBackup({ _version: 2 }); // no srs, no entitlement
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("seam: entitlement restore via useExportImport.readFile (Task #393)", () => {
+  // Task #391: a backup missing licenseKey or instanceId must never touch the session's
+  // current entitlement — setEntitlement's contract requires both fields, and an unsigned
+  // backup must not be able to downgrade or wipe an active license.
+  it("leaves an active subscription's entitlement state untouched when the backup has no license", async () => {
+    const activeSubscription = {
+      licenseKey: "EXISTING-KEY",
+      instanceId: "EXISTING-INSTANCE",
+      licenseType: "subscription" as const,
+      unlockedPacks: ["it", "es"] as PackCode[],
+      purchasedAddOns: ["it-medical"],
+      lastValidated: 123456,
+      validUntil: FUTURE_DATE,
+    };
+    useEntitlementStore.setState(activeSubscription);
+
+    const { result } = renderHook(() => useExportImport());
+    const file = makeBackupFile(makeBackupJson()); // default entitlement: licenseKey/instanceId both null
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    const stateAfter = useEntitlementStore.getState();
+    expect(stateAfter.licenseKey).toBe("EXISTING-KEY");
+    expect(stateAfter.instanceId).toBe("EXISTING-INSTANCE");
+    expect(stateAfter.licenseType).toBe("subscription");
+    expect(stateAfter.unlockedPacks).toEqual(["it", "es"]);
+    expect(stateAfter.purchasedAddOns).toEqual(["it-medical"]);
+    expect(stateAfter.validUntil).toBe(FUTURE_DATE);
+    expect(stateAfter.lastValidated).toBe(123456);
+  });
+
+  it("reports the exact license-unchanged success message for a license-less backup", async () => {
+    const { result } = renderHook(() => useExportImport());
+    const file = makeBackupFile(makeBackupJson());
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    expect(result.current.dataStatus).toEqual({
+      type: "success",
+      message: "Restored 2 card(s) of progress. No license in backup — license unchanged.",
+    });
+  });
+
+  it("restores the license and reports no license note when both licenseKey and instanceId are present", async () => {
+    const { result } = renderHook(() => useExportImport());
+    const backup = makeBackupJson({
+      entitlement: {
+        licenseKey: "NEW-KEY",
+        instanceId: "NEW-INSTANCE",
+        licenseType: "subscription",
+        unlockedPacks: ["it"],
+        validUntil: FUTURE_DATE,
+      },
+    });
+    const file = makeBackupFile(backup);
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    const stateAfter = useEntitlementStore.getState();
+    expect(stateAfter.licenseKey).toBe("NEW-KEY");
+    expect(stateAfter.instanceId).toBe("NEW-INSTANCE");
+    expect(stateAfter.licenseType).toBe("subscription");
+    expect(stateAfter.unlockedPacks).toEqual(["it"]);
+    expect(stateAfter.validUntil).toBe(FUTURE_DATE);
+    // Task #342: purchasedAddOns is excluded from setEntitlement's parameter type — a
+    // backup can never restore add-on purchases, only a real receipt via purchaseAddOn().
+    expect(stateAfter.purchasedAddOns).toEqual([]);
+
+    expect(result.current.dataStatus).toEqual({
+      type: "success",
+      message: "Restored 2 card(s) of progress.",
+    });
   });
 });
