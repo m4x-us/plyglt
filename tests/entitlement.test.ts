@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR, ERR_ADDON_NOT_PRO } from "@/store/entitlementStore";
+import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR, ERR_ADDON_NOT_PRO, ERR_ADDON_DEACTIVATED } from "@/store/entitlementStore";
 import type { PurchaseAddOnResult } from "@/store/entitlementStore";
 import { resolveVariantEntitlement, hasAddOn, CHECKOUT_URLS, PRICING, ERR_ACTIVATE_NETWORK, ERR_DEACTIVATE_NETWORK, ERR_ACTIVATION_FAILED, ERR_ACTIVATE_NO_INSTANCE, ERR_ACTIVATE_NO_VARIANT, ERR_ACTIVATE_NO_KEY, ERR_LICENSE_NOT_ACTIVE, ERR_VALIDATE_NETWORK, ERR_VALIDATE_NULL, ERR_VALIDATE_INACTIVE } from "@/lib/entitlement";
 import * as entitlementLib from "@/lib/entitlement";
@@ -1133,6 +1133,32 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     expect(result).toEqual({ ok: true });
     expect(store().purchasedAddOns).toContain("it-medical");
     expect(store().purchasedAddOns).toHaveLength(1);
+  });
+
+  it("#449: a clearEntitlement() resolving while purchaseAddOn's IPC call is in flight does not resurrect the purchase record", async () => {
+    // Before #449, the Pro gate was checked once at entry, then the function awaited the
+    // IPC round-trip, then unconditionally appended to purchasedAddOns via a functional
+    // set() — reading whatever the CURRENT state was by the time it finally ran, with no
+    // re-check. Hold the IPC call pending so a deactivation can genuinely complete first.
+    let resolveInvoke!: (value: boolean) => void;
+    mockInvoke.mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveInvoke = resolve; }));
+
+    // WHEN purchaseAddOn starts — passes the Pro gate, snapshots the deactivation guard,
+    // then blocks on the still-pending IPC call above.
+    const purchasePromise = store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+
+    // AND a deactivation completes WHILE that IPC call is still in flight.
+    await store().clearEntitlement();
+    expect(store().purchasedAddOns).toEqual([]);
+
+    // WHEN the held IPC call finally resolves — the receipt WAS genuinely valid; this
+    // proves the rejection below comes from the deactivation guard, not a failed IPC call.
+    resolveInvoke(true);
+    const result = await purchasePromise;
+
+    // THEN the purchase is rejected — not silently resurrected into the just-cleared array.
+    expect(result).toEqual({ ok: false, error: ERR_ADDON_DEACTIVATED });
+    expect(store().purchasedAddOns).toEqual([]);
   });
 
   it("hasAddOn store method returns true after purchaseAddOn", async () => {

@@ -70,6 +70,10 @@ function manifestUrl(): string {
 // dedup below. Cleared on settle so a later refresh still refetches. (#378 WorldClass V2)
 let inFlightManifest: Promise<Manifest | null> | null = null;
 
+// #445: bounds fetchManifest's fetch — see the call site below for the full rationale
+// (mirrors lib/basePackLoader.ts's and lib/specialtyPackLoader.ts's identical constant).
+const FETCH_TIMEOUT_MS = 20_000;
+
 // A sha256 digest, hex-encoded, is always exactly 64 hex characters (sha256Hex in
 // lib/utils.ts produces lowercase; accept either case — a manifest entry's exact casing
 // is not this codebase's to dictate, only well-formedness is). #431: typeof "string" alone
@@ -114,8 +118,15 @@ function isValidManifestShape(raw: unknown): raw is Manifest {
 export function fetchManifest(): Promise<Manifest | null> {
   if (inFlightManifest) return inFlightManifest;
   const request = (async (): Promise<Manifest | null> => {
+    // #445: bounded so a hung TCP connection can't leave inFlightManifest permanently
+    // pending — every concurrent AND future caller would otherwise piggyback on the dead
+    // promise for the rest of the process's life. A timeout abort surfaces as a rejected
+    // fetch, indistinguishable from a real network error here, and is handled identically
+    // by the existing catch block below (mirrors lib/basePackLoader.ts's identical fix).
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(manifestUrl(), { cache: "no-store" });
+      const res = await fetch(manifestUrl(), { cache: "no-store", signal: timeoutController.signal });
       if (!res.ok) {
         // #379: this branch previously returned null with zero logging, unlike the catch
         // below — an operator had no signal that every fresh download was unverified.
@@ -133,6 +144,8 @@ export function fetchManifest(): Promise<Manifest | null> {
       // SHA-256 verification, which is a silent security downgrade. Ref ID aids diagnosis.
       console.error(`[MANIFEST_FETCH_FAIL-${Date.now()}]`, err);
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
   })();
   inFlightManifest = request;

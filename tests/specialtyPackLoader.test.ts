@@ -450,3 +450,47 @@ describe("specialty pack — fresh-download and cache-hit integrity branches (#4
     });
   });
 });
+
+describe("specialty pack — fetch timeout (#445)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", ready: true, name: "Medical Italian" });
+    seedMemCache("it", []);
+  });
+
+  it("#445: a hung specialty-pack fetch is timed out — the inFlight entry is released and a subsequent call succeeds normally", async () => {
+    // Before #445, no fetch call in lib/specialtyPackLoader.ts's _doLoad had a timeout — a
+    // single hung TCP connection left loadSpecialtyPack's inFlight entry permanently
+    // pending, so every concurrent AND future caller for "it-medical" piggybacked on the
+    // dead promise forever.
+    vi.useFakeTimers();
+    try {
+      const hangingFetch = vi.fn().mockImplementation(
+        (_url: string, opts?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            });
+          })
+      );
+      vi.stubGlobal("fetch", hangingFetch);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const pending = loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+      await vi.advanceTimersByTimeAsync(20_000);
+      const result = await pending;
+
+      expect(result).toEqual({ ok: false, error: "download_failed" });
+      expect(getLoadedAddOns()).toEqual([]);
+
+      // The inFlight entry was released (not left hanging) — a fresh call goes to the
+      // network again and succeeds.
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => ADD_ON_PACK_JSON }));
+      const result2 = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+      expect(result2.ok).toBe(true);
+      expect(getLoadedAddOns()).toEqual(["it-medical"]);
+      errorSpy.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

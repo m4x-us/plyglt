@@ -60,22 +60,31 @@ describe("useLicenseActivation — handleActivate", () => {
       result.current.setLicenseInput("TEST-LICENSE-KEY");
     });
 
+    const before = Date.now();
     await act(async () => {
       await result.current.handleActivate();
     });
+    const after = Date.now();
 
     expect(result.current.licenseStatus.type).toBe("success");
     // Task #430: lastValidated must be a fresh Date.now() stamp — this call follows a real
     // activateLicense() server round-trip, so it earns a full validation grace period
     // (unlike an unsigned backup restore, which passes lastValidated:0 — see useExportImport.test.ts).
-    expect(mockSetEntitlement).toHaveBeenCalledWith({
+    // Task #453: expect.any(Number) would also pass a wrong implementation that passed the
+    // literal 0 (the value the unrelated backup-restore path uses) — bound lastValidated to
+    // the [before, after] window around this call instead, like useExportImport.test.ts's
+    // sibling assertion pins its own exact literal.
+    expect(mockSetEntitlement).toHaveBeenCalledTimes(1);
+    const callArg = mockSetEntitlement.mock.calls[0]![0];
+    expect(callArg).toMatchObject({
       licenseKey: "test-key-123",
       instanceId: "test-instance-456",
       licenseType: "subscription",
       unlockedPacks: ["it"],
       validUntil: null,
-      lastValidated: expect.any(Number),
     });
+    expect(callArg.lastValidated).toBeGreaterThanOrEqual(before);
+    expect(callArg.lastValidated).toBeLessThanOrEqual(after);
   });
 
   // #098 — local validation before IPC

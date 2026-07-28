@@ -66,6 +66,23 @@ describe("getFeatureFlags", () => {
     expect(getFeatureFlags().specialtyPacks).toBe(false);
   });
 
+  // Task #448 (F009): an env var explicitly set to "" (e.g. an unfilled CI template
+  // variable) must be treated the same as unset — falling through to defaultEnabled —
+  // not silently enabling a flag whose safe default is off. Before this fix, "" skipped
+  // the v===undefined check and fell through to !FALSY_FLAG_VALUES.includes("") === true.
+  it("specialtyPacks is false when env var is an empty string (same as unset)", () => {
+    process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS = "";
+    expect(getFeatureFlags().specialtyPacks).toBe(false);
+  });
+
+  // Sibling proof the fix is generic (empty string → defaultEnabled), not a
+  // specialtyPacks-only special case: a shipped flag whose default is true must stay
+  // true when its env var is "", exactly as it would if the var were unset.
+  it("interruptEngine is true when env var is an empty string (same as unset, defaultEnabled=true)", () => {
+    process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE = "";
+    expect(getFeatureFlags().interruptEngine).toBe(true);
+  });
+
   // #100 — isProEnabled combinator
   describe("isProEnabled", () => {
     it("returns true when flag=true, licenseType=subscription, and validUntil=null (no expiry)", () => {

@@ -55,9 +55,10 @@ export {
   ERR_ADDON_RECEIPT_INVALID,
   ERR_ADDON_IPC_ERROR,
   ERR_ADDON_NOT_PRO,
+  ERR_ADDON_DEACTIVATED,
   type PurchaseAddOnResult,
 } from "@/store/entitlementAddOns";
-import { createPurchaseAddOn, type PurchaseAddOnResult } from "@/store/entitlementAddOns";
+import { createPurchaseAddOn, bumpAddOnDeactivationGuard, type PurchaseAddOnResult } from "@/store/entitlementAddOns";
 
 interface EntitlementState {
   licenseKey: string | null;
@@ -269,6 +270,11 @@ export const useEntitlementStore = create<EntitlementState>()(
             lastValidated: 0,
             validUntil: null,
           });
+          // Task #449: bump the add-on purchase deactivation guard at the same point
+          // purchasedAddOns is reset above — invalidates any purchaseAddOn() call whose
+          // Pro gate already passed and is now awaiting (or has just resolved) its IPC
+          // round-trip, so it cannot resurrect a purchase into the array just cleared.
+          bumpAddOnDeactivationGuard();
           // Task #362: increment _cacheEvictionGeneration AFTER evictions complete so
           // useLangPack's useEffect runs its re-seed AFTER memCache has been cleared,
           // not before (which would cause a race where eviction clears the re-seeded entry).

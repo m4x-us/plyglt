@@ -339,6 +339,13 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
           hydrated = true;
           finishListeners.forEach((fn) => fn());
         },
+        // Test-only introspection (#452): the Set's SIZE, unlike a call-count spy on
+        // onFinishHydration, is immune to React's per-render base-subscription churn
+        // (useSyncExternalStore recreates its subscribe closure every render since this
+        // hook doesn't memoize it, causing an unsub+resub pair — net zero size change —
+        // on any unrelated re-render). A genuinely new registration (the failsafe's own
+        // late-reconciliation listener) is the only thing that changes the net size.
+        __finishListenerCount: () => finishListeners.size,
       };
     }
 
@@ -384,14 +391,32 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
     });
 
     it("does not reconcile when hydration finishes normally (no failsafe, no clobber risk)", () => {
+      // Task #452: the original version of this test never advanced fake timers past
+      // HYDRATION_FAILSAFE_MS, so the failsafe's setTimeout callback — the ONLY place that
+      // registers the late-reconciliation listener — never fired. Deleting the entire
+      // reconciliation feature left this test passing identically, because "no clobbering
+      // happened" is observationally identical to "no reconciliation code exists" whenever
+      // nothing needs restoring. __finishListenerCount() gives this test a real Deletion
+      // Test instead: the failsafe's own late-reconciliation listener is a genuinely NEW
+      // registration in the finish-listener Set, on top of the base useSyncExternalStore
+      // subscription — Set SIZE (not a raw call-count spy, which this hook's per-render
+      // subscribe-closure churn makes noisy/unstable) only grows when that registration
+      // actually happens. Delete it and the size stays at 1 forever.
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const store = makeFullStore({ count: 0 });
 
       renderHook(() => useIsHydrated(store));
+      expect(store.__finishListenerCount()).toBe(1); // base subscription only
+
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+      expect(store.__finishListenerCount()).toBe(2); // + the failsafe's own registration
+
+      // Hydration then finishes with nothing to reconcile (no prior user writes) — the
+      // normal, non-degraded outcome this test's name describes.
       act(() => { store.__simulateLateHydration({ count: 3 }); });
 
       expect(store.getState().count).toBe(3);
-      expect(errorSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
       errorSpy.mockRestore();
     });
   });

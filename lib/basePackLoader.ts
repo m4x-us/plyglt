@@ -99,6 +99,15 @@ export function bumpEvictionGeneration(lang: string): void {
   getEvictionGuard(lang).bump();
 }
 
+// #445: no fetch call in this module had a timeout — a single hung TCP connection left
+// its in-flight promise (packLoader.ts's inFlightBaseLoads entry) permanently pending, so
+// every concurrent AND future caller for that language piggybacked on the dead promise for
+// the rest of the process's life. AbortController + a bounded timeout guarantees the fetch
+// below always settles, which flows into the EXISTING catch block's typed
+// download_failed/offline-fallback handling — no new error path needed, just a bound on
+// how long the network is allowed to stay silent.
+const FETCH_TIMEOUT_MS = 20_000;
+
 /** Test-only: invalidates every currently-tracked language's eviction guard at once —
  * clearCacheForTesting resets ALL state globally, not one language's, so a load left in
  * flight by a previous test (for any language) must not write into the cache this reset
@@ -179,8 +188,10 @@ export async function loadBasePackFromStorageOrNetwork(
 
   // Download needed
   let json: string;
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(packUrl(lang), { cache: "no-store" });
+    const res = await fetch(packUrl(lang), { cache: "no-store", signal: timeoutController.signal });
     if (!res.ok) {
       // Offline fallback: serve stale cache if available (integrity-checked when possible)
       if (cachedData && (await staleBytesMatchRecordedHash(cachedMeta, cachedData))) {
@@ -191,13 +202,16 @@ export async function loadBasePackFromStorageOrNetwork(
     }
     json = await res.text();
   } catch (err) {
-    // Network error — serve stale cache (integrity-checked when possible)
+    // Network error OR a #445 timeout abort — both surface as a rejected fetch, indistinguishable
+    // here and handled identically: serve stale cache (integrity-checked when possible), or fail typed.
     console.error(`[PACK_DOWNLOAD_FAIL-${Date.now()}]`, err);
     if (cachedData && (await staleBytesMatchRecordedHash(cachedMeta, cachedData))) {
       if (evictionGuard.isStale(entryGeneration)) return parseValidateWithoutCaching(cachedData);
       return await parseValidateAndCache(lang, cachedData);
     }
     return { ok: false, error: "download_failed" };
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   // Verify sha256 if manifest is available — never serve a corrupted pack.

@@ -97,6 +97,29 @@ export function useLangPack(): LangPackState {
   // could drift.)
   const isKnownCode =
     isReadyBasePackCode(rawTargetLang) || isSpecialtyPackCode(rawTargetLang);
+  // #378 audit F014: the entitlement store hydrates asynchronously (Tauri IPC storage; on
+  // web the async storage wrapper still defers hydration by a microtask) — reading
+  // purchasedAddOns before hydration yields the store default ([]). Declared here (before
+  // #419's unpurchasedSpecialty check below needs it) rather than further down where the
+  // dynamic-load effect also consults it — Task #442: unpurchasedSpecialty is a render-body
+  // computation with an immediate, PERSISTENT side effect (the #339 repair effect below
+  // calls setTargetLangCode), unlike the dynamic-load effect's entitlement reads, which are
+  // transient (re-run harmlessly once real data arrives). Gating only the load effect and
+  // not this computation let a genuine owner's specialty code be misread as unowned during
+  // the hydration window and PERMANENTLY overwrite their real selection in storage — the
+  // effect's own `rawTargetLang === targetLang` guard never fires again once that happens,
+  // so hydration completing afterward with the true ownership data could not self-correct it.
+  const entitlementHydrated = useIsHydrated(useEntitlementStore);
+  // #378 cycle-2 F-C2-2: zustand's persist NEVER finishes hydration when storage.getItem
+  // rejects (verified against the middleware source — hasHydrated stays false and
+  // onFinishHydration never fires on the failure path), and useIsHydrated has a narrow
+  // subscribe race (see lib/storage.ts follow-up). Without a fallback, either condition
+  // would leave this hook waiting forever: a permanent silent spinner. After a bounded
+  // grace period (armed by the effect further below, once targetLang is known), proceed
+  // with the store defaults — exactly the pre-#378 behavior, i.e. a transient, recoverable
+  // wrong-entitlement read instead of an unrecoverable hang. Rule 8: taking the fallback
+  // path is logged.
+  const [hydrationGraceExpired, setHydrationGraceExpired] = useState(false);
   // #419: a ready-and-registered specialty code the user does not own is "known" above (it
   // resolves to a real, loadable pack) but unusable for THIS user. Left unhandled, the #339
   // repair below never fires for it (isKnownCode is true), so a code like "it-medical" left
@@ -107,7 +130,15 @@ export function useLangPack(): LangPackState {
   // place. Falls back to the specialty's OWN baseLang (not a hardcoded "it") so this stays
   // correct once a non-Italian specialty pack ships. Currently latent — no specialty pack
   // is ready:true yet.
-  const unpurchasedSpecialty = isSpecialtyPackCode(rawTargetLang) && !hasAddOn({ purchasedAddOns }, rawTargetLang)
+  // Task #442: gated on (entitlementHydrated || hydrationGraceExpired) — before hydration
+  // completes, purchasedAddOns is the Zustand default [], so treating a code as "known but
+  // unowned" here is only safe once hydration has actually run (or given up per the grace
+  // timeout below). Pre-hydration, this stays undefined — isKnownCode alone decides
+  // targetLang, so a genuinely-owned specialty code passes through unredirected and the
+  // #339 repair effect's rawTargetLang===targetLang guard correctly stays silent until real
+  // ownership data is available.
+  const unpurchasedSpecialty = (entitlementHydrated || hydrationGraceExpired)
+      && isSpecialtyPackCode(rawTargetLang) && !hasAddOn({ purchasedAddOns }, rawTargetLang)
     ? SPECIALTY_PACKS.find(sp => sp.code === rawTargetLang)
     : undefined;
   const targetLang = isKnownCode && !unpurchasedSpecialty ? rawTargetLang : (unpurchasedSpecialty?.baseLang ?? "it");
@@ -138,17 +169,9 @@ export function useLangPack(): LangPackState {
   // unlockedPacks/purchasedAddOns before hydration yields the store defaults, which would
   // make a legitimately-subscribed user transiently hit invalid_lang on a non-free pack.
   // The dynamic-load effect waits for hydration; the static-pack branch does not need to
-  // (free content, no entitlement input).
-  const entitlementHydrated = useIsHydrated(useEntitlementStore);
-  // #378 cycle-2 F-C2-2: zustand's persist NEVER finishes hydration when storage.getItem
-  // rejects (verified against the middleware source — hasHydrated stays false and
-  // onFinishHydration never fires on the failure path), and useIsHydrated has a narrow
-  // subscribe race (see lib/storage.ts follow-up). Without a fallback, either condition
-  // would leave this hook waiting forever: a permanent silent spinner. After a bounded
-  // grace period, proceed with the store defaults — exactly the pre-#378 behavior, i.e. a
-  // transient, recoverable wrong-entitlement read instead of an unrecoverable hang. Rule 8:
-  // taking the fallback path is logged.
-  const [hydrationGraceExpired, setHydrationGraceExpired] = useState(false);
+  // (free content, no entitlement input). entitlementHydrated/hydrationGraceExpired are
+  // declared earlier now (Task #442 — unpurchasedSpecialty above needs them too); this
+  // effect is the one that actually arms the grace timer, once targetLang is known.
   useEffect(() => {
     // Scoped to the dynamic-load case: the static-pack branch never consults entitlement,
     // so arming the timer there would only produce a misleading timeout error for a slow
@@ -185,15 +208,23 @@ export function useLangPack(): LangPackState {
   // produce — an unknown/unready code (targetLang falls back to "it") and a ready-but-
   // unpurchased specialty code (targetLang falls back to that pack's own baseLang) — a
   // second near-duplicate effect isn't needed; only the logged reason differs.
+  // Task #442: unpurchasedSpecialty is now hydration-gated (see its declaration above), so
+  // this branch can only fire once hydration has genuinely completed OR the grace period
+  // expired. The message below distinguishes those two cases — a grace-expired read is a
+  // fallback to store defaults, not confirmed data, so asserting non-ownership with the
+  // same confidence as a real hydrated read would overstate what's actually known.
   useEffect(() => {
     if (rawTargetLang === targetLang) return;
     if (unpurchasedSpecialty) {
-      console.error(`[ERR-LANGPACK-ADDON-UNOWNED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns — resetting to base language "${targetLang}"`);
+      const confidence = entitlementHydrated
+        ? ""
+        : " (entitlement hydration grace period expired — this reflects store defaults, not a confirmed read)";
+      console.error(`[ERR-LANGPACK-ADDON-UNOWNED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns${confidence} — resetting to base language "${targetLang}"`);
     } else {
       console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "${targetLang}"`);
     }
     setTargetLangCode(targetLang);
-  }, [rawTargetLang, targetLang, unpurchasedSpecialty]);
+  }, [rawTargetLang, targetLang, unpurchasedSpecialty, entitlementHydrated]);
 
   useEffect(() => {
     const staticTarget = STATIC_PACKS[targetLang];

@@ -79,7 +79,16 @@ export function getLangPair(): string {
   // generically) — this getter used `?? "en-it"` alone, which only substitutes on
   // null/undefined, so a stored "" or hyphen-less garbage value passed through here
   // unrepaired and unlogged. Same malformed check, same persisted repair.
-  if (pair.indexOf("-") === -1) {
+  // Task #446: the check must be IDENTICAL to getTargetLangCode's, not just "has a
+  // hyphen" — `pair.indexOf("-") === -1` alone missed the empty-tail case ("en-" HAS a
+  // hyphen, so it passed this check unrepaired and unlogged, silently feeding
+  // store/srsStore.ts's persisted storage key `srs-${_activeLangPair}` as the malformed
+  // "srs-en-"). Deriving `target` the same way getTargetLangCode does (slice after the
+  // first hyphen, empty means malformed) makes the two getters structurally impossible to
+  // drift apart on this check again.
+  const sepIdx = pair.indexOf("-");
+  const target = sepIdx === -1 ? "" : pair.slice(sepIdx + 1);
+  if (!target) {
     console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" is malformed — expected "en-{lang}" format. Falling back to "en-it".`);
     setTargetLangCode("it");
     return "en-it";

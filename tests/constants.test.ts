@@ -68,6 +68,19 @@ describe("malformed LANG_PAIR_KEY repair (#408)", () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
     expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
   });
+
+  // Task #446: before this fix, getLangPair checked `pair.indexOf("-") === -1` only —
+  // "en-" HAS a hyphen, so it passed unrepaired and unlogged, feeding
+  // store/srsStore.ts's persisted storage key (`srs-${_activeLangPair}`) a malformed
+  // "srs-en-" instead of "srs-en-it". Mirrors the existing getTargetLangCode "en-" test
+  // above — same input shape, same getter parity this task closes.
+  it("getLangPair repairs an empty-tail value (\"en-\") the same way as a no-hyphen value", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "en-");
+
+    expect(getLangPair()).toBe("en-it");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
+  });
 });
 
 describe("localStorage error handling (#434)", () => {

@@ -9,7 +9,10 @@ vi.mock("@/components/DifficultyBar", () => ({
   default: ({ value }: { value: number }) => (
     <span data-testid="difficulty">{value}</span>
   ),
-  stabilityColorClass: () => "text-green-400",
+  // Task #444: wrapped in vi.fn() (not a plain arrow function) so a test can override its
+  // implementation with the real stabilityColorClass to exercise the actual color-threshold
+  // logic, then restore the hardcoded default afterward.
+  stabilityColorClass: vi.fn(() => "text-green-400"),
 }));
 
 vi.mock("@/hooks/useStatsData", () => ({
@@ -43,7 +46,31 @@ vi.mock("@/lib/featureFlags", () => ({
 import { useStatsData } from "@/hooks/useStatsData";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { getFeatureFlags } from "@/lib/featureFlags";
+import { stabilityColorClass } from "@/components/DifficultyBar";
 import StatsPage from "./page";
+
+function makeCardWithProgress(id: string, prompt: string, difficulty: number) {
+  return {
+    card: {
+      id,
+      type: "recognize" as const,
+      prompt,
+      accepted: [],
+      tags: [],
+      tier: 1 as const,
+    },
+    progress: {
+      cardId: id,
+      state: "review" as const,
+      stability: 10,
+      difficulty,
+      retrievability: 0.8,
+      dueDate: Date.now() + 86400000,
+      lapses: 0,
+      reps: 5,
+    },
+  };
+}
 
 function makeAtRisk(prompt: string, daysAgo: number, now: number) {
   return {
@@ -82,6 +109,12 @@ const EMPTY_STATS = {
 afterEach(cleanup);
 
 describe("app/stats/page.tsx — StatsPage", () => {
+  it("renders a loading indicator while useStatsData is still loading", () => {
+    vi.mocked(useStatsData).mockReturnValue({ ...EMPTY_STATS, loading: true });
+    render(<StatsPage />);
+    screen.getByText("Loading…");
+  });
+
   it("renders empty state when no cards have been studied", () => {
     vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
     render(<StatsPage />);
@@ -161,5 +194,91 @@ describe("app/stats/page.tsx — StatsPage", () => {
     render(<StatsPage />);
     expect(screen.queryByText("Detailed analytics are a Pro feature.")).toBeNull();
     screen.getByText("Start studying to see your stats here.");
+  });
+
+  // ── Task #444 (F014): populated-dashboard happy path ──────────────────────
+  // Every test above drives the page with EMPTY_STATS or a Pro-gate-blocked state — none
+  // of them ever populate hardest/weakestTags/levelStability, so lines 86-126 (the
+  // DifficultyBar-rendering branch, the weakestTags block, and the levelStability
+  // retention-bars block including stabilityColorClass and its width-percentage
+  // calculation) never execute under test.
+  it("#444: populated dashboard renders hardest cards, weakest topics, and retention bars with real content", async () => {
+    // Override the module-level stabilityColorClass mock with the REAL implementation
+    // for this test only — the mock elsewhere in this file hardcodes "text-green-400"
+    // regardless of input, which would hide a regression in how the page wires the
+    // median stability value into the real color-threshold logic.
+    const actual = await vi.importActual<typeof import("@/components/DifficultyBar")>(
+      "@/components/DifficultyBar"
+    );
+    vi.mocked(stabilityColorClass).mockImplementation(actual.stabilityColorClass);
+
+    try {
+      vi.mocked(useStatsData).mockReturnValue({
+        loading: false,
+        seen: 42,
+        totalCards: 100,
+        now: Date.now(),
+        hardest: [
+          makeCardWithProgress("c1", "correre", 8.4),
+          makeCardWithProgress("c2", "mangiare", 3.1),
+        ],
+        weakestTags: [
+          { tag: "verbs", avgDifficulty: 7.2, count: 5 },
+          { tag: "food", avgDifficulty: 4.5, count: 3 },
+        ],
+        levelStability: [
+          { level: "A1", median: 90, count: 12 }, // width clamps to 100% (150% raw); green
+          { level: "A2", median: 12, count: 4 },   // 20% width; yellow
+          { level: "B1", median: 3, count: 2 },    // 5% width; red
+          { level: "B2", median: 0, count: 0 },    // "No mastered cards"; red
+        ],
+        atRisk: [],
+      });
+
+      const { container } = render(<StatsPage />);
+
+      // Hardest cards section — real prompts render, and DifficultyBar receives the
+      // real difficulty value for each card (mocked to <span data-testid="difficulty">).
+      screen.getByText("correre");
+      screen.getByText("mangiare");
+      expect(screen.queryByText("No data yet.")).toBeNull();
+
+      // Weakest topics section — real tags, counts, and avg-difficulty values render.
+      screen.getByText("verbs");
+      screen.getByText("food");
+      screen.getByText("5 cards");
+      screen.getByText("3 cards");
+
+      // DifficultyBar is called for both hardest cards (in order) and both weakest tags
+      // (in order) — asserting all four values in one place proves neither block is
+      // silently skipped and both pass the correct value through.
+      const difficultyBars = screen.getAllByTestId("difficulty");
+      expect(difficultyBars.map((el) => el.textContent)).toEqual(["8.4", "3.1", "7.2", "4.5"]);
+
+      // Retention-bars section — median/count text for three levels, and the special
+      // "No mastered cards" text for the zero-count level.
+      screen.getByText("90d median · 12 cards");
+      screen.getByText("12d median · 4 cards");
+      screen.getByText("3d median · 2 cards");
+      screen.getByText("No mastered cards");
+
+      // The actual rendered bar elements, in level order (A1, A2, B1, B2) — exercises
+      // both the real stabilityColorClass thresholds and the width-percentage calculation
+      // (Math.min(100, (median / 60) * 100)) together, as the page actually computes them.
+      const bars = container.querySelectorAll(".h-full.rounded-full.transition-all");
+      expect(bars).toHaveLength(4);
+      expect(bars[0]!.className).toContain("bg-green-500");
+      expect((bars[0] as HTMLElement).style.width).toBe("100%"); // clamped from 150%
+      expect(bars[1]!.className).toContain("bg-yellow-500");
+      expect((bars[1] as HTMLElement).style.width).toBe("20%");
+      expect(bars[2]!.className).toContain("bg-red-500");
+      expect((bars[2] as HTMLElement).style.width).toBe("5%");
+      expect(bars[3]!.className).toContain("bg-red-500");
+      expect((bars[3] as HTMLElement).style.width).toBe("0%");
+    } finally {
+      // Restore the hardcoded mock so later test runs in this file (if reordered) aren't
+      // affected by this test's real-implementation override.
+      vi.mocked(stabilityColorClass).mockReturnValue("text-green-400");
+    }
   });
 });

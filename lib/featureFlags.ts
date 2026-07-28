@@ -23,7 +23,12 @@ const FALSY_FLAG_VALUES: string[] = ["false", "0", "off", "no"];
 // anywhere doesn't silently disable something already live. See getFeatureFlags() below
 // for which default each flag uses.
 function parseFlag(v: string | undefined, defaultEnabled: boolean): boolean {
-  if (v === undefined) return defaultEnabled;
+  // Task #448 (F009): an env var explicitly set to "" is indistinguishable in practice
+  // from unset (e.g. an unfilled CI template variable) — it must fall through to
+  // defaultEnabled too, not silently enable a flag whose safe default is off. Only
+  // v === undefined was checked before; "" skipped that branch and fell through to
+  // !FALSY_FLAG_VALUES.includes("") === true regardless of defaultEnabled.
+  if (v === undefined || v === "") return defaultEnabled;
   return !FALSY_FLAG_VALUES.includes(v.toLowerCase());
 }
 

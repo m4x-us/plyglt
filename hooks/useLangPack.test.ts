@@ -672,6 +672,59 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     expect(result.current.units).toHaveLength(1);
   });
 
+  it("#442: does not permanently redirect a genuinely-owned specialty code during the hydration window — self-corrects once hydration reveals true ownership", async () => {
+    // GIVEN the persisted code is a genuinely-owned specialty pack, but simulate the real
+    // pre-hydration state: purchasedAddOns currently reads as the Zustand default ([]),
+    // even though the eventual (post-hydration) value will show real ownership.
+    useEntitlementStore.setState({ purchasedAddOns: [] });
+    localStorage.setItem(LANG_PAIR_KEY, "en-it-legal");
+    mockUseIsHydrated.mockReturnValue(false);
+
+    const { rerender } = renderHook(() => useLangPack());
+    await new Promise((r) => setTimeout(r, 20));
+
+    // THEN no repair fires while ownership is still unconfirmed. Before #442, this exact
+    // state (purchasedAddOns reading empty pre-hydration) would already have fired the
+    // #339 repair effect, PERMANENTLY overwriting LANG_PAIR_KEY to "it" — a write that
+    // cannot self-correct later (the effect's own rawTargetLang===targetLang guard would
+    // never fire again once the persisted value matched the wrongly-repaired fallback).
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it-legal");
+    expect(mockLoadPack).not.toHaveBeenCalled();
+
+    // WHEN hydration completes and reveals the TRUE ownership data
+    useEntitlementStore.setState({ purchasedAddOns: ["it-legal"] });
+    mockUseIsHydrated.mockReturnValue(true);
+    rerender();
+
+    // THEN the genuinely-owned pack loads normally — never redirected, storage untouched.
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+    expect(mockLoadPack).toHaveBeenCalledWith("it-legal", null, { purchasedAddOns: ["it-legal"], unlockedLangs: [...FREE_PACK_CODES] });
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it-legal");
+  });
+
+  it("#442: redirects a genuinely-UNOWNED ready specialty code only once hydration confirms non-ownership, not before", async () => {
+    // GIVEN a persisted ready specialty code the user does NOT own, with hydration still
+    // pending — override this block's beforeEach seed (which purchases both mocked codes).
+    useEntitlementStore.setState({ purchasedAddOns: [] });
+    localStorage.setItem(LANG_PAIR_KEY, "en-it-legal");
+    mockUseIsHydrated.mockReturnValue(false);
+
+    const { rerender } = renderHook(() => useLangPack());
+    await new Promise((r) => setTimeout(r, 20));
+
+    // THEN no repair fires yet — ownership is still unknown, not confirmed absent.
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it-legal");
+    expect(mockLoadPack).not.toHaveBeenCalled();
+
+    // WHEN hydration completes and genuinely confirms non-ownership (purchasedAddOns stays [])
+    mockUseIsHydrated.mockReturnValue(true);
+    rerender();
+
+    // THEN only now does the redirect/repair fire — to the specialty's own base language.
+    await waitFor(() => expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it"));
+    expect(mockLoadPack).not.toHaveBeenCalled(); // "it" is static — seeded, never loadPack'd
+  });
+
   it("repairs a registered-but-UNREADY specialty code to Italian instead of stranding it (#378 F011)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     // "it-medical" is the real registry entry (ready:false, preserved by the mock's spread).

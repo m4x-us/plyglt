@@ -69,8 +69,16 @@ export type LoadPackResult =
 // app/study/page.tsx dereference unit.prerequisiteUnits.every(...) with no guard, so a
 // pack missing it would pass sha256 yet crash the UI on first render instead of failing
 // at load; #392); each unit has a cards array; each card has string id, string type,
-// string prompt, array accepted, array tags, and number tier; unitCount equals the actual
-// units.length and cardCount equals the actual total cards across all units (Task #418 —
+// string prompt, array accepted, array tags, number tier, and (Task #443) — when present —
+// a prerequisites array of strings. card.prerequisites is OPTIONAL on Card (unlike
+// unit.prerequisiteUnits), so its absence is valid; but lib/srs.ts:207's
+// `card.prerequisites.every(...)` has no Array.isArray guard of its own — a pack with a
+// non-array-but-truthy prerequisites value (e.g. a non-empty string, which also has a
+// truthy .length and so passes lib/srs.ts:206's `?.length` check) would pass sha256 yet
+// throw a TypeError in the live FSRS new-card queue (store/srsStore.ts's getNewCards) and
+// the introduction engine — reachable via the shipped Italian base pack, not gated behind
+// specialty packs being unready. unitCount equals the actual units.length and cardCount
+// equals the actual total cards across all units (Task #418 —
 // lib/specialtyPackLoader.ts's _mergeFromJson arithmetically sums exactly these two
 // declared fields, so a declared count that doesn't match the real array lengths produces
 // an arithmetically wrong but type-safe merged total with no caller ever catching it).
@@ -104,7 +112,13 @@ export function hasValidUnitsArray(pack: Pack): boolean {
         typeof card.prompt === "string" &&
         Array.isArray(card.accepted) &&
         Array.isArray(card.tags) &&
-        typeof card.tier === "number"
+        typeof card.tier === "number" &&
+        // Task #443: prerequisites is OPTIONAL (undefined is valid) but, when present,
+        // must be an array of strings — lib/srs.ts's prerequisitesMet has no guard of its
+        // own against a non-array-but-truthy value.
+        (card.prerequisites === undefined ||
+          (Array.isArray(card.prerequisites) &&
+            (card.prerequisites as unknown[]).every((p) => typeof p === "string")))
       );
     });
   });

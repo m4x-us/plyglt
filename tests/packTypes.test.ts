@@ -222,6 +222,36 @@ describe("hasValidUnitsArray — per-card element-shape checks (Task #417)", () 
     expect(hasValidUnitsArray(fakePack({ units: [unitWith([badCard])] as unknown as [] }))).toBe(false);
   });
 
+  it("returns true when a card has no prerequisites field at all — it is optional (Task #443)", () => {
+    // validCard has no prerequisites key — must not be treated as missing/invalid.
+    expect(hasValidUnitsArray(fakePack({ units: [unitWith([validCard])] as unknown as [] }))).toBe(true);
+  });
+
+  it("returns true when a card's prerequisites is a valid array of strings (Task #443)", () => {
+    const goodCard = { ...validCard, prerequisites: ["c0", "c-2"] };
+    expect(hasValidUnitsArray(fakePack({ units: [unitWith([goodCard])] as unknown as [] }))).toBe(true);
+  });
+
+  it("returns true when a card's prerequisites is an empty array (Task #443)", () => {
+    const goodCard = { ...validCard, prerequisites: [] };
+    expect(hasValidUnitsArray(fakePack({ units: [unitWith([goodCard])] as unknown as [] }))).toBe(true);
+  });
+
+  it("returns false when a card's prerequisites is a non-array-but-truthy value — the live crash path (Task #443)", () => {
+    // lib/srs.ts:206 does `card.prerequisites?.length` — a non-empty STRING also has a
+    // truthy .length, so it passes that check and reaches line 207's
+    // `card.prerequisites.every(...)`, which strings don't have — a live TypeError in
+    // store/srsStore.ts's getNewCards (the shipped Italian pack's FSRS new-card queue) and
+    // the introduction engine. This is the exact malformed shape the validator must reject.
+    const badCard = { ...validCard, prerequisites: "c0" };
+    expect(hasValidUnitsArray(fakePack({ units: [unitWith([badCard])] as unknown as [] }))).toBe(false);
+  });
+
+  it("returns false when a card's prerequisites array contains a non-string element (Task #443)", () => {
+    const badCard = { ...validCard, prerequisites: ["c0", 42] };
+    expect(hasValidUnitsArray(fakePack({ units: [unitWith([badCard])] as unknown as [] }))).toBe(false);
+  });
+
   it("returns false when a card has a non-number tier (string)", () => {
     const badCard = { ...validCard, tier: "1" };
     expect(hasValidUnitsArray(fakePack({ units: [unitWith([badCard])] as unknown as [] }))).toBe(false);

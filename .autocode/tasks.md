@@ -5908,6 +5908,268 @@ isSpecialtyPackCode's name promises "is this a specialty pack code" (registratio
 
 ---
 
+### Task #442: Fix correctness: unpurchased-specialty redirect fires before entitlement-store hydration completes, permanently corrupting the persisted language selection
+
+**File:** hooks/useLangPack.ts
+**Complexity:** ⚡ Direct — 1 file, gate the render-body computation and repair effect on the same entitlementHydrated flag already used elsewhere in this file
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Barry (W19B); unpurchasedSpecialty now gated on entitlementHydrated||hydrationGraceExpired, staying undefined pre-hydration so a genuinely-owned code is never redirected before ownership is confirmed)
+
+**What:**
+`unpurchasedSpecialty` is computed in the render body from `purchasedAddOns` with no gate on `entitlementHydrated` — that flag only gates a separate dynamic-load effect. Before the entitlement store finishes async hydration, `purchasedAddOns` is the Zustand default `[]`. If the persisted `LANG_PAIR_KEY` is a genuinely-owned ready specialty code, this computes `unpurchasedSpecialty` as truthy, and the repair effect immediately calls `setTargetLangCode(targetLang)`, permanently overwriting the user's real paid selection in persistent storage — since the effect's own guard is `rawTargetLang===targetLang`, once the fallback is persisted the bug never self-corrects even after real hydration completes with the true ownership data. Currently dormant (no specialty pack is `ready:true` yet) but will hit real paying customers the moment one ships, especially on Tauri (async IPC store) or slow web hydration. This is the same "fix the named instance, miss the sibling" pattern as Task #414, which fixed the identical hydration-gating omission for a different piece of entitlement state in this same file. at hooks/useLangPack.ts:useLangPack:110.
+
+**Acceptance Criteria:**
+- [ ] The render-body `unpurchasedSpecialty` computation and its repair effect are gated on `entitlementHydrated` (or `hydrationGraceExpired`), mirroring the existing dynamic-load effect's gate
+- [ ] Test: a genuinely-owned ready specialty code in `LANG_PAIR_KEY`, with the entitlement store not yet hydrated, is NOT redirected/persisted away from the owned pack — only redirected once hydration confirms non-ownership
+- [ ] The repair effect's log message (line 191) no longer asserts a confident permanent diagnosis when the underlying read may be pre-hydration
+
+**Source:** Audit finding F001 — severity 6 — correctness/data-integrity (2-way independent auditor convergence)
+
+---
+
+### Task #443: Fix validator-completeness: hasValidUnitsArray never validates card.prerequisites' shape, a live crash path
+
+**File:** lib/packTypes.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Adam (W19A); card.prerequisites, when present, must be an array of strings — traced and closed the exact live TypeError shape (a non-empty string value passing the truthy-length check but lacking .every))
+
+**What:**
+hasValidUnitsArray validates unitCount/cardCount, units array shape, and per-unit/per-card fields including `Array.isArray` checks on `unit.prerequisiteUnits` and `card.tags` — but never examines `card.prerequisites` at all. `card.prerequisites` is read by `lib/srs.ts:206-207` (`card.prerequisites.every(...)`), reachable from both `store/srsStore.ts`'s `getNewCards` (the live FSRS new-card queue, used by the shipped Italian pack today) and the introduction engine. A malformed pack with a non-array-but-truthy `prerequisites` value would throw a TypeError in a live, currently-shipping code path — not gated behind specialty packs being unready, since this validates the base Italian pack too. Practical likelihood is tempered by packs coming from a sha256-verified, self-controlled CDN, but the validator's own stated purpose is unmet for this field. at lib/packTypes.ts:hasValidUnitsArray:79.
+
+**Acceptance Criteria:**
+- [ ] hasValidUnitsArray validates that card.prerequisites, when present, is an array of strings
+- [ ] Test: a pack with a non-array-but-truthy card.prerequisites value is rejected by the validator, not left to crash lib/srs.ts downstream
+
+**Source:** Audit finding F021 — severity 7 — validator-completeness/live-path
+
+---
+
+### Task #444: Fix test-coverage: app/stats/page.tsx's entire populated-dashboard render path has zero happy-path test coverage
+
+**File:** app/stats/page.tsx, app/stats/page.test.tsx
+**Complexity:** ⚡ Direct — 2 files, no package boundary — write tests against existing code, no production logic change expected
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Charles (W19C); coverage on app/stats/page.tsx rose from 40%/66.66% to 100%/100%/100%/93.75% funcs/stmts/lines/branches — the one remaining uncovered branch is a pre-existing, already-covered concern outside this task's scope)
+
+**What:**
+Every test in app/stats/page.test.tsx drives the page with EMPTY_STATS (hardest:[], weakestTags:[], levelStability:[]) or a Pro-gate-blocked state; even the one exception (seen:10) still zeroes those three arrays. Coverage confirms app/stats/page.tsx sits at 40% function / 66.66% statement coverage, with lines 86-126 — the DifficultyBar-rendering branch, the weakestTags block, and the levelStability retention-bars block (including stabilityColorClass and its width-percentage calculation) — never executing under test. This is the core value-delivery view of the paid Stats page shipping with zero happy-path test coverage — AGENTS.md's Stop-the-Line list explicitly names "any user-visible feature with zero tests covering its happy path." at app/stats/page.tsx:StatsPage:86.
+
+**Acceptance Criteria:**
+- [ ] At least one test populates hardest/weakestTags/levelStability with real data and asserts the DifficultyBar, weakestTags, and retention-bar rendering branches all execute and render expected content
+- [ ] Coverage on app/stats/page.tsx rises to reflect lines 86-126 being exercised
+
+**Source:** Audit finding F014 — severity 7 — test-coverage/stop-the-line
+
+---
+
+### Task #445: Fix resilience: no pack/manifest fetch call has a timeout, so a single hung connection permanently poisons the in-flight cache
+
+**File:** lib/basePackLoader.ts, lib/specialtyPackLoader.ts, lib/packLoader.ts
+**Complexity:** 🔧 Full — 3 files, same fix pattern applied at each fetch call site
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Adam (W19A); AbortController + 20s timeout at all 3 sites, timeout flows into each site's existing typed-failure catch path unchanged)
+
+**What:**
+None of the pack/manifest fetch() calls (lib/basePackLoader.ts's load path, lib/specialtyPackLoader.ts's _doLoad, lib/packLoader.ts's fetchManifest) have an AbortController or timeout. Each is guarded by an in-flight promise cache that only releases its map entry on settlement. A single hung TCP connection leaves that promise permanently pending — every concurrent and future caller for that language/manifest piggybacks on the dead promise for the rest of the process's life, with zero recovery path short of restarting the app. This affects the live base-pack load path already serving real users today. at lib/basePackLoader.ts:loadBasePackFromStorageOrNetwork:183.
+
+**Acceptance Criteria:**
+- [ ] All 3 fetch call sites use an AbortController with a reasonable timeout (e.g. 15-30s)
+- [ ] A timed-out fetch releases its in-flight cache entry and returns a typed failure result, not a permanently-pending promise
+- [ ] Test: a fetch that never resolves is timed out and a subsequent call for the same language/manifest succeeds normally afterward
+
+**Source:** Audit finding F023 — severity 6 — resilience/live-path
+
+---
+
+### Task #446: Fix correctness: getLangPair's repair doesn't actually match getTargetLangCode's, risking a silently corrupted storage key
+
+**File:** lib/constants.ts, tests/constants.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Barry (W19B); getLangPair now shares getTargetLangCode's exact malformed-value derivation, structurally impossible to drift apart again on this check)
+
+**What:**
+getLangPair's doc comment claims parity with getTargetLangCode's malformed-value repair, but getLangPair only checks `indexOf("-")===-1`, missing the empty-tail case — a stored "en-" has a hyphen so it skips repair and is returned unrepaired and unlogged. This feeds directly into store/srsStore.ts's persisted storage key (`srs-${_activeLangPair}`), producing a malformed key like "srs-en-" instead of "srs-en-it". tests/constants.test.ts has an "en-" case for getTargetLangCode but not for getLangPair — the same gap exists in both code and test. at lib/constants.ts:getLangPair:82.
+
+**Acceptance Criteria:**
+- [ ] getLangPair repairs an empty-tail value ("en-") the same way getTargetLangCode does, with a logged fallback
+- [ ] Test: a stored "en-" value is repaired and logged, matching the existing getTargetLangCode test for the same shape of input
+
+**Source:** Audit finding F008 — severity 6 — correctness/rule-22d-parity
+
+---
+
+### Task #447: Fix rule-violation: lib/specialtyPackLoader.ts is now over the 400-line service cap
+
+**File:** lib/specialtyPackLoader.ts
+**Complexity:** 🔧 Full — extract a cohesive slice, following the same pattern used for store/entitlementStore.ts → store/entitlementAddOns.ts
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Adam (W19A); extracted the parse-verify-merge-persist commit step into new lib/specialtyPackMerge.ts — 351/131 lines, both well under cap)
+
+**What:**
+lib/specialtyPackLoader.ts is 430 lines, 30 over the Rule 1 400-line services cap — a fresh, open violation arising in the same wave family that just fixed store/entitlementStore.ts's identical cap violation via a deliberate split (Task #412). at lib/specialtyPackLoader.ts:module:1.
+
+**Acceptance Criteria:**
+- [ ] File split so no resulting file exceeds 400 lines, following the entitlementStore.ts → entitlementAddOns.ts extraction pattern
+- [ ] All existing tests pass unchanged
+- [ ] CLAUDE.md updated with the new module's role
+
+**Source:** Audit finding F007 — severity 5 — rule-violation/file-size
+
+---
+
+### Task #448: Fix correctness: parseFlag silently enables a safe-off flag when its env var is set to an empty string
+
+**File:** lib/featureFlags.ts, tests/featureFlags.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Charles (W19C); empty-string env var now treated the same as unset for every flag, not just specialtyPacks)
+
+**What:**
+parseFlag(v, defaultEnabled) only returns defaultEnabled when v===undefined; an env var explicitly set to the empty string skips that branch and falls through to enabled=true regardless of the flag's intended safe-off default. No test covers the empty-string case. A deployment config that sets a flag var to an empty string (a realistic misconfiguration, e.g. an unset CI template variable) silently enables an unfinished feature meant to default off. at lib/featureFlags.ts:parseFlag:26.
+
+**Acceptance Criteria:**
+- [ ] parseFlag treats an empty-string env var the same as unset (falls through to defaultEnabled)
+- [ ] Test: NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS="" yields the flag disabled, same as unset
+
+**Source:** Audit finding F009 — severity 5 — correctness
+
+---
+
+### Task #449: Fix security: createPurchaseAddOn has no post-await deactivation-guard re-check
+
+**File:** store/entitlementAddOns.ts
+**Complexity:** ⚡ Direct — 1 file, mirror the existing deactivationGuard pattern from lib/specialtyPackLoader.ts
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Barry (W19B); new ERR_ADDON_DEACTIVATED discriminant, guard re-checked immediately before the purchasedAddOns append; clearEntitlement bumps it via a new exported trigger)
+
+**What:**
+The Pro/entitlement gate (isProEnabled) is checked once at function entry, then the function awaits a network round-trip (verify_addon_receipt IPC) before unconditionally appending code to purchasedAddOns via a functional set() — with no generation/deactivation-guard re-check after the await, unlike the sibling specialty-pack-load path (lib/specialtyPackLoader.ts's deactivationGuard, added specifically for this exact class of bug per Task #394/#409). If clearEntitlement() resolves while a purchaseAddOn IPC call is in flight, the functional set() reads the current (post-deactivation, reset-to-[]) state and re-adds code to it, silently resurrecting a purchase record after the license was cleared. Dormant since purchaseAddOn is an intentional stub (#295), but the gate gap is real and structurally asymmetric with an established pattern in this same codebase. at store/entitlementAddOns.ts:createPurchaseAddOn:120.
+
+**Acceptance Criteria:**
+- [ ] createPurchaseAddOn re-checks a deactivation/generation guard (mirroring lib/specialtyPackLoader.ts's pattern) immediately before the functional set() that appends the purchased code
+- [ ] Test: a clearEntitlement() resolving while a purchaseAddOn IPC call is in flight does not resurrect the purchase record
+
+**Source:** Audit finding F022 — severity 5 — security/rule-19b-symmetry
+
+---
+
+### Task #450: Fix test-quality: EntitlementValidator.test.tsx has a test that doesn't prove its own name, plus banned assertions that evade the project's grep gate
+
+**File:** components/EntitlementValidator.test.tsx, AGENTS.md
+**Complexity:** ⚡ Direct — 2 files, no package boundary — fix the test + widen the gate's scan scope
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Derek (W19D); AGENTS.md's grep gate now scans the whole repo, not just tests/ — this immediately surfaced ~29 pre-existing violations across 12 other files outside this task's scope, logged as a new debt item rather than silently expanded into a much larger task)
+
+**What:**
+The test claiming to prove "mounts UpdateChecker as its invisible child" (line 178) asserts only `expect(result).not.toBeNull()`, which would pass regardless of what the component actually returns. Separately, two `.toBeGreaterThan(0)` assertions on Date.now()-stamped fields (lines 128, 164) carry no inline `// existence-check:` justification as AGENTS.md mandates — and because this file lives under `components/`, the repo's Verification Gate grep command (scoped to `tests/` only) never catches it. This is a live instance of a gap already flagged as theoretical in a Batch 18 finding. at components/EntitlementValidator.test.tsx:128.
+
+**Acceptance Criteria:**
+- [ ] The "mounts UpdateChecker" test asserts the actual rendered output contains/is UpdateChecker, not just non-null
+- [ ] Both `.toBeGreaterThan(0)` assertions get an inline `// existence-check:` justification comment, or are replaced with a value-specific assertion
+- [ ] The Verification Gate's banned-assertion grep command in AGENTS.md is widened to scan every `*.test.*` file in the repo, not only files under `tests/`
+
+**Source:** Audit finding F016 — severity 6 — test-quality/gate-blind-spot (compounds Audit finding F015)
+
+---
+
+### Task #451: Fix documentation: security.md's own tracked S1/S3 findings are stale — both already resolved
+
+**File:** .autocode/agents/security.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Derek (W19D); S1/S3 moved to a new Resolved Findings section with corrected current file:line citations)
+
+**What:**
+security.md's "Open/Monitoring" section lists S1 (purchaseAddOn code validation) and S3 (deactivation-mid-load race) as open risks, but both are already resolved: S1 — store/entitlementAddOns.ts already validates via isSpecialtyPackCode as the first guard (Task #287); S3 — lib/specialtyPackLoader.ts's deactivationGuard already re-checks isStale twice (Task #394/#409). S2 in the same section was correctly updated to reflect its fix, but S1/S3 were not. S1's own cited location ("store/entitlementStore.ts:137") is additionally stale — that code moved to store/entitlementAddOns.ts under Task #412. at .autocode/agents/security.md:47.
+
+**Acceptance Criteria:**
+- [ ] S1 and S3 moved to "Resolved Findings" with the correct current file:line citations
+- [ ] No behavior/code change — documentation only
+
+**Source:** Audit finding F013 — severity 4 — documentation-staleness/audit-memory
+
+---
+
+### Task #452: Fix test-quality: a hollow #435 hydration test never advances timers far enough to invoke the code it claims to test
+
+**File:** tests/storage.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Derek (W19D); test now asserts the finish-listener count grows when the failsafe timer fires, since a pure "nothing to reconcile" outcome can't otherwise distinguish real logic from its absence)
+
+**What:**
+The test "#435: does not reconcile when hydration finishes normally (no failsafe, no clobber risk)" would pass on deletion of the reconciliation code under test, because it never advances timers past HYDRATION_FAILSAFE_MS — the code under test is never actually invoked regardless of whether it exists. at tests/storage.test.ts:1.
+
+**Acceptance Criteria:**
+- [ ] The test advances fake timers to a point where the reconciliation logic would actually run if it existed, and the assertion demonstrably fails when that logic is deleted (Deletion Test)
+
+**Source:** Audit finding F020 — severity 4 — test-quality/rule-18
+
+---
+
+### Task #453: Fix test-quality: useLicenseActivation.test.ts asserts lastValidated via expect.any(Number) instead of a value near Date.now()
+
+**File:** hooks/useLicenseActivation.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 19 — Derek (W19D); replaced with a bounded before/after Date.now() range check, matching the existing sibling test's pattern)
+
+**What:**
+The "ok path..." test asserts lastValidated via expect.any(Number) instead of a value near Date.now() — a wrong implementation that passes the literal 0 (the value used by the unrelated backup-restore path) would still satisfy this assertion. Contrast with hooks/useExportImport.test.ts's sibling test, which correctly pins the exact literal. at hooks/useLicenseActivation.test.ts:47.
+
+**Acceptance Criteria:**
+- [ ] The assertion pins a value near Date.now() (fake timers or a bounded range check), not expect.any(Number)
+- [ ] Deletion Test: passing a literal 0 for lastValidated now fails this test
+
+**Source:** Audit finding F012 — severity 4 — test-quality/rule-18
+
+---
+
+### Task #454: Fix test-quality: EntitlementValidator.test.tsx's "mounts UpdateChecker" test doesn't prove its own name
+
+**File:** components/EntitlementValidator.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (merged into Task #450 at consolidation time — #450's first acceptance criterion is this exact fix; not a separate piece of work. No code change attributable to this task number specifically.)
+
+**What:**
+Test name claims it "mounts UpdateChecker as its invisible child" but asserts only expect(result).not.toBeNull() — this would pass if the component returned any other truthy JSX. Fails the Deletion Test. at components/EntitlementValidator.test.tsx:178.
+
+**Acceptance Criteria:**
+- [x] Superseded — see Task #450's first acceptance criterion, which covers this exact fix
+
+**Source:** Audit finding F015 — severity 4 — test-quality/rule-18 (duplicate of Audit finding F016's first criterion, promoted separately by mistake — see Task #450)
+
+---
+
 
 ## Batch 13 — Quality Foundation | 3 tasks | [TASKS COMPLETE — pending batch audit]
 Dependency: Independent. No owner actions required.

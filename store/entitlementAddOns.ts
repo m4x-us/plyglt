@@ -11,15 +11,18 @@
 // runtime or type dependency on its only caller.
 // ============================================================
 // DEPENDS ON: @/lib/langRegistry (isSpecialtyPackCode), @/lib/tauri (invoke),
-//             @/lib/featureFlags (getFeatureFlags, isProEnabled)
+//             @/lib/featureFlags (getFeatureFlags, isProEnabled),
+//             @/lib/generationGuard (createGenerationGuard — Task #449 deactivation guard)
 // USED BY: store/entitlementStore.ts ONLY. createPurchaseAddOn is exported solely so
-//          the store can wire it into its action map — calling it from anywhere else
-//          bypasses the store's own state and is a stop-the-line violation.
+//          the store can wire it into its action map, and bumpAddOnDeactivationGuard is
+//          exported solely for clearEntitlement to call — invoking either from anywhere
+//          else bypasses the store's own state/guard and is a stop-the-line violation.
 // ============================================================
 
 import { isSpecialtyPackCode } from "@/lib/langRegistry";
 import { invoke } from "@/lib/tauri";
 import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { createGenerationGuard } from "@/lib/generationGuard";
 import type { LicenseType } from "@/lib/licenseTypes";
 
 // ── purchaseAddOn error constants ─────────────────────────────────────────────
@@ -29,6 +32,12 @@ export const ERR_ADDON_INVALID_CODE    = "invalid_code"    as const; // code is 
 export const ERR_ADDON_RECEIPT_INVALID = "receipt_invalid" as const; // verify_addon_receipt returned falsy
 export const ERR_ADDON_IPC_ERROR       = "ipc_error"       as const; // Tauri IPC threw
 export const ERR_ADDON_NOT_PRO         = "not_pro"         as const; // purchaser does not hold a Pro subscription
+// Task #449: distinct from ERR_ADDON_NOT_PRO — that's checked at entry, before the IPC
+// round-trip; this fires when a clearEntitlement() completes WHILE the round-trip is in
+// flight, discovered only by the post-await guard re-check. Kept as its own constant
+// (not reused ERR_ADDON_NOT_PRO) so a caller/log can distinguish "you aren't Pro" from
+// "you were deactivated mid-purchase" — genuinely different diagnostics.
+export const ERR_ADDON_DEACTIVATED     = "deactivated"     as const; // entitlement was cleared while the IPC call was in flight
 
 // purchaseAddOn contract (Tasks #287, #285):
 //   signature: (code: string, receiptToken: string) => Promise<PurchaseAddOnResult>
@@ -50,7 +59,7 @@ export const ERR_ADDON_NOT_PRO         = "not_pro"         as const; // purchase
 // bug or oversight. Do not attempt to call purchaseAddOn until specialty content ships.
 export type PurchaseAddOnResult =
   | { ok: true }
-  | { ok: false; error: typeof ERR_ADDON_INVALID_CODE | typeof ERR_ADDON_RECEIPT_INVALID | typeof ERR_ADDON_IPC_ERROR | typeof ERR_ADDON_NOT_PRO };
+  | { ok: false; error: typeof ERR_ADDON_INVALID_CODE | typeof ERR_ADDON_RECEIPT_INVALID | typeof ERR_ADDON_IPC_ERROR | typeof ERR_ADDON_NOT_PRO | typeof ERR_ADDON_DEACTIVATED };
 
 // receiptToken validation constants — mirrors the license-key validation in
 // hooks/useLicenseActivation.ts (Task #423: LICENSE_KEY_MAX_LENGTH there cross-
@@ -69,6 +78,28 @@ interface PurchaseAddOnGet {
 }
 interface PurchaseAddOnSetArg {
   purchasedAddOns: string[];
+}
+
+// Task #449: mirrors lib/specialtyPackLoader.ts's deactivationGuard pattern (Task #394/
+// #409) — the sibling specialty-pack LOAD path already re-checks a generation guard
+// immediately before its own risky memCache mutation; this PURCHASE path checked the Pro
+// gate once at entry, then awaited an IPC round-trip, then unconditionally appended to
+// purchasedAddOns via a functional set() with no re-check. If clearEntitlement() resolves
+// while a purchaseAddOn IPC call is in flight, that functional set() reads the current
+// (post-deactivation, reset-to-[]) state and re-adds code to it — silently resurrecting a
+// purchase record after the license was cleared. bumpAddOnDeactivationGuard() is called
+// from store/entitlementStore.ts's clearEntitlement, at the same point it resets
+// purchasedAddOns — a module-level singleton (not per-call), matching
+// lib/specialtyPackLoader.ts's exact pattern, since this guard must be invalidated by ANY
+// deactivation regardless of which purchaseAddOn call is currently in flight.
+const deactivationGuard = createGenerationGuard();
+
+/** @internal Called ONLY by store/entitlementStore.ts's clearEntitlement, at the same
+ * point it resets purchasedAddOns. Exported (not module-private to a shared file) because
+ * this module and entitlementStore.ts are deliberately kept free of a runtime import of
+ * each other's internals beyond this one factory/trigger pair — see the module header. */
+export function bumpAddOnDeactivationGuard(): void {
+  deactivationGuard.bump();
 }
 
 /**
@@ -121,6 +152,10 @@ export function createPurchaseAddOn(
       console.warn(`[purchaseAddOn] purchaser does not hold a Pro subscription — rejected`);
       return { ok: false, error: ERR_ADDON_NOT_PRO };
     }
+    // Task #449: snapshot the deactivation generation immediately after the Pro gate
+    // passes — mirrors lib/specialtyPackLoader.ts's deactivationGuard.snapshot() timing
+    // (taken after ITS entitlement gate passes, at loadSpecialtyPack's entry).
+    const entryGeneration = deactivationGuard.snapshot();
     // Task #322: reject an empty receiptToken before it reaches the IPC boundary.
     // An empty token always fails verification — rejecting early avoids an IPC round-trip.
     if (!receiptToken.trim()) {
@@ -146,6 +181,16 @@ export function createPurchaseAddOn(
     if (!verified) {
       console.warn(`[purchaseAddOn] receipt verification rejected for "${code}" — not persisted`);
       return { ok: false, error: ERR_ADDON_RECEIPT_INVALID };
+    }
+    // Task #449: re-check immediately before the mutating set() — mirrors
+    // lib/specialtyPackLoader.ts's _mergeFromJson re-check right before its own risky
+    // mutation. Without this, a clearEntitlement() that resolved while the IPC round-trip
+    // above was in flight would have already reset purchasedAddOns to [] — the functional
+    // set() below would then silently resurrect this purchase into the just-cleared array,
+    // granting post-deactivation access to paid content.
+    if (deactivationGuard.isStale(entryGeneration)) {
+      console.warn(`[purchaseAddOn] entitlement was cleared while the purchase for "${code}" was in flight — not persisted`);
+      return { ok: false, error: ERR_ADDON_DEACTIVATED };
     }
     set((s) => ({
       purchasedAddOns: s.purchasedAddOns.includes(code)

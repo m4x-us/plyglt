@@ -24,6 +24,7 @@ vi.mock("react", async (importOriginal) => {
 });
 
 import { runEntitlementValidation, EntitlementValidator } from "./EntitlementValidator";
+import { UpdateChecker } from "@/components/UpdateChecker";
 
 // Mock validateLicense — we control what it resolves/rejects to
 vi.mock("@/lib/entitlement", async (importOriginal) => {
@@ -122,10 +123,16 @@ describe("EntitlementValidator", () => {
     });
     mockValidateLicense.mockRejectedValue(new Error("Network error"));
 
+    const before = Date.now();
     await expect(runEntitlementValidation(useEntitlementStore.getState)).resolves.not.toThrow();
+    const after = Date.now();
     expect(mockValidateLicense).toHaveBeenCalledTimes(1);
-    // touchValidated() must fire in the catch path — prevents hammering on every mount
-    expect(useEntitlementStore.getState().lastValidated).toBeGreaterThan(0);
+    // touchValidated() must fire in the catch path — prevents hammering on every mount.
+    // Bounded to the [before, after] window around this call — a bug leaving lastValidated
+    // at any other positive value would fail this, unlike a bare positivity check.
+    const lastValidated = useEntitlementStore.getState().lastValidated;
+    expect(lastValidated).toBeGreaterThanOrEqual(before);
+    expect(lastValidated).toBeLessThanOrEqual(after);
   });
 
   // Test 6: calls markValidated with validUntil on successful validation
@@ -158,10 +165,15 @@ describe("EntitlementValidator", () => {
     });
     mockValidateLicense.mockResolvedValue({ ok: false, error: "License revoked." });
 
+    const before = Date.now();
     await runEntitlementValidation(useEntitlementStore.getState);
+    const after = Date.now();
 
     const state = useEntitlementStore.getState();
-    expect(state.lastValidated).toBeGreaterThan(0);   // TTL reset — no hammering
+    // TTL reset — no hammering. Bounded to the [before, after] window around this call —
+    // a bug leaving lastValidated at any other positive value would fail this.
+    expect(state.lastValidated).toBeGreaterThanOrEqual(before);
+    expect(state.lastValidated).toBeLessThanOrEqual(after);
     expect(state.validUntil).toBe(originalValidUntil); // expiry preserved — not wiped on failure
   });
 
@@ -173,9 +185,12 @@ describe("EntitlementValidator", () => {
 
     it("render(<EntitlementValidator/>) mounts UpdateChecker as its invisible child (no DOM output)", () => {
       const result = EntitlementValidator();
-      // EntitlementValidator now renders <UpdateChecker /> (stubbed to null in this file).
-      // The returned element is non-null but produces no visible DOM output.
-      expect(result).not.toBeNull();
+      // EntitlementValidator returns exactly <UpdateChecker /> — asserting the element's
+      // .type is the actual (mocked) UpdateChecker component reference proves the real
+      // rendered content. A bare non-null check would also pass for a <div/>, a string, or
+      // any other non-null return value, so it never actually proved this test's own name.
+      expect(result.type).toBe(UpdateChecker);
+      expect(result.props).toEqual({});
     });
 
     it("render(<EntitlementValidator/>) with subscription license triggers validateLicense via store getter", async () => {
