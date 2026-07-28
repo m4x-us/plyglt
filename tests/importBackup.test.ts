@@ -434,19 +434,30 @@ describe("parseBackup", () => {
     });
   });
 
-  it("#481: a numeric-string _version EQUAL to CURRENT_BACKUP_VERSION is accepted, symmetric with its numeric equivalent", () => {
+  it("#481/#487: a numeric-string _version EQUAL to CURRENT_BACKUP_VERSION is accepted, and its full result matches the numeric-equivalent call field-for-field", () => {
     // Before #481, this exact case was REJECTED with the generic message even though the
     // numerically identical _version: CURRENT_BACKUP_VERSION (number) is accepted — an
     // unjustified asymmetry between two serializations of the same real version.
-    const backup = validBackup({ _version: String(CURRENT_BACKUP_VERSION) });
-    const r = parseBackup(backup);
-    expect(r.ok).toBe(true);
+    // Task #487: asserting only r.ok (this test's pre-#487 shape) would still pass if the
+    // string branch's fall-through path silently produced a different srs/entitlement/
+    // langPair shape than the numeric path takes — deep-equating the two FULL results is
+    // the actual proof of "accepted identically." This specific test only exercises
+    // CURRENT_BACKUP_VERSION itself, not the 0/negative/fractional boundary — that coverage
+    // lives in the dedicated Task #485/#486 describe blocks below. What this test (and its
+    // sibling immediately below) DOES generalize is the missing comparison itself: neither
+    // #481 test ever called parseBackup with the numeric equivalent and diffed the results,
+    // which is the specific gap this task closes for the two cases #481 introduced.
+    const numResult = parseBackup(validBackup({ _version: CURRENT_BACKUP_VERSION }));
+    const strResult = parseBackup(validBackup({ _version: String(CURRENT_BACKUP_VERSION) }));
+    expect(strResult).toEqual(numResult);
+    expect(strResult.ok).toBe(true);
   });
 
-  it("#481: a numeric-string _version strictly LOWER than CURRENT_BACKUP_VERSION is also accepted (not just the boundary-equal case)", () => {
-    const backup = validBackup({ _version: "1" });
-    const r = parseBackup(backup);
-    expect(r.ok).toBe(true);
+  it("#481/#487: a numeric-string _version strictly LOWER than CURRENT_BACKUP_VERSION is also accepted, matching its numeric equivalent field-for-field (not just the boundary-equal case)", () => {
+    const numResult = parseBackup(validBackup({ _version: 1 }));
+    const strResult = parseBackup(validBackup({ _version: "1" }));
+    expect(strResult).toEqual(numResult);
+    expect(strResult.ok).toBe(true);
   });
 
   it("#477: a non-numeric string _version gets the generic message, not the newer-version one", () => {
@@ -561,6 +572,64 @@ describe("parseBackup", () => {
       // fractional numeric-looking string by construction. Verified explicitly rather than
       // assumed, per this task's acceptance criteria.
       const r = parseBackup(validBackup({ _version: "1.5" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+  });
+
+  describe("Task #487 debt bundle — F012/F016/F017: leading zeros, precision loss, message accuracy", () => {
+    // F012: a leading-zero string _version ("007") passes the digits-only regex and
+    // Number("007") === 7 — the leading zeros are formatting, not a distinct value. Decision:
+    // this is ACCEPTABLE — a version number padded with zeros still names the same version —
+    // so no code change; pinning the actual behavior with a test rather than leaving it
+    // silently unverified. Live-verified via npx tsx before writing this test: "007" and
+    // "0007" both parse to version 7 and (since 7 > CURRENT_BACKUP_VERSION) are rejected with
+    // the SPECIFIC "newer version" message, not the generic one — proving the value really is
+    // being read as 7, not silently dropped into the generic bucket.
+    it("F012: a leading-zero string _version (\"007\") is read as version 7, not rejected or silently dropped", () => {
+      const r = parseBackup(validBackup({ _version: "007" }));
+      expect(r).toEqual({
+        ok: false,
+        error: `This backup was created by a newer version of the app (backup v7, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
+      });
+    });
+
+    it("F012: multiple leading zeros (\"0007\") still parse to the same value as a single one (\"007\")", () => {
+      const single = parseBackup(validBackup({ _version: "007" }));
+      const multiple = parseBackup(validBackup({ _version: "0007" }));
+      expect(multiple).toEqual(single);
+    });
+
+    // F016: Number.MAX_SAFE_INTEGER is 2^53-1 (16 digits) — a 17+ digit numeric string loses
+    // precision on coercion. Cosmetic only: the coerced value is still always > any real
+    // CURRENT_BACKUP_VERSION, so the backup is correctly rejected either way; only the exact
+    // digits shown in the user-facing message can be imprecise. Live-verified via npx tsx:
+    // "12345678901234567" (17 digits) coerces to 12345678901234568 (last digit rounds).
+    it("F016: a 17-digit string _version loses precision on coercion but is still correctly rejected as newer, with the (imprecise) coerced value in the message", () => {
+      const seventeenDigits = "12345678901234567";
+      const r = parseBackup(validBackup({ _version: seventeenDigits }));
+      expect(r).toEqual({
+        ok: false,
+        error: `This backup was created by a newer version of the app (backup v${Number(seventeenDigits)}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
+      });
+      // Pin the specific precision-loss behavior itself, not just the outcome — proves this
+      // test would fail if a future change made Number() coercion (or a replacement) exact.
+      // Comparing as BigInt (which preserves full precision) against Number()'s round-tripped
+      // value is the correct way to detect the loss — comparing two Number()s of the same
+      // string is always equal to itself and proves nothing.
+      expect(BigInt(seventeenDigits)).not.toBe(BigInt(Number(seventeenDigits)));
+    });
+
+    // F017: an absurdly long digit string (400 nines) overflows Number() to Infinity, caught
+    // by isFinite() and routed to the GENERIC message rather than a version-specific one —
+    // the message text ("missing required fields") doesn't describe "your version number is
+    // too large to represent," which could read as confusing to a user who hits it. Decision:
+    // not adding a 4th bespoke error string for this one absurd-input case — Task #483
+    // consolidated 3 duplicate error strings specifically to stop that proliferation, and
+    // reintroducing a new one-off message here for an input this degenerate (a version field
+    // 400 digits long) would recreate the exact anti-pattern #483 fixed. Documenting the
+    // known imprecision here, pinned by a test, is the chosen resolution.
+    it("F017: an absurdly long digit-string _version (400 nines) overflows to Infinity and gets the generic message, not a version-specific one — accepted imprecision, not a bug", () => {
+      const r = parseBackup(validBackup({ _version: "9".repeat(400) }));
       expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
     });
   });

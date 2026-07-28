@@ -6841,6 +6841,11 @@ Task #479's numeric `_version` branch (line 133) only ported the `isFinite` chec
 - [ ] Both tests assert full result-shape equality against the numeric-equivalent call (matching the file's own established convention, e.g. the "accepts a well-formed current backup" test), not just `r.ok`
 - [ ] New tests added for the 0/negative/fractional boundary cases once Tasks #485/#486 land
 
+**Debt review scope addition (2026-07-28, bundled from debt.md — same file, same `_version` validation block):**
+- [ ] F012: `parseBackup`'s string-`_version` regex `/^\d+$/` doesn't reject leading-zero strings (`"007"` silently reinterpreted as version 7) — add a test documenting/confirming the current behavior; decide whether this is acceptable (a version is a version regardless of leading-zero padding) or should be rejected, and implement accordingly
+- [ ] F016: `parseBackup`'s string-`_version` path loses precision above 2^53 for 17+ digit version strings — cosmetic only (still correctly rejected as newer than `CURRENT_BACKUP_VERSION`); add a test pinning this behavior
+- [ ] F017: huge digit-string `_version` values are correctly `isFinite`-guarded with no crash, but the resulting error message text ("missing required fields") misdescribes the actual failure — decide whether a more accurate message is warranted or document why the generic message is acceptable here too
+
 **Source:** Cycle-10 audit finding F003 — severity 6 — convergence 5/8 (Agents A, B, K, V, W) — Rule 16/18 violation.
 
 ---
