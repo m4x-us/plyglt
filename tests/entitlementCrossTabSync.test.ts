@@ -175,7 +175,7 @@ describe("createCrossTabSync", () => {
       }
     });
 
-    it("a queued event during an in-flight rehydrate that later REJECTS still gets its requeue attempt (done() runs on both resolve and reject)", async () => {
+    it("a queued event during an in-flight rehydrate that later REJECTS still gets its requeue attempt, and the rejection is logged (Task #474)", async () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       try {
         const { rehydrate, calls } = createControllableRehydrate();
@@ -185,13 +185,26 @@ describe("createCrossTabSync", () => {
         handleStorageEvent({ key: STORE_KEY }); // queued
         expect(rehydrate).toHaveBeenCalledTimes(1);
 
-        calls[0]!.reject(new Error("async rehydrate failure"));
+        const rejectionReason = new Error("async rehydrate failure");
+        calls[0]!.reject(rejectionReason);
         await Promise.resolve();
         await Promise.resolve();
 
-        // The queued event still triggers a requeue even though #1 failed — result.then(done, done)
-        // runs `done` (which checks pendingRehydrate) on rejection exactly the same as on success.
+        // The queued event still triggers a requeue even though #1 failed — the rejection
+        // handler still calls done() (which checks pendingRehydrate), exactly as the old
+        // result.then(done, done) did on rejection.
         expect(rehydrate).toHaveBeenCalledTimes(2);
+
+        // Task #474: before this fix, the rejection handler was `done` itself — it reset
+        // state and requeued but never logged, unlike the synchronous-throw sibling above.
+        // Assert the actual ref ID AND the rejection reason, not just that rehydrate's call
+        // count moved on — a passing call-count assertion alone is exactly what let the
+        // swallow ship in the first place (this test previously set up errorSpy but never
+        // asserted on it).
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining("ERR-REHYDRATE-ASYNC-REJECT"),
+          rejectionReason
+        );
 
         calls[1]!.resolve();
       } finally {

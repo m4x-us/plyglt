@@ -152,8 +152,14 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     expect(errors).toContain("units[0].cards: must be a non-empty array");
   });
 
-  it("tolerates a unit's cards field being a non-array, non-null value (string)", () => {
-    const pack = makeValidPack({ units: [makeValidUnit({ cards: "not-an-array" })], unitCount: 1, cardCount: 0 });
+  it("tolerates a unit's cards field being a non-array, non-null value (number)", () => {
+    // Task #476 (C8-F03): a STRING fixture here ("not-an-array") does not actually exercise
+    // the isArray guard's throw path — strings are iterable via for...of (yielding
+    // characters) and never throw, so this test passed identically whether or not the
+    // guard existed (confirmed by mutation testing). A number is not iterable at all —
+    // `for (const card of (42 as Json[]))` throws TypeError without the guard, making this
+    // fixture genuinely discriminating.
+    const pack = makeValidPack({ units: [makeValidUnit({ cards: 42 })], unitCount: 1, cardCount: 0 });
     expect(() => validatePack(pack)).not.toThrow();
   });
 
@@ -167,10 +173,15 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     expect(() => validatePack(pack)).not.toThrow();
   });
 
-  it("tolerates a non-array units field on the pack itself", () => {
+  it("tolerates a non-array units field on the pack itself (plain object)", () => {
+    // Task #476 (C8-F03): same non-discrimination issue as the "cards" test above — a
+    // STRING fixture ("not-an-array") is iterable via for...of and never throws, so it
+    // never exercised the dedup loop's `isArray(raw["units"])` guard's throw path. A plain
+    // object has no Symbol.iterator — `for (const unit of ({} as Json[]))` throws TypeError
+    // without the guard, making this fixture genuinely discriminating.
     const pack = {
       _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
-      unitCount: 0, cardCount: 0, units: "not-an-array",
+      unitCount: 0, cardCount: 0, units: {},
     };
     expect(() => validatePack(pack)).not.toThrow();
   });
@@ -187,6 +198,32 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     ];
     const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
     expect(errors).toContain("Duplicate card IDs: dupe");
+  });
+
+  // Task #478 (C8-F05): two cards both missing/with a non-string id must not collide as
+  // the same dedup key — before the fix, `card["id"] as string` cast both `undefined`s
+  // to the literal string "undefined" (via ids.has/add on the raw unchecked value),
+  // producing a garbled "Duplicate card IDs: " line with nothing readable after the colon.
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both missing an id", () => {
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [makeValidCard({ id: undefined }), makeValidCard({ id: undefined })],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+  });
+
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both with a non-string id", () => {
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [makeValidCard({ id: 42 }), makeValidCard({ id: 42 })],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
   });
 });
 

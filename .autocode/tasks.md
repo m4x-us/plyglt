@@ -2822,11 +2822,12 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 132 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 137 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Sixth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 9 (critical) — 22 findings (F1-F22) merged/scored by Agent C; 11 findings (severity ≥4) promoted as Task #455-#465 below; 11 findings (severity ≤3) logged to debt.md. Critical finding: Task #450's widened Verification Gate is currently red by its own literal wording (29 pre-existing hits) and the batch was carried to zero open tasks without an updated cycle-6 verdict — see Task #455. Task #466 added per Max's explicit direction (2026-07-28) to close this mechanically via CI, not rely on the audit process to catch it again next time. Wave 20 (4 streams: Adam/Barry/Charles/Derek) closed all 12 tasks (#455-466) 2026-07-28, independently re-verified against actual source: tsc clean, 1403/1403 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean (genuinely zero hits — the critical finding is resolved), CI now mechanically enforces the gate on every push/PR. Per BATCH_REMEDIATION_GATE, task completion alone doesn't close the gate — a fresh "/audit batch 12" run must PASS next.
 Seventh re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — cycle-6's critical process failure (the gate silently red) is confirmed genuinely fixed, but 2 new LIVE bugs surfaced via execution-based testing (a backup-restore version-check bypass, and an uncaught-crash bug in the CI pack validator itself), plus the batch's own recurring "fix the instance, miss the sibling" pattern struck again inside this wave's own fixes (4 of 7 promoted findings are the fix-that-recreates-its-own-defect-class shape). 7 findings (severity ≥4) promoted as Task #467-473 below; 13 findings (severity ≤3) logged to debt.md. Wave 21 (4 streams: Adam/Barry/Charles/Derek) closed all 7 tasks 2026-07-28, independently re-verified: tsc clean, 1424/1424 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean, scripts/validatePack.ts now genuinely counted in coverage (67.76%/76.85%/100%/66.66%), aggregate thresholds still exceeded. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
+Eighth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — no critical bugs this time, but 4 converged findings each trip an explicit stop-the-line rule, and 3 of them are the same shape recurring inside the very fixes meant to close it (a fix/test handling one of two near-identical branches, leaving its twin unaddressed). Security posture confirmed genuinely clean this cycle. 5 findings (severity ≥4) promoted as Task #474-478 below; 6 findings (severity ≤3) logged to debt.md. Wave 22 (4 streams: Adam/Barry/Charles/Derek) closed all 5 tasks 2026-07-28, independently re-verified: tsc clean, 1428/1428 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
 Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
 Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
@@ -6559,6 +6560,106 @@ vitest.config.ts's coverage.exclude list includes "scripts" — meaning scripts/
 - [ ] If included: coverage thresholds re-verified to still pass with scripts/ counted (tests/validatePack.test.ts already exists and should cover the bulk of it)
 
 **Source:** Cycle-7 audit finding F07 — severity 4 — convergence 1/8 (Agent W) — structural CI/coverage-gate risk, echoes cycle 6's own root cause.
+
+---
+
+### Task #474: Fix error-handling: entitlementCrossTabSync's async rehydrate rejection is silently swallowed, unlike its sync-throw sibling
+
+**File:** store/entitlementCrossTabSync.ts, tests/entitlementCrossTabSync.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 22 — Adam (W22A); rejection handler now logs [ERR-REHYDRATE-ASYNC-REJECT-...] with the reason before calling done(), matching the sync-throw sibling; existing test rewritten to assert the errorSpy call, not just call counts; Deletion Test verified by hand)
+
+**What:**
+triggerRehydrate's Promise branch does `result.then(done, done)` — done resets the in-flight flag and requeues but never logs. Its sibling, the synchronous-throw branch 8 lines below, correctly logs via `console.error("[ERR-REHYDRATE-SYNC-THROW-...]", err)` before calling done(). This wave's own new test for the async-reject scenario (tests/entitlementCrossTabSync.test.ts:178-200) sets up an errorSpy but never asserts on it — the test documents the swallow instead of catching it. Direct violation of AGENTS.md Rule 8 ("every catch block must surface the error... swallowing errors is a stop-the-line violation") — the `.then` rejection handler is functionally a catch block here. This gap sits inside the very task (#469) opened to close this module's error-handling gaps. at store/entitlementCrossTabSync.ts:77.
+
+**Acceptance Criteria:**
+- [ ] The async-rejection path logs the rejection reason with a ref ID, matching the sync-throw path's pattern
+- [ ] The existing "a queued event during an in-flight rehydrate that later REJECTS..." test asserts the errorSpy was actually called, not just call counts
+
+**Source:** Cycle-8 audit finding C8-F01 — severity 7 — convergence 1/8 (Agent B) — Rule 8 violation, LIVE (cross-tab sync runs in production web builds today).
+
+---
+
+### Task #475: Fix test-quality: fetchWithTimeout.test.ts's rewritten test proves only one of the two timers the finally block clears
+
+**File:** tests/fetchWithTimeout.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 22 — Barry (W22B); test renamed and extended to assert clearTimeoutSpy was called with BOTH the abort timer's and backstop timer's ids; Deletion Test verified by hand-reverting lib/fetchWithTimeout.ts's finally block)
+
+**What:**
+Task #472's rewritten test captures `setTimeoutSpy.mock.results[1]!.value` (the backstop timer, the SECOND setTimeout call) and asserts clearTimeoutSpy was called with it — but never captures or asserts anything about `results[0]` (the abort timer, cleared by the same finally block one line above). Confirmed empirically: commenting out `clearTimeout(abortTimeoutId)` in lib/fetchWithTimeout.ts and running the full test file leaves all 6 tests green. Task #472 exists specifically because a prior test proved nothing — this rewrite fixes exactly one of the two timers it needed to prove and leaves the other unverified, the same defect class one line over, in the same task. at tests/fetchWithTimeout.test.ts:76.
+
+**Acceptance Criteria:**
+- [ ] The test also asserts `clearTimeoutSpy` was called with `setTimeoutSpy.mock.results[0]!.value` (the abort timer's id)
+- [ ] Deletion Test: temporarily removing `clearTimeout(abortTimeoutId)` now fails the test, then restore
+
+**Source:** Cycle-8 audit finding C8-F02 — severity 6 — convergence 2/8 (Agents A, W) — Rule 18 violation, LIVE.
+
+---
+
+### Task #476: Fix test-quality: 2 of validatePack.test.ts's new malformed-shape regression tests use non-discriminating string fixtures
+
+**File:** tests/validatePack.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 22 — Charles (W22C); replaced both string fixtures with a number (cards:42) and a plain object (units:{}), neither iterable without throwing; Deletion Test verified by hand — both updated tests now genuinely fail when their guard is removed)
+
+**What:**
+Two of the six new Task #468 regression tests use a JS string as their "non-array" fixture (`cards: "not-an-array"`, `units: "not-an-array"`). Strings are iterable via `for...of` (yielding characters) and never throw, so neither test exercises the crash the isArray guards exist to prevent. Confirmed by direct mutation testing: removing `isArray(unit["cards"])` at scripts/validatePack.ts:191 AND removing `isArray(raw["units"])` at line 189 leaves all 20 tests in the file green either way. Only the `cards: null` and `units: [null]` fixtures in the same suite are genuinely discriminating. Same defect class as cycle 7's F06 (a pseudocode test), recurring inside the very suite that fixed F02/#468. at tests/validatePack.test.ts:163.
+
+**Acceptance Criteria:**
+- [ ] The two string-fixture tests are replaced with genuinely non-array, non-null, non-iterable-without-throwing values (e.g. a number or a plain object) that actually trigger the guard's throw path when the guard is removed
+- [ ] Deletion Test: temporarily removing each isArray guard now fails its corresponding test, then restore
+
+**Source:** Cycle-8 audit finding C8-F03 — severity 5 — convergence 3/8 (Agent K, mutation-tested; Agent V; Red Agent R, implicit) — Rule 16/18 violation, LIVE.
+
+---
+
+### Task #477: Fix data-integrity: parseBackup's #467 fix gives a truthy non-number _version a worse error message than the scenario it was written to protect against
+
+**File:** lib/importBackup.ts, tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 22 — Derek (W22D); a numeric-string _version greater than CURRENT_BACKUP_VERSION now gets the specific "newer version... update plyglt" message; non-numeric or not-actually-newer strings and all other malformed shapes still get the generic message; Deletion Test verified by hand)
+
+**What:**
+Task #467's own rationale explicitly cites "a genuinely newer app version that ever serializes _version as a string" as a scenario to guard against. But `parseBackup({_version:"999",...})` now returns the generic "Invalid backup file — missing required fields." instead of the specific, more helpful "This backup was created by a newer version of the app... Please update plyglt." message the sibling numeric out-of-range case correctly produces. Task #467's own acceptance criteria asked for "the same or an equally clear error message" — a generic fallback is measurably less clear for the exact user this task was meant to help. The new test at tests/importBackup.test.ts:429-432 locks this weaker message in as intended behavior. at lib/importBackup.ts:94.
+
+**Acceptance Criteria:**
+- [ ] A truthy but non-number _version that looks like a plausible future version (e.g. a numeric string) gets the specific "newer version... update plyglt" message where reasonable, or the tradeoff of using the generic message is explicitly documented and accepted in this task's resolution
+- [ ] Existing tests for genuinely malformed (non-numeric, e.g. object/array/boolean) _version values continue to get the generic message
+
+**Source:** Cycle-8 audit finding C8-F04 — severity 5 — convergence 1/8 (Agent W, execution-verified) — message-quality regression, LIVE.
+
+---
+
+### Task #478: Fix code-quality: validatePack's dedup loop uses an unchecked card id cast, producing garbled "Duplicate card IDs: " output for malformed cards
+
+**File:** scripts/validatePack.ts, tests/validatePack.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 22 — Charles (W22C); dedup loop now skips any card whose id isn't a real string via isString(id), before using it as a dedup key; 2 new tests for missing/non-string ids; Deletion Test verified by hand)
+
+**What:**
+`const id = card["id"] as string;` (in the duplicate-card-ID loop added by Task #468) is unguarded. Two cards both missing/with non-string id collide as the same dedup key and produce a garbled `"Duplicate card IDs: "` (blank after the colon) — confirmed via direct execution against a crafted pack. Not a crash and no reporting is lost (validateCard's own check already reports the missing-id error elsewhere), but the output is confusing CI noise. The highest-convergence finding of cycle 8 — 4 of 8 reviewers independently found it, two via direct execution. at scripts/validatePack.ts:194.
+
+**Acceptance Criteria:**
+- [ ] The dedup loop skips (or otherwise safely handles) a card whose id is missing or non-string, rather than using it as a dedup key
+- [ ] A test supplies two cards both missing/with non-string id and asserts no garbled "Duplicate card IDs:" line is produced
+
+**Source:** Cycle-8 audit finding C8-F05 — severity 4 — convergence 4/8 (Agents A, B, W, Red R — highest convergence this cycle, 2 execution-verified) — code-quality, LIVE.
 
 ---
 

@@ -74,7 +74,17 @@ export function createCrossTabSync(storeKey: string, rehydrate: () => unknown): 
     try {
       const result = rehydrate();
       if (result instanceof Promise) {
-        result.then(done, done);
+        // Task #474: the rejection handler previously was `done` itself — resets the
+        // in-flight flag and requeues, but never logs. AGENTS.md Rule 8 ("every catch
+        // block must surface the error... swallowing errors is a stop-the-line
+        // violation") applies here exactly as it does to the synchronous-throw branch
+        // below: this rejection handler IS this async path's catch block. Logged with
+        // the same ref-ID/message shape as the sync-throw sibling so both failure modes
+        // of the same call are equally diagnosable.
+        result.then(done, (err) => {
+          console.error(`[ERR-REHYDRATE-ASYNC-REJECT-${Date.now()}] persist.rehydrate() returned a rejected promise — cross-tab sync disabled for this event`, err);
+          done();
+        });
       } else {
         done();
       }

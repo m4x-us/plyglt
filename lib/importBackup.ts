@@ -88,18 +88,39 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // truthy but non-number _version (e.g. the string "999") passed this guard untouched, and
   // then also skipped the newer-version rejection below (gated on `typeof === "number"`),
   // completely bypassing the "reject backups written by a newer app" check this function
-  // exists to enforce. Requiring `typeof data._version === "number"` here closes that gap —
-  // any non-number _version is now treated as a malformed backup, the same bucket every
-  // other basic shape failure in this guard already falls into.
+  // exists to enforce.
+  // Task #477: #467's fix rejected EVERY non-number _version with the generic "missing
+  // required fields" message — including exactly the "genuinely newer app version that
+  // serializes _version as a string" scenario #467's own rationale cites, which deserves
+  // the specific "update plyglt" message, not a worse one than the numeric case gets.
+  // typeof data._version === "string" is split out below (checked before the combined
+  // shape guard) so a numeric-looking string can still earn that message; every other
+  // non-number shape (object, array, boolean) falls through to the same combined guard
+  // as before and gets the generic message, unchanged.
   if (
-    !data._version ||
-    typeof data._version !== "number" ||
     typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) ||
     typeof data.entitlement !== "object" || data.entitlement === null || Array.isArray(data.entitlement)
   )
     return { ok: false, error: "Invalid backup file — missing required fields." };
 
-  if (typeof data._version === "number" && data._version > CURRENT_BACKUP_VERSION) {
+  if (typeof data._version === "string") {
+    const parsedVersion = Number(data._version);
+    if (!isNaN(parsedVersion) && parsedVersion > CURRENT_BACKUP_VERSION) {
+      return {
+        ok: false,
+        error: `This backup was created by a newer version of the app (backup v${parsedVersion}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
+      };
+    }
+    // A non-numeric-looking string (or a numeric string that isn't actually newer — real
+    // backups never serialize _version as a string at all) is genuinely malformed, not a
+    // plausible future version — same generic bucket as every other shape failure here.
+    return { ok: false, error: "Invalid backup file — missing required fields." };
+  }
+
+  if (!data._version || typeof data._version !== "number")
+    return { ok: false, error: "Invalid backup file — missing required fields." };
+
+  if (data._version > CURRENT_BACKUP_VERSION) {
     return {
       ok: false,
       error: `This backup was created by a newer version of the app (backup v${data._version}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,

@@ -73,16 +73,23 @@ describe("fetchWithTimeout", () => {
     await assertion;
   });
 
-  it("clears the backstop's own timer in the finally block when fetch settles first", async () => {
+  it("clears BOTH the abort timer and the backstop's own timer in the finally block when fetch settles first", async () => {
     // Task #472: the previous version of this test only advanced timers past the timeout
     // after resolution and asserted nothing threw. That proves nothing — Promise.race
     // already attaches a rejection handler to the backstop promise at race-call time, so
     // even an uncleared backstop timer firing later becomes an already-handled rejection
     // with no observable effect (no throw, no unhandled-rejection warning). Spying on
     // setTimeout/clearTimeout directly and asserting clearTimeout was called with the
-    // SPECIFIC id setTimeout returned for the backstop timer is the only way to prove the
-    // `finally` block's clearTimeout(backstopTimeoutId!) actually ran, rather than assuming
-    // it from an absence of side effects.
+    // SPECIFIC id setTimeout returned for each timer is the only way to prove the
+    // `finally` block's two clearTimeout calls actually ran, rather than assuming it from
+    // an absence of side effects.
+    //
+    // Task #475: #472's rewrite proved only the backstop timer (results[1]) — the abort
+    // timer (results[0], cleared by the SAME finally block one line above
+    // clearTimeout(backstopTimeoutId!)) was never captured or asserted. Confirmed by the
+    // Deletion Test: commenting out clearTimeout(abortTimeoutId) in
+    // lib/fetchWithTimeout.ts left this test (and all others in this file) green. Both
+    // ids are now asserted, closing that gap.
     vi.useFakeTimers();
     const mockResponse = { ok: true, status: 200 } as Response;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
@@ -94,10 +101,12 @@ describe("fetchWithTimeout", () => {
     expect(result).toBe(mockResponse);
 
     // Two independent timers are armed, in this order (lib/fetchWithTimeout.ts): the abort
-    // timer first, then the backstop's own timer. Capture the SECOND setTimeout call's
-    // returned id specifically — that is the backstop's id, not the abort timer's.
+    // timer first, then the backstop's own timer. Capture BOTH setTimeout calls' returned
+    // ids specifically, and assert clearTimeout was called with each one.
     expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
+    const abortTimeoutId = setTimeoutSpy.mock.results[0]!.value;
     const backstopTimeoutId = setTimeoutSpy.mock.results[1]!.value;
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(abortTimeoutId);
     expect(clearTimeoutSpy).toHaveBeenCalledWith(backstopTimeoutId);
 
     setTimeoutSpy.mockRestore();

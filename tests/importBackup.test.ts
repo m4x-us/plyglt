@@ -421,17 +421,32 @@ describe("parseBackup", () => {
     expect(r.error).toMatch(/update/i);
   });
 
-  it("#467: rejects a truthy but non-number _version (e.g. a string) instead of silently accepting it", () => {
-    // Before #467, `!data._version` only rejected FALSY values, and the newer-version
-    // rejection only fired for `typeof === "number"` — a truthy string like "999" passed
-    // both guards untouched and was silently accepted, completely bypassing the
-    // "reject backups written by a newer app" check this function exists to enforce.
+  it("#477: rejects a numeric-string _version that looks like a plausible future version with the SPECIFIC newer-version message, not the generic one", () => {
+    // Task #467 rejected every truthy non-number _version with the generic "missing
+    // required fields" message — including a genuinely newer app version that ever
+    // serializes _version as a string, exactly the scenario #467's own rationale cited.
+    // #477 gives that specific case the same "update plyglt" message the numeric case gets.
     const backup = validBackup({ _version: "999" });
+    const r = parseBackup(backup);
+    expect(r).toEqual({
+      ok: false,
+      error: `This backup was created by a newer version of the app (backup v999, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
+    });
+  });
+
+  it("#477: a numeric-string _version that is NOT newer (≤ CURRENT_BACKUP_VERSION) still gets the generic message — real backups never serialize _version as a string at all", () => {
+    const backup = validBackup({ _version: String(CURRENT_BACKUP_VERSION) });
     const r = parseBackup(backup);
     expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
   });
 
-  it("#467: rejects other non-number truthy _version shapes (object, array, boolean)", () => {
+  it("#477: a non-numeric string _version gets the generic message, not the newer-version one", () => {
+    const backup = validBackup({ _version: "not-a-version" });
+    const r = parseBackup(backup);
+    expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+  });
+
+  it("#467: rejects other non-number truthy _version shapes (object, array, boolean) with the generic message", () => {
     expect(parseBackup(validBackup({ _version: {} }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
     expect(parseBackup(validBackup({ _version: [2] }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
     expect(parseBackup(validBackup({ _version: true }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
