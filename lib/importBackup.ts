@@ -55,10 +55,16 @@ function newerVersionError(version: number): string {
 // on both 0 and negative integers. Stating the rule explicitly, once, means both branches
 // agree on every input by construction, not by accident — the exact defect class (isNaN
 // vs isFinite branch divergence, #479) this task recreated one input value away.
-// Deliberately NOT checking Number.isInteger here — a fractional numeric _version (e.g.
-// 1.5) is a separate, already-tracked gap (Task #486, not this task's scope).
+// Task #486: also requires Number.isInteger(v) — #485 deliberately left this out, but its
+// absence left the numeric branch accepting fractional versions (e.g. 1.5) that the string
+// branch's digits-only regex (/^\d+$/, no decimal point) already rejected on that side.
+// #479's own inline comment claimed the numeric branch was given "the identical isFinite
+// gap" fix as the string branch and that this closed it — it ported isFinite but not the
+// accompanying shape constraint, the exact "one of two structurally-identical branches
+// fixed, twin left open" pattern this predicate exists to prevent from recurring a third
+// time. Now both branches reject non-integers uniformly, by construction, in one place.
 function isValidBackupVersionNumber(v: number): boolean {
-  return isFinite(v) && v > 0;
+  return isFinite(v) && Number.isInteger(v) && v > 0;
 }
 
 const VALID_STATES: Set<string> = new Set(["new", "learning", "review", "relearning"]);

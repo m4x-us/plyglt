@@ -24,11 +24,13 @@ export interface CrossTabSyncHandle {
 // prototype chain doesn't share this module's global Promise constructor) as synchronous
 // — it would call done() immediately and reset rehydrateInFlight while real async work was
 // still pending, silently breaking the dedup/queue guarantee this module exists to provide.
-// This module's `rehydrate` parameter is typed `() => unknown` and its doc comment above
-// states the module is "not tied to Zustand specifically," intended for reuse with a
-// non-Zustand or differently-configured rehydrate function — an instanceof check contradicts
-// that stated generality. Structural (duck-typed) detection matches the actual async
-// contract this module depends on: anything with a callable .then is awaited the same way.
+// This module's `rehydrate` parameter is typed `() => unknown` (Task #463's extraction kept
+// it decoupled from EntitlementState's fields, not Zustand-specific — see the module header
+// above) — the dedup/queue guarantee this module exists to provide must hold for anything
+// that parameter can legally return under that type, not just what its one real caller
+// (entitlementStore.ts, per the header's USED BY line) happens to pass today. Structural
+// (duck-typed) detection matches the actual async contract this module depends on: anything
+// with a callable .then is awaited the same way, regardless of its prototype chain.
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
     value !== null &&
@@ -71,15 +73,42 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * 0, e); })` that never rethrows. Since no store in this app (entitlementStore.ts,
  * srsStore.ts, settingsStore.ts) registers an onRehydrateStorage callback,
  * postRehydrationCallback is always undefined and that optional call is always a no-op —
- * persist.rehydrate() can therefore never actually return a rejected Promise today. This is
- * confirmed with a live regression test against the real zustand dependency (not a mock) in
- * tests/entitlementCrossTabSync.test.ts for BOTH real failure sources that funnel into that
- * same swallowed .catch: storage.getItem() throwing (Task #482's test), and — the gap Task
- * #482 left untested — the store's own migrate() function throwing (Task #488's test). The
- * migrate case is not hypothetical: store/migrations.ts's migrate*Store functions
- * (registered by all three real stores, per CLAUDE.md §4) throw by design on a missing
- * migration step, and Task #488 proved that throw is swallowed by the exact same
- * unreachable-rethrow path as the getItem case.
+ * persist.rehydrate() can therefore never actually return a rejected Promise today, FOR THE
+ * TWO SPECIFIC FAILURE SOURCES this claim is scoped to (Task #490/F006 — naming the exact
+ * tested sub-cases rather than the whole swallowed-.catch surface): storage.getItem()
+ * throwing (Task #482's test) and the store's own migrate() function throwing (Task #488's
+ * test), each confirmed with a live regression test against the real zustand dependency (not
+ * a mock) in tests/entitlementCrossTabSync.test.ts. The migrate case is not hypothetical:
+ * store/migrations.ts's migrate*Store functions (registered by all three real stores, per
+ * CLAUDE.md §4) throw by design on a missing migration step, and Task #488 proved that throw
+ * is swallowed by the exact same unreachable-rethrow path as the getItem case.
+ *
+ * Residual gap (Task #490/F006, not yet tested): the same hydrate() promise chain also calls
+ * `options.merge(...)` and, when migrated, a re-persisting `setItem()` inside .then callbacks
+ * upstream of the same terminal .catch — a throw from either would be swallowed identically.
+ * No store in this app passes a custom `merge` option (verified: `grep -n "merge:"
+ * store/*.ts` — none), so the default shallow-merge implementation is the only merge() in
+ * play, and it does not throw for well-typed state — low risk. The re-persisting setItem()
+ * is a more realistic path (e.g. localStorage quota exceeded) and remains genuinely untested
+ * by this file. Not adding a third live-regression test for it this task (P3/severity 4,
+ * scope: reconcile the existing claim's precision, not expand test coverage) — logged as
+ * debt instead so the claim above stays accurate without silently dropping the gap
+ * (.autocode/debt.md, Task #490).
+ *
+ * Header/generality reconciliation (Task #489/F005): an earlier version of this comment
+ * justified keeping the branch below by citing "reuse of this module with a non-Zustand or
+ * differently-configured rehydrate function" — a multi-caller framing inconsistent with this
+ * file's own header, which states "USED BY: store/entitlementStore.ts ONLY." The real
+ * justification does not require a second caller: it applies entirely within
+ * entitlementStore.ts's own future — (1) that one real caller could later register an
+ * onRehydrateStorage callback that itself throws inside zustand's own final .catch handler,
+ * which WOULD produce a genuine rejection (nothing catches a throw from inside that handler),
+ * and (2) a future zustand version could change hydrate()'s internal error handling so
+ * persist.rehydrate() starts rejecting. Both are live risks for the module's single existing
+ * caller, not a bet on a hypothetical second one. The `rehydrate` parameter stays typed `()
+ * => unknown` because Task #463 extracted this logic to be decoupled from EntitlementState's
+ * fields, not to advertise an active multi-caller plan — if a second caller is ever added,
+ * update the header's USED BY line first, and this justification can then cite it honestly.
  *
  * Accepted trade-off (Task #488): unlike the initial-mount hydration path, which has an
  * explicit failsafe (lib/storage.ts's useIsHydrated, HYDRATION_FAILSAFE_MS timeout, Tasks
@@ -94,17 +123,11 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * writing from another tab, both rare, this is accepted with the same rigor as the
  * getItem-throw case above, not silently assumed away.
  *
- * The branch is kept anyway, not as dead code: this function is a generic, reusable
- * primitive (its `rehydrate` parameter is typed `() => unknown`, not tied to Zustand
- * specifically — see the module header above), so it must stay correct for (1) a future
- * onRehydrateStorage callback that itself throws inside zustand's own final .catch handler —
- * which WOULD produce a genuine rejection, since nothing catches a throw from inside that
- * handler, (2) reuse of this module with a non-Zustand or differently-configured rehydrate
- * function, and (3) a future zustand version changing hydrate()'s internal error handling.
- * tests/entitlementCrossTabSync.test.ts's async-reject tests exercise this module's OWN
- * contract (correct behavior given any Promise-returning rehydrate function) via a synthetic
- * controllable Promise — that is the right scope for a unit test of a generic utility, not a
- * claim that this exact rejection happens in production today.
+ * tests/entitlementCrossTabSync.test.ts's async-reject tests (the Task #304/#347/#474 describe
+ * blocks) exercise this module's OWN contract (correct behavior given any Promise-returning
+ * rehydrate function) via a synthetic controllable Promise — that is the right scope for a
+ * unit test of this function's typed contract, not a claim that any specific rejection
+ * happens in production today.
  *
  * @param storeKey the persist store's storage key — only 'storage' events for this key trigger a rehydrate
  * @param rehydrate called fresh on every triggered rehydrate (not captured once), so a

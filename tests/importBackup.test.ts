@@ -539,6 +539,32 @@ describe("parseBackup", () => {
     });
   });
 
+  describe("Task #486 — numeric _version branch rejects fractional values", () => {
+    // #485 deliberately left the shared predicate without a Number.isInteger check — a
+    // fractional numeric _version (e.g. 1.5) was still silently accepted. #479's own inline
+    // comment claimed the numeric branch got "the identical isFinite gap" fix as the string
+    // branch and that this closed the gap; it ported isFinite but not the accompanying
+    // digits-only shape constraint the string branch's regex enforces for free.
+
+    it("rejects _version: 1.5 (number) with the generic message", () => {
+      const r = parseBackup(validBackup({ _version: 1.5 }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects _version: -0.0001 (number) with the generic message", () => {
+      const r = parseBackup(validBackup({ _version: -0.0001 }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("string branch already rejects fractional _version values symmetrically — no code change needed there", () => {
+      // The digits-only regex (/^\d+$/) has no decimal point, so it already rejects a
+      // fractional numeric-looking string by construction. Verified explicitly rather than
+      // assumed, per this task's acceptance criteria.
+      const r = parseBackup(validBackup({ _version: "1.5" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+  });
+
   it("coerces malformed langPair format to en-it default", () => {
     const backup = validBackup({ langPair: "en-XXXXXXXX" });
     const r = parseBackup(backup);
