@@ -171,6 +171,59 @@ describe("parseBackup", () => {
     expect(r.srs.cards["neg"]?.lapses).toBe(0);
   });
 
+  // Task #460: difficulty must be clamped to lib/srs.ts's FSRS range (D — 1 to 10), not
+  // merely defaulted when non-finite. A crafted/corrupted backup with an in-range-typed but
+  // out-of-bounds number would otherwise reach the scheduler unclamped.
+  it("clamps an above-range difficulty down to 10", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["dhi"] = {
+      cardId: "dhi", state: "review", stability: 5,
+      difficulty: 99, retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["dhi"]?.difficulty).toBe(10);
+  });
+
+  it("clamps a below-range difficulty up to 1", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["dlo"] = {
+      cardId: "dlo", state: "review", stability: 5,
+      difficulty: -50, retrievability: 0.9, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["dlo"]?.difficulty).toBe(1);
+  });
+
+  // Task #460: retrievability must be clamped to lib/srs.ts's documented range (R — current
+  // recall probability 0–1).
+  it("clamps an above-range retrievability down to 1", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["rhi"] = {
+      cardId: "rhi", state: "review", stability: 5,
+      difficulty: 5, retrievability: 4.2, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["rhi"]?.retrievability).toBe(1);
+  });
+
+  it("clamps a below-range (negative) retrievability up to 0", () => {
+    const backup = validBackup();
+    (backup.srs.cards as Record<string, unknown>)["rlo"] = {
+      cardId: "rlo", state: "review", stability: 5,
+      difficulty: 5, retrievability: -0.5, dueDate: Date.now(), lapses: 0, reps: 1,
+    };
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.srs.cards["rlo"]?.retrievability).toBe(0);
+  });
+
   it("defaults difficulty to 5 when value is not a finite number", () => {
     const backup = validBackup();
     (backup.srs.cards as Record<string, unknown>)["d"] = {

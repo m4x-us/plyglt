@@ -14,6 +14,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // ── Type guards ───────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ const VALID_TIERS = new Set([1, 2, 3, 4]);
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-function validateCard(card: unknown, path: string): string[] {
+export function validateCard(card: unknown, path: string): string[] {
   const errors: string[] = [];
 
   if (!isObj(card)) { return [`${path}: not an object`]; }
@@ -59,6 +60,17 @@ function validateCard(card: unknown, path: string): string[] {
   if (!isArray(card["tags"])) {
     errors.push(`${path}.tags: must be an array`);
   }
+  // Task #459 (F5): mirrors lib/packTypes.ts's hasValidUnitsArray — prerequisites is
+  // OPTIONAL (undefined is valid), but when present must be an array of strings.
+  // lib/srs.ts's prerequisitesMet has no Array.isArray guard of its own before calling
+  // .every() on it, so a pack with prerequisites: "c0" (a truthy non-array, which also
+  // passes a naive `?.length` truthiness check) passes CI and throws a TypeError at
+  // runtime in the live FSRS new-card queue and introduction engine.
+  if (card["prerequisites"] !== undefined) {
+    if (!isArray(card["prerequisites"]) || !(card["prerequisites"] as unknown[]).every(isString)) {
+      errors.push(`${path}.prerequisites: when present, must be an array of strings`);
+    }
+  }
 
   // Direction-specific field checks
   const type = card["type"];
@@ -80,7 +92,7 @@ function validateCard(card: unknown, path: string): string[] {
   return errors;
 }
 
-function validateUnit(unit: unknown, path: string): string[] {
+export function validateUnit(unit: unknown, path: string): string[] {
   const errors: string[] = [];
 
   if (!isObj(unit)) { return [`${path}: not an object`]; }
@@ -114,7 +126,7 @@ function validateUnit(unit: unknown, path: string): string[] {
   return errors;
 }
 
-function validatePack(raw: unknown): string[] {
+export function validatePack(raw: unknown): string[] {
   const errors: string[] = [];
 
   if (!isObj(raw)) return ["Pack root: not an object"];
@@ -139,6 +151,30 @@ function validatePack(raw: unknown): string[] {
     }
   }
 
+  // Task #459 (F5): mirrors lib/packTypes.ts's hasValidUnitsArray — unitCount must equal
+  // the real units.length and cardCount must equal the real total cards across all units.
+  // Before this, validatePack echoed cardCount in a log line but never validated either
+  // declared count against reality; lib/specialtyPackLoader.ts's _mergeFromJson
+  // arithmetically SUMS these two declared fields when merging a specialty pack into its
+  // base, so a declared count that doesn't match the real array lengths produces an
+  // arithmetically wrong but type-safe merged total with no caller ever catching it.
+  if (!isNumber(raw["unitCount"])) {
+    errors.push("Pack.unitCount: must be a number");
+  } else if (isArray(raw["units"]) && raw["unitCount"] !== (raw["units"] as unknown[]).length) {
+    errors.push(`Pack.unitCount: declared ${raw["unitCount"]} does not match actual units.length ${(raw["units"] as unknown[]).length}`);
+  }
+  if (!isNumber(raw["cardCount"])) {
+    errors.push("Pack.cardCount: must be a number");
+  } else if (isArray(raw["units"])) {
+    const totalCards = (raw["units"] as unknown[]).reduce<number>((sum, u) => {
+      if (!isObj(u) || !isArray(u["cards"])) return sum;
+      return sum + (u["cards"] as unknown[]).length;
+    }, 0);
+    if (raw["cardCount"] !== totalCards) {
+      errors.push(`Pack.cardCount: declared ${raw["cardCount"]} does not match actual total cards ${totalCards}`);
+    }
+  }
+
   // Card ID uniqueness
   const ids = new Set<string>();
   const duplicates = new Set<string>();
@@ -157,33 +193,40 @@ function validatePack(raw: unknown): string[] {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+// Task #459: gated on isMainModule so tests can import validateCard/validateUnit/
+// validatePack directly (per this task's own acceptance criteria — a regression test in
+// the validator's own test coverage) without the CLI section executing process.exit()
+// out from under the test runner.
+const isMainModule = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
 
-const packPath = process.argv[2];
-if (!packPath) {
-  console.error("Usage: validatePack.ts <path-to-pack.json>");
-  process.exit(1);
-}
-
-const absPath = resolve(packPath);
-let raw: unknown;
-try {
-  raw = JSON.parse(readFileSync(absPath, "utf8")) as unknown;
-} catch (e) {
-  console.error(`Cannot read or parse ${absPath}: ${String(e)}`);
-  process.exit(1);
-}
-
-const errors = validatePack(raw);
-
-if (errors.length === 0) {
-  const pack = raw as Json;
-  console.log(`✓ ${absPath}`);
-  console.log(`  lang=${String(pack["lang"])}  version=${String(pack["packVersion"])}  units=${String((pack["units"] as unknown[]).length)}  cards=${String(pack["cardCount"])}`);
-  process.exit(0);
-} else {
-  console.error(`✗ ${absPath} — ${errors.length} error(s):\n`);
-  for (const err of errors) {
-    console.error(`  • ${err}`);
+if (isMainModule) {
+  const packPath = process.argv[2];
+  if (!packPath) {
+    console.error("Usage: validatePack.ts <path-to-pack.json>");
+    process.exit(1);
   }
-  process.exit(1);
+
+  const absPath = resolve(packPath);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(absPath, "utf8")) as unknown;
+  } catch (e) {
+    console.error(`Cannot read or parse ${absPath}: ${String(e)}`);
+    process.exit(1);
+  }
+
+  const errors = validatePack(raw);
+
+  if (errors.length === 0) {
+    const pack = raw as Json;
+    console.log(`✓ ${absPath}`);
+    console.log(`  lang=${String(pack["lang"])}  version=${String(pack["packVersion"])}  units=${String((pack["units"] as unknown[]).length)}  cards=${String(pack["cardCount"])}`);
+    process.exit(0);
+  } else {
+    console.error(`✗ ${absPath} — ${errors.length} error(s):\n`);
+    for (const err of errors) {
+      console.error(`  • ${err}`);
+    }
+    process.exit(1);
+  }
 }

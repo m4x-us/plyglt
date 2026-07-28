@@ -210,16 +210,26 @@ export function useLangPack(): LangPackState {
   // second near-duplicate effect isn't needed; only the logged reason differs.
   // Task #442: unpurchasedSpecialty is now hydration-gated (see its declaration above), so
   // this branch can only fire once hydration has genuinely completed OR the grace period
-  // expired. The message below distinguishes those two cases — a grace-expired read is a
-  // fallback to store defaults, not confirmed data, so asserting non-ownership with the
-  // same confidence as a real hydrated read would overstate what's actually known.
+  // expired. Task #458: a grace-expired read is a fallback to store defaults (purchasedAddOns
+  // is still the pre-hydration []), not confirmed data — #442 only narrowed WHEN this branch
+  // fires (blocking the false-positive during ordinary slow hydration that completes within
+  // HYDRATION_GRACE_MS), it did not stop the grace-expired case itself from PERSISTING an
+  // unconfirmed guess. If hydration is genuinely stuck (never resolves — e.g. storage.getItem
+  // rejects forever, per lib/storage.ts's #378 F-C2-2 finding) or merely slower than the grace
+  // window, this in-memory redirect must still apply for THIS render (so the UI doesn't hang
+  // on a doomed specialty-pack request), but writing it to storage via setTargetLangCode must
+  // wait for a CONFIRMED hydrated read — otherwise a transient guess permanently overwrites a
+  // genuinely-owned specialty code the instant real hydration data would have arrived, or
+  // forever if it never does. Only the unrecognised/corrupt-code branch below (unrelated to
+  // entitlement confidence) still persists unconditionally.
   useEffect(() => {
     if (rawTargetLang === targetLang) return;
     if (unpurchasedSpecialty) {
-      const confidence = entitlementHydrated
-        ? ""
-        : " (entitlement hydration grace period expired — this reflects store defaults, not a confirmed read)";
-      console.error(`[ERR-LANGPACK-ADDON-UNOWNED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns${confidence} — resetting to base language "${targetLang}"`);
+      if (!entitlementHydrated) {
+        console.error(`[ERR-LANGPACK-ADDON-UNCONFIRMED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns, but entitlement hydration grace period expired — falling back to base language "${targetLang}" for this session WITHOUT persisting it (unconfirmed read)`);
+        return;
+      }
+      console.error(`[ERR-LANGPACK-ADDON-UNOWNED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns — resetting to base language "${targetLang}"`);
     } else {
       console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "${targetLang}"`);
     }

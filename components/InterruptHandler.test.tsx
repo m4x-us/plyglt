@@ -147,7 +147,10 @@ describe("InterruptHandler", () => {
 
     // Manually fire the interrupt:fire event (isTauri=true so listener is registered)
     const callback = tauriState.listeners.get("interrupt:fire");
-    expect(callback).toBeDefined();
+    // Proves a listener was actually registered (a function), not merely that the Map.get
+    // result isn't undefined — the sibling test above proves the negative case (no listener
+    // when !isTauri) via listeners.has(...) directly.
+    expect(typeof callback).toBe("function");
     if (callback) {
       await act(async () => { callback(false); }); // false = non-mandatory
     }

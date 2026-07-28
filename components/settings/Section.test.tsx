@@ -11,11 +11,11 @@ describe("Section", () => {
 
   it("renders the title prop", () => {
     render(<Section title="Account">placeholder</Section>);
-    expect(screen.getByText("Account")).toBeDefined();
+    expect(screen.getByText("Account")).toBeInTheDocument();
   });
 
   it("renders children inside the section", () => {
     render(<Section title="Test"><p>child content</p></Section>);
-    expect(screen.getByText("child content")).toBeDefined();
+    expect(screen.getByText("child content")).toBeInTheDocument();
   });
 });

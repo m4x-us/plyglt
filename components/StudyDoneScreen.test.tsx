@@ -38,7 +38,7 @@ describe("StudyDoneScreen", () => {
 
   it("renders 'Session complete.' with no exclamation mark", () => {
     render(<StudyDoneScreen {...baseProps} />);
-    expect(screen.getByText("Session complete.")).toBeDefined();
+    expect(screen.getByText("Session complete.")).toBeInTheDocument();
     expect(screen.queryByText(/!/)).toBeNull();
   });
 
@@ -49,12 +49,12 @@ describe("StudyDoneScreen", () => {
 
   it("renders 'Session complete.' for global done screen", () => {
     render(<StudyDoneScreen {...baseProps} isGlobal unit={null} />);
-    expect(screen.getByText("Session complete.")).toBeDefined();
+    expect(screen.getByText("Session complete.")).toBeInTheDocument();
   });
 
   it("renders 'Review complete.' for interrupt done screen", () => {
     render(<StudyDoneScreen {...baseProps} isInterrupt />);
-    expect(screen.getByText("Review complete.")).toBeDefined();
+    expect(screen.getByText("Review complete.")).toBeInTheDocument();
     expect(screen.queryByText(/!/)).toBeNull();
   });
 });

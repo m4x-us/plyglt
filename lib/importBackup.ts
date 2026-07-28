@@ -62,8 +62,13 @@ function normalizeCardProgress(raw: unknown): CardProgress | null {
   if (!VALID_STATES.has(c.state as string)) return null;
   // typeof NaN === "number" is true — isFinite() is required to reject NaN and Infinity
   const stability      = typeof c.stability      === "number" && isFinite(c.stability)      ? Math.max(0, c.stability)    : 0;
-  const difficulty     = typeof c.difficulty     === "number" && isFinite(c.difficulty)     ? c.difficulty                : 5;
-  const retrievability = typeof c.retrievability === "number" && isFinite(c.retrievability) ? c.retrievability            : 1;
+  // Task #460: clamped to the exact FSRS ranges lib/srs.ts's CardProgress fields document —
+  // difficulty "D — 1 (easy) to 10 (hard)", retrievability "R — current recall probability
+  // 0–1" (lib/srs.ts:20-21). Mirrors lib/srs.ts's own (private, non-exported) clampD helper
+  // for difficulty. An unclamped value from a crafted/corrupted backup would otherwise reach
+  // the scheduler, which was never designed to receive out-of-range D/R inputs.
+  const difficulty     = typeof c.difficulty     === "number" && isFinite(c.difficulty)     ? Math.max(1, Math.min(10, c.difficulty)) : 5;
+  const retrievability = typeof c.retrievability === "number" && isFinite(c.retrievability) ? Math.max(0, Math.min(1, c.retrievability)) : 1;
   const dueDate        = typeof c.dueDate        === "number" && isFinite(c.dueDate)        ? c.dueDate                   : Date.now();
   const lapses         = typeof c.lapses         === "number" && Number.isInteger(c.lapses) ? Math.max(0, c.lapses)       : 0;
   const reps           = typeof c.reps           === "number" && Number.isInteger(c.reps)   ? Math.max(0, c.reps)         : 0;

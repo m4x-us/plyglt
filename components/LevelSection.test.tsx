@@ -40,23 +40,23 @@ describe("LevelSection", () => {
 
   it("renders the level label", () => {
     render(<LevelSection {...makeProps()} />);
-    expect(screen.getByText("A1 — Beginner")).toBeDefined();
+    expect(screen.getByText("A1 — Beginner")).toBeInTheDocument();
   });
 
   it("shows locked badge when unlocked is false", () => {
     render(<LevelSection {...makeProps({ unlocked: false })} />);
-    expect(screen.getByText("🔒 locked")).toBeDefined();
+    expect(screen.getByText("🔒 locked")).toBeInTheDocument();
   });
 
   it("renders unit names via UnitRow when unlocked", () => {
     const units = [makeUnit("u1", "Greetings"), makeUnit("u2", "Numbers")];
     render(<LevelSection {...makeProps({ units, unitMap: { u1: units[0]!, u2: units[1]! } })} />);
-    expect(screen.getByText("Greetings")).toBeDefined();
-    expect(screen.getByText("Numbers")).toBeDefined();
+    expect(screen.getByText("Greetings")).toBeInTheDocument();
+    expect(screen.getByText("Numbers")).toBeInTheDocument();
   });
 
   it("shows mastery percentage when unlocked and masteryPct > 0", () => {
     render(<LevelSection {...makeProps({ unlocked: true, masteryPct: 42 })} />);
-    expect(screen.getByText("42% mastered")).toBeDefined();
+    expect(screen.getByText("42% mastered")).toBeInTheDocument();
   });
 });

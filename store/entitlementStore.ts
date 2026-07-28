@@ -59,6 +59,7 @@ export {
   type PurchaseAddOnResult,
 } from "@/store/entitlementAddOns";
 import { createPurchaseAddOn, bumpAddOnDeactivationGuard, type PurchaseAddOnResult } from "@/store/entitlementAddOns";
+import { createCrossTabSync } from "@/store/entitlementCrossTabSync";
 
 interface EntitlementState {
   licenseKey: string | null;
@@ -332,70 +333,21 @@ export const useEntitlementStore = create<EntitlementState>()(
   )
 );
 
-// Cross-tab sync: Zustand persist writes the in-memory state snapshot to localStorage
-// at call time — it does not merge against the on-disk value first. If one tab writes
-// entitlement state (license activation, validation, deactivation) and a second tab is
-// open, the second tab's in-memory state is stale until it is rehydrated. Listening for
-// the native 'storage' event re-hydrates in-memory state whenever another tab writes,
-// so the next set() call in this tab reads the on-disk value rather than a stale snapshot.
-// This guard is browser-only; Tauri uses a file-backed store that is single-process and
-// not subject to this race. (Task #288)
-//
-// Scope note (Task #303): the original comment described "two browser tabs racing on
-// purchaseAddOn" — that scenario cannot occur today because purchaseAddOn is an
-// intentionally unreachable stub (#295). The guard is retained because it remains
-// correct and useful for all other entitlement writes (setEntitlement, markValidated,
-// clearEntitlement). The comment above reflects the actual current use case.
-//
-// Race limitation (Task #304): _rehydrateInFlight deduplicates rapid storage events so
-// concurrent rehydrate() calls do not race each other. However, a set() call that
-// completes between the storage event and rehydrate completion may still be overwritten
-// — Zustand has no cross-operation lock for that scenario. The window is small in
-// practice (entitlement writes are rare) and acceptable given the client-only,
-// honour-system entitlement model (decision 2026-06-24).
-
-// Task #304: deduplicates concurrent rehydrate() calls so rapid storage events
-// do not trigger overlapping rehydrations. Once a rehydrate is in flight, further
-// storage events for the same key are queued (Task #347) rather than dropped.
-let _rehydrateInFlight = false;
-// Task #347: tracks whether a storage event arrived while a rehydrate was in-flight.
-// When rehydrate completes, if this flag is set, a new rehydrate is triggered immediately
-// so the dropped event is not lost — prevents stale state after rapid cross-tab writes.
-let _pendingRehydrate = false;
+// Task #463: cross-tab rehydrate-dedup/queue logic extracted to
+// store/entitlementCrossTabSync.ts (Rule 1 — this file was over the 400-line service
+// cap). See that module's doc comment for the full Task #288/#303/#304 rationale — it
+// has no dependency on EntitlementState's fields, only this store's key and its
+// persist.rehydrate() method. The rehydrate function is a thunk (not a captured
+// reference) so a test's vi.spyOn(useEntitlementStore.persist, "rehydrate") — which
+// replaces the method AFTER this module has already loaded — is still honored.
+const _crossTabSync = createCrossTabSync(
+  ENTITLEMENT_STORE_KEY,
+  () => useEntitlementStore.persist.rehydrate()
+);
 
 /** @internal Exported for unit testing; not part of the module's public API. */
 export function _handleCrossTabStorageEvent(e: { key: string | null }): void {
-  if (e.key !== ENTITLEMENT_STORE_KEY) return;
-  if (_rehydrateInFlight) {
-    _pendingRehydrate = true; // Task #347: don't drop — re-trigger after current rehydrate settles
-    return;
-  }
-  _triggerRehydrate();
-}
-
-function _triggerRehydrate(): void {
-  _rehydrateInFlight = true;
-  _pendingRehydrate = false;
-  const done = () => {
-    _rehydrateInFlight = false;
-    if (_pendingRehydrate) {
-      _triggerRehydrate(); // Task #347: a storage event arrived while we were in-flight — re-run
-    }
-  };
-  // Task #363: wrap in try/catch so a synchronous throw from persist.rehydrate() resets
-  // _rehydrateInFlight rather than locking it true forever (which would permanently disable
-  // cross-tab sync for this tab's lifetime).
-  try {
-    const result = useEntitlementStore.persist.rehydrate();
-    if (result instanceof Promise) {
-      result.then(done, done);
-    } else {
-      done();
-    }
-  } catch (err) {
-    console.error(`[ERR-REHYDRATE-SYNC-THROW-${Date.now()}] persist.rehydrate() threw synchronously — cross-tab sync disabled for this event`, err);
-    done(); // always reset the flag, even on error
-  }
+  _crossTabSync.handleStorageEvent(e);
 }
 
 if (typeof window !== "undefined") {

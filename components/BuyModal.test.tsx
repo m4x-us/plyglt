@@ -12,7 +12,7 @@ afterEach(cleanup);
 describe("BuyModal", () => {
   it("renders annual subscription pricing option", () => {
     render(<BuyModal onClose={vi.fn()} onActivate={vi.fn()} />);
-    expect(screen.getByText("Annual")).toBeDefined();
+    expect(screen.getByText("Annual")).toBeInTheDocument();
   });
 
   it("fires onClose when Maybe later button is clicked", () => {

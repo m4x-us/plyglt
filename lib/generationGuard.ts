@@ -9,8 +9,11 @@
 // WorldClass remediation; AGENTS.md duplicated-logic ban).
 // ============================================================
 // DEPENDS ON: nothing (pure)
-// USED BY: lib/basePackLoader.ts (eviction guard). lib/specialtyPackLoader.ts
-//          adoption is tracked as a carry-forward for its owning stream.
+// USED BY: lib/basePackLoader.ts (one guard per language, eviction guard),
+//          lib/specialtyPackLoader.ts (deactivationGuard, Task #394 — the two isStale
+//          checks bracketing the merge now live in lib/specialtyPackMerge.ts, Task #447),
+//          and store/entitlementAddOns.ts (deactivationGuard, Task #449). All three
+//          adoptions are complete — none is a carry-forward.
 // ============================================================
 
 export interface GenerationGuard {

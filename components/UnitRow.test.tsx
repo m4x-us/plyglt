@@ -26,17 +26,17 @@ describe("UnitRow", () => {
   afterEach(cleanup);
   it("renders the unit name", () => {
     render(<UnitRow unit={makeUnit({ name: "Food & Drinks" })} stats={baseStats} masteryPct={0} unlocked isComplete={false} />);
-    expect(screen.getByText("Food & Drinks")).toBeDefined();
+    expect(screen.getByText("Food & Drinks")).toBeInTheDocument();
   });
 
   it("shows the ready badge when stats.due > 0", () => {
     render(<UnitRow unit={makeUnit()} stats={{ ...baseStats, due: 3 }} masteryPct={0} unlocked isComplete={false} />);
-    expect(screen.getByText("3 ready")).toBeDefined();
+    expect(screen.getByText("3 ready")).toBeInTheDocument();
   });
 
   it("badge renders 'ready' not 'due'", () => {
     render(<UnitRow unit={makeUnit()} stats={{ ...baseStats, due: 7 }} masteryPct={0} unlocked isComplete={false} />);
-    expect(screen.getByText("7 ready")).toBeDefined();
+    expect(screen.getByText("7 ready")).toBeInTheDocument();
     expect(screen.queryByText(/\d+ due/)).toBeNull();
   });
 
@@ -48,7 +48,10 @@ describe("UnitRow", () => {
   it("renders locked state (lock emoji) when unlocked is false", () => {
     render(<UnitRow unit={makeUnit()} stats={baseStats} masteryPct={0} unlocked={false} isComplete={false} />);
     const locks = screen.getAllByText("🔒");
-    expect(locks.length).toBeGreaterThan(0);
+    // UnitRow renders exactly one "🔒" glyph (a single conditional, not a loop) — a
+    // toBeGreaterThan(0) check would still pass if the component accidentally rendered
+    // it twice.
+    expect(locks).toHaveLength(1);
   });
 
   it("renders a Link to /study when unlocked", () => {

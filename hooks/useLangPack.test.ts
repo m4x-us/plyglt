@@ -725,6 +725,58 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     expect(mockLoadPack).not.toHaveBeenCalled(); // "it" is static — seeded, never loadPack'd
   });
 
+  // Task #458 (residual of #442): #442 narrowed the false-positive window during ORDINARY
+  // slow hydration (self-corrects once real data arrives before the grace timer fires), but
+  // did not stop the grace-expired fallback itself from PERSISTING an unconfirmed guess when
+  // hydration is genuinely stuck — this test forces that exact case: hydration never
+  // completes at all, not just slowly.
+  it("#458: a genuine hydration failure (never resolves) falls back in-memory but never persists the unconfirmed redirect", async () => {
+    vi.useFakeTimers();
+    try {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      // GIVEN a genuinely-owned specialty code persisted, but purchasedAddOns still reads
+      // as the pre-hydration default ([]) because hydration is stuck — this is what "genuine
+      // failure" looks like from the hook's perspective, indistinguishable at read-time from
+      // "slow but will eventually resolve" until it either does or the grace timer fires.
+      useEntitlementStore.setState({ purchasedAddOns: [] });
+      localStorage.setItem(LANG_PAIR_KEY, "en-it-legal");
+      mockUseIsHydrated.mockReturnValue(false);
+
+      const { result } = renderHook(() => useLangPack());
+      expect(mockLoadPack).not.toHaveBeenCalled();
+
+      // WHEN the grace period expires — hydration still has not resolved and, in this test,
+      // never will (unlike the sibling "self-heals after a late hydration" test above).
+      await act(async () => { await vi.advanceTimersByTimeAsync(HYDRATION_GRACE_MS); });
+
+      // THEN the redirect applies in-memory for THIS render only — "it" (the specialty's
+      // own base language, statically bundled) serves immediately, so the UI never hangs on
+      // a doomed specialty request.
+      expect(result.current.loading).toBe(false);
+      expect(mockLoadPack).not.toHaveBeenCalled(); // "it" is static — seeded, never loadPack'd
+      // AND the unconfirmed-read log fires (Rule 8 — the fallback is never silent)...
+      const unconfirmedLogs = errorSpy.mock.calls.filter(
+        args => typeof args[0] === "string" && (args[0] as string).includes("ERR-LANGPACK-ADDON-UNCONFIRMED")
+      );
+      expect(unconfirmedLogs).toHaveLength(1);
+      // ...but critically, LANG_PAIR_KEY is NOT overwritten — before #458, this exact state
+      // (grace-expired + purchasedAddOns still reading empty) unconditionally called
+      // setTargetLangCode("it"), permanently destroying the real "it-legal" preference the
+      // moment hydration would otherwise have confirmed real ownership — or forever, since
+      // hydration here never resolves at all.
+      expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it-legal");
+
+      // WHEN more time passes with hydration STILL never completing (the genuine-failure
+      // case, not merely slow) — the guess must never be persisted, no matter how long.
+      await act(async () => { await vi.advanceTimersByTimeAsync(HYDRATION_GRACE_MS * 10); });
+      expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it-legal");
+
+      errorSpy.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("repairs a registered-but-UNREADY specialty code to Italian instead of stranding it (#378 F011)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     // "it-medical" is the real registry entry (ready:false, preserved by the mock's spread).

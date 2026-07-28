@@ -11,12 +11,12 @@ afterEach(cleanup);
 describe("Toggle", () => {
   it("renders the label text", () => {
     render(<Toggle label="Enable reminders" checked={false} onChange={() => {}} />);
-    expect(screen.getByText("Enable reminders")).toBeDefined();
+    expect(screen.getByText("Enable reminders")).toBeInTheDocument();
   });
 
   it("renders the description when provided", () => {
     render(<Toggle label="L" description="Some detail" checked={false} onChange={() => {}} />);
-    expect(screen.getByText("Some detail")).toBeDefined();
+    expect(screen.getByText("Some detail")).toBeInTheDocument();
   });
 
   it("does not render description element when omitted", () => {

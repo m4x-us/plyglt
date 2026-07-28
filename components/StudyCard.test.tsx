@@ -112,10 +112,11 @@ describe("StudyCard", () => {
     fireEvent.change(input, { target: { value: "il gatto" } });
     fireEvent.click(screen.getByText("Check →"));
     // Result phase: the canonical accepted answer is shown
-    // screen.getAllByText handles the case where "il gatto" appears both in the
-    // result panel (canonical answer) and the "You typed" label.
+    // "il gatto" typed matches the canonical answer exactly, so the "You typed" label
+    // (only shown when typed !== canonical) is suppressed — it appears exactly once,
+    // in the result panel's canonical-answer span.
     const matches = screen.getAllByText("il gatto");
-    expect(matches.length).toBeGreaterThan(0);
+    expect(matches).toHaveLength(1);
   });
 
   // ── 7: wasClose=true → yellow border and closeFeedback string ────────────────
@@ -125,7 +126,7 @@ describe("StudyCard", () => {
     // "il gato" is edit-distance-1 from accepted "il gatto" — checkAnswer returns "close"
     fireEvent.change(input, { target: { value: "il gato" } });
     fireEvent.click(screen.getByText("Check →"));
-    expect(container.querySelector(".border-yellow-500")).not.toBeNull();
+    expect(container.querySelector(".border-yellow-500")).toBeInTheDocument();
     expect(screen.getByText("Quasi! Close enough.").textContent).toBe("Quasi! Close enough.");
   });
 });

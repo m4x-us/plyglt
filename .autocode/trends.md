@@ -19,3 +19,4 @@
 | 2026-07-15 | Batch 12 third re-audit (7 scored: A/B/S/K/W/V/Red-R + unscored N) | 1 | 8 | FAIL |
 | 2026-07-27 | Batch 12 fourth re-audit (8-agent: A/B/S/N/K/W/V/Red-R) | 1 | 6 | FAIL |
 | 2026-07-28 | Batch 12 fifth re-audit (9-agent: A/B/S/N/K/W/V/Red-R, N retried once) | 1 | 7 | FAIL |
+| 2026-07-28 | Batch 12 sixth re-audit (8-agent: A/B/S/N/K/W/V/Red-R, K and W each retried once) | 1 | 9 | FAIL |

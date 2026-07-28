@@ -2822,9 +2822,10 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 113 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 125 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
+Sixth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 9 (critical) — 22 findings (F1-F22) merged/scored by Agent C; 11 findings (severity ≥4) promoted as Task #455-#465 below; 11 findings (severity ≤3) logged to debt.md. Critical finding: Task #450's widened Verification Gate is currently red by its own literal wording (29 pre-existing hits) and the batch was carried to zero open tasks without an updated cycle-6 verdict — see Task #455. Task #466 added per Max's explicit direction (2026-07-28) to close this mechanically via CI, not rely on the audit process to catch it again next time. Wave 20 (4 streams: Adam/Barry/Charles/Derek) closed all 12 tasks (#455-466) 2026-07-28, independently re-verified against actual source: tsc clean, 1403/1403 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean (genuinely zero hits — the critical finding is resolved), CI now mechanically enforces the gate on every push/PR. Per BATCH_REMEDIATION_GATE, task completion alone doesn't close the gate — a fresh "/audit batch 12" run must PASS next.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
 Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
 Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
@@ -6167,6 +6168,254 @@ Test name claims it "mounts UpdateChecker as its invisible child" but asserts on
 - [x] Superseded — see Task #450's first acceptance criterion, which covers this exact fix
 
 **Source:** Audit finding F015 — severity 4 — test-quality/rule-18 (duplicate of Audit finding F016's first criterion, promoted separately by mistake — see Task #450)
+
+---
+
+### Task #455: Fix Verification Gate: 29 pre-existing banned-assertion violations make the widened grep gate fail literally
+
+**File:** components/Stat.test.tsx, components/StudyDoneScreen.test.tsx, components/BuyModal.test.tsx, components/InterruptHandler.test.tsx, components/DifficultyBar.test.tsx, components/UnitRow.test.tsx, components/StudyCard.test.tsx, components/StudyResumePrompt.test.tsx, components/LevelSection.test.tsx, components/settings/Section.test.tsx, components/settings/Toggle.test.tsx, hooks/useStudySession.test.ts
+**Complexity:** 🔧 Full — 12 files, mechanical but repo-wide
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Adam (W20A); all 29 hits resolved — 21 stylistic swaps to .toBeInTheDocument(), 6 rewritten to genuine value-specific assertions after reading the real component logic, 0 existence-check exemptions needed; independently re-verified: gate command returns zero hits)
+
+**What:**
+Task #450 widened AGENTS.md's Verification Gate grep from `tests/`-only to the whole repo. Run exactly as written, it returns 29 hits across these 12 files — meaning the gate is currently RED by its own unconditional wording ("Run this before closing any batch of work. All four must be green"). Each hit is either a `.toBeDefined()`/`.toBeTruthy()`/`.not.toBeNull()`/`.toBeGreaterThan(0)` on a computed value with no `// existence-check:` justification. Most are `screen.getByText(...).toBeDefined()` (stylistically redundant since RTL's query already throws on absence — low risk) but a few (`StudyCard.test.tsx:118/128`, `UnitRow.test.tsx:51`) assert genuinely computed values and are higher-risk per the Deletion Test. at AGENTS.md:39 (the gate command that currently fails).
+
+**Acceptance Criteria:**
+- [ ] Every flagged assertion either replaced with a value-specific `.toBe()`/`.toEqual()`/`.toStrictEqual()`, or annotated with an inline `// existence-check: [reason]` only where the value is genuinely non-deterministic
+- [ ] Running AGENTS.md's Verification Gate grep command exactly as written returns zero hits
+- [ ] `.autocode/agents/cto.md`'s Batch Audit Log updated to reflect a verified-green gate, not just a closed task
+
+**Source:** Cycle-6 audit finding F1 — severity 9 (CRITICAL) — convergence 1/8 (Agent K, contract verifier) — process/audit-trail integrity. Supersedes the 2026-07-28 debt.md row logged by Task #450/W19D.
+
+---
+
+### Task #456: Fix documentation: security.md S1/S3 citations and generationGuard.ts's header are stale again, broken by this same wave's #447 file split
+
+**File:** .autocode/agents/security.md, lib/generationGuard.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope doc fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Charles (W20C); re-verified real current line numbers directly rather than trusting quoted ones; S1 corrected to entitlementAddOns.ts:127, S3 corrected to specialtyPackMerge.ts:64/119 post-#447 split; generationGuard.ts header now lists all 3 real consumers as complete)
+
+**What:**
+security.md's "Resolved Findings — S1/S3" note (added by Task #451, this same wave) cites `store/entitlementAddOns.ts:96` (actual: line 127) and `lib/specialtyPackLoader.ts:59/122/177` (actual: `createGenerationGuard()` at line 68; the two `isStale` checks moved entirely to `lib/specialtyPackMerge.ts:64` and `:119` via Task #447, landed in the identical wave). Separately, `lib/generationGuard.ts`'s own header doc comment still falsely claims `specialtyPackLoader.ts`'s adoption of the guard is "tracked as a carry-forward" — that adoption completed and was independently confirmed this cycle. Both are the same root failure: a same-wave sibling task (#447) silently invalidated a precise file:line claim in an unrelated doc. at .autocode/agents/security.md:60.
+
+**Acceptance Criteria:**
+- [ ] security.md's S1/S3 citations updated to their real current locations (post-#447 split)
+- [ ] lib/generationGuard.ts's header updated to state specialtyPackLoader.ts's adoption is complete, not pending
+- [ ] No behavior/code change — documentation only
+
+**Source:** Cycle-6 audit finding F2 — severity 6 — convergence 5/8 (Agents A, B, S, V, K) plus F11 (Agent W, generationGuard.ts header) — documentation accuracy / stale citation.
+
+---
+
+### Task #457: Fix code-quality: getLangPair duplicates getTargetLangCode's derivation logic instead of sharing it
+
+**File:** lib/constants.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope extraction
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Barry (W20B); extracted shared deriveLangTail(pair) helper; getTargetLangCode and getLangPair both call it instead of independent copies; overclaiming comment corrected)
+
+**What:**
+Task #446 fixed `getLangPair`'s "en-" bug by making its `sepIdx`/`slice` derivation byte-identical to `getTargetLangCode`'s — but as a copy-paste, not a shared function. This reproduces the exact defect class that caused #446 in the first place: two independent copies of the same derivation can silently drift apart again on a future edit. The code comment at lib/constants.ts:87-88 claims the two are "structurally impossible to drift apart again," which overclaims — duplication is not structural prevention. at lib/constants.ts:89-91.
+
+**Acceptance Criteria:**
+- [ ] getLangPair and getTargetLangCode share one extracted derivation function/constant, not two independent copies
+- [ ] Existing tests for both functions continue to pass unmodified in behavior
+- [ ] The misleading "structurally impossible to drift apart" comment is corrected or removed
+
+**Source:** Cycle-6 audit finding F3 — severity 5 — convergence 1/8 (Agent K) — root-cause durability / DRY violation.
+
+---
+
+### Task #458: Fix race condition: useLangPack's hydration-timeout fallback can still permanently persist an unconfirmed redirect
+
+**File:** hooks/useLangPack.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Charles (W20C); unpurchasedSpecialty repair effect now only writes to storage when entitlementHydrated is a confirmed true; grace-expired fallback falls back to base language in-memory without persisting an unconfirmed redirect; new ERR-LANGPACK-ADDON-UNCONFIRMED ref-ID)
+
+**What:**
+Task #442 fixed the common case of `unpurchasedSpecialty` being computed before entitlement hydration completes, by gating on `(entitlementHydrated || hydrationGraceExpired)`. Two independent reviewers (Security Agent S and naive-reader Agent N, with no shared context) found a narrower residual: when hydration is genuinely stuck — not just slow — and `hydrationGraceExpired` fires as a timeout fallback, that branch can still write a redirect that was never actually confirmed against real entitlement data. The fix narrowed the bug's trigger window (slow hydration is now handled) but did not close it for the true-timeout path. at hooks/useLangPack.ts:140.
+
+**Acceptance Criteria:**
+- [ ] The `hydrationGraceExpired` branch does not permanently persist a redirect/localStorage write when it cannot confirm real entitlement state
+- [ ] A test forces genuine hydration failure (not just slowness) and asserts no unconfirmed redirect is persisted
+- [ ] Deletion Test: reverting the fix causes the new test to fail
+
+**Source:** Cycle-6 audit finding F4 — severity 6 — convergence 2/8 (Agents S and N, independently) — race condition / correctness, LIVE.
+
+---
+
+### Task #459: Fix CI drift: scripts/validatePack.ts still not synced with lib/packTypes.ts's hasValidUnitsArray (two divergences, open across 2 audit cycles)
+
+**File:** scripts/validatePack.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope sync
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Charles (W20C); added the card.prerequisites array-of-strings check to validateCard and the unitCount/cardCount cross-check to validatePack, matching hasValidUnitsArray exactly; new tests/validatePack.test.ts, 14 tests; validated against both shipped packs unchanged)
+
+**What:**
+`lib/packTypes.ts`'s own doc comment mandates scripts/validatePack.ts's `validateUnit`/`validateCard` stay in sync with `hasValidUnitsArray`. Two concrete divergences confirmed by two independent reviewers across two consecutive audit cycles: (1) Task #443's `card.prerequisites` array-of-strings check has no counterpart in `validateCard` — a pack with `prerequisites: "c0"` (a truthy non-array) passes CI and only crashes at runtime via `lib/srs.ts:207`'s unguarded `.every()` against the live shipped Italian pack's FSRS queue. (2) Task #418's `unitCount`/`cardCount` cross-check (declared count must equal real array length) has no counterpart in `validatePack` — it only echoes `cardCount` in a log line, never validates it. A pack with internally inconsistent counts passes CI and silently corrupts `lib/specialtyPackMerge.ts`'s merge arithmetic downstream. at scripts/validatePack.ts:33.
+
+**Acceptance Criteria:**
+- [ ] validateCard rejects a present-but-non-array-of-strings `prerequisites` field, matching hasValidUnitsArray
+- [ ] validatePack rejects a pack whose declared unitCount/cardCount doesn't match real array lengths, matching hasValidUnitsArray
+- [ ] A regression test in the validator's own test coverage (or a new one) enumerates both gaps and fails without the fix
+
+**Source:** Cycle-6 audit finding F5 — severity 6 — convergence 2/8 (Agent K originally; Agent W independently reconfirmed plus found the second divergence) — CI/tooling drift, recurring debt (also flagged in cycle 5). Supersedes the 2026-07-28 debt.md row logged by Task #443/W19A.
+
+---
+
+### Task #460: Fix data-integrity: importBackup.ts's normalizeCardProgress doesn't clamp difficulty/retrievability on restore
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Derek (W20D); difficulty clamped to [1,10], retrievability to [0,1], matching lib/srs.ts's own bounds; 4 new tests in tests/importBackup.test.ts)
+
+**What:**
+`normalizeCardProgress` restores backup data without range-clamping the FSRS `difficulty`/`retrievability` numeric fields. A crafted or corrupted backup file can inject out-of-range values that the scheduler was never designed to receive. This is a pre-existing gap, not introduced by Wave 19, found by an unbriefed naive-reader agent reading the restore path fresh. at lib/importBackup.ts:1.
+
+**Acceptance Criteria:**
+- [ ] difficulty and retrievability are clamped to their valid FSRS ranges during restore, matching whatever bounds lib/srs.ts already assumes elsewhere
+- [ ] A test supplies an out-of-range value in a backup fixture and asserts the restored value is clamped, not passed through
+
+**Source:** Cycle-6 audit finding F6 — severity 5 — convergence 1/8 (Agent N) — data integrity, LIVE.
+
+---
+
+### Task #461: Fix test-coverage: lib/specialtyPackMerge.ts has no dedicated test file
+
+**File:** tests/specialtyPackMerge.test.ts (new)
+**Complexity:** ⚡ Direct — 1 new file, single-scope addition
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Derek (W20D); new tests/specialtyPackMerge.test.ts, 11 tests calling mergeSpecialtyPackFromJson directly; covers meta-before-data ordering and both deactivation-guard isStale re-checks; 100% coverage on the module combined with existing specialtyPackLoader.test.ts)
+
+**What:**
+`lib/specialtyPackMerge.ts` — the highest-risk brand-new extraction this cycle (Task #447), owning the parse-verify-merge-persist "commit" step for specialty pack purchases — has no test file of its own. It is exercised only indirectly through `tests/specialtyPackLoader.test.ts`'s call chains into the shared `loadSpecialtyPack` entry point. Its own documented invariants (meta-written-before-data crash-safety ordering; the two independent `deactivationGuard.isStale()` re-checks bracketing storage writes) are proven only incidentally by whatever the caller's test suite happens to construct, not by tests scoped to the unit doing the risky work. at lib/specialtyPackMerge.ts:1.
+
+**Acceptance Criteria:**
+- [ ] tests/specialtyPackMerge.test.ts exists, directly calling mergeSpecialtyPackFromJson
+- [ ] Covers the meta-before-data write ordering and both deactivation-guard isStale re-check points directly, not just via the caller
+- [ ] Existing tests/specialtyPackLoader.test.ts coverage is not duplicated, only supplemented
+
+**Source:** Cycle-6 audit finding F7 — severity 4 — convergence 1/8 (Agent W) — test coverage, DORMANT (specialty packs not yet ready:true).
+
+---
+
+### Task #462: Fix incomplete root-cause: parseFlag still resolves any non-conforming truthy env value to enabled=true
+
+**File:** lib/featureFlags.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Derek (W20D); added TRUTHY_FLAG_VALUES allowlist so parseFlag only returns true for a recognized truthy value, false for a recognized falsy value, defaultEnabled for anything else; 2 new tests in tests/featureFlags.test.ts)
+
+**What:**
+Task #448 fixed `parseFlag` to fall through to `defaultEnabled` for `undefined` and `""` env values. Agent V found this only closes those two specific cases: any OTHER unrecognized-but-truthy value (e.g. a typo'd env var that isn't `"true"`/`"1"`/`""`/undefined) still resolves to `enabled=true` regardless of `defaultEnabled` — meaning a malformed env value could unintentionally enable a Pro-gated feature. Same shape as #446/#442: the reported repro case was fixed, a nearby variant of the same bug was not. at lib/featureFlags.ts:31.
+
+**Acceptance Criteria:**
+- [ ] parseFlag treats any value that isn't a recognized truthy signal ("true"/"1") as falling through to defaultEnabled, not defaulting to true
+- [ ] A test supplies a garbage-but-non-empty env value against both a default-off and default-on flag and asserts defaultEnabled wins in both cases
+
+**Source:** Cycle-6 audit finding F8 — severity 5 — convergence 1/8 (Agent V) — incomplete root-cause fix, LIVE (gates isProEnabled broadly, not specialty-pack-specific).
+
+---
+
+### Task #463: Fix Rule 1: store/entitlementStore.ts and lib/packLoader.ts have crept back over the 400-line cap
+
+**File:** store/entitlementStore.ts, lib/packLoader.ts
+**Complexity:** 🔧 Full — 2 files, extraction work
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Barry (W20B); extracted store/entitlementCrossTabSync.ts (cross-tab sync dedup/queue logic, 355 lines remaining in entitlementStore.ts) and lib/packManifest.ts (fetchManifest/isValidManifestShape, 310 lines remaining in packLoader.ts, re-exported for API compatibility); second extraction pass for both files — flagged for a possible different-seam split if either creeps over the cap a third time)
+
+**What:**
+Two independent reviewers (Agents A and B) confirmed store/entitlementStore.ts is now 403 lines and lib/packLoader.ts is now 402 lines — both over the Rule 1 400-line cap, after this wave's edits. This is the same extraction pattern already applied twice this batch (entitlementAddOns.ts split from entitlementStore.ts in Wave 18; specialtyPackMerge.ts split from specialtyPackLoader.ts in Wave 19) — both files need another narrow, non-circular extraction. at store/entitlementStore.ts:1.
+
+**Acceptance Criteria:**
+- [ ] Both files reduced to at or under 400 lines via a narrow extraction following the established pattern (parameter-typed interfaces, no circular imports)
+- [ ] No behavior change; existing tests pass unmodified
+
+**Source:** Cycle-6 audit finding F9 — severity 4 — convergence 2/8 (Agents A and B, independently) — Rule 1 cap regression, LIVE.
+
+---
+
+### Task #464: Fix defensive-depth gap: fetch timeout relies solely on AbortController with no independent backstop
+
+**File:** lib/basePackLoader.ts, lib/specialtyPackLoader.ts, lib/packLoader.ts
+**Complexity:** 🔧 Full — 3 files, same pattern across all
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Barry (W20B); new lib/fetchWithTimeout.ts shared helper bounds fetch via BOTH AbortController and an independent Promise.race/setTimeout backstop with no dependency on the abort signal being honored; 6 new tests including a pathological non-conformant-fetch case; done together with #465)
+
+**What:**
+Task #445's fetch timeout fix relies entirely on `AbortController` and the assumption that `fetch()` honors the abort signal. Red Agent R (CHAOS lens) found no independent `Promise.race`/`setTimeout` backstop exists — a hypothetical non-conformant fetch implementation that ignores the abort signal would still hang forever, reproducing the original bug under a narrower trigger condition. at lib/basePackLoader.ts:194.
+
+**Acceptance Criteria:**
+- [ ] All 3 fetch call sites have an independent timeout backstop (e.g. Promise.race against a setTimeout) that does not rely solely on the fetch implementation honoring AbortController
+- [ ] A test simulates a fetch that never settles and never honors abort, and asserts the call still resolves to a timeout error within bounded time
+
+**Source:** Cycle-6 audit finding F18 — severity 4 — convergence 1/8 (Red Agent R, CHAOS lens) — defensive-depth gap, LIVE.
+
+---
+
+### Task #465: Fix Poka-Yoke violation: FETCH_TIMEOUT_MS declared independently in 3 files by this same wave's own fix
+
+**File:** lib/basePackLoader.ts, lib/specialtyPackLoader.ts, lib/packLoader.ts, lib/constants.ts
+**Complexity:** 🔧 Full — 4 files
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Barry (W20B); FETCH_TIMEOUT_MS now declared once in lib/constants.ts, imported by lib/fetchWithTimeout.ts's single shared implementation, replacing 3 independent copies; test pins the exact 20_000 value)
+
+**What:**
+Task #445 declared `FETCH_TIMEOUT_MS = 20_000` independently in 3 separate files rather than one shared constant — a fresh instance of the "parallel constant, not single source of truth" anti-pattern already tracked elsewhere in this codebase (the 200-char length constants across entitlementAddOns.ts/useLicenseActivation.ts/importBackup.ts). AGENTS.md explicitly Stop-the-Lines this exact pattern: "Any hardcoded string that belongs in a named constant" / "Any parallel list/array that should be derived from a single source of truth." Notable because it was introduced brand-new by this wave's own fix, not inherited debt. at lib/basePackLoader.ts:194.
+
+**Acceptance Criteria:**
+- [ ] FETCH_TIMEOUT_MS declared once (e.g. in lib/constants.ts) and imported by all 3 call sites
+- [ ] A test asserts numeric equality can never drift (either by sharing the import directly, or an explicit cross-check test if a shared import isn't feasible)
+
+**Source:** Cycle-6 audit finding F19 — severity 4 — convergence 1/8 (Red Agent R, DECAY lens) — Poka-Yoke / parallel-constant anti-pattern, freshly reproduced, LIVE.
+
+---
+
+### Task #466: Add mechanical CI enforcement of AGENTS.md's Verification Gate banned-assertion grep
+
+**File:** .github/workflows/ci.yml
+**Complexity:** ⚡ Direct — 1 file, single-scope addition
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 20 — Adam (W20A); new CI step runs AGENTS.md's exact grep command and exit-1s on any hit, placed after Tests/before Build with a comment linking the two files; verified by temporarily reintroducing one violation and confirming detection, then restoring)
+
+**What:**
+Task #455 (cycle-6 finding F1) exists because the Verification Gate's banned-assertion grep is prose-only in AGENTS.md — nothing mechanically runs it. `.github/workflows/ci.yml` currently runs `npm audit`, `tsc --noEmit`, lint, tests, build, and pack validation, but never AGENTS.md's own grep command. This is the actual root cause of how the gate went red without anyone noticing: the "all four gates must be green" rule has always relied on a human or an agent remembering to run it by hand. Root-cause fix per Max's explicit instruction: mechanical enforcement, not honor system. at .github/workflows/ci.yml:37.
+
+**Acceptance Criteria:**
+- [ ] A new CI step runs AGENTS.md's exact banned-assertion grep command (or an equivalent script) and fails the job (non-zero exit) if it finds any unjustified hit
+- [ ] The step is added AFTER Task #455's fixes land (either same-wave same-commit, or explicitly sequenced) so CI does not immediately start failing on the pre-existing 29 hits this task didn't cause
+- [ ] A comment in ci.yml notes this step is the mechanical enforcement of AGENTS.md's Verification Gate, so the two files don't drift apart again
+- [ ] Verified by pushing/simulating a PR that reintroduces one banned assertion and confirming CI fails on it
+
+**Source:** Cycle-6 audit finding F1 follow-up — severity 7 — owner-directed (Max, 2026-07-28): "We should be mechanically enforcing things instead of relying on the honor system." Companion to Task #455 — that task clears the existing debt, this task prevents it from silently recurring.
 
 ---
 

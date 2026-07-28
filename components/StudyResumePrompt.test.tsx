@@ -11,12 +11,12 @@ describe("StudyResumePrompt", () => {
 
   it("renders the resume heading", () => {
     render(<StudyResumePrompt resumePos={2} resumeTotal={10} onDecline={vi.fn()} onAccept={vi.fn()} />);
-    expect(screen.getByText("Resume where you left off?")).toBeDefined();
+    expect(screen.getByText("Resume where you left off?")).toBeInTheDocument();
   });
 
   it("shows current card position as resumePos + 1 of resumeTotal", () => {
     render(<StudyResumePrompt resumePos={2} resumeTotal={10} onDecline={vi.fn()} onAccept={vi.fn()} />);
-    expect(screen.getByText(/Card 3 of 10/)).toBeDefined();
+    expect(screen.getByText(/Card 3 of 10/)).toBeInTheDocument();
   });
 
   it("fires onAccept when Resume button is clicked", () => {

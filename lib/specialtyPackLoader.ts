@@ -27,6 +27,7 @@ import type { LoadPackResult, Manifest, PackMemCache } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
 import { createGenerationGuard } from "@/lib/generationGuard";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import {
   readCacheMeta,
   readCacheData,
@@ -48,10 +49,6 @@ import { mergeSpecialtyPackFromJson } from "@/lib/specialtyPackMerge";
 // Base language key → cross-code serialization: concurrent loads for the same base lang chain
 // sequentially so neither merge overwrites the other. (Task #264)
 const inFlight = new Map<string, Promise<LoadPackResult>>();
-
-// #445: bounds _doLoad's fetch — see the call site below for the full rationale (mirrors
-// lib/basePackLoader.ts's identical constant/pattern).
-const FETCH_TIMEOUT_MS = 20_000;
 
 // Task #394: monotonically increasing generation, bumped by resetSpecialtyLoadState()
 // (which store/entitlementStore.clearEntitlement calls on every deactivation).
@@ -208,14 +205,15 @@ async function _doLoad(
 
   // Fetch the add-on pack JSON.
   // #445: bounded so a hung TCP connection can't leave loadSpecialtyPack's inFlight entry
-  // permanently pending — mirrors lib/basePackLoader.ts's identical fix. A timeout abort
-  // surfaces as a rejected fetch, indistinguishable from a real network error here, and is
-  // handled identically by the existing catch block below.
+  // permanently pending — mirrors lib/basePackLoader.ts's identical fix. A timeout
+  // (abort-honored or #464 backstop-forced) surfaces as a rejected fetch, indistinguishable
+  // from a real network error here, and is handled identically by the existing catch below.
   let addOnJson: string;
-  const timeoutController = new AbortController();
-  const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(packUrl(lang), { cache: "no-store", signal: timeoutController.signal });
+    // Task #464/#465: fetchWithTimeout owns the AbortController + independent
+    // Promise.race backstop and the shared FETCH_TIMEOUT_MS constant — see
+    // lib/fetchWithTimeout.ts.
+    const res = await fetchWithTimeout(packUrl(lang), { cache: "no-store" });
     if (!res.ok) {
       // Offline fallback: serve stale cache (version-mismatched) if available and still
       // matches its recorded sha256 (#410).
@@ -231,8 +229,6 @@ async function _doLoad(
       return mergeSpecialtyPackFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration, deactivationGuard);
     }
     return { ok: false, error: "download_failed" };
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   // Verify sha256.

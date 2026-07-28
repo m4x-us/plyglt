@@ -16,6 +16,12 @@ export interface FeatureFlags {
 
 // Standard env-var falsy values — "false", "0", "off", "no" all disable a flag.
 const FALSY_FLAG_VALUES: string[] = ["false", "0", "off", "no"];
+// Task #462: the only values that explicitly ENABLE a flag regardless of defaultEnabled.
+// Symmetric to FALSY_FLAG_VALUES — an explicit "true"/"1" always wins, just as an explicit
+// falsy value always wins. Anything that is neither is not a recognized signal at all (a
+// typo'd env var, e.g. "tru" or "yes-please") and must fall through to defaultEnabled, not
+// silently resolve to enabled=true the way "any non-falsy string" did before this fix.
+const TRUTHY_FLAG_VALUES: string[] = ["true", "1"];
 
 // Task #427: defaultEnabled is per-flag, not a blanket true — a flag gating an unfinished
 // feature (e.g. specialtyPacks) must default OFF when unset, while a shipped feature
@@ -29,7 +35,14 @@ function parseFlag(v: string | undefined, defaultEnabled: boolean): boolean {
   // v === undefined was checked before; "" skipped that branch and fell through to
   // !FALSY_FLAG_VALUES.includes("") === true regardless of defaultEnabled.
   if (v === undefined || v === "") return defaultEnabled;
-  return !FALSY_FLAG_VALUES.includes(v.toLowerCase());
+  const normalized = v.toLowerCase();
+  if (TRUTHY_FLAG_VALUES.includes(normalized)) return true;
+  if (FALSY_FLAG_VALUES.includes(normalized)) return false;
+  // Task #462 (F8): a value that is neither a recognized truthy nor falsy signal (a typo'd
+  // env var) is not an explicit override at all — it must fall through to defaultEnabled,
+  // the same as undefined/"". Previously any such value resolved to enabled=true regardless
+  // of defaultEnabled, letting a malformed env value silently enable a Pro-gated feature.
+  return defaultEnabled;
 }
 
 // Grace period: a subscription stays Pro-enabled this long after validUntil, so a lapsed

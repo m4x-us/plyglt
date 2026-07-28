@@ -126,4 +126,18 @@ describe("getFeatureFlags", () => {
       expect(getFeatureFlags().interruptEngine).toBe(false);
     }
   );
+
+  // Task #462 (F8): a garbage-but-non-empty value (neither a recognized truthy nor falsy
+  // signal) must fall through to defaultEnabled in BOTH directions — not silently resolve
+  // to enabled=true regardless of default, which is what Task #448's fix left unaddressed
+  // for any value other than undefined/"".
+  it("falls through to defaultEnabled=false for a garbage-but-non-empty value (default-off flag)", () => {
+    process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS = "tru";
+    expect(getFeatureFlags().specialtyPacks).toBe(false);
+  });
+
+  it("falls through to defaultEnabled=true for a garbage-but-non-empty value (default-on flag)", () => {
+    process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE = "yes-please";
+    expect(getFeatureFlags().interruptEngine).toBe(true);
+  });
 });

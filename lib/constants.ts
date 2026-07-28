@@ -12,6 +12,14 @@
 /** Single source of truth for the localStorage key that tracks the active language pair. */
 export const LANG_PAIR_KEY = "srs-lang-pair";
 
+// Task #445 → #465: single source of truth for the pack-loading subsystem's fetch
+// timeout. Previously declared independently in lib/basePackLoader.ts,
+// lib/specialtyPackLoader.ts, and lib/packLoader.ts (now lib/packManifest.ts after
+// Task #463's extraction) — three copies of the same tuning value with no mechanism
+// forcing them to agree. Used by lib/fetchWithTimeout.ts's fetchWithTimeout(), the
+// single shared implementation all 3 call sites now import (Task #464/#465).
+export const FETCH_TIMEOUT_MS = 20_000;
+
 // Task #340: This module is the SOLE AUTHORIZED CALLER of window.localStorage for
 // LANG_PAIR_KEY. CLAUDE.md §3 requires all localStorage access to route through
 // lib/storage.ts, but createPlatformStorage() is async and cannot replace these
@@ -20,6 +28,20 @@ export const LANG_PAIR_KEY = "srs-lang-pair";
 // place to audit, one place to change if the storage layer later grows a synchronous
 // accessor. All callers outside this file must use the exported functions below —
 // never window.localStorage.getItem/setItem(LANG_PAIR_KEY) directly.
+
+// Task #457: single source of truth for deriving the target-lang tail from a stored
+// "en-{lang}" pair string. Task #446 made getTargetLangCode's and getLangPair's inline
+// malformed-value checks byte-identical by copy-paste — that fixed the immediate bug but
+// left two independent copies that could silently drift apart again on a future edit to
+// just one of them. Sharing this function is the actual structural fix. Returns "" when
+// the value is malformed (no hyphen, or nothing after it — e.g. "en-") — both callers
+// below treat an empty result as "needs repair".
+function deriveLangTail(pair: string): string {
+  // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
+  // like "it-medical" to "it".
+  const sepIdx = pair.indexOf("-");
+  return sepIdx === -1 ? "" : pair.slice(sepIdx + 1);
+}
 
 /** Returns the stored target language code, defaulting to "it". */
 export function getTargetLangCode(): string {
@@ -35,11 +57,7 @@ export function getTargetLangCode(): string {
     console.error(`[ERR-CONST-GET-TARGET-LANG-${Date.now()}] localStorage.getItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Falling back to "it".`);
     return "it";
   }
-  // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
-  // like "it-medical" to "it". No hyphen, or nothing after it (e.g. "en-"), means the
-  // stored value is malformed.
-  const sepIdx = pair.indexOf("-");
-  const target = sepIdx === -1 ? "" : pair.slice(sepIdx + 1);
+  const target = deriveLangTail(pair);
   if (!target) {
     console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" is malformed — expected "en-{lang}" format. Falling back to "it".`);
     // Task #408: persist the repair. A read-time-only fallback silently re-derives (and
@@ -79,15 +97,13 @@ export function getLangPair(): string {
   // generically) — this getter used `?? "en-it"` alone, which only substitutes on
   // null/undefined, so a stored "" or hyphen-less garbage value passed through here
   // unrepaired and unlogged. Same malformed check, same persisted repair.
-  // Task #446: the check must be IDENTICAL to getTargetLangCode's, not just "has a
-  // hyphen" — `pair.indexOf("-") === -1` alone missed the empty-tail case ("en-" HAS a
-  // hyphen, so it passed this check unrepaired and unlogged, silently feeding
-  // store/srsStore.ts's persisted storage key `srs-${_activeLangPair}` as the malformed
-  // "srs-en-"). Deriving `target` the same way getTargetLangCode does (slice after the
-  // first hyphen, empty means malformed) makes the two getters structurally impossible to
-  // drift apart on this check again.
-  const sepIdx = pair.indexOf("-");
-  const target = sepIdx === -1 ? "" : pair.slice(sepIdx + 1);
+  // Task #446 → #457: the check must be IDENTICAL to getTargetLangCode's, not just "has
+  // a hyphen" (`pair.indexOf("-") === -1` alone missed the empty-tail case, "en-" HAS a
+  // hyphen — this fed store/srsStore.ts's persisted storage key `srs-${_activeLangPair}`
+  // the malformed "srs-en-"). #446 fixed this by copy-pasting getTargetLangCode's inline
+  // logic; #457 replaced both copies with one shared deriveLangTail() call (above) — the
+  // actual structural guarantee against the two checks drifting apart again.
+  const target = deriveLangTail(pair);
   if (!target) {
     console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" is malformed — expected "en-{lang}" format. Falling back to "en-it".`);
     setTargetLangCode("it");

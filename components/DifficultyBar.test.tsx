@@ -10,21 +10,23 @@ describe("DifficultyBar", () => {
   afterEach(cleanup);
 
   it("renders green bar at 0% difficulty (value=1)", () => {
+    // Query the bar via a class that's present regardless of color (".h-full") so the
+    // assertion below proves the SPECIFIC color class, not just "some element exists".
     const { container } = render(<DifficultyBar value={1} />);
-    const bar = container.querySelector(".bg-green-500");
-    expect(bar).not.toBeNull();
+    const bar = container.querySelector(".h-full");
+    expect(bar?.className).toContain("bg-green-500");
   });
 
   it("renders yellow bar at ~50% difficulty (value=5)", () => {
     const { container } = render(<DifficultyBar value={5} />);
-    const bar = container.querySelector(".bg-yellow-500");
-    expect(bar).not.toBeNull();
+    const bar = container.querySelector(".h-full");
+    expect(bar?.className).toContain("bg-yellow-500");
   });
 
   it("renders red bar at ~90% difficulty (value=9)", () => {
     const { container } = render(<DifficultyBar value={9} />);
-    const bar = container.querySelector(".bg-red-500");
-    expect(bar).not.toBeNull();
+    const bar = container.querySelector(".h-full");
+    expect(bar?.className).toContain("bg-red-500");
   });
 
   it("displays the value formatted to 1 decimal place", () => {

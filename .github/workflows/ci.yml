@@ -30,6 +30,18 @@ jobs:
       - name: Tests
         run: npm test -- --coverage --reporter=verbose
 
+      # Task #466: mechanical enforcement of AGENTS.md's Verification Gate banned-assertion
+      # grep — root-cause fix for Task #455 (the gate had gone red with nothing checking it,
+      # relying on a human/agent to run it by hand). Keep this command byte-for-byte
+      # identical to AGENTS.md's Verification Gate section; if one changes, update the other
+      # in the same commit so the two files cannot drift apart again.
+      - name: Verification Gate — banned test assertions (AGENTS.md)
+        run: |
+          if grep -rn "\.toBeDefined()\|\.toBeTruthy()\|\.not\.toBeNull()\|\.toBeGreaterThan(0)" . --include="*.test.*" --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.next | grep -v "existence-check:"; then
+            echo "FAIL: banned assertion(s) found without an // existence-check: justification — see AGENTS.md's Verification Gate"
+            exit 1
+          fi
+
       - name: Build
         run: npm run build
 

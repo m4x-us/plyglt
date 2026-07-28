@@ -130,7 +130,10 @@ describe("useStudySession — handleRate", () => {
 
     expect(commitSession).toHaveBeenCalledTimes(1);
     const firstCall = commitSession.mock.calls[0];
-    expect(firstCall).toBeDefined();
+    // commitSession(cardId, grade, session) — proves the call received exactly 3
+    // arguments, not just that the mock.calls[0] tuple itself is non-undefined (which
+    // toHaveBeenCalledTimes(1) above already guarantees).
+    expect(firstCall).toHaveLength(3);
     const [cardId, grade, session] = firstCall!;
     expect(cardId).toBe("solo");
     expect(grade).toBe("easy");
