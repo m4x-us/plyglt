@@ -22,6 +22,54 @@ describe("hasStoredLangPair (#389)", () => {
   });
 });
 
+describe("malformed LANG_PAIR_KEY repair (#408)", () => {
+  beforeEach(() => { localStorage.clear(); });
+  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  beforeEach(() => { errorSpy.mockClear(); });
+
+  it("getTargetLangCode repairs a no-hyphen corrupted value once and persists it — no re-log on a subsequent call", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "banana");
+
+    expect(getTargetLangCode()).toBe("it");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
+    // Persisted — the corrupt raw value must not still be sitting in storage.
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
+
+    errorSpy.mockClear();
+    expect(getTargetLangCode()).toBe("it");
+    // Second call reads the now-repaired "en-it" — the malformed branch must not re-fire.
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("getTargetLangCode repairs an empty-tail value (e.g. \"en-\") the same way as a no-hyphen value", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "en-");
+
+    expect(getTargetLangCode()).toBe("it");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
+  });
+
+  it("getLangPair repairs a no-hyphen corrupted value with a logged fallback and persists it (not just \"?? default\")", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "banana");
+
+    expect(getLangPair()).toBe("en-it");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
+
+    errorSpy.mockClear();
+    expect(getLangPair()).toBe("en-it");
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("getLangPair repairs a stored empty string the same way (\"\" is not null, so ?? alone would not catch it)", () => {
+    localStorage.setItem(LANG_PAIR_KEY, "");
+
+    expect(getLangPair()).toBe("en-it");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-LANG-PAIR-MALFORMED"));
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
+  });
+});
+
 describe("localStorage error handling (#434)", () => {
   let saved: PropertyDescriptor | undefined;
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

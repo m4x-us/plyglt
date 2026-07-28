@@ -55,6 +55,10 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
     // isSpecialtyPackCode closes over the module-scope SPECIALTY_PACKS binding, not the
     // exported one — override it here so it uses the per-test mockSpecialtyPacks array instead.
     isSpecialtyPackCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s && sp.ready),
+    // Task #407: same reasoning — isRegisteredSpecialtyCode closes over the real module-scope
+    // SPECIALTY_PACKS, not the exported/mocked one. evictPack's specialty-code branch now
+    // routes through it (registration-only, no ready check).
+    isRegisteredSpecialtyCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s),
   };
 });
 
@@ -68,8 +72,11 @@ const fakePack = (): Pack => ({
   name: "Italian",
   nativeName: "Italiano",
   flag: "🇮🇹",
-  unitCount: 1,
-  cardCount: 1,
+  // unitCount/cardCount must match units.length (Task #418 cross-checks this in
+  // hasValidUnitsArray) — units is deliberately empty here since most tests below don't
+  // need real unit content, only correct caching/eviction/merge-arithmetic behavior.
+  unitCount: 0,
+  cardCount: 0,
   units: [],
 });
 
@@ -94,8 +101,9 @@ const fakeAddOnPack = (): Pack => ({
   name: "Medical Italian",
   nativeName: "Italiano Medico",
   flag: "🇮🇹",
-  unitCount: 5,
-  cardCount: 50,
+  // unitCount/cardCount must match units.length (Task #418) — see fakePack's comment.
+  unitCount: 0,
+  cardCount: 0,
   units: [],
 });
 const ADD_ON_PACK_JSON = JSON.stringify(fakeAddOnPack());
@@ -109,8 +117,9 @@ const fakeAddOnBusinessPack = (): Pack => ({
   name: "Business Italian",
   nativeName: "Italiano per gli Affari",
   flag: "🇮🇹",
-  unitCount: 3,
-  cardCount: 30,
+  // unitCount/cardCount must match units.length (Task #418) — see fakePack's comment.
+  unitCount: 0,
+  cardCount: 0,
   units: [],
 });
 const ADD_ON_BUSINESS_PACK_JSON = JSON.stringify(fakeAddOnBusinessPack());

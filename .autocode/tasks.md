@@ -5202,7 +5202,7 @@ Two combined findings from Task #378 cycle 2 (a) useIsHydrated snapshots hasHydr
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Adam (W17A))
 
 **What:**
 The registered-specialty-pack-code predicate (SPECIALTY_PACKS.some/find(sp => sp.code === X)) is independently reimplemented in lib/importBackup.ts:138, store/migrations.ts:181/186, store/entitlementStore.ts:200, and lib/packLoader.ts:328, each with a "keep in sync" comment instead of a shared import. Root cause is Task #74-class: isSpecialtyPackCode's name promises registration but checks registration+ready (see Task #421), which is why nothing already exports the registration-only predicate these 5 sites need. Add `isRegisteredSpecialtyCode(code)` to lib/langRegistry.ts and swap all 5 call sites to import it. at lib/langRegistry.ts:module-level:1.
@@ -5223,7 +5223,7 @@ The registered-specialty-pack-code predicate (SPECIALTY_PACKS.some/find(sp => sp
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Adam (W17A); also touched tests/srsStore.test.ts to fix a localStorage stub missing setItem, surfaced by getTargetLangCode's new persist-repair call)
 
 **What:**
 getLangPair() (lib/constants.ts:46-49) uses `??`, which only substitutes on null/undefined — a stored value of "" or hyphen-less garbage passes through unrepaired and unlogged, contradicting hasStoredLangPair's doc comment claiming "downstream getters repair malformed values with a logged fallback." Separately, getTargetLangCode()'s own repair is read-time-only and never persisted: Task #339's persist-repair effect in hooks/useLangPack.ts only fires when isKnownCode is false, but getTargetLangCode already silently substituted "it" by the time that effect reads it, so the repair never persists — console.error fires on every render forever for a tampered no-hyphen LANG_PAIR_KEY, and getLangPair() (consumed by hooks/useExportImport.ts) returns the raw corrupt string forever, permanently blocking backup restore. at lib/constants.ts:getLangPair:46.
@@ -5328,7 +5328,7 @@ store/entitlementStore.ts is 431 lines, over Rule 1's 400-line service cap, and 
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Charles (W17C); also repaired this file's own fakeAddOnPack fixture, broken by #418's stricter cross-check landing concurrently)
 
 **What:**
 lib/specialtyPackLoader.ts lines 257, 272, 318, 359 are uncovered; line 272 (the fresh-download hash-mismatch branch itself) is untested, distinct from the cached-copy hash-mismatch test that does exist. Not gate-blocking (project coverage clears thresholds) but a checksum-mismatch branch is exactly the kind of security-relevant path expected to have direct coverage. at lib/specialtyPackLoader.ts:_doLoad:272.
@@ -5348,7 +5348,7 @@ lib/specialtyPackLoader.ts lines 257, 272, 318, 359 are uncovered; line 272 (the
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Adam (W17A); fix lives entirely in hooks/useLangPack.ts, computing unlockedLangs via the canonical isPackUnlocked per-code rather than narrowing to the target language alone, since the specialty-pack resolver checks a different base language — lib/packLoader.ts itself unchanged, per the layer rule)
 
 **What:**
 lib/packLoader.ts:189-192's base-pack entitlement gate is a pure array-membership check on unlockedLangs; hooks/useLangPack.ts threads the raw persisted unlockedPacks array into it, not the computed isPackUnlocked() result (which applies validUntil+SUBSCRIPTION_GRACE_PERIOD_MS expiry logic). isPackUnlocked currently runs only inside components/LanguageGrid.tsx's render; app/page.tsx redirects returning users away from the picker once hasStoredLangPair() is true, so isPackUnlocked never runs again for them, and app/learn/page.tsx, app/study/page.tsx, hooks/useStatsData.ts never call it at all. unlockedPacks is never pruned on expiry. Currently fully unreachable (READY_PACK_CODES=[it], Italian is free) but code comments explicitly anticipate a second ready base pack. at lib/packLoader.ts:loadPack:189.
@@ -5411,7 +5411,7 @@ lib/basePackLoader.ts:223-230's documented "second generation check" race fix (a
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Barry (W17B))
 
 **What:**
 Every test in tests/packTypes.test.ts uses `cards: []`; none constructs a malformed card (wrong-typed tier, non-array accepted, missing prompt). Deletion Test: replace the card-validation callback with `return true;` — no test fails. at lib/packTypes.ts:hasValidUnitsArray:92.
@@ -5431,7 +5431,7 @@ Every test in tests/packTypes.test.ts uses `cards: []`; none constructs a malfor
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Barry (W17B); the stricter check broke unitCount/cardCount-mismatched test fixtures in 3 other files owned by other streams — fixed directly by this orchestrator after independent verification found them, not by Barry, since they were outside Barry's file grant)
 
 **What:**
 hasValidUnitsArray validates unitCount/cardCount by type only, never cross-checking them against the actual units/cards array lengths, despite lib/specialtyPackLoader.ts's _mergeFromJson arithmetically summing exactly those two fields. A downloaded pack whose declared count doesn't match its real array length passes validation and produces an arithmetically wrong but type-safe merged total; no caller in the import graph checks this either. at lib/packTypes.ts:hasValidUnitsArray:75.
@@ -5492,7 +5492,7 @@ isProEnabled (lib/featureFlags.ts:26) never checks subscription expiry, unlike i
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Barry (W17B))
 
 **What:**
 store/srsStore.ts:26 calls `window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it"` directly, bypassing lib/constants.ts's sole-authorized-caller rule and reimplementing getLangPair() inline, even though the file already imports LANG_PAIR_KEY from lib/constants.ts. app/page.tsx and hooks/useExportImport.ts were fixed for the identical violation under Task #340/#389 (commit 91c0b58); this call site was the missed sibling. Matches already-known tracked debt entry DSC-004. at store/srsStore.ts:module-level:26.
@@ -5552,7 +5552,7 @@ hooks/useLicenseActivation.ts:25 hardcodes `key.length > 200` inline with a comm
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Adam (W17A); duplicated the format constants locally rather than waiting on the still-deferred Task #423, per brief instruction — logged as debt to reconcile when #423 lands)
 
 **What:**
 lib/importBackup.ts:148 validates restored licenseKey/instanceId with only `typeof === "string"` — no length cap, no charset check — while hooks/useLicenseActivation.ts:25's format guard sits only in front of manual entry. A crafted backup JSON with an oversized or non-charset-conforming licenseKey bypasses the guard entirely via the restore path. at lib/importBackup.ts:parseBackup:148.
@@ -5592,7 +5592,7 @@ getLanguageConfig's hyphenated-code fallback branch cannot check SPECIALTY_PACKS
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Derek (W17D))
 
 **What:**
 tests/seam_importRestore.test.ts:212-239,255-286's purchasedAddOns-preservation-on-restore guarantee is asserted only from an empty starting state restoring to []. No test seeds a non-empty purchasedAddOns before restoring a backup that includes a license. Deletion Test: change setEntitlement to a full-replace instead of shallow merge — every existing test still passes. at tests/seam_importRestore.test.ts:255.
@@ -5612,7 +5612,7 @@ tests/seam_importRestore.test.ts:212-239,255-286's purchasedAddOns-preservation-
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Charles (W17C); switched parseFlag to a per-flag default parameter rather than a blanket change, keeping interruptEngine/vacationMode/analytics default-on and specialtyPacks default-off. Broke purchaseAddOn's Pro-gate tests in 2 files outside Charles's grant (tests/entitlement.test.ts, tests/purchaseAddOnGuards.test.ts) — fixed directly by this orchestrator, plus corrected a stale comment in store/entitlementStore.ts Charles flagged but couldn't edit)
 
 **What:**
 parseFlag (lib/featureFlags.ts:18-21) defaults to TRUE unless the env var is explicitly "false"/"0"/"off"/"no". For a flag whose stated purpose is to be "the ONE place" gating an unfinished, dormant feature (specialty packs), this inverts the safe default — omitting the env var anywhere ships the feature live. Currently masked only by SPECIALTY_PACKS's single entry being ready:false. at lib/featureFlags.ts:parseFlag:18.
@@ -5875,7 +5875,7 @@ write(lang, pack):void (lib/packTypes.ts's PackMemCache interface, implemented a
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-27 (Wave 17 — Derek (W17D); added RestorableEntitlement = Omit<BackupEntitlement, "purchasedAddOns"> and excludePurchasedAddOns() so the exclusion is structural, not just which fields readFile happens to destructure)
 
 **What:**
 The promise "purchased add-ons cannot be restored from an unsigned backup" is enforced only by hooks/useExportImport.ts:readFile:81's manual destructuring choice (deliberately omitting purchasedAddOns), not by any type-level or runtime guard — a future caller writing `setEntitlement({...result.entitlement, licenseKey, instanceId})` would silently reintroduce unauthenticated add-on restoration. This is not hypothetical: a stray abandoned worktree found during this audit already demonstrates exactly this regression happening in a copy of the code. at hooks/useExportImport.ts:readFile:81.

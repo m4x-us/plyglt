@@ -55,10 +55,22 @@ const fakeBasePack = (): Pack => ({
   unitCount: 0, cardCount: 0, units: [],
 });
 
+// Task #418 (lib/packTypes.ts): hasValidUnitsArray now cross-checks unitCount/cardCount
+// against the real units/cards array lengths — units: [] with unitCount: 5 no longer
+// passes shape validation. 5 units of 10 cards each keeps unitCount:5/cardCount:50
+// (relied on by several merge-arithmetic assertions below) genuinely accurate.
 const fakeAddOnPack = (): Pack => ({
   _version: 1, lang: "it-medical", packVersion: "1.0.0", canonicalSource: "en",
   name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹",
-  unitCount: 5, cardCount: 50, units: [],
+  unitCount: 5, cardCount: 50,
+  units: Array.from({ length: 5 }, (_, u) => ({
+    id: `it-medical-u${u}`, name: `Medical Unit ${u}`, level: "A1", theme: "medical",
+    emoji: "🩺", prerequisiteUnits: [],
+    cards: Array.from({ length: 10 }, (_, c) => ({
+      id: `it-medical-u${u}-c${c}`, type: "produce", prompt: "prompt",
+      accepted: ["risposta"], tags: [], tier: 1,
+    })),
+  })),
 });
 
 const ADD_ON_PACK_JSON = JSON.stringify(fakeAddOnPack());
@@ -371,5 +383,70 @@ describe("specialty pack — offline-serve integrity re-verification (#410)", ()
     // Fail-closed before any network attempt — a missing manifest with tampered cache must
     // never fall back to a fresh download of unverifiable content.
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ── #413 — _doLoad direct coverage (F010) ──────────────────────────────────────
+// F010 flagged _doLoad:272 (the fresh-download sha256 mismatch branch) as untested —
+// distinct from the #410 tests above, which exercise the offline/no-manifest fail-closed
+// paths, never a genuine "manifest present, fetch succeeds, bytes don't match" download.
+
+describe("specialty pack — fresh-download and cache-hit integrity branches (#413)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", ready: true, name: "Medical Italian" });
+    seedMemCache("it", []);
+  });
+
+  it("#413: a freshly-downloaded add-on whose bytes don't match the manifest sha256 is rejected as checksum_mismatch", async () => {
+    // No cache present — this is a genuine first-time download, unlike the #410 tests
+    // above (which all start from a tampered or version-stale cache entry).
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => "not the real add-on bytes" });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "checksum_mismatch" });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(getLoadedAddOns()).toEqual([]);
+    // Tampered/corrupted bytes must never be written to storage.
+    expect(localStorageMock.getItem("pack-meta-v1-it-medical")).toBeNull();
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBeNull();
+  });
+
+  it("#413: a cached copy that passes sha256 verification but fails shape validation is evicted and falls through to a fresh download", () => {
+    // Simulates a genuinely malformed pack published under a correct hash (a build/publish
+    // bug, not tampering) — the cache-hit sha256 check at _doLoad's cacheVersionMatches
+    // branch passes, but hasValidUnitsArray inside _mergeFromJson rejects the shape. This
+    // is the "if (result.ok) return result" false branch (F010's other cited line, 257),
+    // distinct from every #410 test above (which all fail the sha256 check itself, never
+    // reach shape validation).
+    const invalidShapeJson = JSON.stringify({ ...fakeAddOnPack(), units: "not-an-array" });
+    const invalidShapeSha = createHash("sha256").update(invalidShapeJson).digest("hex");
+    const manifest: Manifest = {
+      _version: 1,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      packs: {
+        "it-medical": {
+          name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹",
+          version: "1.0.0", size: 50, sha256: invalidShapeSha,
+        },
+      },
+    };
+    localStorageMock.setItem("pack-data-v1-it-medical", invalidShapeJson);
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({ version: "1.0.0", sha256: invalidShapeSha, cachedAt: 1 }));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Redownload serves the same malformed bytes — mirrors a genuinely broken published pack.
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => invalidShapeJson });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    return loadPack("it-medical", manifest, { purchasedAddOns: ["it-medical"] }).then((result) => {
+      // Falling through to a fresh download proves the cache was evicted rather than served.
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(result).toEqual({ ok: false, error: "parse_error" });
+      expect(getLoadedAddOns()).toEqual([]);
+      const logKeys = errorSpy.mock.calls.map(args => args[0] as string);
+      expect(logKeys.some(msg => msg.includes("SHAPE_INVALID_FAIL-it-medical"))).toBe(true);
+      errorSpy.mockRestore();
+    });
   });
 });

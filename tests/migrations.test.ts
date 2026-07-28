@@ -23,14 +23,19 @@ import {
 // One ready:true and one ready:false entry — the filter must check REGISTRATION only
 // (membership in SPECIALTY_PACKS); the mutable ready flag must never drop a persisted
 // paid purchase record (Task #384 data-loss fix).
+const mockSpecialtyPacks = vi.hoisted(() => [
+  { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
+  { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
+]);
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
   return {
     ...actual,
-    SPECIALTY_PACKS: [
-      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
-      { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
-    ],
+    SPECIALTY_PACKS: mockSpecialtyPacks,
+    // Task #407: isRegisteredSpecialtyCode closes over the module-scope SPECIALTY_PACKS
+    // binding, not the exported one — override it here so the v2→v3 migration filter uses
+    // this mock's fixture list (same reasoning as isSpecialtyPackCode's override elsewhere).
+    isRegisteredSpecialtyCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s),
   };
 });
 

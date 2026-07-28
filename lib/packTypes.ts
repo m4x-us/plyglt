@@ -69,17 +69,22 @@ export type LoadPackResult =
 // app/study/page.tsx dereference unit.prerequisiteUnits.every(...) with no guard, so a
 // pack missing it would pass sha256 yet crash the UI on first render instead of failing
 // at load; #392); each unit has a cards array; each card has string id, string type,
-// string prompt, array accepted, array tags, and number tier.
+// string prompt, array accepted, array tags, and number tier; unitCount equals the actual
+// units.length and cardCount equals the actual total cards across all units (Task #418 —
+// lib/specialtyPackLoader.ts's _mergeFromJson arithmetically sums exactly these two
+// declared fields, so a declared count that doesn't match the real array lengths produces
+// an arithmetically wrong but type-safe merged total with no caller ever catching it).
 // This is the runtime mirror of scripts/validatePack.ts's validateUnit — keep the two in
 // sync: any field the UI dereferences unconditionally must be checked in BOTH places.
-// Does NOT validate: unitCount/cardCount cross-totals against actual units/cards lengths.
 export function hasValidUnitsArray(pack: Pack): boolean {
   if (typeof pack.unitCount !== "number") return false;
   if (typeof pack.cardCount !== "number") return false;
   if (!Array.isArray(pack.units)) return false;
+  if (pack.units.length !== pack.unitCount) return false;
+  let totalCards = 0;
   // Cast through unknown[] — pack JSON is untrusted and elements may not match
   // the TypeScript type despite the outer cast, so we validate defensively.
-  return (pack.units as unknown[]).every((u) => {
+  const unitsValid = (pack.units as unknown[]).every((u) => {
     if (u === null || typeof u !== "object") return false;
     const unit = u as Record<string, unknown>;
     if (typeof unit.id !== "string") return false;
@@ -89,6 +94,7 @@ export function hasValidUnitsArray(pack: Pack): boolean {
     if (typeof unit.emoji !== "string") return false;
     if (!Array.isArray(unit.prerequisiteUnits)) return false;
     if (!Array.isArray(unit.cards)) return false;
+    totalCards += unit.cards.length;
     return (unit.cards as unknown[]).every((c) => {
       if (c === null || typeof c !== "object") return false;
       const card = c as Record<string, unknown>;
@@ -102,6 +108,8 @@ export function hasValidUnitsArray(pack: Pack): boolean {
       );
     });
   });
+  if (!unitsValid) return false;
+  return totalCards === pack.cardCount;
 }
 
 /**

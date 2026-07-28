@@ -284,4 +284,34 @@ describe("seam: entitlement restore via useExportImport.readFile (Task #393)", (
       message: "Restored 2 card(s) of progress.",
     });
   });
+
+  // Task #426: the two tests above only ever restore into an entitlement whose
+  // purchasedAddOns already starts at [] — a setEntitlement that explicitly reset
+  // purchasedAddOns to [] as part of a "full replace" of the entitlement (instead of
+  // omitting it, which preserves whatever was already there) would produce the exact
+  // same observed [] and pass unnoticed. Seeding a genuinely non-empty purchasedAddOns
+  // before restoring closes that gap.
+  it("preserves a non-empty purchasedAddOns across a license restore (#426)", async () => {
+    useEntitlementStore.setState({ purchasedAddOns: ["it-medical", "it-legal"] });
+
+    const { result } = renderHook(() => useExportImport());
+    const backup = makeBackupJson({
+      entitlement: {
+        licenseKey: "NEW-KEY",
+        instanceId: "NEW-INSTANCE",
+        licenseType: "subscription",
+        unlockedPacks: ["it"],
+        validUntil: FUTURE_DATE,
+      },
+    });
+    const file = makeBackupFile(backup);
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    const stateAfter = useEntitlementStore.getState();
+    expect(stateAfter.licenseKey).toBe("NEW-KEY");
+    expect(stateAfter.purchasedAddOns).toEqual(["it-medical", "it-legal"]);
+  });
 });

@@ -93,6 +93,18 @@ export const SPECIALTY_PACKS: readonly SpecialtyPack[] = Object.freeze([
 ]);
 
 /**
+ * Returns true iff s is a REGISTERED specialty pack code — membership in SPECIALTY_PACKS,
+ * regardless of `ready`. Sibling of isSpecialtyPackCode below, which additionally requires
+ * `ready:true`. Task #407: extracted so the 5 call sites that need registration-only
+ * semantics (validating a persisted/restored code that must survive a pack's `ready` flag
+ * flipping back to false — Task #384's policy) share one predicate instead of each
+ * hand-rolling `SPECIALTY_PACKS.some(sp => sp.code === s)` with a "keep in sync" comment.
+ */
+export function isRegisteredSpecialtyCode(s: string): boolean {
+  return SPECIALTY_PACKS.some(sp => sp.code === s);
+}
+
+/**
  * Returns true iff s is a registered AND ready specialty pack code.
  * Used by purchaseAddOn as the sole code-validity gate before persisting into
  * purchasedAddOns (which has no removal path). Requiring .ready prevents a

@@ -18,7 +18,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
-import { FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, type PackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isRegisteredSpecialtyCode, type PackCode } from "@/lib/langRegistry";
 import { resetSpecialtyLoadState } from "@/lib/specialtyPackLoader";
 import { evictPack, getLoadedAddOns } from "@/lib/packLoader";
 import { invoke } from "@/lib/tauri";
@@ -211,10 +211,14 @@ export const useEntitlementStore = create<EntitlementState>()(
         // specialty content via loadPack's memory-cache-hit fast path, which never consults
         // purchasedAddOns. Capture the affected base languages BEFORE anything mutates
         // getLoadedAddOns()'s underlying bookkeeping.
+        // Task #407: gate via the shared isRegisteredSpecialtyCode predicate (not a
+        // hand-rolled SPECIALTY_PACKS.some/find(sp => sp.code === X) check) before the
+        // lookup that needs the actual entry (baseLang) — the non-null assertion is safe
+        // because the filter above already proved membership.
         const affectedBaseLangs = new Set(
           getLoadedAddOns()
-            .map(code => SPECIALTY_PACKS.find(sp => sp.code === code)?.baseLang)
-            .filter((lang): lang is PackCode => lang !== undefined)
+            .filter(isRegisteredSpecialtyCode)
+            .map(code => SPECIALTY_PACKS.find(sp => sp.code === code)!.baseLang)
         );
         // Reset observable state synchronously — callers that don't await the returned
         // Promise still see licenseKey/purchasedAddOns/etc. cleared immediately.
@@ -322,10 +326,14 @@ export const useEntitlementStore = create<EntitlementState>()(
         // Enforced HERE at the store layer — not only in the UI — so a direct devtools call
         // to purchaseAddOn cannot bypass it. Routed through isProEnabled(), the single
         // mandated combinator for all Pro-gated features (CLAUDE.md / lib/featureFlags.ts).
-        // getFeatureFlags().specialtyPacks defaults to true when the env var is unset, so
-        // in ordinary runtimes this reduces to licenseType === "subscription" and validUntil
-        // not past its grace period (Task #420 — isProEnabled became expiry-aware, matching
-        // isPackUnlocked's identical policy for pack access).
+        // getFeatureFlags().specialtyPacks defaults to FALSE when NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS
+        // is unset (Task #427 — the safe-off default for this still-unfinished feature), so
+        // in a runtime without that env var explicitly set to a truthy value this gate
+        // always rejects with ERR_ADDON_NOT_PRO regardless of licenseType. Tests exercising
+        // this gate must stub the env var. When the flag IS enabled, this reduces to
+        // licenseType === "subscription" and validUntil not past its grace period (Task
+        // #420 — isProEnabled became expiry-aware, matching isPackUnlocked's identical
+        // policy for pack access).
         //
         // Deferral history (#357, Wave 13): a store-level gate was blocked because
         // tests/entitlement.test.ts (then off-limits) called purchaseAddOn under

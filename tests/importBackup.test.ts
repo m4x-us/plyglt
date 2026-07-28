@@ -7,14 +7,19 @@ import { parseBackup, CURRENT_BACKUP_VERSION } from "@/lib/importBackup";
 // One ready:true and one ready:false entry — the filter must check REGISTRATION only
 // (membership in SPECIALTY_PACKS); the mutable ready flag must never drop a paid purchase
 // record from a restored backup (Task #384 data-loss fix).
+const mockSpecialtyPacks = vi.hoisted(() => [
+  { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
+  { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
+]);
 vi.mock("@/lib/langRegistry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/langRegistry")>();
   return {
     ...actual,
-    SPECIALTY_PACKS: [
-      { code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true },
-      { code: "it-legal",   baseLang: "it", name: "Legal Italian",   ready: false },
-    ],
+    SPECIALTY_PACKS: mockSpecialtyPacks,
+    // Task #407: isRegisteredSpecialtyCode closes over the module-scope SPECIALTY_PACKS
+    // binding, not the exported one — override it here so parseBackup's filter uses this
+    // mock's fixture list (same reasoning as isSpecialtyPackCode's override elsewhere).
+    isRegisteredSpecialtyCode: (s: string) => mockSpecialtyPacks.some(sp => sp.code === s),
   };
 });
 
@@ -251,6 +256,67 @@ describe("parseBackup", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.entitlement.licenseType).toBe("free");
+  });
+
+  it("#424: rejects an oversized licenseKey/instanceId (>200 chars) — dropped to null, not passed through", () => {
+    const errorSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const oversized = "A".repeat(201);
+    const backup = validBackup({
+      entitlement: { licenseKey: oversized, instanceId: oversized, licenseType: "subscription", unlockedPacks: ["it"], validUntil: null },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.entitlement.licenseKey).toBe(null);
+    expect(r.entitlement.instanceId).toBe(null);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("IMPORT-SKIP-LICENSE-KEY"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("IMPORT-SKIP-INSTANCE-ID"));
+    errorSpy.mockRestore();
+  });
+
+  it("#424: rejects a licenseKey/instanceId with invalid-charset content (bypassing the manual-entry format guard)", () => {
+    // hooks/useLicenseActivation.ts:25 rejects this exact shape at manual entry
+    // (/^[A-Za-z0-9-]+$/) — before #424, the restore path had no equivalent check, so a
+    // hand-crafted backup JSON could smuggle arbitrary content (script tags, SQL-looking
+    // strings, whitespace) straight into persisted entitlement state.
+    const errorSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const backup = validBackup({
+      entitlement: { licenseKey: "<script>alert(1)</script>", instanceId: "not valid; DROP TABLE", licenseType: "subscription", unlockedPacks: ["it"], validUntil: null },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.entitlement.licenseKey).toBe(null);
+    expect(r.entitlement.instanceId).toBe(null);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("IMPORT-SKIP-LICENSE-KEY"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("IMPORT-SKIP-INSTANCE-ID"));
+    errorSpy.mockRestore();
+  });
+
+  it("#424: accepts a licenseKey/instanceId at exactly the 200-char boundary and preserves valid hyphenated content", () => {
+    const exactly200 = "A".repeat(200);
+    const backup = validBackup({
+      entitlement: { licenseKey: exactly200, instanceId: "abc-123-DEF", licenseType: "subscription", unlockedPacks: ["it"], validUntil: null },
+    });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.entitlement.licenseKey).toBe(exactly200);
+    expect(r.entitlement.instanceId).toBe("abc-123-DEF");
+  });
+
+  it("#424: a backup with no license (null licenseKey/instanceId) does not log a spurious drop warning", () => {
+    // The common free-user case must stay silent — only a STRING that fails validation
+    // should warn, not the normal null/absent shape.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const r = parseBackup(validBackup());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.entitlement.licenseKey).toBe(null);
+    expect(r.entitlement.instanceId).toBe(null);
+    expect(warnSpy.mock.calls.some(args => String(args[0]).includes("IMPORT-SKIP-LICENSE-KEY"))).toBe(false);
+    expect(warnSpy.mock.calls.some(args => String(args[0]).includes("IMPORT-SKIP-INSTANCE-ID"))).toBe(false);
+    warnSpy.mockRestore();
   });
 
   it("returns langPair from backup payload", () => {

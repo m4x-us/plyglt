@@ -17,8 +17,14 @@ export interface FeatureFlags {
 // Standard env-var falsy values — "false", "0", "off", "no" all disable a flag.
 const FALSY_FLAG_VALUES: string[] = ["false", "0", "off", "no"];
 
-function parseFlag(v: string | undefined): boolean {
-  return !FALSY_FLAG_VALUES.includes(v?.toLowerCase() ?? "");
+// Task #427: defaultEnabled is per-flag, not a blanket true — a flag gating an unfinished
+// feature (e.g. specialtyPacks) must default OFF when unset, while a shipped feature
+// (interruptEngine, vacationMode, analytics) keeps defaulting ON so omitting the env var
+// anywhere doesn't silently disable something already live. See getFeatureFlags() below
+// for which default each flag uses.
+function parseFlag(v: string | undefined, defaultEnabled: boolean): boolean {
+  if (v === undefined) return defaultEnabled;
+  return !FALSY_FLAG_VALUES.includes(v.toLowerCase());
 }
 
 // Grace period: a subscription stays Pro-enabled this long after validUntil, so a lapsed
@@ -48,12 +54,17 @@ export function isProEnabled(flagValue: boolean, licenseType: LicenseType, valid
 }
 
 /** Returns feature flags read from NEXT_PUBLIC_FLAGS_* env vars.
- *  Default: true (feature on). "false", "0", "off", or "no" disables. */
+ *  "false", "0", "off", or "no" (case-insensitive) always disables a flag when set.
+ *  Shipped features (interruptEngine, vacationMode, analytics) default ON when the env
+ *  var is unset — omitting it must not silently disable something already live.
+ *  specialtyPacks defaults OFF when unset (Task #427): it gates an unfinished, dormant
+ *  feature (BRAND.md roadmap — no specialty pack is ready yet), so the safe default is
+ *  off, not on. */
 export function getFeatureFlags(): FeatureFlags {
   return {
-    interruptEngine: parseFlag(process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE),
-    vacationMode:    parseFlag(process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE),
-    analytics:       parseFlag(process.env.NEXT_PUBLIC_FLAGS_ANALYTICS),
-    specialtyPacks:  parseFlag(process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS),
+    interruptEngine: parseFlag(process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE, true),
+    vacationMode:    parseFlag(process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE, true),
+    analytics:       parseFlag(process.env.NEXT_PUBLIC_FLAGS_ANALYTICS, true),
+    specialtyPacks:  parseFlag(process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS, false),
   };
 }

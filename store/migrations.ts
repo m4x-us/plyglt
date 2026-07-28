@@ -19,7 +19,7 @@
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
 // ===========================================
 
-import { FREE_PACK_CODES, SPECIALTY_PACKS, isValidPackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, isRegisteredSpecialtyCode, isValidPackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 import { MAX_PHASE_DAY } from "@/lib/introduction";
@@ -250,20 +250,20 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // ready:true, a mutable business flag). A pack purchased while ready:true that later
   // reverts to ready:false (deprecation, rollback) must keep its purchase record —
   // readiness gates purchasing (purchaseAddOn) and loading (loadSpecialtyPack), not
-  // retention. Same policy as lib/importBackup.ts's purchasedAddOns filter (#384 fixed
-  // both sites together — keep them in sync).
+  // retention. Same policy as lib/importBackup.ts's purchasedAddOns filter — both now
+  // share lib/langRegistry.ts's isRegisteredSpecialtyCode (Task #407), so they cannot drift.
   // Dropped entries (unregistered codes from corrupt/pre-release blobs) are logged —
   // silently discarding persisted user data is a stop-the-line violation.
   3: (data: unknown) => {
     const d = data as Record<string, unknown>;
     const raw = Array.isArray(d.purchasedAddOns) ? d.purchasedAddOns : [];
     const valid = raw.filter(
-      (item): item is string => typeof item === "string" && SPECIALTY_PACKS.some(sp => sp.code === item)
+      (item): item is string => typeof item === "string" && isRegisteredSpecialtyCode(item)
     );
     if (valid.length < raw.length) {
       console.warn(
         `[plyglt] migration v3: dropped ${raw.length - valid.length} unregistered purchasedAddOns entries: ${JSON.stringify(
-          raw.filter(item => !(typeof item === "string" && SPECIALTY_PACKS.some(sp => sp.code === item)))
+          raw.filter(item => !(typeof item === "string" && isRegisteredSpecialtyCode(item)))
         )}`
       );
     }

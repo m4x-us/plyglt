@@ -36,13 +36,20 @@ export function getTargetLangCode(): string {
     return "it";
   }
   // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
-  // like "it-medical" to "it". No-hyphen means the stored value is malformed.
+  // like "it-medical" to "it". No hyphen, or nothing after it (e.g. "en-"), means the
+  // stored value is malformed.
   const sepIdx = pair.indexOf("-");
-  if (sepIdx === -1) {
-    console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" has no hyphen — expected "en-{lang}" format. Falling back to "it".`);
+  const target = sepIdx === -1 ? "" : pair.slice(sepIdx + 1);
+  if (!target) {
+    console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" is malformed — expected "en-{lang}" format. Falling back to "it".`);
+    // Task #408: persist the repair. A read-time-only fallback silently re-derives (and
+    // re-logs) "it" on every single call to this function AND to getLangPair (same key)
+    // forever — the corrupt value never actually gets fixed. setTargetLangCode writes the
+    // canonical "en-it" form so the next read (by either getter) sees a repaired value.
+    setTargetLangCode("it");
     return "it";
   }
-  return pair.slice(sepIdx + 1) || "it";
+  return target;
 }
 
 /** Writes the active language pair to localStorage. Source language is always "en". */
@@ -60,12 +67,24 @@ export function setTargetLangCode(targetLang: string): void {
 /** Returns the full active language pair string (e.g. "en-it"). */
 export function getLangPair(): string {
   if (typeof window === "undefined") return "en-it";
+  let pair: string;
   try {
-    return window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+    pair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
   } catch (e) {
     console.error(`[ERR-CONST-GET-LANG-PAIR-${Date.now()}] localStorage.getItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Falling back to "en-it".`);
     return "en-it";
   }
+  // Task #408: getTargetLangCode already repairs a malformed value with a logged fallback
+  // (hasStoredLangPair's doc comment above promises this for "downstream getters"
+  // generically) — this getter used `?? "en-it"` alone, which only substitutes on
+  // null/undefined, so a stored "" or hyphen-less garbage value passed through here
+  // unrepaired and unlogged. Same malformed check, same persisted repair.
+  if (pair.indexOf("-") === -1) {
+    console.error(`[ERR-LANG-PAIR-MALFORMED-${Date.now()}] Stored "${LANG_PAIR_KEY}" value "${pair}" is malformed — expected "en-{lang}" format. Falling back to "en-it".`);
+    setTargetLangCode("it");
+    return "en-it";
+  }
+  return pair;
 }
 
 /** Returns true iff a language pair has been explicitly stored. The getters above

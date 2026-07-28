@@ -11,7 +11,7 @@
 // ===========================================
 
 import { type CardProgress, type CardState } from "@/lib/srs";
-import { isValidPackCode, FREE_PACK_CODES, SPECIALTY_PACKS, type PackCode } from "@/lib/langRegistry";
+import { isValidPackCode, FREE_PACK_CODES, isRegisteredSpecialtyCode, type PackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 
 /** Highest backup _version this app can parse. Backups above this were written by a newer app. */
@@ -37,6 +37,17 @@ export type ParseBackupResult =
   | { ok: false; error: string };
 
 const VALID_STATES: Set<string> = new Set(["new", "learning", "review", "relearning"]);
+// Task #424: mirrors hooks/useLicenseActivation.ts:25's manual-entry format guard. Task #423
+// (a shared named constant so the two sites cannot drift) is deferred to a later wave —
+// duplicated here deliberately rather than blocking on it; keep in sync until #423 lands.
+// A restored backup is untrusted input exactly like a manually-typed key — validating type
+// alone (the pre-#424 check) let an oversized or non-charset-conforming licenseKey/instanceId
+// bypass the manual-entry guard entirely via the restore path.
+const LICENSE_FIELD_MAX_LENGTH = 200;
+const LICENSE_FIELD_PATTERN = /^[A-Za-z0-9-]+$/;
+function isValidLicenseField(v: unknown): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= LICENSE_FIELD_MAX_LENGTH && LICENSE_FIELD_PATTERN.test(v);
+}
 // Derived from LICENSE_TYPES (single source of truth in lib/licenseTypes.ts) so adding
 // a new license type here automatically — no parallel definition.
 // Unknown licenseType coerces to "free" (never escalates access from untrusted input).
@@ -133,9 +144,9 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // written while a pack was ready:true must not lose the paid purchase record on restore
   // after the pack reverts to ready:false. Registration-only still blocks arbitrary
   // hand-edited codes, and a not-ready code cannot be loaded anyway (loadSpecialtyPack
-  // gates on ready). Same policy as store/migrations.ts's v2→v3 filter — keep in sync.
+  // gates on ready). Same policy as store/migrations.ts's v2→v3 filter — both now share
+  // lib/langRegistry.ts's isRegisteredSpecialtyCode (Task #407), so they cannot drift.
   // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
-  const isRegisteredSpecialtyCode = (s: string): boolean => SPECIALTY_PACKS.some(sp => sp.code === s);
   const rawAddOns = Array.isArray(e.purchasedAddOns) ? e.purchasedAddOns : [];
   const validAddOns: string[] = rawAddOns.filter((item): item is string => typeof item === "string" && isRegisteredSpecialtyCode(item));
   if (validAddOns.length < rawAddOns.length) {
@@ -144,9 +155,24 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     );
   }
 
+  // Task #424: format/length-validate, not just type-check — a crafted backup JSON with an
+  // oversized or non-charset-conforming licenseKey/instanceId must be rejected here, the same
+  // as hooks/useLicenseActivation.ts's manual-entry guard rejects it at the input box. An
+  // invalid field is treated as absent (null) and logged — mirrors this function's other
+  // drop-and-log patterns (unlockedPacks, purchasedAddOns above) rather than failing the
+  // whole restore over one bad field.
+  // Only warn when a STRING was actually supplied but failed validation — null/undefined
+  // is the normal, unremarkable shape for a free-user backup with no license and must not
+  // spuriously log (mirrors the pre-#424 silent-coercion behavior for that common case).
+  if (typeof e.licenseKey === "string" && !isValidLicenseField(e.licenseKey)) {
+    console.warn(`[IMPORT-SKIP-LICENSE-KEY] licenseKey failed format/length validation — dropped`);
+  }
+  if (typeof e.instanceId === "string" && !isValidLicenseField(e.instanceId)) {
+    console.warn(`[IMPORT-SKIP-INSTANCE-ID] instanceId failed format/length validation — dropped`);
+  }
   const entitlement: BackupEntitlement = {
-    licenseKey:    typeof e.licenseKey   === "string" ? e.licenseKey   : null,
-    instanceId:    typeof e.instanceId   === "string" ? e.instanceId   : null,
+    licenseKey:    isValidLicenseField(e.licenseKey) ? e.licenseKey : null,
+    instanceId:    isValidLicenseField(e.instanceId) ? e.instanceId : null,
     licenseType,
     unlockedPacks: validUnlockedPacks,
     validUntil:    typeof e.validUntil === "number" && isFinite(e.validUntil) ? e.validUntil : null,

@@ -43,7 +43,7 @@
  * inline text always carries the WHY on its own even if the citation is lost.
  */
 
-import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isValidPackCode, LANG_CONFIG_MAP, type PackCode } from "@/lib/langRegistry";
+import { isReadyBasePackCode, FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isRegisteredSpecialtyCode, isValidPackCode, LANG_CONFIG_MAP, type PackCode } from "@/lib/langRegistry";
 import type { Unit } from "@/content/types";
 import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoader";
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
@@ -328,8 +328,10 @@ export async function evictPack(lang: string): Promise<EvictPackResult> {
     // Task #271: log specialty codes — a silent no-op violates Rule 8 (Log Everything).
     // Specialty packs cannot be evicted individually; evict the base language pack, which
     // prunes them via clearPackCache → clearSpecialtyPacksForLang.
-    const match = SPECIALTY_PACKS.find(sp => sp.code === lang);
-    if (match) {
+    // Task #407: gate via the shared isRegisteredSpecialtyCode predicate; the non-null
+    // assertion on the lookup below is safe because the gate already proved membership.
+    if (isRegisteredSpecialtyCode(lang)) {
+      const match = SPECIALTY_PACKS.find(sp => sp.code === lang)!;
       console.warn(`[evictPack] "${lang}" is a specialty pack — cannot be evicted individually; evict the base language pack ("${match.baseLang}") instead`);
       return { evicted: false, reason: "specialty_code", useInstead: match.baseLang };
     }

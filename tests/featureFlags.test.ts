@@ -6,6 +6,7 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE;
   delete process.env.NEXT_PUBLIC_FLAGS_VACATION_MODE;
   delete process.env.NEXT_PUBLIC_FLAGS_ANALYTICS;
+  delete process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS;
 });
 
 describe("getFeatureFlags", () => {
@@ -24,6 +25,7 @@ describe("getFeatureFlags", () => {
     expect(typeof flags.interruptEngine).toBe("boolean");
     expect(typeof flags.vacationMode).toBe("boolean");
     expect(typeof flags.analytics).toBe("boolean");
+    expect(typeof flags.specialtyPacks).toBe("boolean");
   });
 
   it("vacationMode defaults to true when env var is absent", () => {
@@ -44,6 +46,24 @@ describe("getFeatureFlags", () => {
   it("analytics is false when env var is 'false'", () => {
     process.env.NEXT_PUBLIC_FLAGS_ANALYTICS = "false";
     expect(getFeatureFlags().analytics).toBe(false);
+  });
+
+  // Task #427 (F028): specialtyPacks gates an unfinished, dormant feature (BRAND.md
+  // roadmap) — unlike the three shipped flags above, it must default OFF when unset,
+  // not ON. Omitting the env var anywhere must never ship the feature live.
+  it("specialtyPacks defaults to false when env var is absent", () => {
+    delete process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS;
+    expect(getFeatureFlags().specialtyPacks).toBe(false);
+  });
+
+  it("specialtyPacks is true when env var is explicitly set to a non-falsy value", () => {
+    process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS = "true";
+    expect(getFeatureFlags().specialtyPacks).toBe(true);
+  });
+
+  it("specialtyPacks is false when env var is 'false'", () => {
+    process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS = "false";
+    expect(getFeatureFlags().specialtyPacks).toBe(false);
   });
 
   // #100 — isProEnabled combinator

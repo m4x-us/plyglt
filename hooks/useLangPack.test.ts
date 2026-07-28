@@ -8,7 +8,7 @@ import { LANG_PAIR_KEY } from "@/lib/constants";
 import { useLangPack } from "@/hooks/useLangPack";
 // #377: real store, deliberately NOT mocked — Rule 20a requires these tests to drive the
 // actual production selector path (store defaults + setEntitlement), not injected mocks.
-import { useEntitlementStore } from "@/store/entitlementStore";
+import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS } from "@/store/entitlementStore";
 import { FREE_PACK_CODES } from "@/lib/langRegistry";
 import { HYDRATION_GRACE_MS } from "@/hooks/useLangPack";
 // #378: same module instance the hook's STATIC_PACKS.it.units is built from — used to assert
@@ -422,8 +422,11 @@ describe("#377 — unlockedPacks threaded from entitlement store into loadPack a
   it("passes a mutated unlockedPacks value set before mount", async () => {
     // GIVEN a store whose unlockedPacks differs from the module-level default — catches a
     // hardcoded `unlockedLangs: [...FREE_PACK_CODES]` at the call site (the exact class of
-    // never-reads-real-state bug Task #377 exists to prevent).
-    useEntitlementStore.setState({ unlockedPacks: ["it", "es"] });
+    // never-reads-real-state bug Task #377 exists to prevent). licenseType: "subscription" +
+    // validUntil: null (no expiry) makes "es" a legitimately-unlocked code under Task #414's
+    // isPackUnlocked filtering — without an active subscription, "es" would be correctly
+    // filtered back out even though it's still present in the raw unlockedPacks array.
+    useEntitlementStore.setState({ unlockedPacks: ["it", "es"], licenseType: "subscription", validUntil: null });
 
     renderHook(() => useLangPack());
     await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
@@ -443,9 +446,11 @@ describe("#377 — unlockedPacks threaded from entitlement store into loadPack a
       unlockedLangs: [...FREE_PACK_CODES],
     });
 
-    // WHEN unlockedPacks changes (new array reference → effect dep fires)
+    // WHEN unlockedPacks changes (new array reference → effect dep fires). licenseType:
+    // "subscription" + validUntil: null makes "es" legitimately unlocked under Task #414's
+    // isPackUnlocked filtering (see the mutated-value test above for the full rationale).
     act(() => {
-      useEntitlementStore.setState({ unlockedPacks: ["it", "es"] });
+      useEntitlementStore.setState({ unlockedPacks: ["it", "es"], licenseType: "subscription", validUntil: null });
     });
 
     // THEN the effect re-runs — deleting unlockedPacks from the dep array leaves the call
@@ -482,6 +487,29 @@ describe("#377 — unlockedPacks threaded from entitlement store into loadPack a
     expect(mockLoadPack).toHaveBeenLastCalledWith("es", null, {
       purchasedAddOns: [],
       unlockedLangs: ["it", "es"],
+    });
+  });
+
+  it("#414: a lapsed-beyond-grace subscription is denied on the actual loader call path — unlockedLangs excludes the stale code, not just LanguageGrid's render", async () => {
+    // Before #414, this hook threaded the RAW unlockedPacks array into loadPack's
+    // unlockedLangs option unfiltered — "es" would still reach loadPack even though the
+    // subscription backing it lapsed past SUBSCRIPTION_GRACE_PERIOD_MS. isPackUnlocked
+    // (the same function LanguageGrid.tsx's render already applies) must now gate this
+    // loader-layer call path too, not just the picker UI.
+    useEntitlementStore.setState({
+      unlockedPacks: ["it", "es"],
+      licenseType: "subscription",
+      validUntil: Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS - 1000, // lapsed past grace
+    });
+
+    renderHook(() => useLangPack());
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(1));
+
+    // "es" is dropped from unlockedLangs — the free code "it" (trivially unlocked
+    // regardless of subscription status) is the only survivor.
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, {
+      purchasedAddOns: [],
+      unlockedLangs: [...FREE_PACK_CODES],
     });
   });
 });

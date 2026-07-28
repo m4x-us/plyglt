@@ -172,6 +172,15 @@ describe("LanguageGrid", () => {
 });
 
 describe("LanguageGrid — specialty packs (Task #150)", () => {
+  // Task #427: specialtyPacks now defaults OFF (lib/featureFlags.ts) since it gates an
+  // unfinished feature — this suite's own subject is Add-ons *visibility given ready/
+  // purchased state*, not the feature-flag default itself (that's covered by
+  // tests/featureFlags.test.ts and the #276/#403 flag-off tests below), so the flag is
+  // stubbed on here. Tests that specifically need it off re-stub "false" themselves.
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "true");
+  });
+
   // ── State 1: No specialty packs registered → Add-ons section absent ─────────
   it("does not render Add-ons section when SPECIALTY_PACKS is empty (default production state)", () => {
     // mockSpecialtyPacks is empty (reset by beforeEach) — matches production SPECIALTY_PACKS = []

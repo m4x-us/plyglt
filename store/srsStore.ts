@@ -13,7 +13,7 @@ import {
 } from "@/lib/introduction";
 import { createPlatformStorage } from "@/lib/storage";
 import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
-import { LANG_PAIR_KEY } from "@/lib/constants";
+import { getLangPair } from "@/lib/constants";
 import { localDateStr } from "@/lib/utils";
 
 export { localDateStr };
@@ -21,10 +21,12 @@ export { localDateStr };
 // Read lang pair at module initialization so the store is scoped to the
 // language pair the user selected. A full page reload is required when
 // switching languages (see app/page.tsx handleSelect).
-const _activeLangPair: string =
-  typeof window !== "undefined"
-    ? (window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it")
-    : "en-it";
+// Task #421: routed through lib/constants.ts's getLangPair() — the sole-authorized-caller
+// rule for LANG_PAIR_KEY storage access (CLAUDE.md §3) had one missed sibling here (Tasks
+// #340/#389 fixed app/page.tsx and hooks/useExportImport.ts for the identical violation;
+// this call site reimplemented getLangPair()'s SSR guard + "en-it" fallback inline instead
+// of calling it, so it never got getLangPair()'s try/catch error handling either).
+const _activeLangPair: string = getLangPair();
 
 // A card is mastered only when it has been reviewed across multiple sessions at meaningful distance.
 // FSRS assigns ~1–4 days stability on first graduation — that is single-session learning, not retention.

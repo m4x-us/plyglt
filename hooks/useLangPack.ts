@@ -14,7 +14,7 @@ import { resolveTargetPack } from "@/lib/packResolver";
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
 import type { Unit } from "@/content/types";
 import { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode } from "@/lib/constants";
-import { useEntitlementStore } from "@/store/entitlementStore";
+import { useEntitlementStore, isPackUnlocked } from "@/store/entitlementStore";
 import { useIsHydrated } from "@/lib/storage";
 
 type LoadPackError = Extract<LoadPackResult, { ok: false }>["error"];
@@ -65,7 +65,15 @@ export function useLangPack(): LangPackState {
   // #323: validate before passing to getLanguageConfig — a corrupted LANG_PAIR_KEY produces an
   // unrecognised code that makes getLanguageConfig log on every render. Detect once, fall back
   // to "it" for this render. Task #339: repair side-effects (console.error + setTargetLangCode)
-  // moved to useEffect below so the render body remains pure.
+  // moved to useEffect below so the render body remains pure — EXCEPT the narrow, self-limiting
+  // case handled inside getTargetLangCode itself (Task #408: a no-hyphen/empty-tail malformed
+  // stored value persists its own "it" repair via setTargetLangCode before returning). That
+  // write is idempotent and self-correcting under StrictMode's double-render: the first
+  // invocation repairs localStorage, so a second invocation in the same double-render reads
+  // the now-valid value and never re-enters the malformed branch — no observable double-log,
+  // unlike a plain side effect would produce. The #339 effect below still owns the SEPARATE
+  // "known but unready code" repair, which getTargetLangCode cannot detect on its own (it has
+  // no visibility into READY_PACK_CODES/SPECIALTY_PACKS).
   const rawTargetLang = getTargetLangCode();
   // #378 audit F011 + WorldClass V1: BOTH halves require readiness — a registered-but-
   // unready code (base OR specialty) is unloadable by everything downstream, so treating it
@@ -89,14 +97,26 @@ export function useLangPack(): LangPackState {
   // not free for the manifest (#378 audit F027; acceptable at the current 1-2 re-runs per
   // session, revisit if rehydration frequency ever grows).
   const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
-  // #377: thread unlockedPacks into loadPack as options.unlockedLangs so packLoader's
+  // #377/#414: thread unlockedPacks into loadPack as options.unlockedLangs so packLoader's
   // non-free base-pack entitlement gate has a real production caller (Rule 20b — the gate
   // shipped in Task #350 with zero callers; every subscribed user would have hit
-  // invalid_lang the day a second ready base pack shipped). Rename-at-boundary passthrough
-  // only: no expiry/grace filtering here — the primary expiry-aware gate is the UI layer's
-  // isPackUnlocked (store/entitlementStore.ts); the loader gate is secondary
-  // defense-in-depth and deliberately membership-only. Mirrors the purchasedAddOns pattern.
+  // invalid_lang the day a second ready base pack shipped). Subscribe to the raw fields
+  // (not the store's bound isPackUnlocked method, which is a stable closure Zustand would
+  // never re-render this hook for) so the effect below correctly re-runs when any of them
+  // changes. unlockedLangs stays a general membership list, NOT narrowed to [targetLang] —
+  // resolveTargetPack's specialty-pack path checks the specialty's BASE lang (which can
+  // differ from targetLang) against this same list. Task #414: each code is filtered
+  // through the canonical isPackUnlocked expiry logic (same function LanguageGrid.tsx's
+  // render uses) instead of passing the raw persisted array unfiltered — closing the gap
+  // where a lapsed-beyond-grace subscriber's stale unlockedPacks entry still loaded a
+  // non-free base pack via this call path (unlockedPacks itself is never pruned on lapse).
+  const licenseType = useEntitlementStore(state => state.licenseType);
   const unlockedPacks = useEntitlementStore(state => state.unlockedPacks);
+  const validUntil = useEntitlementStore(state => state.validUntil);
+  const unlockedLangs = useMemo(
+    () => unlockedPacks.filter(code => isPackUnlocked({ licenseType, unlockedPacks, validUntil }, code)),
+    [licenseType, unlockedPacks, validUntil]
+  );
   // #378 audit F014: the entitlement store hydrates asynchronously (Tauri IPC storage; on
   // web the async storage wrapper still defers hydration by a microtask) — reading
   // unlockedPacks/purchasedAddOns before hydration yields the store defaults, which would
@@ -195,7 +215,7 @@ export function useLangPack(): LangPackState {
         resolveTargetPack(
           targetLang,
           manifest,
-          { purchasedAddOns, unlockedLangs: unlockedPacks },
+          { purchasedAddOns, unlockedLangs },
           STATIC_PACKS,
           { loadPack, seedMemCache }
         )
@@ -228,7 +248,7 @@ export function useLangPack(): LangPackState {
         }
       });
     return () => { cancelled = true; };
-  }, [targetLang, lang, purchasedAddOns, unlockedPacks, cacheEvictionGeneration, entitlementHydrated, hydrationGraceExpired]);
+  }, [targetLang, lang, purchasedAddOns, unlockedLangs, cacheEvictionGeneration, entitlementHydrated, hydrationGraceExpired]);
 
   return state;
 }

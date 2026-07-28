@@ -4,7 +4,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useExportImport } from "./useExportImport";
+import { useExportImport, excludePurchasedAddOns } from "./useExportImport";
+import type { BackupEntitlement } from "@/lib/importBackup";
 
 // Mock stores and dependencies that useExportImport relies on
 vi.mock("@/store/srsStore", () => ({
@@ -172,5 +173,80 @@ describe("useExportImport — handleImportFile", () => {
       validUntil: null,
       lastValidated: 0,
     });
+  });
+
+  // ── Task #440: purchasedAddOns exclusion enforced structurally, not by call-site convention ──
+  it("#440: restoring a backup with a non-empty purchasedAddOns never passes it to setEntitlement", async () => {
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockReturnValueOnce({
+      ok: true,
+      srs: { cards: {}, streak: 0, lastStudiedDate: null },
+      entitlement: {
+        licenseKey: "FORGED-KEY",
+        instanceId: "forged-instance",
+        licenseType: "subscription",
+        unlockedPacks: ["it"],
+        validUntil: null,
+        purchasedAddOns: ["it-medical"],
+      },
+      langPair: "en-it",
+      validCardCount: 0,
+      skippedCardCount: 0,
+    });
+
+    const { result } = renderHook(() => useExportImport());
+    const fileContent = JSON.stringify({ _version: 2, langPair: "en-it", srs: { cards: {} }, entitlement: {} });
+    const file = new File([fileContent], "backup.json", { type: "application/json" });
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    expect(mockSetEntitlement).toHaveBeenCalledTimes(1);
+    const calledWith = mockSetEntitlement.mock.calls[0]![0] as Record<string, unknown>;
+    expect(calledWith).not.toHaveProperty("purchasedAddOns");
+    expect(Object.keys(calledWith).sort()).toEqual(
+      ["instanceId", "lastValidated", "licenseKey", "licenseType", "unlockedPacks", "validUntil"].sort()
+    );
+  });
+});
+
+describe("excludePurchasedAddOns (#440)", () => {
+  const fullEntitlement: BackupEntitlement = {
+    licenseKey: "KEY",
+    instanceId: "INSTANCE",
+    licenseType: "subscription",
+    unlockedPacks: ["it"],
+    validUntil: 12345,
+    purchasedAddOns: ["it-medical"],
+  };
+
+  it("strips purchasedAddOns from the returned object entirely — not just sets it to []", () => {
+    const restorable = excludePurchasedAddOns(fullEntitlement);
+    expect(restorable).not.toHaveProperty("purchasedAddOns");
+    expect(Object.keys(restorable).sort()).toEqual(
+      ["instanceId", "licenseKey", "licenseType", "unlockedPacks", "validUntil"].sort()
+    );
+  });
+
+  it("preserves every other field unchanged", () => {
+    const restorable = excludePurchasedAddOns(fullEntitlement);
+    expect(restorable).toEqual({
+      licenseKey: "KEY",
+      instanceId: "INSTANCE",
+      licenseType: "subscription",
+      unlockedPacks: ["it"],
+      validUntil: 12345,
+    });
+  });
+
+  it("a naive full-spread of the return value can never reintroduce purchasedAddOns — the field is structurally absent, not just unlisted", () => {
+    // Simulates the exact regression the audit found in an abandoned worktree: a call
+    // site spreading the entitlement object directly into setEntitlement instead of
+    // naming fields. Because excludePurchasedAddOns already stripped the key, even a
+    // careless full-spread call site cannot resurrect it.
+    const restorable = excludePurchasedAddOns(fullEntitlement);
+    const spreadIntoCallSite = { ...restorable, licenseKey: "OVERRIDDEN", lastValidated: 0 };
+    expect(spreadIntoCallSite).not.toHaveProperty("purchasedAddOns");
   });
 });

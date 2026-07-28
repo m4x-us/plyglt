@@ -11,7 +11,7 @@
 // USED BY: CI / npm test
 // ===========================================
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { useEntitlementStore, SUBSCRIPTION_GRACE_PERIOD_MS, isPackUnlocked, needsValidation, _handleCrossTabStorageEvent, ERR_ADDON_INVALID_CODE, ERR_ADDON_RECEIPT_INVALID, ERR_ADDON_IPC_ERROR, ERR_ADDON_NOT_PRO } from "@/store/entitlementStore";
 import type { PurchaseAddOnResult } from "@/store/entitlementStore";
@@ -63,6 +63,10 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
     // same registry-driven default (falsy when the mock list is empty), still a vi.fn so
     // per-test mockReturnValue overrides keep working.
     isSpecialtyPackCode: vi.fn((s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready)),
+    // Task #407: isRegisteredSpecialtyCode closes over the module-scope SPECIALTY_PACKS
+    // binding, not the exported one — override it here so clearEntitlement's
+    // affectedBaseLangs computation uses this mock's list, same reasoning as isSpecialtyPackCode above.
+    isRegisteredSpecialtyCode: (s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s),
   };
 });
 vi.mock("@/lib/packLoader", async (importOriginal) => {
@@ -1086,6 +1090,10 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     // Set subscription so happy-path and IPC-level tests reach the intended code paths.
     reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
+    // Task #427: specialtyPacks now defaults OFF unless NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS is
+    // explicitly truthy — purchaseAddOn's isProEnabled gate rejects with ERR_ADDON_NOT_PRO
+    // before reaching any guard below unless the flag is stubbed on.
+    vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "true");
     // Tasks #287 + #285: isSpecialtyPackCode is always-false in production (SPECIALTY_PACKS is
     // frozen with ready:false entries). Mock it to return true so the code-validation guard
     // passes in happy-path tests; individual #287 tests override to false to exercise the
@@ -1093,6 +1101,10 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
     // Task #285: mock invoke to simulate Tauri IPC returning a verified receipt by default.
     mockInvoke.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("purchasedAddOns defaults to []", () => {
@@ -1224,15 +1236,16 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
       (s: string) => mockSpecialtyPacksForClearEntitlement.some(sp => sp.code === s && sp.ready)
     );
 
+    // unitCount/cardCount must match units.length (Task #418 cross-checks this).
     const basePackJson = JSON.stringify({
       _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
       name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
-      unitCount: 1, cardCount: 1, units: [],
+      unitCount: 0, cardCount: 0, units: [],
     } satisfies Pack);
     const addOnPackJson = JSON.stringify({
       _version: 1, lang: "it-medical", packVersion: "1.0.0", canonicalSource: "en",
       name: "Medical Italian", nativeName: "Italiano Medico", flag: "🇮🇹",
-      unitCount: 1, cardCount: 1, units: [],
+      unitCount: 0, cardCount: 0, units: [],
     } satisfies Pack);
     const baseSha = createHash("sha256").update(basePackJson).digest("hex");
     const addOnSha = createHash("sha256").update(addOnPackJson).digest("hex");
@@ -1417,8 +1430,14 @@ describe("seam: purchaseAddOn → purchasedAddOns → hasAddOn (#284)", () => {
     // purchaseAddOn requires a Pro subscription (store-level gate, #388) — set subscription.
     reset({ licenseType: "subscription", validUntil: null });
     vi.clearAllMocks();
+    // Task #427: specialtyPacks now defaults OFF unless the env var is explicitly truthy.
+    vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "true");
     vi.mocked(isSpecialtyPackCode).mockReturnValue(true);
     mockInvoke.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("purchasing an add-on updates purchasedAddOns and makes hasAddOn return true end-to-end", async () => {

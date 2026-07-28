@@ -15,7 +15,7 @@
 //     code check can be reached.
 // ============================================================
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   useEntitlementStore,
   ERR_ADDON_RECEIPT_INVALID,
@@ -44,7 +44,15 @@ beforeEach(() => {
   vi.clearAllMocks(); // reset spy call history accumulated by previous tests in this file
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
-  useEntitlementStore.setState({ licenseType: "subscription", purchasedAddOns: [] });
+  // Task #427: specialtyPacks now defaults OFF unless NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS is
+  // explicitly truthy — purchaseAddOn's Pro gate (isProEnabled) rejects with ERR_ADDON_NOT_PRO
+  // before reaching any of the guards this file exists to test unless the flag is stubbed on.
+  vi.stubEnv("NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS", "true");
+  useEntitlementStore.setState({ licenseType: "subscription", purchasedAddOns: [], validUntil: null });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ── #336: empty-token guard ───────────────────────────────────────────────────

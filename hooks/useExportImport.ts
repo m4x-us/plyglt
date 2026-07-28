@@ -7,8 +7,26 @@ import { useRef, useState } from "react";
 import { useSRSStore } from "@/store/srsStore";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { exportBackup } from "@/lib/exportBackup";
-import { parseBackup } from "@/lib/importBackup";
+import { parseBackup, type BackupEntitlement } from "@/lib/importBackup";
 import { getLangPair } from "@/lib/constants"; // Task #340: route through canonical lib/constants accessor
+
+// Task #440: purchasedAddOns cannot be restored from an unsigned backup file — add-on
+// purchases require a server-verified receipt via purchaseAddOn(). Previously this was
+// enforced only by readFile's manual choice of which fields to destructure from
+// result.entitlement — a future call site writing `setEntitlement({...result.entitlement,
+// licenseKey, instanceId})` would silently reintroduce it (an abandoned worktree found
+// during the audit already shows exactly this regression in a copy of the code).
+// RestorableEntitlement/excludePurchasedAddOns make the exclusion structural: the field is
+// omitted via destructuring (not a positive field allowlist), so it survives
+// BackupEntitlement gaining new fields, and its TYPE genuinely lacks purchasedAddOns —
+// spreading the result can never reintroduce it, unlike spreading BackupEntitlement itself
+// (which would bypass TypeScript's excess-property check on object-literal spreads).
+export type RestorableEntitlement = Omit<BackupEntitlement, "purchasedAddOns">;
+
+export function excludePurchasedAddOns(entitlement: BackupEntitlement): RestorableEntitlement {
+  const { purchasedAddOns: _purchasedAddOns, ...restorable } = entitlement;
+  return restorable;
+}
 
 export type DataStatus =
   | { type: "idle" }
@@ -75,10 +93,11 @@ export function useExportImport() {
             return;
           }
           useSRSStore.setState({ ...result.srs, activeSession: null });
-          // Task #342: destructure only the fields accepted by setEntitlement's type contract.
-          // purchasedAddOns is intentionally excluded — add-on purchases require server-verified
+          // Task #342/#440: purchasedAddOns is structurally excluded here (see
+          // excludePurchasedAddOns above) — add-on purchases require server-verified
           // receipts via purchaseAddOn(); they cannot be restored from an unsigned backup file.
-          const { licenseKey, instanceId, licenseType, unlockedPacks, validUntil } = result.entitlement;
+          const restorableEntitlement = excludePurchasedAddOns(result.entitlement);
+          const { licenseKey, instanceId } = restorableEntitlement;
           // Task #391: a backup without both licenseKey and instanceId cannot restore a license —
           // setEntitlement's contract requires both. Deliberately keep the session's current
           // entitlement untouched (an unsigned backup file must never downgrade an active
@@ -92,7 +111,12 @@ export function useExportImport() {
             // components/EntitlementValidator.tsx re-validates against Lemon Squeezy on the
             // next app foreground instead of trusting these restored fields for a full
             // VALIDATION_POLL_INTERVAL_MS grace period with zero server contact.
-            useEntitlementStore.getState().setEntitlement({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil, lastValidated: 0 });
+            // Spreading restorableEntitlement here (rather than listing fields by name) is
+            // safe by construction — its TYPE lacks purchasedAddOns, so this can never
+            // reintroduce it even as the call site evolves (#440). licenseKey/instanceId are
+            // re-listed only to narrow them from string|null to the string the if-guard above
+            // already proved.
+            useEntitlementStore.getState().setEntitlement({ ...restorableEntitlement, licenseKey, instanceId, lastValidated: 0 });
             licenseRestored = true;
           }
           const skippedNote = result.skippedCardCount > 0

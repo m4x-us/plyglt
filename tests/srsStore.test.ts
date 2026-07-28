@@ -152,8 +152,18 @@ describe("localDateStr", () => {
 });
 
 describe("getTargetLangCode", () => {
+  // Task #408: getTargetLangCode now persists a malformed-value repair via setTargetLangCode,
+  // which calls window.localStorage.setItem — a get-only stub makes that call throw and log
+  // a SECOND (unrelated) error, so the stub needs a working setItem like the real storage does.
+  let store: Map<string, string>;
   beforeEach(() => {
-    vi.stubGlobal("window", { localStorage: { getItem: () => null } });
+    store = new Map();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => null,
+        setItem: (k: string, v: string) => { store.set(k, v); },
+      },
+    });
   });
 
   it("returns 'it' when localStorage has no lang pair", () => {
@@ -161,26 +171,37 @@ describe("getTargetLangCode", () => {
   });
 
   it("returns 'es' for 'en-es'", () => {
-    vi.stubGlobal("window", { localStorage: { getItem: () => "en-es" } });
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en-es", setItem: () => {} } });
     expect(getTargetLangCode()).toBe("es");
   });
 
   it("returns 'it' when lang pair is malformed (no hyphen)", () => {
-    vi.stubGlobal("window", { localStorage: { getItem: () => "en" } });
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en", setItem: (k: string, v: string) => { store.set(k, v); } } });
     expect(getTargetLangCode()).toBe("it");
   });
 
   it("logs console.error when lang pair is malformed (no hyphen)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubGlobal("window", { localStorage: { getItem: () => "nohyphen" } });
+    vi.stubGlobal("window", { localStorage: { getItem: () => "nohyphen", setItem: (k: string, v: string) => { store.set(k, v); } } });
     getTargetLangCode();
     expect(errorSpy).toHaveBeenCalledOnce();
     expect(errorSpy.mock.calls[0]![0]!).toMatch(/ERR-LANG-PAIR-MALFORMED/);
     errorSpy.mockRestore();
   });
 
+  it("#408: persists the repair — a subsequent read sees the corrected value, not the original corrupt one", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (k: string) => (k === LANG_PAIR_KEY ? (store.get(k) ?? "nohyphen") : null),
+        setItem: (k: string, v: string) => { store.set(k, v); },
+      },
+    });
+    expect(getTargetLangCode()).toBe("it");
+    expect(store.get(LANG_PAIR_KEY)).toBe("en-it");
+  });
+
   it("returns 'it' when target segment after hyphen is empty string", () => {
-    vi.stubGlobal("window", { localStorage: { getItem: () => "en-" } });
+    vi.stubGlobal("window", { localStorage: { getItem: () => "en-", setItem: (k: string, v: string) => { store.set(k, v); } } });
     expect(getTargetLangCode()).toBe("it");
   });
 });
