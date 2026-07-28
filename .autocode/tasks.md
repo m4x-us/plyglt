@@ -6832,7 +6832,7 @@ Task #479's numeric `_version` branch (line 133) only ported the `isFinite` chec
 **Owner:** —
 **Blocked by:** Tasks #485, #486 (fix the underlying bug first, then strengthen the tests that should have caught it)
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Direct task; rewrote both #481 tests to deep-equal the string-_version result against its numeric equivalent — verified via a live Deletion Test that injected a shape-divergence bug and confirmed both tests catch what r.ok alone missed; bundled and closed 3 related debt items (F012 leading-zero strings, F016 precision loss, F017 message accuracy) per Max's debt-review selection; spot check found and fixed one comment-accuracy nit in-cycle; tsc clean, 1453/1453 tests pass, coverage above thresholds; committed a385379)
 
 **What:**
 "#481: a numeric-string _version EQUAL to CURRENT_BACKUP_VERSION is accepted..." and "#481: a numeric-string _version strictly LOWER..." (lines 437-450) both assert only `expect(r.ok).toBe(true)`. A stub returning `ok:true` unconditionally passes both tests (Rule 18 Deletion Test fails). Neither test exercises `_version:0`, `_version:"0"`, `_version:-1`, or `_version:1.5` (Rule 16 violation). Most notably, the test names claim symmetry with the numeric equivalent but neither test ever calls `parseBackup` with that numeric equivalent and diffs the two results — the one comparison that would have caught Task #485/#486's bugs is never made. Confirmed independently by Auditors A, B, K, V, and W. at tests/importBackup.test.ts:437-450.

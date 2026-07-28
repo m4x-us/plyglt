@@ -1370,3 +1370,17 @@ Spot check: WARN (1 item sev2 — env-stub leak, fixed in-cycle)
 Done-when: PASS; scripts/deep-audit.sh DEFERRED — absent
 Fixed this cycle: DSC-1 | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task
+
+### Task #487 | Fix tests: strengthen #481 _version tests to full-shape equality, add F012/F016/F017 debt-bundle coverage | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
+
+#### Cycle 1 — 2026-07-28 — Direct Task (Builder path)
+Build approach: tests/importBackup.test.ts:437-450 — rewrote both Task #481 tests to deep-equal (`toEqual`) the string-`_version` result against its numeric-equivalent call, replacing the old `r.ok`-only assertion; tests/importBackup.test.ts:575-628 (new "Task #487 debt bundle" describe block) — added F012 (leading-zero string "007"/"0007" read as version 7, pinned as intentional), F016 (17-digit string precision loss on Number() coercion, pinned via BigInt comparison), F017 (400-nine-digit string overflow gets the generic message, documented as an accepted trade-off per Task #483's anti-proliferation precedent). Debt review (Step 0.0b) bundled F012/F016/F017 into this task per Max's explicit selection — all three removed from debt.md.
+Scripts: PASS (tsc clean, 1453/1453 tests, lint 0 errors — 3 pre-existing warnings, coverage 89.81%/85.89%/90.4%/92.03% above thresholds, banned-assertion gate clean)
+Deletion Test performed directly: temporarily injected a shape-divergence bug into lib/importBackup.ts (forced `langPair` to a bogus value only on the string-`_version` fall-through path), confirmed both rewritten tests fail (`r.ok` alone would have stayed `true` on both sides and missed it entirely), then restored the file and confirmed byte-identical via diff.
+Spot check: WARN (1 item sev3 — DSC-001, a comment overclaiming which specific test would have caught the #485/#486 boundary bugs — fixed in-cycle by narrowing the comment to what this test specifically proves, not logged to debt since already resolved)
+Done-when: PASS (both acceptance criteria met; 0/negative/fractional boundary coverage confirmed already present in Task #485/#486's own describe blocks, unchanged by this diff)
+Fixed this cycle: DSC-001 | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+
+### Batch 12 — All tasks complete as of Task #487 (2026-07-28)
+Cycle-10 audit's 8 promoted findings (Tasks #485-492) are now all COMPLETE across Waves 24, 25, and this direct task. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run is required next — the gate does not close automatically on task completion alone.
