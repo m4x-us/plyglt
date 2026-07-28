@@ -11,6 +11,7 @@ import type { Manifest, Pack } from "@/lib/packLoader";
 import { loadPack, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManifest, seedMemCache } from "@/lib/packLoader";
 import type { SpecialtyPack } from "@/lib/langRegistry";
 import * as packTypesLib from "@/lib/packTypes";
+import { memCache } from "@/lib/packCache";
 
 // ── localStorage stub ────────────────────────────────────────────────────────
 
@@ -425,8 +426,9 @@ describe("evictPack", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
 
     const evictResult = await evictPack("it");
-    // #398: a real eviction reports itself in the result, not just via side effects
-    expect(evictResult).toEqual({ evicted: true });
+    // #398 → #415: a real eviction reports itself in the result, not just via side effects —
+    // fullyClean:true means every storage removal actually succeeded, not just memCache.
+    expect(evictResult).toEqual({ evicted: true, fullyClean: true });
     // Pack cleared from storage
     expect(localStorageMock.getItem("pack-meta-v1-it")).toBeNull();
     expect(localStorageMock.getItem("pack-data-v1-it")).toBeNull();
@@ -434,6 +436,34 @@ describe("evictPack", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
     const result = await loadPack("it", fakeManifest());
     expect(result.ok).toBe(true);
+  });
+
+  it("reports fullyClean:false when a storage removal fails, but never rejects (#415)", async () => {
+    // Before #415, clearPackCache swallowed this failure into a void return — evictPack's
+    // caller had no way to distinguish this from a fully successful eviction. memCache is
+    // still correctly cleared (in-memory state is synchronous, unaffected by storage errors).
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+    await loadPack("it", fakeManifest());
+
+    const removeItemSpy = vi.spyOn(localStorageMock, "removeItem").mockImplementation(() => {
+      throw new Error("storage removeItem failed");
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const evictResult = await evictPack("it");
+      expect(evictResult).toEqual({ evicted: true, fullyClean: false });
+      expect(consoleErrorSpy.mock.calls.some(args => (args[0] as string).includes("ERR-CACHE-CLEAR-META"))).toBe(true);
+      expect(consoleErrorSpy.mock.calls.some(args => (args[0] as string).includes("ERR-CACHE-CLEAR-DATA"))).toBe(true);
+    } finally {
+      removeItemSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    }
+
+    // memCache is still correctly cleared synchronously despite the storage failure — a
+    // fresh loadPack no longer serves the evicted pack from the in-memory fast path. (The
+    // stale bytes may still be served from the STORAGE cache-hit path, since removeItem
+    // never actually cleared them — that residue is exactly what fullyClean:false reports.)
+    expect(memCache.has("it")).toBe(false);
   });
 });
 

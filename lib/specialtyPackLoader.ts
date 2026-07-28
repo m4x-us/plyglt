@@ -18,6 +18,7 @@ import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Pack, LoadPackResult, Manifest, PackMemCache, PackMeta } from "@/lib/packTypes";
 import { SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { sha256Hex, packUrl } from "@/lib/utils";
+import { createGenerationGuard } from "@/lib/generationGuard";
 import {
   readCacheMeta,
   writeCacheMeta,
@@ -39,16 +40,19 @@ export { getLoadedAddOns } from "@/lib/packCache";
 // sequentially so neither merge overwrites the other. (Task #264)
 const inFlight = new Map<string, Promise<LoadPackResult>>();
 
-// Task #394: monotonically increasing generation, incremented by resetSpecialtyLoadState()
+// Task #394: monotonically increasing generation, bumped by resetSpecialtyLoadState()
 // (which store/entitlementStore.clearEntitlement calls on every deactivation).
 // loadSpecialtyPack captures the current value AFTER its purchasedAddOns entitlement gate
-// passes; _mergeFromJson re-checks it immediately before mutating memCache. lib/ cannot
-// read the live entitlement store (layer rule: lib/ never imports store/), so this counter
-// stands in for "purchasedAddOns has not been reset since this load was validated".
-// Without it, a load in flight during deactivation merges specialty content into a base
-// pack that useLangPack's re-seed effect (#362) restored AFTER purchasedAddOns was already
-// reset — post-deactivation access to paid content.
-let deactivationGeneration = 0;
+// passes; _mergeFromJson re-checks it before mutating memCache — TWICE (#409): once before
+// starting the merge, and again bracketing the storage-persist awaits, mirroring
+// lib/basePackLoader.ts's evictionGuard (#378 cycle-2, F-C2-1) instead of the hand-rolled,
+// single-check counter this used to be. lib/ cannot read the live entitlement store (layer
+// rule: lib/ never imports store/), so this guard stands in for "purchasedAddOns has not
+// been reset since this load was validated". Without it, a load in flight during
+// deactivation merges specialty content into a base pack that useLangPack's re-seed effect
+// (#362) restored AFTER purchasedAddOns was already reset — post-deactivation access to
+// paid content.
+const deactivationGuard = createGenerationGuard();
 
 /**
  * Resets specialty-pack LOAD STATE only: loadedAddOns bookkeeping (owned by lib/packCache
@@ -67,7 +71,7 @@ export function resetSpecialtyLoadState(): void {
   inFlight.clear();
   // Task #394: any load validated before this point must not merge after it — its
   // entitlement snapshot is stale. _mergeFromJson aborts on generation mismatch.
-  deactivationGeneration++;
+  deactivationGuard.bump();
   // Platform storage singleton is owned by lib/packCache.ts; reset happens via
   // packLoader.clearCacheForTesting → clearPackCacheState.
 }
@@ -111,7 +115,7 @@ async function _mergeFromJson(
   // hand the user post-deactivation access to paid content (and re-persist its storage
   // keys after eviction just pruned them). "invalid_lang" mirrors the entry gate's code
   // for a not-purchased add-on — that is exactly what this add-on has become.
-  if (entryGeneration !== deactivationGeneration) {
+  if (deactivationGuard.isStale(entryGeneration)) {
     console.warn(`[ADDON_STALE_ENTITLEMENT-${lang}-${Date.now()}] deactivation completed while load was in flight — merge aborted`);
     return { ok: false, error: "invalid_lang" };
   }
@@ -133,11 +137,6 @@ async function _mergeFromJson(
     unitCount: base.unitCount + addOnPack.unitCount,
     cardCount: base.cardCount + addOnPack.cardCount,
   };
-  // merge, not write: this is an additive update to an already-loaded base pack, not a fresh
-  // replacement — it must NOT prune specialty tracking, since that would immediately undo the
-  // markAddOnLoaded(lang) call on the next line. See PackMemCache's doc comment in lib/packTypes.ts.
-  memCache.merge(baseLang, merged);
-  markAddOnLoaded(lang);
 
   if (manifestEntry) {
     // Persist to platform storage. Meta is written FIRST so a crash or power-loss between
@@ -163,7 +162,55 @@ async function _mergeFromJson(
     }
   }
 
+  // Second check (#409, mirrors lib/basePackLoader.ts's #378 cycle-2 F-C2-1): a deactivation
+  // can land inside the awaited storage writes above. Its storage removal (evictPack →
+  // clearPackCache, called by clearEntitlement BEFORE resetSpecialtyLoadState) is ordered
+  // after these writes in packCache's per-code mutation chain, so storage ends clean either
+  // way — but merging into memCache now, after the entitlement snapshot went stale, would
+  // grant post-deactivation access to paid content. memCache.merge is deliberately deferred
+  // to this point (moved out of its old pre-write position) specifically so this check can
+  // gate it — re-checking after the fact could not have undone an already-completed merge.
+  if (deactivationGuard.isStale(entryGeneration)) {
+    console.warn(`[ADDON_STALE_ENTITLEMENT-${lang}-${Date.now()}] deactivation completed during storage write — merge aborted`);
+    return { ok: false, error: "invalid_lang" };
+  }
+
+  // merge, not write: this is an additive update to an already-loaded base pack, not a fresh
+  // replacement — it must NOT prune specialty tracking, since that would immediately undo the
+  // markAddOnLoaded(lang) call on the next line. See PackMemCache's doc comment in lib/packTypes.ts.
+  memCache.merge(baseLang, merged);
+  markAddOnLoaded(lang);
+
   return { ok: true, pack: merged };
+}
+
+// ── Offline-serve integrity ────────────────────────────────────────────────────
+
+// #410, mirrors lib/basePackLoader.ts's staleBytesMatchRecordedHash (#378 cycle-2, naive
+// finding): when a sha256 was recorded at cache time, re-verify the stale bytes against it
+// before serving them through the offline/no-manifest fallback paths — the module header's
+// "verifies" promise must hold on those paths too, not only when a manifest entry is
+// available to check against. No recorded hash (meta lost, or the pack was cached without a
+// manifest — sha256 stored as "") means shape validation (inside _mergeFromJson) is the only
+// available check, as before. Verification failure fails closed with a ref-ID log.
+// TODO (tracked debt): identical logic to basePackLoader.ts's staleBytesMatchRecordedHash —
+// a shared extraction is out of scope for this stream (would touch lib/packCache.ts, owned
+// by a parallel stream this wave).
+async function staleAddOnBytesMatchRecordedHash(
+  lang: string,
+  cachedMeta: CachedPackMeta | null,
+  data: string,
+): Promise<boolean> {
+  const recorded = cachedMeta?.sha256;
+  if (!recorded) return true;
+  try {
+    if ((await sha256Hex(data)) === recorded) return true;
+    console.error(`[STALE_HASH_MISMATCH-${lang}-${Date.now()}] cached add-on bytes no longer match their recorded sha256 — refusing offline serve`);
+    return false;
+  } catch (err) {
+    console.error(`[SHA_VERIFY_FAIL-${lang}-stale-${Date.now()}] sha256Hex threw during stale-cache verification — refusing offline serve`, err);
+    return false;
+  }
 }
 
 // ── Core download-verify-merge implementation ─────────────────────────────────
@@ -220,11 +267,16 @@ async function _doLoad(
       }
     } else {
       // No manifest entry to compare against (manifest null or pack absent from it) —
-      // serve cache as-is for offline graceful degradation.
-      const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
-      if (result.ok) return result;
-      // Parse/shape failure — evict and fall through.
-      await clearPackCache(lang);
+      // serve cache as-is for offline graceful degradation, but only if it still matches
+      // the sha256 recorded at cache time (#410). A stale-hash failure falls through
+      // without eviction — the "!addOnManifestEntry" branch below re-checks the same
+      // cachedData and fails closed with ADDON_NO_MANIFEST/checksum_mismatch.
+      if (await staleAddOnBytesMatchRecordedHash(lang, cachedMeta, cachedData)) {
+        const result = await _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
+        if (result.ok) return result;
+        // Parse/shape failure — evict and fall through.
+        await clearPackCache(lang);
+      }
     }
   }
 
@@ -234,7 +286,7 @@ async function _doLoad(
   // mismatch), serve the stale cache — it was previously verified and a missing manifest entry
   // is indistinguishable from an offline condition for a registered specialty code.
   if (!addOnManifestEntry) {
-    if (cachedData) {
+    if (cachedData && (await staleAddOnBytesMatchRecordedHash(lang, cachedMeta, cachedData))) {
       return _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
     }
     console.error(`[ADDON_NO_MANIFEST-${lang}-${Date.now()}] specialty pack absent from manifest — rejecting to prevent unverified merge`);
@@ -246,14 +298,19 @@ async function _doLoad(
   try {
     const res = await fetch(packUrl(lang), { cache: "no-store" });
     if (!res.ok) {
-      // Offline fallback: serve stale cache (version-mismatched) if available.
-      if (cachedData) return _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
+      // Offline fallback: serve stale cache (version-mismatched) if available and still
+      // matches its recorded sha256 (#410).
+      if (cachedData && (await staleAddOnBytesMatchRecordedHash(lang, cachedMeta, cachedData))) {
+        return _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
+      }
       return { ok: false, error: "download_failed" };
     }
     addOnJson = await res.text();
   } catch (err) {
     console.error(`[ADDON_DOWNLOAD_FAIL-${lang}-${Date.now()}]`, err);
-    if (cachedData) return _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
+    if (cachedData && (await staleAddOnBytesMatchRecordedHash(lang, cachedMeta, cachedData))) {
+      return _mergeFromJson(lang, baseLang, memCache, cachedData, null, entryGeneration);
+    }
     return { ok: false, error: "download_failed" };
   }
 
@@ -332,9 +389,9 @@ export function loadSpecialtyPack(
 
   // Task #394: snapshot the deactivation generation now — immediately after the
   // purchasedAddOns gate above passed. _mergeFromJson compares against the live value
-  // right before mutating memCache; a resetSpecialtyLoadState() in between (deactivation)
-  // invalidates this load.
-  const entryGeneration = deactivationGeneration;
+  // right before mutating memCache (twice — #409); a resetSpecialtyLoadState() in between
+  // (deactivation) invalidates this load.
+  const entryGeneration = deactivationGuard.snapshot();
 
   // Already merged this session — return the base pack (which has merged units).
   if (isAddOnLoaded(lang)) {

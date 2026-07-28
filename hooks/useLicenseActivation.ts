@@ -36,6 +36,9 @@ export function useLicenseActivation() {
           licenseType: result.licenseType,
           unlockedPacks: result.unlockedPacks,
           validUntil: result.validUntil,
+          // Task #430: activateLicense() just completed a real Lemon Squeezy round-trip —
+          // this data IS freshly verified, so it earns a full validation grace period.
+          lastValidated: Date.now(),
         });
         setLicenseInput("");
         setLicenseStatus({ type: "success", message: "License activated." });

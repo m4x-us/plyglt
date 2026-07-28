@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { getFeatureFlags, isProEnabled, SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 import type { LicenseType } from "@/lib/licenseTypes";
 
 afterEach(() => {
@@ -48,16 +48,36 @@ describe("getFeatureFlags", () => {
 
   // #100 — isProEnabled combinator
   describe("isProEnabled", () => {
-    it("returns true when flag=true and licenseType=subscription", () => {
-      expect(isProEnabled(true, "subscription" as LicenseType)).toBe(true);
+    it("returns true when flag=true, licenseType=subscription, and validUntil=null (no expiry)", () => {
+      expect(isProEnabled(true, "subscription" as LicenseType, null)).toBe(true);
     });
 
     it("returns false when flag=true but licenseType=free", () => {
-      expect(isProEnabled(true, "free" as LicenseType)).toBe(false);
+      expect(isProEnabled(true, "free" as LicenseType, null)).toBe(false);
     });
 
     it("returns false when flag=false even if licenseType=subscription", () => {
-      expect(isProEnabled(false, "subscription" as LicenseType)).toBe(false);
+      expect(isProEnabled(false, "subscription" as LicenseType, null)).toBe(false);
+    });
+
+    // Task #420: expiry awareness, matching store/entitlementStore.ts's isPackUnlocked policy.
+    it("returns true when validUntil is in the future", () => {
+      expect(isProEnabled(true, "subscription" as LicenseType, Date.now() + 60_000)).toBe(true);
+    });
+
+    it("returns true when validUntil has passed but is still within the grace period", () => {
+      const validUntil = Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS + 60_000;
+      expect(isProEnabled(true, "subscription" as LicenseType, validUntil)).toBe(true);
+    });
+
+    it("returns false when validUntil is past validUntil + grace period", () => {
+      const validUntil = Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS - 1000;
+      expect(isProEnabled(true, "subscription" as LicenseType, validUntil)).toBe(false);
+    });
+
+    it("returns false for an expired subscription even when flag=true (a lapsed subscriber must not stay Pro-gated-in indefinitely)", () => {
+      const validUntil = Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS - 1;
+      expect(isProEnabled(true, "subscription" as LicenseType, validUntil)).toBe(false);
     });
   });
 

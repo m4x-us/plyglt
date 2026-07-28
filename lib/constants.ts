@@ -24,7 +24,17 @@ export const LANG_PAIR_KEY = "srs-lang-pair";
 /** Returns the stored target language code, defaulting to "it". */
 export function getTargetLangCode(): string {
   if (typeof window === "undefined") return "it";
-  const pair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+  let pair: string;
+  try {
+    pair = window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+  } catch (e) {
+    // Task #434: localStorage can throw (private-browsing quota errors, disabled storage
+    // in a locked-down webview). No ErrorBoundary exists anywhere in this app, so an
+    // uncaught throw here would crash the page instead of degrading like lib/storage.ts's
+    // createPlatformStorage does for the Zustand stores.
+    console.error(`[ERR-CONST-GET-TARGET-LANG-${Date.now()}] localStorage.getItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Falling back to "it".`);
+    return "it";
+  }
   // slice from after the first hyphen — .split('-')[1] would truncate hyphenated codes
   // like "it-medical" to "it". No-hyphen means the stored value is malformed.
   const sepIdx = pair.indexOf("-");
@@ -37,15 +47,25 @@ export function getTargetLangCode(): string {
 
 /** Writes the active language pair to localStorage. Source language is always "en". */
 export function setTargetLangCode(targetLang: string): void {
-  if (typeof window !== "undefined") {
+  if (typeof window === "undefined") return;
+  try {
     window.localStorage.setItem(LANG_PAIR_KEY, `en-${targetLang}`);
+  } catch (e) {
+    // Task #434: see getTargetLangCode above — a quota/disabled-storage throw here must
+    // degrade (language selection just won't persist this session) rather than crash.
+    console.error(`[ERR-CONST-SET-TARGET-LANG-${Date.now()}] localStorage.setItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Language selection will not persist this session.`);
   }
 }
 
 /** Returns the full active language pair string (e.g. "en-it"). */
 export function getLangPair(): string {
   if (typeof window === "undefined") return "en-it";
-  return window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+  try {
+    return window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it";
+  } catch (e) {
+    console.error(`[ERR-CONST-GET-LANG-PAIR-${Date.now()}] localStorage.getItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Falling back to "en-it".`);
+    return "en-it";
+  }
 }
 
 /** Returns true iff a language pair has been explicitly stored. The getters above
@@ -57,5 +77,12 @@ export function getLangPair(): string {
  * downstream getters repair malformed values with a logged fallback. */
 export function hasStoredLangPair(): boolean {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(LANG_PAIR_KEY) !== null;
+  try {
+    return window.localStorage.getItem(LANG_PAIR_KEY) !== null;
+  } catch (e) {
+    // Task #434: a throwing localStorage can't answer "is it stored?" — false is the
+    // safe default (re-triggers the first-run flow rather than assuming a pair exists).
+    console.error(`[ERR-CONST-HAS-LANG-PAIR-${Date.now()}] localStorage.getItem threw for "${LANG_PAIR_KEY}": ${String(e)}. Treating as not-yet-stored.`);
+    return false;
+  }
 }

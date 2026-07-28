@@ -23,7 +23,7 @@ export default function LanguagePicker() {
   // triggering a cascading setState-in-effect. Server snapshot = false; client snapshot = true.
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [buyModalOpen, setBuyModalOpen] = useState(false);
-  const { isPackUnlocked, licenseType, hasAddOn } = useEntitlementStore();
+  const { isPackUnlocked, licenseType, hasAddOn, validUntil } = useEntitlementStore();
 
   useEffect(() => {
     // Task #389: presence check via lib/constants — the module's sole-authorized-caller
@@ -89,6 +89,7 @@ export default function LanguagePicker() {
           isPackUnlocked={isPackUnlocked}
           hasAddOn={hasAddOn}
           licenseType={licenseType}
+          validUntil={validUntil}
         />
 
         {/* Footer */}

@@ -232,14 +232,19 @@ describe("needsValidation()", () => {
 // ── setEntitlement ────────────────────────────────────────────────────────────
 
 describe("setEntitlement()", () => {
-  it("sets all fields and records lastValidated as roughly now", () => {
-    const before = Date.now();
+  it("sets all fields including lastValidated exactly as passed by the caller", () => {
+    // Task #430: setEntitlement no longer stamps Date.now() internally — the caller must
+    // assert whether this data was just verified against the real license server. This is
+    // a stop-the-line-relevant contract: an internal auto-stamp would grant a full grace
+    // period to ANY caller, including an unsigned backup restore.
+    const stamp = 1750000000000;
     store().setEntitlement({
       licenseKey:    "ABCD-1234",
       instanceId:    "inst-abc",
       licenseType:   "subscription",
       unlockedPacks: ["it", "es"],
       validUntil:    null,
+      lastValidated: stamp,
     });
     const s = store();
     expect(s.licenseKey).toBe("ABCD-1234");
@@ -247,8 +252,31 @@ describe("setEntitlement()", () => {
     expect(s.licenseType).toBe("subscription");
     expect(s.unlockedPacks).toEqual(["it", "es"]);
     expect(s.validUntil).toBeNull();
-    // existence-check: lastValidated is set to Date.now() internally — genuinely non-deterministic.
-    expect(s.lastValidated).toBeGreaterThanOrEqual(before);
+    expect(s.lastValidated).toBe(stamp);
+  });
+
+  it("#430: lastValidated:0 (unverified backup restore) makes needsValidation() true immediately", () => {
+    store().setEntitlement({
+      licenseKey:    "ABCD-1234",
+      instanceId:    "inst-abc",
+      licenseType:   "subscription",
+      unlockedPacks: ["it", "es"],
+      validUntil:    null,
+      lastValidated: 0,
+    });
+    expect(store().needsValidation()).toBe(true);
+  });
+
+  it("#430: lastValidated:Date.now() (genuine activation) makes needsValidation() false", () => {
+    store().setEntitlement({
+      licenseKey:    "ABCD-1234",
+      instanceId:    "inst-abc",
+      licenseType:   "subscription",
+      unlockedPacks: ["it", "es"],
+      validUntil:    null,
+      lastValidated: Date.now(),
+    });
+    expect(store().needsValidation()).toBe(false);
   });
 });
 
@@ -914,6 +942,7 @@ describe("seam: activateLicense → setEntitlement → isPackUnlocked", () => {
       licenseType:  result.licenseType,
       unlockedPacks: result.unlockedPacks,
       validUntil:   result.validUntil,
+      lastValidated: Date.now(),
     });
 
     // Every pack that activateLicense returned must now be unlocked in the store
@@ -942,6 +971,7 @@ describe("seam: activateLicense → setEntitlement → isPackUnlocked", () => {
       licenseType:  result.licenseType,
       unlockedPacks: result.unlockedPacks,
       validUntil:   result.validUntil,
+      lastValidated: Date.now(),
     });
 
     // Paid pack should be unlocked now
@@ -984,6 +1014,7 @@ describe("seam: deactivateLicense ok:true → clearEntitlement → pack locked",
       licenseType: activateResult.licenseType,
       unlockedPacks: activateResult.unlockedPacks,
       validUntil: activateResult.validUntil,
+      lastValidated: Date.now(),
     });
     expect(store().isPackUnlocked(paidPack)).toBe(true);
 
@@ -1234,6 +1265,42 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     expect(localStorageMock.getItem("pack-data-v1-it-medical")).toBeNull();
   });
 
+  it("#415: clearEntitlement's promise rejects when evictPack reports a storage residue (fullyClean:false) — the former dead .catch is now a live .then check", async () => {
+    // Before #415, evictPack could never reject (lib/packCache.ts's clearPackCache
+    // swallows every storage failure via Promise.allSettled), so this exact scenario —
+    // a real storage removeItem failure during eviction — silently resolved
+    // clearEntitlement's Promise as if nothing had gone wrong. The evictionErrors/throw
+    // chain and useLicenseActivation.ts's "Deactivated. Restart the app..." message were
+    // unreachable dead code. This drives a REAL evictPack → clearPackCache → storage
+    // failure end-to-end and proves the chain is live.
+    reset({ licenseKey: "ABC", instanceId: "i1", licenseType: "subscription", unlockedPacks: ["it", "es"] });
+    mockSpecialtyPacksForClearEntitlement.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    const mergedPack: Pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    };
+    memCache.write("it", mergedPack);
+    vi.mocked(getLoadedAddOns).mockReturnValueOnce(["it-medical"]);
+
+    const removeItemSpy = vi.spyOn(localStorageMock, "removeItem").mockImplementation(() => {
+      throw new Error("storage removeItem failed");
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(store().clearEntitlement()).rejects.toThrow("ERR-CLEAR-ENTITLEMENT-INCOMPLETE");
+      const logged = errorSpy.mock.calls.map(args => String(args[0]));
+      expect(logged.some(m => m.includes("ERR-CLEAR-ENTITLEMENT-EVICT-it") && m.includes("storage residue"))).toBe(true);
+    } finally {
+      removeItemSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+    // The license state IS reset regardless — set() runs synchronously before eviction.
+    expect(store().licenseType).toBe("free");
+    // memCache is still cleared (in-memory, synchronous) despite the storage-layer failure.
+    expect(memCache.has("it")).toBe(false);
+  });
+
   // ── Task #287: code-argument validation ──────────────────────────────────────
 
   it("#287: purchaseAddOn rejects an unregistered code and returns invalid_code", async () => {
@@ -1314,6 +1381,28 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  // ── Task #420: isProEnabled became expiry-aware ───────────────────────────────
+  it("#420: purchaseAddOn returns not_pro for a subscription past validUntil + grace period, even with licenseType still \"subscription\"", async () => {
+    // Before #420, isProEnabled never checked expiry — a lapsed subscriber who never
+    // manually deactivated stayed Pro-gated-in indefinitely here, while isPackUnlocked
+    // already correctly locked their paid base packs on the same expiry condition.
+    reset({ licenseType: "subscription", validUntil: Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS - 1 });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+      expect(result).toEqual({ ok: false, error: ERR_ADDON_NOT_PRO });
+      expect(store().purchasedAddOns).toEqual([]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("#420: purchaseAddOn still succeeds for a subscription within the grace period past validUntil", async () => {
+    reset({ licenseType: "subscription", validUntil: Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS + 60_000 });
+    const result = await store().purchaseAddOn("it-medical", "RECEIPT_TOKEN");
+    expect(result).toEqual({ ok: true });
   });
 });
 

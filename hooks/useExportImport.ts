@@ -86,7 +86,13 @@ export function useExportImport() {
           // card restore. tests/seam_importRestore.test.ts (#393, next wave) asserts this seam.
           let licenseRestored = false;
           if (licenseKey && instanceId) {
-            useEntitlementStore.getState().setEntitlement({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil });
+            // Task #430: a backup file is unsigned, untrusted input — it was never verified
+            // against the real license server (unlike a genuine activateLicense() success).
+            // lastValidated: 0 makes needsValidation() true immediately, so
+            // components/EntitlementValidator.tsx re-validates against Lemon Squeezy on the
+            // next app foreground instead of trusting these restored fields for a full
+            // VALIDATION_POLL_INTERVAL_MS grace period with zero server contact.
+            useEntitlementStore.getState().setEntitlement({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil, lastValidated: 0 });
             licenseRestored = true;
           }
           const skippedNote = result.skippedCardCount > 0

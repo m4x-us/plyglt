@@ -65,12 +65,16 @@ describe("useLicenseActivation — handleActivate", () => {
     });
 
     expect(result.current.licenseStatus.type).toBe("success");
+    // Task #430: lastValidated must be a fresh Date.now() stamp — this call follows a real
+    // activateLicense() server round-trip, so it earns a full validation grace period
+    // (unlike an unsigned backup restore, which passes lastValidated:0 — see useExportImport.test.ts).
     expect(mockSetEntitlement).toHaveBeenCalledWith({
       licenseKey: "test-key-123",
       instanceId: "test-instance-456",
       licenseType: "subscription",
       unlockedPacks: ["it"],
       validUntil: null,
+      lastValidated: expect.any(Number),
     });
   });
 

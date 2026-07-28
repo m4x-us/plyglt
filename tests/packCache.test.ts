@@ -16,6 +16,7 @@ import {
   readCacheData,
   writeCacheData,
   parseValidateAndCache,
+  clearPackCache,
   clearPackCacheState,
   type CachedPackMeta,
 } from "@/lib/packCache";
@@ -174,5 +175,65 @@ describe("cache-read error ref IDs include lang (Task #387)", () => {
     const logged = errorSpy.mock.calls.map((args) => String(args[0]));
     expect(logged.some((m) => /^\[CACHE_PARSE_FAIL-es-\d+\]$/.test(m))).toBe(true);
     errorSpy.mockRestore();
+  });
+});
+
+// ── #415 — clearPackCache reports whether storage removal actually succeeded ───
+
+describe("clearPackCache — fullyClean report (Task #415)", () => {
+  it("returns true when every storage removal succeeds", async () => {
+    store.set("pack-meta-v1-it", "meta");
+    store.set("pack-data-v1-it", "data");
+    const fullyClean = await clearPackCache("it");
+    expect(fullyClean).toBe(true);
+    expect(store.has("pack-meta-v1-it")).toBe(false);
+    expect(store.has("pack-data-v1-it")).toBe(false);
+  });
+
+  it("returns false and logs when the base pack's meta removal fails, but never rejects", async () => {
+    mockStorage.removeItem.mockImplementationOnce(async () => { throw new Error("meta removeItem failed"); });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fullyClean = await clearPackCache("it");
+      expect(fullyClean).toBe(false);
+      const logged = errorSpy.mock.calls.map((args) => String(args[0]));
+      expect(logged.some((m) => m.includes("ERR-CACHE-CLEAR-META-it"))).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("returns false and logs when a pruned specialty pack's storage removal fails", async () => {
+    memCache.write("it", fakePack());
+    markAddOnLoaded("it-medical");
+    store.set("pack-meta-v1-it-medical", "meta");
+    store.set("pack-data-v1-it-medical", "data");
+    // Both base-pack removals succeed (default mock); one specialty removal fails.
+    mockStorage.removeItem.mockImplementation(async (key: string) => {
+      if (key === "pack-meta-v1-it-medical") throw new Error("specialty meta removeItem failed");
+      store.delete(key);
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fullyClean = await clearPackCache("it");
+      expect(fullyClean).toBe(false);
+      const logged = errorSpy.mock.calls.map((args) => String(args[0]));
+      expect(logged.some((m) => m.includes("ERR-CACHE-CLEAR-SPECIALTY-META-it-medical"))).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("clears memCache synchronously even when every storage removal fails", async () => {
+    memCache.write("it", fakePack());
+    mockStorage.removeItem.mockImplementation(async () => { throw new Error("removeItem failed"); });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fullyClean = await clearPackCache("it");
+      expect(fullyClean).toBe(false);
+    } finally {
+      errorSpy.mockRestore();
+    }
+    expect(memCache.has("it")).toBe(false);
   });
 });

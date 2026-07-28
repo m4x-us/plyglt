@@ -12,7 +12,8 @@
 // ===========================================
 // DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES, SPECIALTY_PACKS),
 //             @/lib/licenseTypes (LICENSE_TYPES, LicenseType),
-//             @/lib/utils (localDateStr, isCalendarValidDate)
+//             @/lib/utils (localDateStr, isCalendarValidDate),
+//             @/lib/introduction (MAX_PHASE_DAY), @/content/types (CardType)
 // USED BY: store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts
 // EXPORTS: IDLE_THRESHOLD_DEFAULT_MINUTES — single source of truth for the idle default;
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
@@ -21,10 +22,52 @@
 import { FREE_PACK_CODES, SPECIALTY_PACKS, isValidPackCode } from "@/lib/langRegistry";
 import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
+import { MAX_PHASE_DAY } from "@/lib/introduction";
+import type { CardType } from "@/content/types";
 
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
 export const SRS_VERSION = 3;
+
+// v2→v3 IntroductionRecord field validators (Task #433). Every field gets the same
+// validate-log-fallback treatment as the pre-existing phaseStartDate check — an
+// unvalidated field (e.g. consecutiveCorrect:"many") would otherwise survive migration
+// untouched and reach production arithmetic (AGENTS.md: "any function that can silently
+// corrupt persisted user data" is a stop-the-line violation).
+const VALID_CARD_TYPES = new Set<CardType>(["recognize", "produce", "conjugate", "fill_blank", "passage_cloze"]);
+
+function migrateDateField(record: Record<string, unknown>, field: string, cardId: string, fallback: string): string {
+  const value = record[field];
+  if (typeof value === "string" && isCalendarValidDate(value)) return value;
+  console.error(`[plyglt] migration v3: corrupt record ${cardId} — invalid ${field} "${String(value)}", using fallback`);
+  return fallback;
+}
+
+function migrateIntInRange(record: Record<string, unknown>, field: string, cardId: string, fallback: number, min: number, max: number): number {
+  const value = record[field];
+  if (typeof value === "number" && Number.isInteger(value) && value >= min && value <= max) return value;
+  console.error(`[plyglt] migration v3: corrupt record ${cardId} — invalid ${field} "${String(value)}", using ${fallback}`);
+  return fallback;
+}
+
+function migrateBoolean(record: Record<string, unknown>, field: string, cardId: string, fallback: boolean): boolean {
+  const value = record[field];
+  if (typeof value === "boolean") return value;
+  console.error(`[plyglt] migration v3: corrupt record ${cardId} — invalid ${field} "${String(value)}", using ${fallback}`);
+  return fallback;
+}
+
+// strandedAcrossDays is optional (boolean | undefined) — unset is a valid, meaningful state
+// (never stranded), so an absent field must stay absent rather than being forced to false.
+// Returns a spreadable fragment: {strandedAcrossDays: bool} when a valid value is present,
+// {} when absent or invalid (an invalid value is logged and dropped, same as "never set").
+function migrateStrandedAcrossDays(record: Record<string, unknown>, cardId: string): { strandedAcrossDays?: boolean } {
+  const value = record.strandedAcrossDays;
+  if (value === undefined) return {};
+  if (typeof value === "boolean") return { strandedAcrossDays: value };
+  console.error(`[plyglt] migration v3: corrupt record ${cardId} — invalid strandedAcrossDays "${String(value)}", dropping`);
+  return {};
+}
 
 const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   // v0 → v1: initial shape. Fills missing fields for data written before versioning.
@@ -96,7 +139,44 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
         console.error(`[plyglt] migration v3: corrupt record ${cardId} — missing or calendar-invalid date fields, using today`);
         return todayFallback;
       })();
-      migratedIntroductions[cardId] = { ...record, phaseStartDate };
+
+      // Task #433: validate every remaining field with the same pattern as phaseStartDate
+      // above — invalid values are logged and replaced with a safe default rather than
+      // passed through via {...record}.
+      if (!(typeof record.cardId === "string" && record.cardId === cardId)) {
+        console.error(`[plyglt] migration v3: record ${cardId} — cardId field "${String(record.cardId)}" did not match its map key, using map key`);
+      }
+      const introducedDate = migrateDateField(record, "introducedDate", cardId, phaseStartDate);
+      const lastSeenDate = migrateDateField(record, "lastSeenDate", cardId, phaseStartDate);
+      const dayOfPhase = migrateIntInRange(record, "dayOfPhase", cardId, 1, 1, MAX_PHASE_DAY);
+      const consecutiveCorrect = migrateIntInRange(record, "consecutiveCorrect", cardId, 0, 0, Number.MAX_SAFE_INTEGER);
+      const totalEncounters = migrateIntInRange(record, "totalEncounters", cardId, 0, 0, Number.MAX_SAFE_INTEGER);
+      const appearancesToday = migrateIntInRange(record, "appearancesToday", cardId, 0, 0, Number.MAX_SAFE_INTEGER);
+      const consecutiveWrongToday = migrateIntInRange(record, "consecutiveWrongToday", cardId, 0, 0, Number.MAX_SAFE_INTEGER);
+      const graduated = migrateBoolean(record, "graduated", cardId, false);
+      const lastSeenType: CardType | null = record.lastSeenType === null
+        ? null
+        : (typeof record.lastSeenType === "string" && VALID_CARD_TYPES.has(record.lastSeenType as CardType)
+            ? (record.lastSeenType as CardType)
+            : (() => {
+                console.error(`[plyglt] migration v3: corrupt record ${cardId} — invalid lastSeenType "${String(record.lastSeenType)}", using null`);
+                return null;
+              })());
+
+      migratedIntroductions[cardId] = {
+        cardId,
+        introducedDate,
+        phaseStartDate,
+        dayOfPhase,
+        consecutiveCorrect,
+        totalEncounters,
+        lastSeenDate,
+        appearancesToday,
+        consecutiveWrongToday,
+        lastSeenType,
+        graduated,
+        ...migrateStrandedAcrossDays(record, cardId),
+      };
     }
     return { ...d, introductions: migratedIntroductions };
   },

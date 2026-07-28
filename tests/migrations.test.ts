@@ -156,8 +156,8 @@ describe("migrateSrsStore()", () => {
     const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
       introductions: Record<string, Record<string, unknown>>;
     };
-    // Task #183 F007: all 11 IntroductionRecord fields asserted — the migration is a spread
-    // ({ ...record, phaseStartDate }), so every input field must pass through unchanged.
+    // Task #183 F007 / #433: all 11 IntroductionRecord fields asserted — every field is now
+    // individually validated (Task #433), but a well-formed input passes through unchanged.
     expect(result.introductions["card-1"]).toEqual({
       cardId: "card-1",
       introducedDate: "2026-05-20",
@@ -197,7 +197,7 @@ describe("migrateSrsStore()", () => {
     const result = migrateSrsStore(state, 2) as Record<string, unknown> & {
       introductions: Record<string, Record<string, unknown>>;
     };
-    // Task #183 F007: all 11 IntroductionRecord fields asserted (same gap as the sibling test above).
+    // Task #183 F007 / #433: all 11 IntroductionRecord fields asserted (same gap as the sibling test above).
     expect(result.introductions["card-1"]).toEqual({
       cardId: "card-1",
       introducedDate: "2026-05-20", // must not be clobbered
@@ -317,8 +317,112 @@ describe("migrateSrsStore()", () => {
     expect(typeof intro?.phaseStartDate).toBe("string");
     expect(/^\d{4}-\d{2}-\d{2}$/.test(intro?.phaseStartDate ?? "")).toBe(true);
     expect(isNaN(new Date(intro?.phaseStartDate ?? "").getTime())).toBe(false);
-    // introducedDate field must not be clobbered
-    expect(intro?.introducedDate).toBe("2026-13-45");
+    // Task #433: introducedDate now gets the same validate-log-fallback treatment as every
+    // other field — a calendar-invalid value is no longer passed through unchecked. It falls
+    // back to the already-computed phaseStartDate (also "today" here, since both source
+    // dates were invalid).
+    expect(intro?.introducedDate).toBe(intro?.phaseStartDate);
+    expect(intro?.introducedDate).not.toBe("2026-13-45");
+  });
+
+  // Task #433 (F060): a record with a malformed field must be repaired during migration,
+  // not passed through untouched — a string consecutiveCorrect would otherwise reach
+  // production arithmetic (recordResult does `consecutiveCorrect + 1`) as "many1"/NaN-like
+  // corruption instead of a number.
+  it("v2 → v3: repairs a malformed consecutiveCorrect field instead of passing it through", () => {
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-1": {
+          cardId: "card-1",
+          introducedDate: "2026-05-20",
+          phaseStartDate: "2026-05-20",
+          dayOfPhase: 8,
+          consecutiveCorrect: "many", // malformed — should be a number
+          totalEncounters: 12,
+          lastSeenDate: "2026-06-01",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let result: Record<string, unknown> & { introductions: Record<string, Record<string, unknown>> };
+    try {
+      result = migrateSrsStore(state, 2) as typeof result;
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('invalid consecutiveCorrect "many", using 0')
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+    expect(result.introductions["card-1"]).toEqual({
+      cardId: "card-1",
+      introducedDate: "2026-05-20",
+      phaseStartDate: "2026-05-20",
+      dayOfPhase: 8,
+      consecutiveCorrect: 0, // repaired — malformed string dropped, safe default substituted
+      totalEncounters: 12,
+      lastSeenDate: "2026-06-01",
+      appearancesToday: 1,
+      consecutiveWrongToday: 0,
+      lastSeenType: null,
+      graduated: false,
+    });
+  });
+
+  // Task #433 (F060): every remaining IntroductionRecord field gets the same treatment —
+  // this test malforms all 9 at once (cardId mismatch, dayOfPhase, totalEncounters,
+  // lastSeenDate, appearancesToday, consecutiveWrongToday, lastSeenType, graduated, plus
+  // consecutiveCorrect covered above) and asserts every one is repaired to a safe default.
+  it("v2 → v3: repairs all 9 remaining malformed IntroductionRecord fields, not just consecutiveCorrect", () => {
+    const state = {
+      cards: {},
+      streak: 0,
+      lastStudiedDate: null,
+      introductions: {
+        "card-1": {
+          cardId: "wrong-id",              // mismatched — should be replaced with the map key
+          introducedDate: "2026-05-20",
+          phaseStartDate: "2026-05-20",
+          dayOfPhase: 999,                 // out of [1, MAX_PHASE_DAY] range
+          consecutiveCorrect: 3,
+          totalEncounters: -5,             // negative — invalid
+          lastSeenDate: "not-a-date",      // calendar-invalid
+          appearancesToday: 1.5,           // non-integer
+          consecutiveWrongToday: null,     // wrong type
+          lastSeenType: "shout",           // not a registered CardType
+          graduated: "yes",                // wrong type
+          strandedAcrossDays: "nope",      // wrong type — optional field
+        },
+      },
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let result: Record<string, unknown> & { introductions: Record<string, Record<string, unknown>> };
+    try {
+      result = migrateSrsStore(state, 2) as typeof result;
+    } finally {
+      errorSpy.mockRestore();
+    }
+    expect(result.introductions["card-1"]).toEqual({
+      cardId: "card-1",
+      introducedDate: "2026-05-20",
+      phaseStartDate: "2026-05-20",
+      dayOfPhase: 1,
+      consecutiveCorrect: 3,
+      totalEncounters: 0,
+      lastSeenDate: "2026-05-20", // fell back to phaseStartDate
+      appearancesToday: 0,
+      consecutiveWrongToday: 0,
+      lastSeenType: null,
+      graduated: false,
+      // strandedAcrossDays dropped entirely — invalid value is treated as "never set"
+    });
+    expect(result.introductions["card-1"]).not.toHaveProperty("strandedAcrossDays");
   });
 
   // Task #183 F019: the for-loop over introductions must process each card independently —

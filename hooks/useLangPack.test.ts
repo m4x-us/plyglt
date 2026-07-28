@@ -473,6 +473,7 @@ describe("#377 — unlockedPacks threaded from entitlement store into loadPack a
         licenseType: "subscription",
         unlockedPacks: ["it", "es"],
         validUntil: null,
+        lastValidated: Date.now(),
       });
     });
 

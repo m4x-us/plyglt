@@ -23,7 +23,7 @@ import { resetSpecialtyLoadState } from "@/lib/specialtyPackLoader";
 import { evictPack, getLoadedAddOns } from "@/lib/packLoader";
 import { invoke } from "@/lib/tauri";
 import { hasAddOn as libHasAddOn } from "@/lib/entitlement";
-import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { getFeatureFlags, isProEnabled, SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 
 // LicenseType lives in lib/ (lower layer) to avoid lib/→store/ upward imports.
 // Imported for use within this file; re-exported so existing callers of
@@ -38,7 +38,10 @@ export type { PackCode } from "@/lib/langRegistry";
 
 // Grace period: subscriptions stay unlocked this long after validUntil so a
 // lapsed renewal or brief offline period doesn't lock users out.
-export const SUBSCRIPTION_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
+// Task #420: moved to lib/featureFlags.ts (isProEnabled needs it too, and lib/ must never
+// import from store/) — re-exported here so existing external imports of this name from
+// this module (tests, components/EntitlementValidator.tsx) keep working unchanged.
+export { SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 
 // ── purchaseAddOn error constants ─────────────────────────────────────────────
 // Named constants prevent string drift between the implementation and callers.
@@ -97,12 +100,23 @@ interface EntitlementState {
   // implementation enforces this by destructuring only the declared fields, so callers
   // that accidentally spread extra properties (e.g. a BackupEntitlement object) cannot
   // silently write purchasedAddOns. (See also: useExportImport.ts #342 call-site fix.)
+  //
+  // Task #430: lastValidated is REQUIRED (not auto-stamped to Date.now() internally) —
+  // the caller must assert whether this data was just verified against the real license
+  // server. A genuine activateLicense() success (hooks/useLicenseActivation.ts) passes
+  // Date.now(): a real server round-trip just happened. An unsigned backup restore
+  // (hooks/useExportImport.ts) passes 0: the fields are unverified, and stamping a fresh
+  // lastValidated here would grant a full VALIDATION_POLL_INTERVAL_MS grace period with
+  // zero server contact — passing 0 makes needsValidation() true immediately, so the next
+  // app foreground (components/EntitlementValidator.tsx) re-validates against the real
+  // server before continuing to trust the restored fields.
   setEntitlement: (data: {
     licenseKey: string;
     instanceId: string;
     licenseType: LicenseType;
     unlockedPacks: PackCode[];
     validUntil: number | null;
+    lastValidated: number;
   }) => void;
   // Task #326: returns a Promise so callers that need to know the specialty-content
   // eviction has genuinely completed (not just fired) can await it. The synchronous
@@ -178,8 +192,10 @@ export const useEntitlementStore = create<EntitlementState>()(
       // Task #342/#343: explicit destructuring enforces the type contract at runtime —
       // extra fields (e.g. purchasedAddOns from a BackupEntitlement spread) cannot
       // sneak through, even if a caller passes a wider object.
-      setEntitlement: ({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil }) =>
-        set({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil, lastValidated: Date.now() }),
+      // Task #430: lastValidated is taken from the caller, never stamped to Date.now()
+      // internally — see the setEntitlement type's doc comment above for why.
+      setEntitlement: ({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil, lastValidated }) =>
+        set({ licenseKey, instanceId, licenseType, unlockedPacks, validUntil, lastValidated }),
 
       clearEntitlement: () => {
         // Task #364 — idempotency: calling clearEntitlement while evictions from a previous
@@ -221,16 +237,32 @@ export const useEntitlementStore = create<EntitlementState>()(
         // Returned as a Promise so a caller that needs the eviction to have genuinely
         // completed (not just fired) can await it.
         //
-        // Task #351: eviction failures are collected and re-thrown so callers can surface
-        // an appropriate message. The license state IS reset (set() above is synchronous);
-        // a thrown error here means only that cached specialty content may persist until
-        // the next page load, not that deactivation failed.
+        // Task #351 (→ #415): eviction failures are collected and re-thrown so callers can
+        // surface an appropriate message. The license state IS reset (set() above is
+        // synchronous); a thrown error here means only that cached specialty content may
+        // persist until the next page load, not that deactivation failed.
+        //
+        // Task #415: evictPack NEVER rejects (lib/packCache.ts's clearPackCache swallows
+        // every storage failure internally via Promise.allSettled) — a `.catch` here could
+        // never fire and was dead code. The result must be inspected instead: `.evicted`
+        // covers the (here, practically unreachable — affectedBaseLangs only ever contains
+        // registered base language codes) guard-rejection branches defensively, and
+        // `.fullyClean` is what actually varies in production — false means memCache was
+        // cleared but a storage removal failed and was already logged with its own ref ID
+        // in lib/packCache.ts; this is the caller-visible signal that failure produces.
         const evictionErrors: string[] = [];
         return Promise.all(
           Array.from(affectedBaseLangs).map(baseLang =>
-            evictPack(baseLang).catch(err => {
-              console.error(`[ERR-CLEAR-ENTITLEMENT-EVICT-${baseLang}] evictPack failed — merged specialty content may remain until reload`, err);
-              evictionErrors.push(baseLang);
+            evictPack(baseLang).then(result => {
+              if (!result.evicted) {
+                console.error(`[ERR-CLEAR-ENTITLEMENT-EVICT-${baseLang}] evictPack reported no-op (${result.reason}) — merged specialty content may remain until reload`);
+                evictionErrors.push(baseLang);
+                return;
+              }
+              if (!result.fullyClean) {
+                console.error(`[ERR-CLEAR-ENTITLEMENT-EVICT-${baseLang}] evictPack completed with storage residue — merged specialty content may remain until reload`);
+                evictionErrors.push(baseLang);
+              }
             })
           )
         ).then(() => {
@@ -286,12 +318,14 @@ export const useEntitlementStore = create<EntitlementState>()(
           return { ok: false, error: ERR_ADDON_INVALID_CODE };
         }
         // Tasks #357/#388/#395: Pro gate. Specialty packs are add-ons within the Pro tier
-        // (BRAND.md), so the purchaser must hold an active subscription. Enforced HERE at
-        // the store layer — not only in the UI — so a direct devtools call to
-        // purchaseAddOn cannot bypass it. Routed through isProEnabled(), the single
+        // (BRAND.md), so the purchaser must hold an active, non-expired subscription.
+        // Enforced HERE at the store layer — not only in the UI — so a direct devtools call
+        // to purchaseAddOn cannot bypass it. Routed through isProEnabled(), the single
         // mandated combinator for all Pro-gated features (CLAUDE.md / lib/featureFlags.ts).
         // getFeatureFlags().specialtyPacks defaults to true when the env var is unset, so
-        // in ordinary runtimes this reduces to licenseType === "subscription".
+        // in ordinary runtimes this reduces to licenseType === "subscription" and validUntil
+        // not past its grace period (Task #420 — isProEnabled became expiry-aware, matching
+        // isPackUnlocked's identical policy for pack access).
         //
         // Deferral history (#357, Wave 13): a store-level gate was blocked because
         // tests/entitlement.test.ts (then off-limits) called purchaseAddOn under
@@ -299,7 +333,7 @@ export const useEntitlementStore = create<EntitlementState>()(
         // Wave 14 (#388) verified every purchaseAddOn test call site
         // (tests/entitlement.test.ts, tests/purchaseAddOnGuards.test.ts) now runs under
         // subscription — the stated blocker no longer existed, so the gate was implemented.
-        if (!isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType)) {
+        if (!isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType, get().validUntil)) {
           console.warn(`[purchaseAddOn] purchaser does not hold a Pro subscription — rejected`);
           return { ok: false, error: ERR_ADDON_NOT_PRO };
         }

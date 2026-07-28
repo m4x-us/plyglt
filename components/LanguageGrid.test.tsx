@@ -59,6 +59,7 @@ vi.mock("@/content/index", () => ({
 import { LanguageGrid } from "./LanguageGrid";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import type { LicenseType } from "@/lib/licenseTypes";
+import { SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 
 const onSelect = vi.fn();
 const onUpgradeClick = vi.fn();
@@ -68,7 +69,10 @@ const onUpgradeClick = vi.fn();
 // rendering. Tests with no purchased add-ons rely on the beforeEach reset.
 // licenseType defaults to "free"; pass "subscription" for tests that need isPro=true
 // (specialty packs visible via isPackUnlocked without purchase).
-function renderGrid(isPackUnlocked: (code: string) => boolean, licenseType: LicenseType = "free") {
+// validUntil defaults to null (no expiry — Task #420 isProEnabled contract) so every
+// existing "subscription" call site stays Pro-enabled unless a test explicitly passes
+// an expired timestamp.
+function renderGrid(isPackUnlocked: (code: string) => boolean, licenseType: LicenseType = "free", validUntil: number | null = null) {
   render(
     <LanguageGrid
       onSelect={onSelect}
@@ -76,6 +80,7 @@ function renderGrid(isPackUnlocked: (code: string) => boolean, licenseType: Lice
       isPackUnlocked={isPackUnlocked}
       hasAddOn={(code) => useEntitlementStore.getState().hasAddOn(code)}
       licenseType={licenseType}
+      validUntil={validUntil}
     />
   );
 }
@@ -210,6 +215,21 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
     expect(onSelect).not.toHaveBeenCalledWith("it-medical");
   });
 
+  // ── State 3b (#420): licenseType still "subscription" but validUntil has lapsed past its
+  // grace period → isPro must be false, same as a free-tier user. Before #420, isProEnabled
+  // never checked expiry, so this exact state (a subscriber who never manually deactivated
+  // after their subscription lapsed) stayed Pro-gated-in indefinitely for the Add-ons section.
+  it("#420: hides an unpurchased+ready specialty pack for a lapsed subscription (validUntil past grace period)", () => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+
+    renderGrid((code) => code === "it", "subscription", Date.now() - SUBSCRIPTION_GRACE_PERIOD_MS - 1);
+
+    // isPro is false → the unpurchased tile does not surface at all (filter: hasAddOn ||
+    // (isPro && isPackUnlocked)) — Add-ons section itself may still be absent since no
+    // owned add-ons exist and the only registered pack is filtered out.
+    expect(screen.queryByText("Medical Italian")).toBeNull();
+  });
+
   // ── State 4: Specialty pack exists but base language not unlocked AND not purchased → hidden ──
   it("does not show specialty packs when their base language is not unlocked and the add-on is not purchased", () => {
     mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
@@ -238,6 +258,47 @@ describe("LanguageGrid — specialty packs (Task #150)", () => {
 
     expect(onUpgradeClick).toHaveBeenCalledWith("it-cooking");
     expect(onSelect).not.toHaveBeenCalledWith("it-cooking");
+  });
+
+  // ── State 5b (#411): purchased + unready → owned state, never the buy CTA ───────
+  it("#411: renders a purchased+unready specialty pack as 'Owned', never routes through onUpgradeClick or onSelect", () => {
+    // Before #411, purchased && !sp.ready fell into the same branch as an unpurchased,
+    // unready pack: "Coming soon" wired to onUpgradeClick — a user who already paid for
+    // this pack (readiness later reverted — deprecation/rollback) would be shown a buy
+    // CTA despite already owning it, contradicting Task #384's "readiness gates
+    // purchasing/loading, not retention" policy.
+    mockSpecialtyPacks.push({ code: "it-cooking", baseLang: "it", name: "Italian Cooking", ready: false });
+    useEntitlementStore.setState({ purchasedAddOns: ["it-cooking"] });
+
+    renderGrid((code) => code === "it");
+
+    screen.getByText("Add-ons"); // presence assertion
+    screen.getByText("Coming soon"); // presence assertion — pack is still genuinely unready
+    screen.getByText("Owned"); // presence assertion — distinguishes owned from unowned
+
+    const tile = screen.getByText("Italian Cooking").closest("div")!;
+    // Not a price CTA — no pricing text anywhere in the tile
+    expect(tile.textContent).not.toContain("$34.99/yr →");
+    // Not a <button> at all — there is no action available in this state
+    expect(screen.getByText("Italian Cooking").closest("button")).toBeNull();
+
+    fireEvent.click(tile);
+
+    expect(onUpgradeClick).not.toHaveBeenCalledWith("it-cooking");
+    expect(onSelect).not.toHaveBeenCalledWith("it-cooking");
+  });
+
+  it("#411: purchased+unready renders distinctly from unpurchased+unready (no 'Owned' badge, buy CTA click still fires)", () => {
+    mockSpecialtyPacks.push({ code: "it-cooking", baseLang: "it", name: "Italian Cooking", ready: false });
+    // purchasedAddOns is [] from beforeEach — not owned.
+
+    renderGrid((code) => code === "it", "subscription");
+
+    screen.getByText("Coming soon");
+    expect(screen.queryByText("Owned")).toBeNull();
+    const tile = screen.getByText("Italian Cooking").closest("button")!;
+    fireEvent.click(tile);
+    expect(onUpgradeClick).toHaveBeenCalledWith("it-cooking");
   });
 
   // ── State 6b (#403): flag off must hide even OWNED add-ons — the case that made the

@@ -23,14 +23,21 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// Default: Pro user, analytics flag on — existing tests see full stats page.
+// Default: Pro user, analytics flag on, no expiry — existing tests see full stats page.
 vi.mock("@/store/entitlementStore", () => ({
-  useEntitlementStore: vi.fn(() => ({ licenseType: "subscription" as const })),
+  useEntitlementStore: vi.fn(() => ({ licenseType: "subscription" as const, validUntil: null as number | null })),
 }));
 
+const STATS_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // mirrors lib/featureFlags.ts SUBSCRIPTION_GRACE_PERIOD_MS
 vi.mock("@/lib/featureFlags", () => ({
   getFeatureFlags: vi.fn(() => ({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true })),
-  isProEnabled: vi.fn((flag: boolean, licenseType: string) => flag && licenseType === "subscription"),
+  // Task #420: mirrors the real isProEnabled's expiry check so this mock's behavior stays
+  // representative of production rather than silently drifting once the real fn changed.
+  isProEnabled: vi.fn((flag: boolean, licenseType: string, validUntil: number | null) => {
+    if (!flag || licenseType !== "subscription") return false;
+    if (validUntil !== null && Date.now() > validUntil + STATS_GRACE_PERIOD_MS) return false;
+    return true;
+  }),
 }));
 
 import { useStatsData } from "@/hooks/useStatsData";
@@ -128,5 +135,31 @@ describe("app/stats/page.tsx — StatsPage", () => {
     render(<StatsPage />);
     screen.getByText("Detailed analytics are a Pro feature.");
     expect(screen.queryByText("Start studying to see your stats here.")).toBeNull();
+  });
+
+  // Task #420: isProEnabled became expiry-aware — a lapsed subscriber past validUntil +
+  // grace period must be denied here too, matching isPackUnlocked's identical policy.
+  it("#420: shows upgrade prompt for a subscription past validUntil + grace period, even with licenseType still \"subscription\"", () => {
+    vi.mocked(useEntitlementStore).mockReturnValue({
+      licenseType: "subscription",
+      validUntil: Date.now() - STATS_GRACE_PERIOD_MS - 1,
+    } as ReturnType<typeof useEntitlementStore>);
+    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true });
+    vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
+    render(<StatsPage />);
+    screen.getByText("Detailed analytics are a Pro feature.");
+    expect(screen.queryByText("Start studying to see your stats here.")).toBeNull();
+  });
+
+  it("#420: shows full stats page for a subscription within the grace period past validUntil", () => {
+    vi.mocked(useEntitlementStore).mockReturnValue({
+      licenseType: "subscription",
+      validUntil: Date.now() - STATS_GRACE_PERIOD_MS + 60_000,
+    } as ReturnType<typeof useEntitlementStore>);
+    vi.mocked(getFeatureFlags).mockReturnValue({ analytics: true, interruptEngine: true, vacationMode: true, specialtyPacks: true });
+    vi.mocked(useStatsData).mockReturnValue(EMPTY_STATS);
+    render(<StatsPage />);
+    expect(screen.queryByText("Detailed analytics are a Pro feature.")).toBeNull();
+    screen.getByText("Start studying to see your stats here.");
   });
 });

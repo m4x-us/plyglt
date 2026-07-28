@@ -278,4 +278,98 @@ describe("loadSpecialtyPack — deactivation generation guard (#394)", () => {
     expect(memCache.get("it")!.unitCount).toBe(5);
     expect(getLoadedAddOns()).toEqual(["it-medical"]);
   });
+
+  it("#409: a deactivation landing during the post-download storage writes aborts the merge (second generation check)", async () => {
+    // Sibling of the #394 test above, but the deactivation lands LATER — inside the awaited
+    // writeCacheMeta/writeCacheData block, after the FIRST generation check (before
+    // memCache.merge used to sit; now before the storage-persist block) already passed.
+    // Before #409, memCache.merge ran unconditionally ahead of the storage writes, so this
+    // exact timing window was unguarded — a stale merge would land in memCache even though
+    // the entitlement snapshot went stale mid-write.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const origSetItem = localStorageMock.setItem.bind(localStorageMock);
+    vi.spyOn(localStorageMock, "setItem").mockImplementation((key, value) => {
+      if (key === "pack-meta-v1-it-medical") {
+        // Deactivation completes exactly between the meta write and the data write.
+        resetSpecialtyLoadState();
+        seedMemCache("it", []);
+      }
+      origSetItem(key, value);
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => ADD_ON_PACK_JSON }));
+
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "invalid_lang" });
+    expect(warnSpy.mock.calls.some(args => String(args[0]).includes("ADDON_STALE_ENTITLEMENT"))).toBe(true);
+    // Storage writes still completed — the per-code mutation chain makes them self-healing
+    // regardless of the guard; deleting the second check would ALSO make memCache.merge run,
+    // which this test's next assertions catch.
+    expect(localStorageMock.getItem("pack-meta-v1-it-medical")).not.toBe(null);
+    expect(localStorageMock.getItem("pack-data-v1-it-medical")).not.toBe(null);
+    // But the re-seeded base pack was NOT mutated by the stale merge.
+    expect(memCache.get("it")!.unitCount).toBe(0);
+    expect(getLoadedAddOns()).toEqual([]);
+    warnSpy.mockRestore();
+  });
+});
+
+// ── #410 — offline/no-manifest fallback re-verifies against the recorded cache hash ──
+
+describe("specialty pack — offline-serve integrity re-verification (#410)", () => {
+  beforeEach(() => {
+    mockSpecialtyPacks.push({ code: "it-medical", baseLang: "it", ready: true, name: "Medical Italian" });
+    seedMemCache("it", []);
+  });
+
+  it("#410: refuses to serve stale offline add-on bytes that no longer match their recorded sha256 (manifest present, download fails)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // GIVEN a version-stale cache whose DATA was tampered after the meta recorded a hash —
+    // valid shape, wrong bytes. Before #410 this was served silently through the
+    // fetch-!res.ok offline fallback with zero verification.
+    const tamperedJson = JSON.stringify({ ...fakeAddOnPack(), name: "Tampered Medical Italian" });
+    localStorageMock.setItem("pack-data-v1-it-medical", tamperedJson);
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({ version: "0.9.9", sha256: ADD_ON_SHA, cachedAt: 1 }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "download_failed" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("STALE_HASH_MISMATCH-it-medical"));
+    errorSpy.mockRestore();
+  });
+
+  it("#410: serves stale offline add-on bytes when they still match their recorded sha256 (not overly strict)", async () => {
+    // Sibling of the refusal test above — version-stale but byte-intact cache must still
+    // serve successfully through the same offline path.
+    localStorageMock.setItem("pack-data-v1-it-medical", ADD_ON_PACK_JSON);
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({ version: "0.9.9", sha256: ADD_ON_SHA, cachedAt: 1 }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    const result = await loadPack("it-medical", fakeManifest(), { purchasedAddOns: ["it-medical"] });
+
+    expect(result.ok).toBe(true);
+    expect(getLoadedAddOns()).toEqual(["it-medical"]);
+  });
+
+  it("#410: refuses to serve stale offline add-on bytes via the no-manifest-at-all cache-hit and download-needed paths", async () => {
+    // manifest=null → addOnManifestEntry is undefined for the whole call, exercising the
+    // OTHER two offline call sites (the cache-hit "else" branch and the "!addOnManifestEntry"
+    // fail-closed branch) rather than the fetch-failure branch above.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const tamperedJson = JSON.stringify({ ...fakeAddOnPack(), name: "Tampered Medical Italian" });
+    localStorageMock.setItem("pack-data-v1-it-medical", tamperedJson);
+    localStorageMock.setItem("pack-meta-v1-it-medical", JSON.stringify({ version: "1.0.0", sha256: ADD_ON_SHA, cachedAt: 1 }));
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await loadPack("it-medical", null, { purchasedAddOns: ["it-medical"] });
+
+    expect(result).toEqual({ ok: false, error: "checksum_mismatch" });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("STALE_HASH_MISMATCH-it-medical"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ADDON_NO_MANIFEST-it-medical"));
+    // Fail-closed before any network attempt — a missing manifest with tampered cache must
+    // never fall back to a fresh download of unverifiable content.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

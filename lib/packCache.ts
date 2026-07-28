@@ -232,16 +232,21 @@ export async function writeCacheData(lang: string, json: string): Promise<void> 
 // The enqueue loop below runs synchronously (before this function's first await), so the
 // removals claim their slot in each code's mutation chain at CALL time — a later re-merge's
 // writeCacheMeta/writeCacheData for the same code always lands after them, never under. (#396)
-async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE" | "CLEAR"): Promise<void> {
-  if (prunedCodes.length === 0) return;
+// Returns whether every removal succeeded (Task #415) — the caller aggregates this into
+// clearPackCache's own fully-clean report; a `false` here never rejects the promise, it is a
+// report, not an error, since a lone orphaned key is non-fatal (overwritten on next write).
+async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE" | "CLEAR"): Promise<boolean> {
+  if (prunedCodes.length === 0) return true;
   const results = await Promise.allSettled(
     prunedCodes.flatMap(code => [
       _enqueueStorageMutation(code, () => getStorage().removeItem(CACHE_META_PREFIX + code)),
       _enqueueStorageMutation(code, () => getStorage().removeItem(CACHE_DATA_PREFIX + code)),
     ]),
   );
+  let fullyClean = true;
   results.forEach((r, i) => {
     if (r.status === "rejected") {
+      fullyClean = false;
       const code = prunedCodes[Math.floor(i / 2)]!;
       const keyType = i % 2 === 0 ? "meta" : "data";
       console.error(
@@ -250,6 +255,7 @@ async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE
       );
     }
   });
+  return fullyClean;
 }
 
 /**
@@ -258,8 +264,14 @@ async function _clearSpecialtyStorageKeys(prunedCodes: string[], context: "WRITE
  * base-pack storage removal, and specialty storage removal. Pruning is delegated to
  * _clearSpecialtyStorageKeys, which PackMemCacheImpl.write() reuses for the in-memory-
  * replace case — one composable helper, two callers, no per-call-site boilerplate.
+ *
+ * Never rejects (all storage I/O is Promise.allSettled-wrapped — a storage failure is
+ * non-fatal, since memCache.delete() above already guarantees the in-memory state is
+ * correct regardless). Returns whether every storage removal actually succeeded
+ * (Task #415) so a caller that needs to know can find out, instead of a bare `void`
+ * masking a real, logged storage failure as indistinguishable from full success.
  */
-export async function clearPackCache(lang: string): Promise<void> {
+export async function clearPackCache(lang: string): Promise<boolean> {
   // Synchronous state changes run first — before any async I/O — so a concurrent
   // loadPack or loadSpecialtyPack that completes during the await cannot have its
   // freshly-written memCache entry wiped when this eviction's delete executes later. (#358)
@@ -272,13 +284,17 @@ export async function clearPackCache(lang: string): Promise<void> {
     _enqueueStorageMutation(lang, () => getStorage().removeItem(CACHE_META_PREFIX + lang)),
     _enqueueStorageMutation(lang, () => getStorage().removeItem(CACHE_DATA_PREFIX + lang)),
   ]);
+  let fullyClean = true;
   if (metaResult.status === "rejected") {
+    fullyClean = false;
     console.error(`[ERR-CACHE-CLEAR-META-${lang}-${Date.now()}] storage removeItem failed — meta key may persist`, metaResult.reason);
   }
   if (dataResult.status === "rejected") {
+    fullyClean = false;
     console.error(`[ERR-CACHE-CLEAR-DATA-${lang}-${Date.now()}] storage removeItem failed — data key may persist`, dataResult.reason);
   }
-  await _clearSpecialtyStorageKeys(prunedCodes, "CLEAR");
+  const specialtyClean = await _clearSpecialtyStorageKeys(prunedCodes, "CLEAR");
+  return fullyClean && specialtyClean;
 }
 
 // ── Shared parse/validate/cache-or-evict helpers ──────────────────────────────

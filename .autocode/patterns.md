@@ -445,3 +445,32 @@
 - [tests] Compound hydration recovery path (grace expiry then late hydration self-heal) untested — severity 4 | worldclass: -4 pts combined | WORLDCLASS
 - [performance] N concurrent useLangPack mounts multiply uncached fetchManifest calls and grace timers — severity 4 | worldclass: -3 pts | WORLDCLASS
 - [security] basePackLoader only-packLoader-may-import contract enforced by comment alone — severity 4 | worldclass: -2 pts | WORLDCLASS
+
+## 2026-07-27 | Task: batch 12 -- fourth re-audit (8 agents: A, B, S, N, K, W, V, Red R) -- ran against Wave 15's committed state (commit 9b12348)
+- [code-quality] Registered-specialty-pack-code predicate hand-rolled independently in 5 files with no shared function; already caused Task #384's registration-vs-readiness bug -- severity 5 | lib/importBackup.ts:isRegisteredSpecialtyCode:138 | REPEATED
+- [error-handling] getLangPair() doesn't repair malformed values the way its sibling getTargetLangCode() does; the sibling's own repair is never persisted either, permanently blocking backup restore for a corrupted stored value -- severity 5 | lib/constants.ts:getLangPair:46 | NEW
+- [concurrency] specialtyPackLoader's hand-rolled generation counter is asymmetrically hardened vs basePackLoader's shared generationGuard primitive -- severity 6 | lib/specialtyPackLoader.ts:_mergeFromJson:114 | ESCALATE
+- [security] Specialty pack offline/no-manifest fallback paths never re-verify sha256 against the recorded cache hash, asymmetric with basePackLoader's staleBytesMatchRecordedHash fix -- severity 6 | lib/specialtyPackLoader.ts:_doLoad:224 | REPEATED
+- [code-quality] Purchased-but-since-unready specialty pack routes into the unowned UI branch, showing a buy CTA to someone who already paid -- severity 6 | components/LanguageGrid.tsx:141 | NEW
+- [security] Loader-level base-pack entitlement gate is expiry-blind; isPackUnlocked's expiry logic never reached by the real content routes -- severity 5 | lib/packLoader.ts:loadPack:189 | NEW
+- [error-handling] evictPack can never reject (Promise.allSettled internally); clearEntitlement's defensive .catch and its re-throw block are dead code contradicting the function's own doc comment -- severity 6 | lib/packCache.ts:clearPackCache:235 | NEW
+- [security] isProEnabled never checks subscription expiry unlike its sibling isPackUnlocked; 3 live production call sites rely on it today -- severity 6 | lib/featureFlags.ts:isProEnabled:26 | NEW
+- [code-quality] store/srsStore.ts bypasses lib/constants.ts's sole-authorized-caller rule for localStorage, the same violation class fixed elsewhere under Task #340/#389 -- severity 5 | store/srsStore.ts:26 | NEW
+- [security] Restored licenseKey/instanceId validated only by typeof string with no length/charset check, bypassable via a crafted backup file -- severity 5 | lib/importBackup.ts:148 | NEW
+- [code-quality] parseFlag defaults to true unless explicitly disabled, inverting the safe-off default for an unfinished feature flag -- severity 5 | lib/featureFlags.ts:parseFlag:18 | NEW
+- [security] Hand-crafted unsigned backup import grants a full week of paid access with zero license-server contact, worse than the normal activation flow though not worse than direct localStorage editing -- severity 6 | hooks/useExportImport.ts:readFile:81 | NEW
+- [data-integrity] SRS migration validates only phaseStartDate; the other 9 IntroductionRecord fields pass through with zero type checking -- severity 6 | store/migrations.ts:88 | NEW
+- [error-handling] lib/constants.ts has zero try/catch anywhere; a localStorage throw crashes the page with no ErrorBoundary -- severity 6 | lib/constants.ts:15 | NEW
+- [data-integrity] useIsHydrated's failsafe timeout can silently overwrite live user state if real hydration finishes after the failsafe already gave up -- severity 6 | lib/storage.ts:useIsHydrated:114 | NEW
+- [code-quality] hasValidUnitsArray never cross-checks unitCount/cardCount against actual array lengths despite _mergeFromJson using them arithmetically -- severity 5 | lib/packTypes.ts:hasValidUnitsArray:75 | NEW
+- [documentation] lib/basePackLoader.ts's "USED BY: packLoader.ts ONLY" header is false (packResolver.ts also imports it); the test written to enforce this boundary asserts exactly two importers, contradicting its own name -- severity 4 | lib/basePackLoader.ts:15 | NEW
+- [code-quality] isSpecialtyPackCode's name promises registration but checks registration+ready, forcing 4 other files to hand-roll a workaround -- severity 4 | lib/langRegistry.ts:isSpecialtyPackCode:103 | NEW
+- [test-quality] 15 tests across 9 files fail the Deletion Test -- clustered specifically around entitlement/boundary-adjacent modules -- severity 4 (representative) | tests/packLoader.test.ts:441 | SYNTHESIS
+- [test-quality] "has all card type labels defined and non-trivial" asserts only non-empty/non-trivial, not the exact expected strings -- a transposed label would still pass -- severity 3 | tests/language.test.ts:198 | NEW
+- [code-quality] Sub-4-severity items (documentation drift, minor test hygiene, small duplication): logged to debt.md rather than promoted, see 2026-07-27 entries there.
+
+- [process] Fix-the-instance-miss-the-sibling recurred a 4th+ time in this exact batch across 4 unrelated findings (registration predicate, generation guard, sha256 offline path, srsStore localStorage call) -- severity 6 | CROSS-CUTTING | SYNTHESIS
+- [security] Two independent expiry-aware entitlement functions (isPackUnlocked, isProEnabled) both have real call paths bypassing their own expiry logic, via different mechanisms -- severity 6 | CROSS-CUTTING | SYNTHESIS
+- [code-quality] N-hand-rolled-copies-of-one-check recurs across 4+ unrelated categories (specialty-code registration, hydration timers, license/receipt regexes, magic-number length checks) -- severity 5 | CROSS-CUTTING | SYNTHESIS
+- [documentation] Every file touched by the #378 extraction now carries at least one stale header/CLAUDE.md claim; no CI gate compares header claims to real import graphs -- severity 5 | CROSS-CUTTING | SYNTHESIS
+- [error-handling] Multiple independent error paths erase the distinction between a real failure and a benign default, contrary to Rule 8 -- severity 5 | CROSS-CUTTING | SYNTHESIS

@@ -11,10 +11,13 @@ import { useStatsData } from "@/hooks/useStatsData";
 import DifficultyBar, { stabilityColorClass } from "@/components/DifficultyBar";
 
 export default function StatsPage() {
-  const { licenseType } = useEntitlementStore();
+  const { licenseType, validUntil } = useEntitlementStore();
   const { loading, seen, totalCards, now, hardest, weakestTags, levelStability, atRisk } =
     useStatsData();
-  if (!isProEnabled(getFeatureFlags().analytics, licenseType)) return <StatsProGate />;
+  // Task #420: isProEnabled is now expiry-aware — a lapsed subscriber past validUntil +
+  // its grace period is gated out here, matching isPackUnlocked's identical policy for
+  // pack access (previously this call site never checked expiry).
+  if (!isProEnabled(getFeatureFlags().analytics, licenseType, validUntil)) return <StatsProGate />;
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">

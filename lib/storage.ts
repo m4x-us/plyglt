@@ -82,7 +82,14 @@ export function createPlatformStorage(storeName: string): StateStorage {
 
 // ── Hydration helper ──────────────────────────────────────────────────────────
 
-type PersistApi = {
+type PersistApi<T = unknown> = {
+  // getState/setState/subscribe are the plain Zustand store API (present on every real
+  // store hook); optional here only so existing minimal test doubles that supply just
+  // `persist` keep type-checking. Without them the failsafe-reconciliation path below
+  // is skipped — the hook still degrades to its pre-#435 behaviour.
+  getState?(): T;
+  setState?(partial: Partial<T>): void;
+  subscribe?(listener: (state: T) => void): () => void;
   persist: {
     hasHydrated(): boolean;
     onFinishHydration(fn: () => void): () => void;
@@ -111,7 +118,7 @@ export const HYDRATION_FAILSAFE_MS = 3000;
  * Usage: const hydrated = useIsHydrated(useSRSStore);
  *        if (!hydrated) return <LoadingScreen />;
  */
-export function useIsHydrated(store: PersistApi): boolean {
+export function useIsHydrated<T extends object = Record<string, unknown>>(store: PersistApi<T>): boolean {
   // useSyncExternalStore (not useState+useEffect) is the correct primitive here: it
   // re-reads getSnapshot() itself immediately after subscribing and forces a re-render
   // if the value changed in the window between the initial render and the subscribe
@@ -131,14 +138,64 @@ export function useIsHydrated(store: PersistApi): boolean {
   const [failsafeExpired, setFailsafeExpired] = useState(false);
   useEffect(() => {
     if (hydrated) return;
+
+    // #435: track live state through the failsafe-to-real-hydration window. Zustand
+    // persist's hydrate() merges the freshly-loaded persisted blob over whatever the
+    // store's live state is at that moment (`{...currentState, ...persistedState}` —
+    // persisted fields win on overlap), calling set() BEFORE notifying onFinishHydration
+    // listeners. If real hydration finishes late (after the failsafe already told the
+    // app to proceed), that merge silently discards any writes the user made in between.
+    // `previousState` always trails `currentState` by exactly one change — including the
+    // merge's own change — so when the late-merge notification fires below, `previousState`
+    // holds the pre-merge (live) value while getState() already reflects the post-merge
+    // value. A field is only ever restored if BOTH (a) the user actually changed it during
+    // the window (differs from `snapshotAtExpiry`, the state when the failsafe fired) AND
+    // (b) the merge overwrote that change — otherwise a field the user never touched but
+    // that legitimately differs after a correct hydration (e.g. a persisted setting loading
+    // in for the first time) would be wrongly reverted back to its pre-hydration default.
+    let previousState: T | undefined;
+    let currentState: T | undefined;
+    const unsubscribeState = store.subscribe?.((state) => {
+      previousState = currentState;
+      currentState = state;
+    });
+
+    let unsubscribeLate: (() => void) | undefined;
     const failsafe = setTimeout(() => {
       if (store.persist.hasHydrated()) return;
       console.error(
         `[plyglt] [ERR-HYDRATION-TIMEOUT] hydration did not finish within ${HYDRATION_FAILSAFE_MS}ms — proceeding as hydrated with whatever state is present (likely a storage read failure)`
       );
       setFailsafeExpired(true);
+
+      const { getState, setState } = store;
+      if (getState && setState) {
+        const snapshotAtExpiry = getState();
+        unsubscribeLate = store.persist.onFinishHydration(() => {
+          const preMerge = previousState ?? snapshotAtExpiry;
+          const postMerge = getState();
+          const clobbered: Partial<T> = {};
+          for (const key of Object.keys(snapshotAtExpiry as object) as (keyof T)[]) {
+            const userTouched = !Object.is(preMerge[key], snapshotAtExpiry[key]);
+            if (userTouched && !Object.is(postMerge[key], preMerge[key])) {
+              clobbered[key] = preMerge[key];
+            }
+          }
+          if (Object.keys(clobbered).length > 0) {
+            console.error(
+              `[plyglt] [ERR-HYDRATION-LATE-MERGE] real hydration finished after the failsafe already gave up — restoring ${Object.keys(clobbered).join(", ")}, which the persisted merge would have silently overwritten`
+            );
+            setState(clobbered);
+          }
+        });
+      }
     }, HYDRATION_FAILSAFE_MS);
-    return () => clearTimeout(failsafe);
+
+    return () => {
+      clearTimeout(failsafe);
+      unsubscribeState?.();
+      unsubscribeLate?.();
+    };
   }, [store, hydrated]);
 
   return hydrated || failsafeExpired;

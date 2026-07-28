@@ -14,6 +14,8 @@ vi.mock("@/store/srsStore", () => ({
   },
 }));
 
+// Stable mock reference (not recreated per getState() call) so tests can assert on it.
+const mockSetEntitlement = vi.fn();
 vi.mock("@/store/entitlementStore", () => ({
   useEntitlementStore: {
     getState: () => ({
@@ -22,7 +24,7 @@ vi.mock("@/store/entitlementStore", () => ({
       licenseType: "free",
       unlockedPacks: [],
       validUntil: null,
-      setEntitlement: vi.fn(),
+      setEntitlement: mockSetEntitlement,
     }),
   },
 }));
@@ -94,6 +96,7 @@ describe("useExportImport — handleExport", () => {
 describe("useExportImport — handleImportFile", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    mockSetEntitlement.mockClear();
   });
 
   it("handleImportFile calls parseBackup on file content", async () => {
@@ -127,5 +130,47 @@ describe("useExportImport — handleImportFile", () => {
     expect((result.current.dataStatus as { type: "error"; message: string }).message).toBe(
       "Invalid backup format.",
     );
+  });
+
+  // ── Task #430: a restored backup must not grant a free validation grace period ──
+  it("#430: restoring a backup's license calls setEntitlement with lastValidated:0 (unverified) rather than Date.now()", async () => {
+    // Before #430, setEntitlement stamped lastValidated:Date.now() internally regardless
+    // of caller — an unsigned, hand-crafted backup with an arbitrary licenseKey/instanceId
+    // got a full VALIDATION_POLL_INTERVAL_MS grace period before the app ever contacted the
+    // real license server. lastValidated:0 makes needsValidation() true immediately, so
+    // components/EntitlementValidator.tsx re-validates on the very next app foreground.
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockReturnValueOnce({
+      ok: true,
+      srs: { cards: {}, streak: 0, lastStudiedDate: null },
+      entitlement: {
+        licenseKey: "FORGED-KEY",
+        instanceId: "forged-instance",
+        licenseType: "subscription",
+        unlockedPacks: ["it", "es"],
+        validUntil: null,
+        purchasedAddOns: [],
+      },
+      langPair: "en-it",
+      validCardCount: 0,
+      skippedCardCount: 0,
+    });
+
+    const { result } = renderHook(() => useExportImport());
+    const fileContent = JSON.stringify({ _version: 2, langPair: "en-it", srs: { cards: {} }, entitlement: {} });
+    const file = new File([fileContent], "backup.json", { type: "application/json" });
+
+    await act(async () => {
+      await result.current.readFile(file);
+    });
+
+    expect(mockSetEntitlement).toHaveBeenCalledWith({
+      licenseKey: "FORGED-KEY",
+      instanceId: "forged-instance",
+      licenseType: "subscription",
+      unlockedPacks: ["it", "es"],
+      validUntil: null,
+      lastValidated: 0,
+    });
   });
 });

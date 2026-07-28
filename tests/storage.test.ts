@@ -302,4 +302,97 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
       expect(() => act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); })).not.toThrow();
     });
   });
+
+  describe("late real-hydration merge reconciliation (#435)", () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    // A minimal but faithful Zustand-persist-shaped store: setState triggers subscribe
+    // listeners, and __simulateLateHydration mirrors persist's hydrate() exactly —
+    // set(merge(persisted, live)) THEN hasHydrated=true THEN notify finish listeners
+    // (see node_modules/zustand/esm/middleware.mjs) — before firing onFinishHydration.
+    function makeFullStore<T extends object>(initial: T) {
+      let state = initial;
+      let hydrated = false;
+      const listeners = new Set<(s: T) => void>();
+      const finishListeners = new Set<() => void>();
+      return {
+        getState: () => state,
+        setState: (partial: Partial<T>) => {
+          state = { ...state, ...partial };
+          listeners.forEach((l) => l(state));
+        },
+        subscribe: (listener: (s: T) => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        persist: {
+          hasHydrated: () => hydrated,
+          onFinishHydration: (fn: () => void) => {
+            finishListeners.add(fn);
+            return () => finishListeners.delete(fn);
+          },
+        },
+        __simulateLateHydration: (persisted: Partial<T>) => {
+          state = { ...state, ...persisted };
+          listeners.forEach((l) => l(state));
+          hydrated = true;
+          finishListeners.forEach((fn) => fn());
+        },
+      };
+    }
+
+    it("restores a live write that a late real-hydration merge would otherwise silently clobber", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ count: 0, theme: "light" });
+
+      const { result } = renderHook(() => useIsHydrated(store));
+      expect(result.current).toBe(false);
+
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+      expect(result.current).toBe(true); // app proceeds on the failsafe
+
+      // User acts during the failsafe-to-real-hydration window.
+      act(() => { store.setState({ count: 5 }); });
+      expect(store.getState().count).toBe(5);
+
+      // Real hydration finishes late with stale persisted data for the field the user
+      // just changed, plus a field the user never touched.
+      act(() => { store.__simulateLateHydration({ count: 1, theme: "dark" }); });
+
+      // The live write survives...
+      expect(store.getState().count).toBe(5);
+      // ...but a field the user never touched still takes the persisted value normally —
+      // reconciliation must not blanket-revert the whole merge.
+      expect(store.getState().theme).toBe("dark");
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      errorSpy.mockRestore();
+    });
+
+    it("does not touch state when real hydration finishes late but the user made no writes", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ count: 0, theme: "light" });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+
+      act(() => { store.__simulateLateHydration({ count: 7, theme: "dark" }); });
+
+      expect(store.getState()).toEqual({ count: 7, theme: "dark" });
+      expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      errorSpy.mockRestore();
+    });
+
+    it("does not reconcile when hydration finishes normally (no failsafe, no clobber risk)", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ count: 0 });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { store.__simulateLateHydration({ count: 3 }); });
+
+      expect(store.getState().count).toBe(3);
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+  });
 });

@@ -289,11 +289,14 @@ export function seedMemCache(lang: string, units: Unit[]): boolean {
  * result says exactly what happened, so callers can branch instead of parsing console
  * output. `useInstead` names the base language whose eviction clears a specialty code's
  * merged units. Discriminant is `evicted` (not LoadPackResult's `ok`): this is a
- * did-the-side-effect-happen report, not a data-or-error result. Lives here rather than
- * lib/packTypes.ts only because that file is owned by a concurrent stream this wave —
+ * did-the-side-effect-happen report, not a data-or-error result. `fullyClean` (Task #415)
+ * distinguishes a genuine, complete eviction from one where memCache was cleared but a
+ * storage removal failed and logged (lib/packCache.ts's clearPackCache never rejects, so
+ * this is the only way a caller can learn a residue was left behind). Lives here rather
+ * than lib/packTypes.ts only because that file is owned by a concurrent stream this wave —
  * relocation tracked in stream debt. */
 export type EvictPackResult =
-  | { evicted: true }
+  | { evicted: true; fullyClean: boolean }
   | { evicted: false; reason: "specialty_code"; useInstead: PackCode }
   | { evicted: false; reason: "unregistered_code" };
 
@@ -309,16 +312,16 @@ export type EvictPackResult =
  * Unregistered codes are also rejected to prevent clearPackCache from operating on poisoned
  * storage key namespaces. (#268)
  *
- * Caller contract (#325 → #398): the returned Promise ALWAYS resolves and the RESULT
- * states whether anything was evicted. The guard branches return synchronously; the real
- * eviction path's non-rejection additionally relies on clearPackCache swallowing storage
- * failures internally (Promise.allSettled + logs, lib/packCache.ts) — a cross-file
- * invariant, which is why clearEntitlement's defensive .catch remains live, not dead code.
- * The former #325 caveat
- * ("callers must not infer eviction from a fulfilled promise") is now enforced by type:
- * check `.evicted`. Rejected inputs log one warn each (#271/#341) — the previous second,
- * escalated error log existed only because the no-op was invisible to callers; the typed
- * result is that signal now (also resolves the #402 double-log finding).
+ * Caller contract (#325 → #398 → #415): the returned Promise ALWAYS resolves — evictPack
+ * itself never rejects, because clearPackCache never rejects (it swallows every storage
+ * failure internally via Promise.allSettled + logs, lib/packCache.ts). A caller that needs
+ * to know whether a storage failure occurred (not just whether memCache was cleared) MUST
+ * check `.fullyClean`, not wrap the call in try/catch — nothing here ever throws. The
+ * former #325 caveat ("callers must not infer eviction from a fulfilled promise") is now
+ * enforced by type: check `.evicted` (and, for the genuine-eviction branch, `.fullyClean`).
+ * Rejected inputs log one warn each (#271/#341) — the previous second, escalated error log
+ * existed only because the no-op was invisible to callers; the typed result is that signal
+ * now (also resolves the #402 double-log finding).
  */
 export async function evictPack(lang: string): Promise<EvictPackResult> {
   if (!isValidPackCode(lang)) {
@@ -344,8 +347,8 @@ export async function evictPack(lang: string): Promise<EvictPackResult> {
   // gate-checked load instead of piggybacking on the pre-eviction promise. Already-attached
   // callers still receive that promise's (uncached) result — see the registry doc above.
   inFlightBaseLoads.delete(lang);
-  await clearPackCache(lang);
-  return { evicted: true };
+  const fullyClean = await clearPackCache(lang);
+  return { evicted: true, fullyClean };
 }
 
 /**

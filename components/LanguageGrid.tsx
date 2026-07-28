@@ -34,9 +34,13 @@ interface Props {
   hasAddOn: (code: string) => boolean;
   // Task #356: required so the Add-ons section can gate on Pro subscription status.
   licenseType: LicenseType;
+  // Task #420: required so isProEnabled can apply its expiry check — without this, a
+  // lapsed subscriber past validUntil + grace period stayed Pro-gated-in for the Add-ons
+  // section indefinitely, unlike isPackUnlocked's identical expiry policy for pack access.
+  validUntil: number | null;
 }
 
-export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn, licenseType }: Props) {
+export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddOn, licenseType, validUntil }: Props) {
   // Task #276/#306: Feature flag gate for specialty pack UI. Reads via the canonical
   // getFeatureFlags() accessor so parseFlag()'s full falsy-value set ('false','0','off','no')
   // is respected — not just === "false". NEXT_PUBLIC_* vars are inlined at build time
@@ -47,7 +51,7 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
   // who has the base language unlocked (Italian is always free) should NOT see the "buy
   // add-on" CTA — they would hit ERR_ADDON_NOT_PRO if they clicked through. Only Pro
   // subscribers (or users who already own an add-on before a lapse) see the section.
-  const isPro = isProEnabled(specialtyPacksEnabled, licenseType);
+  const isPro = isProEnabled(specialtyPacksEnabled, licenseType, validUntil);
 
   // Task #278: Use SPECIALTY_PACKS directly rather than iterating unlocked base languages.
   // Each specialty pack appears exactly once — no deduplication needed.
@@ -139,20 +143,44 @@ export function LanguageGrid({ onSelect, onUpgradeClick, isPackUnlocked, hasAddO
           <div className="space-y-2">
             {specialtyPacks.map(sp => {
               const purchased = hasAddOn(sp.code);
-              return purchased && sp.ready ? (
-                <button
-                  key={sp.code}
-                  onClick={() => onSelect(sp.code)}
-                  className="w-full flex items-center gap-4 rounded-2xl border border-gray-700 bg-gray-900 hover:border-yellow-600 hover:bg-gray-800 px-5 py-4 transition-all group"
-                >
-                  <div className="flex-1 text-left">
-                    <div className="font-semibold text-white group-hover:text-yellow-300 transition-colors">
-                      {sp.name}
+              if (purchased && sp.ready) {
+                return (
+                  <button
+                    key={sp.code}
+                    onClick={() => onSelect(sp.code)}
+                    className="w-full flex items-center gap-4 rounded-2xl border border-gray-700 bg-gray-900 hover:border-yellow-600 hover:bg-gray-800 px-5 py-4 transition-all group"
+                  >
+                    <div className="flex-1 text-left">
+                      <div className="font-semibold text-white group-hover:text-yellow-300 transition-colors">
+                        {sp.name}
+                      </div>
+                    </div>
+                    <span className="text-gray-600 group-hover:text-white transition-colors text-lg">›</span>
+                  </button>
+                );
+              }
+              if (purchased && !sp.ready) {
+                // Task #411: owned but currently unready (deprecated or rolled back after
+                // purchase). Readiness gates purchasing and loading, never retention (Task
+                // #384 policy) — this state must never route through onUpgradeClick (no
+                // purchase needed) or onSelect (the pack cannot load yet). Not a <button>:
+                // there is no action for the user to take here.
+                return (
+                  <div
+                    key={sp.code}
+                    className="w-full flex items-center gap-4 rounded-2xl border border-gray-800 bg-gray-900/30 px-5 py-4"
+                  >
+                    <div className="flex-1 text-left">
+                      <div className="font-semibold text-gray-400">{sp.name}</div>
+                      <div className="text-xs text-gray-600">Coming soon</div>
+                    </div>
+                    <div className="text-xs text-gray-600 border border-gray-700 rounded-full px-2.5 py-0.5">
+                      Owned
                     </div>
                   </div>
-                  <span className="text-gray-600 group-hover:text-white transition-colors text-lg">›</span>
-                </button>
-              ) : (
+                );
+              }
+              return (
                 <button
                   key={sp.code}
                   onClick={() => onUpgradeClick(sp.code)}
