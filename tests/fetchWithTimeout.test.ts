@@ -73,16 +73,34 @@ describe("fetchWithTimeout", () => {
     await assertion;
   });
 
-  it("the backstop timer does not fire (no unhandled rejection) when fetch settles first", async () => {
+  it("clears the backstop's own timer in the finally block when fetch settles first", async () => {
+    // Task #472: the previous version of this test only advanced timers past the timeout
+    // after resolution and asserted nothing threw. That proves nothing — Promise.race
+    // already attaches a rejection handler to the backstop promise at race-call time, so
+    // even an uncleared backstop timer firing later becomes an already-handled rejection
+    // with no observable effect (no throw, no unhandled-rejection warning). Spying on
+    // setTimeout/clearTimeout directly and asserting clearTimeout was called with the
+    // SPECIFIC id setTimeout returned for the backstop timer is the only way to prove the
+    // `finally` block's clearTimeout(backstopTimeoutId!) actually ran, rather than assuming
+    // it from an absence of side effects.
     vi.useFakeTimers();
     const mockResponse = { ok: true, status: 200 } as Response;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
 
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
     const result = await fetchWithTimeout("https://example.test/pack.json");
     expect(result).toBe(mockResponse);
 
-    // Advancing time past the timeout after resolution must not throw or reject anything —
-    // the backstop's timer was cleared in the `finally` block.
-    await vi.advanceTimersByTimeAsync(FETCH_TIMEOUT_MS + 1000);
+    // Two independent timers are armed, in this order (lib/fetchWithTimeout.ts): the abort
+    // timer first, then the backstop's own timer. Capture the SECOND setTimeout call's
+    // returned id specifically — that is the backstop's id, not the abort timer's.
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
+    const backstopTimeoutId = setTimeoutSpy.mock.results[1]!.value;
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(backstopTimeoutId);
+
+    setTimeoutSpy.mockRestore();
+    clearTimeoutSpy.mockRestore();
   });
 });

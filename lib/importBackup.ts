@@ -84,8 +84,16 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // non-array). A truthiness-only check accepted entitlement:"corrupted" or entitlement:5
   // and silently defaulted every entitlement field instead of rejecting the backup the
   // way equally-malformed srs input is rejected.
+  // Task #467: `!data._version` alone only rejects FALSY values (0/null/undefined/"") — a
+  // truthy but non-number _version (e.g. the string "999") passed this guard untouched, and
+  // then also skipped the newer-version rejection below (gated on `typeof === "number"`),
+  // completely bypassing the "reject backups written by a newer app" check this function
+  // exists to enforce. Requiring `typeof data._version === "number"` here closes that gap —
+  // any non-number _version is now treated as a malformed backup, the same bucket every
+  // other basic shape failure in this guard already falls into.
   if (
     !data._version ||
+    typeof data._version !== "number" ||
     typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) ||
     typeof data.entitlement !== "object" || data.entitlement === null || Array.isArray(data.entitlement)
   )

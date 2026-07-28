@@ -138,6 +138,58 @@ describe("validatePack — unitCount/cardCount cross-check (mirrors hasValidUnit
   });
 });
 
+// ── validatePack: duplicate-card-ID loop must not throw on malformed cards (F468) ──
+
+describe("validatePack — duplicate card-ID check tolerates malformed cards fields (#468)", () => {
+  it("returns a normal error array (not an uncaught exception) when a unit's cards field is null", () => {
+    // Before #468, this loop cast `unit["cards"]` straight to Json[] with no isArray guard
+    // (unlike validateUnit's own check) — cards: null threw an uncaught TypeError instead
+    // of returning validatePack's own `(raw): string[]` contract, crashing the CI validator
+    // process (npm run pack:validate:all) on exactly the malformed input it exists to catch.
+    const pack = makeValidPack({ units: [makeValidUnit({ cards: null })], unitCount: 1, cardCount: 0 });
+    expect(() => validatePack(pack)).not.toThrow();
+    const errors = validatePack(pack);
+    expect(errors).toContain("units[0].cards: must be a non-empty array");
+  });
+
+  it("tolerates a unit's cards field being a non-array, non-null value (string)", () => {
+    const pack = makeValidPack({ units: [makeValidUnit({ cards: "not-an-array" })], unitCount: 1, cardCount: 0 });
+    expect(() => validatePack(pack)).not.toThrow();
+  });
+
+  it("tolerates a non-object unit inside the units array (e.g. null)", () => {
+    // Built directly (not via makeValidPack) — that helper's own totalCards computation
+    // assumes well-formed units, which is exactly what this test deliberately violates.
+    const pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      unitCount: 1, cardCount: 0, units: [null],
+    };
+    expect(() => validatePack(pack)).not.toThrow();
+  });
+
+  it("tolerates a non-array units field on the pack itself", () => {
+    const pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      unitCount: 0, cardCount: 0, units: "not-an-array",
+    };
+    expect(() => validatePack(pack)).not.toThrow();
+  });
+
+  it("tolerates a non-object card element inside an otherwise-valid cards array", () => {
+    const pack = makeValidPack({ units: [makeValidUnit({ cards: [null] })], unitCount: 1, cardCount: 1 });
+    expect(() => validatePack(pack)).not.toThrow();
+  });
+
+  it("still detects real duplicate card IDs across units after the guard is added", () => {
+    const units = [
+      makeValidUnit({ id: "u1", cards: [makeValidCard({ id: "dupe" })] }),
+      makeValidUnit({ id: "u2", cards: [makeValidCard({ id: "dupe" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors).toContain("Duplicate card IDs: dupe");
+  });
+});
+
 // ── validateUnit: sanity that the exported function still works standalone ───
 
 describe("validateUnit — sanity (unchanged by this task, exported for direct testing)", () => {

@@ -140,4 +140,28 @@ describe("getFeatureFlags", () => {
     process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE = "yes-please";
     expect(getFeatureFlags().interruptEngine).toBe(true);
   });
+
+  // Task #471 (F05): Task #462 made TRUTHY_FLAG_VALUES = ["true", "1"], but no test ever
+  // set an env var to "1" — only "true" was exercised. Deletion Test: removing "1" from
+  // TRUTHY_FLAG_VALUES makes this test fail (specialtyPacks defaults OFF, so an explicit
+  // "1" that fell through to defaultEnabled instead of matching the truthy branch would
+  // resolve to false, not true) — verified by temporarily reverting the fix and confirming
+  // failure, then restoring, before closing this task.
+  it("'1' resolves to enabled=true on a default-OFF flag (specialtyPacks) — the discriminating case", () => {
+    process.env.NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS = "1";
+    expect(getFeatureFlags().specialtyPacks).toBe(true);
+  });
+
+  // Symmetry with the default-off case above and with the falsy-value suite's coverage of
+  // both default states (interruptEngine is exercised there too). Note this specific
+  // assertion is NOT independently Deletion-Test-discriminating for "1" — interruptEngine's
+  // default is already true, so a value that fell through to defaultEnabled would produce
+  // the same true result. The default-OFF test above is what actually proves "1" is
+  // recognized as an explicit truthy signal; this test guards against a DIFFERENT
+  // regression (e.g. "1" incorrectly resolving to false via a reordered/broken truthy
+  // check) on the default-on path.
+  it("'1' resolves to enabled=true on a default-ON flag (interruptEngine) too", () => {
+    process.env.NEXT_PUBLIC_FLAGS_INTERRUPT_ENGINE = "1";
+    expect(getFeatureFlags().interruptEngine).toBe(true);
+  });
 });

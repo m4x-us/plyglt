@@ -76,7 +76,8 @@ export interface LoadPackOptions {
 // resurrect the evicted pack in memCache or storage. Same class of guard as
 // specialtyPackLoader's deactivationGeneration (Task #394) — Rule 19b symmetry, #378 F001.
 // Shared primitive (lib/generationGuard.ts) — same shape as specialtyPackLoader's
-// deactivationGeneration; that file's adoption is a tracked carry-forward.
+// deactivationGeneration; that file's adoption is complete (Task #394/#447/#456), not a
+// carry-forward.
 //
 // KEYED PER LANGUAGE (Task #436): a single global counter meant evicting "es" also voided
 // an unrelated, already in-flight "it" load's right to cache — that load still served

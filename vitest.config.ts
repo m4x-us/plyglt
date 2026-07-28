@@ -23,7 +23,21 @@ export default defineConfig({
         branches: 81,
         statements: 82,
       },
-      exclude: ["node_modules", "tests", ".next", "scripts"],
+      // Task #473: "scripts" was previously excluded wholesale — this hid
+      // scripts/validatePack.ts's substantial validator logic (Task #459's prerequisites
+      // and unitCount/cardCount cross-checks) from the Verification Gate's coverage
+      // percentages, even though tests/validatePack.test.ts already exercises it directly
+      // (validatePack.ts guards its CLI section behind an isMainModule check specifically
+      // so its exported functions are safely importable in tests). Narrowed the exclude to
+      // only the two scripts that are genuinely unsafe to import in a test process:
+      // scripts/exportPack.ts and scripts/checkCardIds.ts both run unconditional top-level
+      // side effects (file writes, process.argv reads, process.exit()) with no
+      // isMainModule guard and no exported pure functions — importing either would
+      // execute real file I/O and kill the test worker via process.exit(), not just fail
+      // a test. Giving them dedicated tests would require extracting their logic behind a
+      // guard first (the same refactor validatePack.ts already has) — out of this task's
+      // single-file scope; logged as follow-up work if their coverage is ever needed.
+      exclude: ["node_modules", "tests", ".next", "scripts/exportPack.ts", "scripts/checkCardIds.ts"],
     },
   },
   resolve: {

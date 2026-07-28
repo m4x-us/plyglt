@@ -176,13 +176,25 @@ export function validatePack(raw: unknown): string[] {
   }
 
   // Card ID uniqueness
+  // Task #468: mirrors validateUnit's own isObj(unit)/isArray(unit["cards"]) guards
+  // (lines 98/118 above) before ever touching unit.cards — this loop previously cast
+  // straight to Json[] with no guard at all, so a unit with a malformed cards field (e.g.
+  // cards: null) threw an uncaught TypeError instead of returning the accumulated
+  // errors[] this function's own `(raw): string[]` contract promises, crashing the CI
+  // validator process. A malformed unit/cards shape is already reported by validateUnit's
+  // own errors above (the loop at line ~149) — skipping it here just avoids re-processing
+  // already-broken input a second time, not losing any error reporting.
   const ids = new Set<string>();
   const duplicates = new Set<string>();
-  for (const unit of (raw["units"] as Json[])) {
-    for (const card of (unit["cards"] as Json[])) {
-      const id = card["id"] as string;
-      if (ids.has(id)) duplicates.add(id);
-      ids.add(id);
+  if (isArray(raw["units"])) {
+    for (const unit of (raw["units"] as Json[])) {
+      if (!isObj(unit) || !isArray(unit["cards"])) continue;
+      for (const card of (unit["cards"] as Json[])) {
+        if (!isObj(card)) continue;
+        const id = card["id"] as string;
+        if (ids.has(id)) duplicates.add(id);
+        ids.add(id);
+      }
     }
   }
   if (duplicates.size > 0) {

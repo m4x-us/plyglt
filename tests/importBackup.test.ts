@@ -421,6 +421,22 @@ describe("parseBackup", () => {
     expect(r.error).toMatch(/update/i);
   });
 
+  it("#467: rejects a truthy but non-number _version (e.g. a string) instead of silently accepting it", () => {
+    // Before #467, `!data._version` only rejected FALSY values, and the newer-version
+    // rejection only fired for `typeof === "number"` — a truthy string like "999" passed
+    // both guards untouched and was silently accepted, completely bypassing the
+    // "reject backups written by a newer app" check this function exists to enforce.
+    const backup = validBackup({ _version: "999" });
+    const r = parseBackup(backup);
+    expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+  });
+
+  it("#467: rejects other non-number truthy _version shapes (object, array, boolean)", () => {
+    expect(parseBackup(validBackup({ _version: {} }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    expect(parseBackup(validBackup({ _version: [2] }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    expect(parseBackup(validBackup({ _version: true }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+  });
+
   it("coerces malformed langPair format to en-it default", () => {
     const backup = validBackup({ langPair: "en-XXXXXXXX" });
     const r = parseBackup(backup);

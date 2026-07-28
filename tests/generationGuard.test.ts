@@ -1,7 +1,7 @@
 // === tests/generationGuard.test.ts ===
 // Unit tests for lib/generationGuard.ts — the shared snapshot/bump/isStale primitive
-// backing basePackLoader's eviction guard (and, via carry-forward, specialtyPackLoader's
-// deactivation guard).
+// backing basePackLoader's eviction guard, specialtyPackLoader's deactivation guard, and
+// entitlementAddOns' deactivation guard — all three adoptions are complete (Task #456).
 
 import { describe, it, expect } from "vitest";
 import { createGenerationGuard } from "@/lib/generationGuard";

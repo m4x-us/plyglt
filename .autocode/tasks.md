@@ -2822,10 +2822,11 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 125 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 132 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Sixth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 9 (critical) — 22 findings (F1-F22) merged/scored by Agent C; 11 findings (severity ≥4) promoted as Task #455-#465 below; 11 findings (severity ≤3) logged to debt.md. Critical finding: Task #450's widened Verification Gate is currently red by its own literal wording (29 pre-existing hits) and the batch was carried to zero open tasks without an updated cycle-6 verdict — see Task #455. Task #466 added per Max's explicit direction (2026-07-28) to close this mechanically via CI, not rely on the audit process to catch it again next time. Wave 20 (4 streams: Adam/Barry/Charles/Derek) closed all 12 tasks (#455-466) 2026-07-28, independently re-verified against actual source: tsc clean, 1403/1403 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean (genuinely zero hits — the critical finding is resolved), CI now mechanically enforces the gate on every push/PR. Per BATCH_REMEDIATION_GATE, task completion alone doesn't close the gate — a fresh "/audit batch 12" run must PASS next.
+Seventh re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — cycle-6's critical process failure (the gate silently red) is confirmed genuinely fixed, but 2 new LIVE bugs surfaced via execution-based testing (a backup-restore version-check bypass, and an uncaught-crash bug in the CI pack validator itself), plus the batch's own recurring "fix the instance, miss the sibling" pattern struck again inside this wave's own fixes (4 of 7 promoted findings are the fix-that-recreates-its-own-defect-class shape). 7 findings (severity ≥4) promoted as Task #467-473 below; 13 findings (severity ≤3) logged to debt.md. Wave 21 (4 streams: Adam/Barry/Charles/Derek) closed all 7 tasks 2026-07-28, independently re-verified: tsc clean, 1424/1424 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean, scripts/validatePack.ts now genuinely counted in coverage (67.76%/76.85%/100%/66.66%), aggregate thresholds still exceeded. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
 Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
 Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
@@ -6416,6 +6417,148 @@ Task #455 (cycle-6 finding F1) exists because the Verification Gate's banned-ass
 - [ ] Verified by pushing/simulating a PR that reintroduces one banned assertion and confirming CI fails on it
 
 **Source:** Cycle-6 audit finding F1 follow-up — severity 7 — owner-directed (Max, 2026-07-28): "We should be mechanically enforcing things instead of relying on the honor system." Companion to Task #455 — that task clears the existing debt, this task prevents it from silently recurring.
+
+---
+
+### Task #467: Fix data-integrity: parseBackup's newer-app-version compatibility gate is bypassed by a truthy non-number _version
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Adam (W21A); added typeof data._version !== "number" to the shape guard; verified via direct execution before and after the fix, plus by hand-reverting and confirming the new tests fail)
+
+**What:**
+parseBackup's early guard (`!data._version`) only rejects falsy values; the newer-version rejection only fires `if (typeof data._version === "number" && data._version > CURRENT_BACKUP_VERSION)`. A truthy non-number `_version` (e.g. the string `"999"`) passes both guards untouched, completely bypassing the "reject backups written by a newer app" check this function exists to enforce. Confirmed by direct execution: `parseBackup({_version: "999", srs:{...}, entitlement:{...}})` returns `{ok:true,...}` instead of the intended rejection. A hand-edited or corrupted backup (or a genuinely newer app version that ever serializes _version as a string) defeats the entire compatibility gate. at lib/importBackup.ts:94.
+
+**Acceptance Criteria:**
+- [ ] A non-number (but truthy) _version value is rejected the same way an out-of-range number is, with the same or an equally clear error message
+- [ ] A test supplies a string _version like "999" and asserts the backup is rejected, not silently accepted
+
+**Source:** Cycle-7 audit finding F01 — severity 7 — convergence 1/8 (Agent N, verified via direct execution) — LIVE, shipped backup-restore path.
+
+---
+
+### Task #468: Fix error-handling: validatePack's card-ID-uniqueness loop throws uncaught instead of returning errors
+
+**File:** scripts/validatePack.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Adam (W21A); mirrored validateUnit's isObj/isArray guards before the duplicate-ID loop's unit/cards/card access; verified via direct execution that the crash is gone and duplicate detection still works)
+
+**What:**
+The duplicate-card-ID check (`for (const unit of (raw["units"] as Json[])) { for (const card of (unit["cards"] as Json[])) ... }`) casts without the same isArray() guard validateUnit already uses (line 118) before its own "cards must be an array" error. A unit with `cards: null` throws an uncaught TypeError ("... is not iterable") instead of returning the accumulated string[] of errors, breaking the function's own `(raw): string[]` contract and crashing the CI validator process (`npm run pack:validate:all`) on exactly the malformed input the validator exists to catch gracefully. Confirmed by direct execution. at scripts/validatePack.ts:181.
+
+**Acceptance Criteria:**
+- [ ] The duplicate-ID loop guards against a non-array cards field the same way validateUnit's own check does, and accumulates an error instead of throwing
+- [ ] A test supplies a unit with cards:null (or any non-array) and asserts validatePack returns a normal error array, not an uncaught exception
+
+**Source:** Cycle-7 audit finding F02 — severity 6 — convergence 1/8 (Agent N, verified via direct execution) — LIVE, this is the real CI pack-validation code path.
+
+---
+
+### Task #469: Fix test-coverage: store/entitlementCrossTabSync.ts has no dedicated test file for its concurrency-safety logic
+
+**File:** tests/entitlementCrossTabSync.test.ts (new)
+**Complexity:** ⚡ Direct — 1 new file, single-scope addition
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Barry (W21B); new 11-test file covering dedup, requeue (including multi-hop and burst-collapse), and synchronous-throw AND async-rejection recovery paths; 100% stmt/branch/func/line coverage on the module, up from 72.72%/62.5% incidental)
+
+**What:**
+No test file in the repo imports store/entitlementCrossTabSync.ts by name. Its 72.72%/62.5% stmt/branch coverage is 100% incidental fallout from entitlementStore's own tests. The dedup-in-flight path (Task #304), the requeue-after-in-flight-settles path (Task #347, lines ~68), and the synchronous-throw catch-recovery path (Task #363, lines ~79-83) — the exact concurrency-safety guarantees this module's own header comment claims — are never directly exercised by any test. The same wave's Task #461 gave a structurally identical sibling extraction (lib/specialtyPackMerge.ts) a full dedicated test file specifically because it was flagged "highest-risk"; this module, carrying comparable concurrency-safety logic, did not get the same treatment. This is the highest-convergence finding of cycle 7 — 5 of 8 independent reviewers found it via 5 different methods. at store/entitlementCrossTabSync.ts:1.
+
+**Acceptance Criteria:**
+- [ ] tests/entitlementCrossTabSync.test.ts exists, calling createCrossTabSync directly with a fake rehydrate function
+- [ ] Covers: concurrent/rapid storage events while a rehydrate is in flight (the requeue path), and a rehydrate() that throws synchronously (the catch-recovery path that resets rehydrateInFlight rather than locking it true forever)
+- [ ] Existing indirect coverage via tests/entitlement.test.ts / tests/entitlementStoreEventWiring.test.ts is not duplicated, only supplemented
+
+**Source:** Cycle-7 audit finding F03 — severity 5 — convergence 5/8 (Agents A, B, K, W, Red R — highest convergence this cycle) — LIVE, this sync mechanism runs in production web builds today, not gated behind specialty-pack readiness.
+
+---
+
+### Task #470: Fix documentation: generationGuard.ts's corrected header now contradicts two sibling docs touched the same wave
+
+**File:** lib/basePackLoader.ts, tests/generationGuard.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope doc fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Charles (W21C); both comments corrected to state the adoption is complete; grepped the whole repo for "carry-forward" post-fix to confirm no 4th code/test file makes the stale claim)
+
+**What:**
+Task #456 (Wave 20) corrected lib/generationGuard.ts's header to state all 3 GenerationGuard adoptions are complete ("none is a carry-forward"). But lib/basePackLoader.ts:78-79 — touched that SAME wave for the fetchWithTimeout swap — still says "that file's adoption is a tracked carry-forward," directly contradicting the just-corrected header. tests/generationGuard.test.ts:3 also still says "via carry-forward." Three files now disagree on the same fact. This is a direct recurrence, one file away, of the exact citation-staleness class Task #456 itself existed to close (Rule 23: a fix must not recreate its own defect class). at lib/basePackLoader.ts:79.
+
+**Acceptance Criteria:**
+- [ ] lib/basePackLoader.ts's comment updated to state specialtyPackLoader's adoption is complete, not a carry-forward
+- [ ] tests/generationGuard.test.ts's comment updated to match
+- [ ] No behavior change — documentation only
+
+**Source:** Cycle-7 audit finding F04 — severity 4 — convergence 2/8 (Agents A, B) — Rule 23 direct hit (a fix reproducing its own defect class one hop away).
+
+---
+
+### Task #471: Fix test-quality: featureFlags.ts's TRUTHY_FLAG_VALUES second entry ("1") is never exercised by any test
+
+**File:** tests/featureFlags.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Charles (W21C); 2 new tests for "1" on both a default-off and default-on flag; Deletion Test verified by hand-reverting TRUTHY_FLAG_VALUES and confirming the default-off test fails)
+
+**What:**
+Task #462 (Wave 20) made parseFlag symmetric via TRUTHY_FLAG_VALUES = ["true", "1"], mirroring the existing FALSY_FLAG_VALUES. tests/featureFlags.test.ts exhaustively enumerates the falsy side via it.each(["0","off","False","no","NO"]) per Rule 16, but never once sets a flag env var to "1" — only "true" is tested. Deletion Test fails: removing "1" from TRUTHY_FLAG_VALUES breaks zero existing tests. This is a Rule 16 (Enumerate Before You Assert) violation in the exact same wave that introduced the enumeration Rule 16 is named for. at tests/featureFlags.test.ts:1.
+
+**Acceptance Criteria:**
+- [ ] A test sets a flag env var to "1" and asserts it resolves to enabled=true, for both a default-off and default-on flag
+- [ ] Deletion Test: removing "1" from TRUTHY_FLAG_VALUES now fails the new test
+
+**Source:** Cycle-7 audit finding F05 — severity 4 — convergence 1/8 (Red Agent R) — Rule 16 violation, LIVE (gates isProEnabled broadly).
+
+---
+
+### Task #472: Fix test-quality: fetchWithTimeout.test.ts's "backstop does not fire" test is pseudocode
+
+**File:** tests/fetchWithTimeout.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Derek (W21D); rewrote to spy on global setTimeout/clearTimeout and assert the backstop's specific timer id was cleared; Deletion Test verified by hand-reverting the finally block and confirming the rewritten test fails)
+
+**What:**
+The test "the backstop timer does not fire (no unhandled rejection) when fetch settles first" (line 76) claims to prove the backstop timer is inert after early settlement, but deleting the finally block's clearTimeout(backstopTimeoutId!) would NOT fail this test — Promise.race already attaches a rejection handler to the backstop promise at race-call time, so a later, uncleared rejection becomes an already-handled promise with no observable effect the test can detect. This is a Rule 18 (Test Falsifiability / B7) violation in a brand-new file authored this same wave specifically to close a prior test-quality gap. at tests/fetchWithTimeout.test.ts:76.
+
+**Acceptance Criteria:**
+- [ ] The test is rewritten to actually prove the timer was cleared — e.g. spy on clearTimeout, or use a mechanism that would observably fail if the timer fired uncleared
+- [ ] Deletion Test: removing the finally block's clearTimeout(backstopTimeoutId!) now fails the rewritten test
+
+**Source:** Cycle-7 audit finding F06 — severity 4 — convergence 2/8 (Agents K, V) — Rule 18 violation.
+
+---
+
+### Task #473: Fix CI structural gap: vitest.config.ts excludes scripts/ from coverage, hiding this batch's own validator logic from the Verification Gate
+
+**File:** vitest.config.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 21 — Derek (W21D); narrowed the blanket "scripts" exclude to just scripts/exportPack.ts and scripts/checkCardIds.ts (the two files genuinely unsafe to import — unconditional process.exit()/file I/O with no guard); scripts/validatePack.ts now has real, non-zero coverage; aggregate thresholds still pass)
+
+**What:**
+vitest.config.ts's coverage.exclude list includes "scripts" — meaning scripts/validatePack.ts's substantial new logic this batch (Task #459's prerequisites and unitCount/cardCount cross-checks) cannot move the Verification Gate's coverage percentages at all. This is structurally the same shape as cycle 6's own headline finding ("the gate doesn't scan what it claims to guard"), just inverted (scope too narrow rather than newly-widened-and-ignored). Not currently exploitable — lib/packTypes.ts's hasValidUnitsArray runtime guard independently enforces the same invariants — but the gate's green status says nothing about this batch's own new validator code. at vitest.config.ts:26.
+
+**Acceptance Criteria:**
+- [ ] scripts/ is removed from coverage.exclude, or a documented, deliberate reason is written for why it stays excluded
+- [ ] If included: coverage thresholds re-verified to still pass with scripts/ counted (tests/validatePack.test.ts already exists and should cover the bulk of it)
+
+**Source:** Cycle-7 audit finding F07 — severity 4 — convergence 1/8 (Agent W) — structural CI/coverage-gate risk, echoes cycle 6's own root cause.
 
 ---
 
