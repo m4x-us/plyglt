@@ -71,7 +71,20 @@ After every batch reaches 100% COMPLETE:
 3. Log the result in `.autocode/agents/cto.md` `## Batch Audit Log`.
 4. If the audit returns FAIL: stop. Fix all findings before starting the next batch.
 
-No batch may be marked `[COMPLETE]` in `.autocode/tasks.md` until step 2 returns PASS.
+No batch may be marked `[COMPLETE]` in `.autocode/tasks.md` until step 2 returns PASS, **except** via the accept-as-debt exception below.
+
+**Accept-as-debt exception:** Max may end a batch's remediation cycle early — logging remaining findings to `debt.md` and closing the gate without a clean PASS — when continued audit cycles are judged diminishing returns relative to the actual risk in the code. This requires Max's explicit sign-off each time; it is never an automatic default, and never something an agent decides unilaterally.
+
+## Audit Severity Calibration (this project only — do not assume this applies elsewhere)
+
+Severity in `/audit` findings must reflect live, user-facing impact **today** — never reviewer count, investigation depth, or how enthusiastically a reviewer applied the Rule 23 "fix recreates its own defect" lens. Before any finding is scored severity ≥7 (the threshold that makes it a must-fix-now task instead of debt), both must be true:
+
+1. Is this code path reachable by a real caller **today**, with the code exactly as it ships — not a hypothetical future caller or a component that doesn't exist yet?
+2. Does it produce an incorrect, unsafe, or data-losing outcome an actual user would experience — not just an internal inconsistency, a comment, or a style/architecture preference?
+
+If the honest answer to either is no, cap severity at 4 — it goes to `debt.md`, not a blocking task — regardless of how many reviewers independently found it or how rigorously it was traced. Convergence and investigation rigor are evidence a finding is *real*. They are never evidence it is *severe*. Doc-comment accuracy, test-elegance nits on already-correct code, and edge cases that require a component or caller that doesn't exist in this codebase are debt by default.
+
+**Why this exists:** Batch 12 ran 11 audit cycles on a handful of small files (a backup-file parser, a cross-tab sync helper, a pack validator), with severity trending *up*, not down, over the final two cycles — driven by findings like "this doc comment is 100 lines long" and "this could matter if an async migrate function existed" being scored on par with live, user-facing bugs. The remaining findings were accepted as debt (2026-07-28) rather than chased into a 12th cycle. See `debt.md` and `.autocode/agents/cto.md`'s Batch 12 closure note for the full history.
 
 ## Stop-the-Line Violations (no exceptions — stop and fix before continuing)
 - Any TypeScript error
