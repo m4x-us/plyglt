@@ -175,6 +175,41 @@ export function validatePack(raw: unknown): string[] {
     }
   }
 
+  // Unit ID uniqueness
+  // Task #493 (F001): mirrors the card-ID dedup loop below exactly, including its blank/
+  // whitespace-id handling decision (Task #492) — a blank/missing/non-string unit id is
+  // already reported by validateUnit's own check (line 100-101 above), so skipping it here
+  // just avoids using it as a dedup key, not losing any error reporting.
+  // Unit IDs are load-bearing at runtime, not just cosmetic: hooks/useLangPack.ts:291 builds
+  // `Object.fromEntries(units.map((u) => [u.id, u]))` to key its unitMap, and TWO real
+  // callers resolve through it by id, not just the raw `units` array: (1)
+  // components/LevelSection.tsx:56 looks up prerequisite units by id (`unitMap[uid]`) for
+  // mastery-gating, and (2) — the more severe path — app/study/page.tsx:35,39,44 resolves
+  // `UNIT_MAP[unitId]?.cards` directly to decide WHICH UNIT'S CARDS populate an actual study
+  // session when a user picks a specific unit. Two units sharing an id do not vanish from the
+  // rendered unit list itself (the raw `units` array still contains both), but the id
+  // collision means `unitMap[thatId]` can only ever resolve to one of them — whichever unit's
+  // entry won the object-key collision. Via app/study/page.tsx this means a user selecting one
+  // of two duplicate-id units could silently start studying the OTHER unit's cards instead;
+  // via LevelSection.tsx a prerequisite lookup returns the wrong unit's mastery data. Four
+  // tasks (#468, #478, #480, #492) hardened this exact defect class for card ids in the loop
+  // below; unit ids share the same shape (validated identically at line 100-101) and the
+  // same runtime map-by-id pattern, so the identical dedup check belongs here too.
+  const unitIds = new Set<string>();
+  const duplicateUnitIds = new Set<string>();
+  if (isArray(raw["units"])) {
+    for (const unit of (raw["units"] as Json[])) {
+      if (!isObj(unit)) continue;
+      const unitId = unit["id"];
+      if (!isString(unitId) || unitId.trim() === "") continue;
+      if (unitIds.has(unitId)) duplicateUnitIds.add(unitId);
+      unitIds.add(unitId);
+    }
+  }
+  if (duplicateUnitIds.size > 0) {
+    errors.push(`Duplicate unit IDs: ${[...duplicateUnitIds].join(", ")}`);
+  }
+
   // Card ID uniqueness
   // Task #468: mirrors validateUnit's own isObj(unit)/isArray(unit["cards"]) guards
   // (lines 98/118 above) before ever touching unit.cards — this loop previously cast

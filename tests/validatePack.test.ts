@@ -138,6 +138,90 @@ describe("validatePack — unitCount/cardCount cross-check (mirrors hasValidUnit
   });
 });
 
+// ── validatePack: duplicate-unit-ID detection (#493) ──
+
+describe("validatePack — duplicate unit-ID detection (#493)", () => {
+  it("rejects a pack with 2 units sharing the same id", () => {
+    const units = [
+      makeValidUnit({ id: "dupe", cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: "dupe", cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors).toContain("Duplicate unit IDs: dupe");
+  });
+
+  it("does not report a duplicate-unit-ID error when all unit ids are distinct", () => {
+    const units = [
+      makeValidUnit({ id: "u1", cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: "u2", cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate unit IDs:"))).toBe(false);
+  });
+
+  it("does not report a garbled 'Duplicate unit IDs:' line for two units both missing an id, and still reports each unit's own id error", () => {
+    const units = [
+      makeValidUnit({ id: undefined, cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: undefined, cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate unit IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].id: missing or empty");
+    expect(errors).toContain("units[1].id: missing or empty");
+  });
+
+  it("does not report a garbled 'Duplicate unit IDs:' line for two units both with a non-string id, and still reports each unit's own id error", () => {
+    const units = [
+      makeValidUnit({ id: 42, cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: 42, cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate unit IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].id: missing or empty");
+    expect(errors).toContain("units[1].id: missing or empty");
+  });
+
+  it("does not report a garbled 'Duplicate unit IDs:' line for two units both with an empty-string id, and still reports each unit's own id error", () => {
+    const units = [
+      makeValidUnit({ id: "", cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: "", cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate unit IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].id: missing or empty");
+    expect(errors).toContain("units[1].id: missing or empty");
+  });
+
+  it("does not report a garbled 'Duplicate unit IDs:' line for two units both with a whitespace-only id, and still reports each unit's own id error", () => {
+    const units = [
+      makeValidUnit({ id: " ", cards: [makeValidCard({ id: "c1" })] }),
+      makeValidUnit({ id: " ", cards: [makeValidCard({ id: "c2" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate unit IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].id: missing or empty");
+    expect(errors).toContain("units[1].id: missing or empty");
+  });
+
+  it("tolerates a non-object unit inside the units array when checking for duplicate unit ids", () => {
+    const pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      unitCount: 1, cardCount: 0, units: [null],
+    };
+    expect(() => validatePack(pack)).not.toThrow();
+  });
+
+  it("a real duplicate unit id is still detected alongside an unrelated duplicate card id in the same pack", () => {
+    const units = [
+      makeValidUnit({ id: "dupe-unit", cards: [makeValidCard({ id: "dupe-card" })] }),
+      makeValidUnit({ id: "dupe-unit", cards: [makeValidCard({ id: "dupe-card" })] }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 2, cardCount: 2 }));
+    expect(errors).toContain("Duplicate unit IDs: dupe-unit");
+    expect(errors).toContain("Duplicate card IDs: dupe-card");
+  });
+});
+
 // ── validatePack: duplicate-card-ID loop must not throw on malformed cards (F468) ──
 
 describe("validatePack — duplicate card-ID check tolerates malformed cards fields (#468)", () => {
