@@ -118,6 +118,8 @@ class PackMemCacheImpl implements PackMemCache {
     // Not awaited, but NOT unordered: the removals claim per-code slots in the storage
     // mutation chain synchronously (#396), so a concurrent loadSpecialtyPack re-merge that
     // persists fresh keys for a pruned code afterwards cannot have them deleted by this call.
+    // Task #439/F068: this is exactly the hidden-async-I/O side effect documented on
+    // PackMemCache.write()'s interface doc comment (lib/packTypes.ts) — kept in sync here.
     void _clearSpecialtyStorageKeys(pruned, "WRITE");
   }
 

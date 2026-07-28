@@ -515,7 +515,14 @@ describe("#377 — unlockedPacks threaded from entitlement store into loadPack a
 });
 
 describe("#378 — specialty pack target seeds/loads its base pack before requesting the specialty code", () => {
-  const DEFAULT_OPTS = { purchasedAddOns: [], unlockedLangs: [...FREE_PACK_CODES] };
+  // Task #419: these tests exercise the two-step base-then-specialty resolution MECHANICS
+  // (seeding order, gating, cache-warming after unmount, eviction re-loads) — orthogonal to
+  // purchase gating. Seeding both mocked specialty codes as purchased here keeps that
+  // orthogonal: without it, #419's new render-body redirect would send every one of these
+  // codes straight to its base language before ever exercising the two-step chain these
+  // tests are actually about. The one test that IS about purchase gating ("does not repair
+  // ...", below) explicitly overrides this back to [] to exercise the un-owned case.
+  const DEFAULT_OPTS = { purchasedAddOns: ["it-legal", "es-business"], unlockedLangs: [...FREE_PACK_CODES] };
 
   beforeEach(() => {
     mockFetchManifest.mockResolvedValue(null);
@@ -523,6 +530,7 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     // seedMemCache's boolean return is load-bearing in the resolver (a refused seed maps
     // to base_pack_not_loaded) — the mock must succeed by default like the real function.
     mockSeedMemCache.mockReturnValue(true);
+    useEntitlementStore.setState({ purchasedAddOns: ["it-legal", "es-business"] });
   });
 
   afterEach(() => {
@@ -641,23 +649,27 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     expect(result.current.error).toBe("Add-on not purchased.");
   });
 
-  it("does not repair LANG_PAIR_KEY for a READY-but-unentitled specialty code (stranded-code pin, see stream debt)", async () => {
-    // GIVEN a persisted ready specialty code the user is not entitled to. The repair only
-    // fires for unknown/unready codes; a ready code stays put and the user sees an error.
-    // The missing escape route (learn page's back link not clearing LANG_PAIR_KEY) is out
-    // of this task's file scope — logged as debt.
+  it("repairs LANG_PAIR_KEY and falls back to the base language for a READY-but-unentitled specialty code (#419, closes the stream debt this test used to pin)", async () => {
+    // GIVEN a persisted ready specialty code the user is NOT entitled to (override this
+    // block's beforeEach seed, which purchases it).
+    useEntitlementStore.setState({ purchasedAddOns: [] });
     localStorage.setItem(LANG_PAIR_KEY, "en-es-business");
-    mockLoadPack.mockResolvedValue({ ok: false as const, error: "invalid_lang" as const });
     mockIsSpecialtyPackCode.mockReturnValue(true);
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // #378-discriminating assertion (audit F017): the fixed hook resolves the BASE code
-    // first — the pre-#378 hook called "es-business" directly and would fail this line.
-    expect(mockLoadPack).toHaveBeenCalledWith("es", null, DEFAULT_OPTS);
-    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-es-business");
-    expect(result.current.error).toBe("Pack not available.");
+    // THEN the render body redirects to the specialty's own base language BEFORE ever
+    // attempting the doomed specialty load — exactly one loadPack call, for the base, using
+    // this test's real (empty) purchasedAddOns, not the block's default seeded array.
+    expect(mockLoadPack).toHaveBeenCalledTimes(1);
+    expect(mockLoadPack).toHaveBeenCalledWith("es", null, { purchasedAddOns: [], unlockedLangs: [...FREE_PACK_CODES] });
+    // AND the persisted code is repaired — a future reload lands on a working pack instead
+    // of repeating this exact dead end forever (previously pinned as "stream debt").
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-es");
+    // AND the base pack loads successfully — no more permanent "Add-on not purchased." error.
+    expect(result.current.error).toBeNull();
+    expect(result.current.units).toHaveLength(1);
   });
 
   it("repairs a registered-but-UNREADY specialty code to Italian instead of stranding it (#378 F011)", async () => {
@@ -684,14 +696,26 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     expect(mockLoadPack).toHaveBeenCalledTimes(2); // base + specialty
 
     // Real production mutator, same Rule 20a rationale as the static-base sibling test.
+    // clearEntitlement() also wipes purchasedAddOns (that's what "deactivate a license"
+    // means) — Task #419's new render-body redirect correctly reacts to that by falling
+    // back to the base language AND self-healing LANG_PAIR_KEY to "en-es" for the window
+    // where the add-on is unowned (proven by the dedicated #419 recovery test above). To
+    // isolate THIS test's actual subject — the eviction-generation re-load mechanic — from
+    // that orthogonal (and separately-tested) gating, restore both preconditions the user
+    // would have after re-selecting the add-on in the UI and re-purchasing it: the
+    // persisted code AND the ownership record.
     await act(async () => { await useEntitlementStore.getState().clearEntitlement(); });
+    localStorage.setItem(LANG_PAIR_KEY, "en-es-business");
+    useEntitlementStore.setState({ purchasedAddOns: ["it-legal", "es-business"] });
 
-    // Effect re-runs twice (entitlement-field reset render + generation-bump render, see
-    // the static-base sibling test) — 2 initial + 2×2 = 6 calls; the FINAL pair must be
-    // base-then-specialty, proving the evicted network base is re-resolved in order.
-    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(6));
-    expect(mockLoadPack).toHaveBeenNthCalledWith(5, "es", null, DEFAULT_OPTS);
-    expect(mockLoadPack).toHaveBeenNthCalledWith(6, "es-business", null, DEFAULT_OPTS);
+    // 2 initial (base+specialty) + 1 transient single-call redirect while purchasedAddOns
+    // was briefly empty (#419: the render body sends targetLang to "es" alone, no specialty
+    // step attempted) + 2 final (base+specialty again, once both preconditions above are
+    // restored) = 5. The FINAL pair must still be base-then-specialty, proving the evicted
+    // network base is re-resolved in order.
+    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(5));
+    expect(mockLoadPack).toHaveBeenNthCalledWith(4, "es", null, DEFAULT_OPTS);
+    expect(mockLoadPack).toHaveBeenNthCalledWith(5, "es-business", null, DEFAULT_OPTS);
   });
 
   it("continues the two-step chain after unmount as cache-warming (guard proven by the stale-language test in the first describe)", async () => {
@@ -851,16 +875,27 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
 
     // WHEN entitlement is cleared via the REAL production mutator — clearEntitlement is
     // the only production incrementer of _cacheEvictionGeneration (Rule 20a; raw setState
-    // injection would keep passing even if clearEntitlement stopped bumping the counter)
+    // injection would keep passing even if clearEntitlement stopped bumping the counter).
+    // clearEntitlement() also wipes purchasedAddOns — Task #419's render-body redirect
+    // reacts by falling back to "it" (it-legal's own baseLang) and self-healing
+    // LANG_PAIR_KEY for that window. Restoring both the persisted code and the ownership
+    // record afterward (as a user re-selecting the add-on and re-purchasing it would)
+    // isolates this test's actual subject — the eviction-generation re-load mechanic —
+    // from that orthogonal, separately-tested gating.
     await act(async () => { await useEntitlementStore.getState().clearEntitlement(); });
+    localStorage.setItem(LANG_PAIR_KEY, "en-it-legal");
+    useEntitlementStore.setState({ purchasedAddOns: ["it-legal", "es-business"] });
 
-    // THEN the effect re-runs: clearEntitlement triggers TWO re-renders (the synchronous
-    // entitlement-field reset replaces purchasedAddOns/unlockedPacks with fresh arrays,
-    // then the post-eviction generation bump lands) — 1 initial + 2 re-runs = 3 each.
-    // The evicted base cannot leave loadSpecialtyPack's precondition permanently broken.
-    await waitFor(() => expect(mockLoadPack).toHaveBeenCalledTimes(3));
-    expect(mockSeedMemCache).toHaveBeenCalledTimes(3);
+    // seedMemCache fires 3 times: the initial it-legal resolution's base seed, a transient
+    // seed for the redirect target "it" itself while purchasedAddOns was briefly empty
+    // (#419 — "it" is static, so the redirected render takes the static branch: seed only,
+    // no loadPack call), and the final it-legal resolution's base seed once both
+    // preconditions above are restored. loadPack only fires for the two real it-legal
+    // resolutions (initial + final) — the transient redirect never calls it, since its
+    // target ("it") is served from the static branch.
+    await waitFor(() => expect(mockSeedMemCache).toHaveBeenCalledTimes(3));
     expect(mockSeedMemCache.mock.calls[2]![0]).toBe("it");
+    expect(mockLoadPack).toHaveBeenCalledTimes(2);
     expect(mockLoadPack).toHaveBeenLastCalledWith("it-legal", null, DEFAULT_OPTS);
   });
 });

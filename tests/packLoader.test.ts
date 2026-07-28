@@ -12,6 +12,7 @@ import { loadPack, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManife
 import type { SpecialtyPack } from "@/lib/langRegistry";
 import * as packTypesLib from "@/lib/packTypes";
 import { memCache } from "@/lib/packCache";
+import { loadBasePackFromStorageOrNetwork, bumpEvictionGeneration } from "@/lib/basePackLoader";
 
 // ── localStorage stub ────────────────────────────────────────────────────────
 
@@ -534,6 +535,24 @@ describe("loadPack — allowlist validation", () => {
     if (!result.ok) expect(result.error).toBe("invalid_lang");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("#429: the allowlist guard itself rejects an unregistered code even when the entitlement gate would let it through — isolates the allowlist guard from the later entitlement check", async () => {
+    // Every other test in this block passes an unregistered code (path traversal, "",
+    // registered-but-unready "es") with no unlockedLangs — that code is ALSO rejected,
+    // independently, by the LATER base-pack entitlement gate (FREE_PACK_CODES/unlockedLangs),
+    // since none of those codes are free or unlocked either. Deleting JUST the allowlist
+    // guard (isReadyBasePackCode/isSpecialtyPackCode) would leave every one of those tests
+    // green, because the entitlement gate produces the identical invalid_lang result on its
+    // own (audit F041) — none of them actually prove the allowlist guard specifically works.
+    // Passing "../evil" via unlockedLangs defeats the entitlement gate specifically (it
+    // would let this exact string through), so only the allowlist guard can still reject it.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await loadPack("../evil", null, { unlockedLangs: ["../evil"] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid_lang");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("loadPack — corrupted cache logging (CACHE_PARSE_FAIL)", () => {
@@ -631,6 +650,72 @@ describe("fetchManifest — network error logging", () => {
 
     expect(result).toBeNull();
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("MANIFEST_SHAPE_INVALID"));
+  });
+
+  it("rejects a manifest entry whose sha256 is not a well-formed 64-char hex digest, with a distinct log from checksum_mismatch (#431)", async () => {
+    // Before #431, isValidManifestShape only checked typeof sha256 === "string" — sha256:""
+    // or sha256:"x" passed shape validation and degraded to "checksum never matches" (every
+    // download rejected as checksum_mismatch) instead of a clear, distinct rejection here.
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({
+        _version: 1,
+        generatedAt: "x",
+        packs: { it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: "not-a-real-digest" } },
+      }),
+    }));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchManifest();
+
+    expect(result).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("MANIFEST_SHAPE_INVALID"));
+    // Distinct from a checksum_mismatch — this never gets far enough to compare bytes.
+    expect(consoleErrorSpy.mock.calls.some(args => String(args[0]).includes("checksum_mismatch"))).toBe(false);
+  });
+
+  it("rejects a manifest entry whose sha256 is the wrong length (63 or 65 hex chars) (#431)", async () => {
+    const tooShort = "a".repeat(63);
+    const tooLong = "a".repeat(65);
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({
+        _version: 1,
+        generatedAt: "x",
+        packs: { it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: tooShort } },
+      }),
+    }));
+    expect(await fetchManifest()).toBeNull();
+
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({
+        _version: 1,
+        generatedAt: "x",
+        packs: { it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: tooLong } },
+      }),
+    }));
+    expect(await fetchManifest()).toBeNull();
+  });
+
+  it("accepts a manifest entry with a well-formed 64-char hex sha256, including uppercase (#431)", async () => {
+    const validLower = "a".repeat(64);
+    const validUpper = "A".repeat(64);
+    const lowerManifest = {
+      _version: 1,
+      generatedAt: "x",
+      packs: { it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: validLower } },
+    };
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => lowerManifest }));
+    expect(await fetchManifest()).toEqual(lowerManifest);
+
+    const upperManifest = {
+      _version: 1,
+      generatedAt: "x",
+      packs: { it: { name: "Italian", nativeName: "Italiano", flag: "🇮🇹", version: "1.0.0", size: 100, sha256: validUpper } },
+    };
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => upperManifest }));
+    expect(await fetchManifest()).toEqual(upperManifest);
   });
 
   it("rejects an array packs body and an empty packs record — vacuous-truth guard (#379 DSC-2)", async () => {
@@ -1046,6 +1131,37 @@ describe("specialty pack merge path", () => {
     // Add-on is tracked for the session — idempotency guard relies on this
     expect(getLoadedAddOns()).toContain("it-medical");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("#432: forceRedownload:true on an already-loaded specialty code is a provable, logged no-op — no re-fetch, no re-merge", async () => {
+    // forceRedownload is documented as BASE-pack-only (lib/basePackLoader.ts's
+    // LoadPackOptions doc comment explains the unit-duplication hazard a bolted-on force
+    // parameter would create for an additive merge). Before #432 this was a genuinely
+    // SILENT no-op; the fix makes it observable via a FORCE_REDOWNLOAD_NOOP log, not by
+    // actually forcing a fresh specialty download.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => PACK_JSON })
+      .mockResolvedValueOnce({ ok: true, text: async () => ADD_ON_PACK_JSON });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await loadPack("it", fakeAddOnManifest());
+    await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"] });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    warnSpy.mockClear();
+
+    // WHEN a caller requests forceRedownload for the already-loaded specialty code
+    const result = await loadPack("it-medical", fakeAddOnManifest(), { purchasedAddOns: ["it-medical"], forceRedownload: true });
+
+    // THEN it's served the cached/merged copy — no third fetch, no duplicated units — and
+    // the no-op is logged, not silent.
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.pack.unitCount).toBe(fakePack().unitCount + fakeAddOnPack().unitCount);
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("FORCE_REDOWNLOAD_NOOP-it-medical"));
+    warnSpy.mockRestore();
   });
 
   it("returns base_pack_not_loaded when base pack is not yet in memCache", async () => {
@@ -1773,6 +1889,44 @@ describe("#378 cycle-2 remediation — eviction windows, SHA failure, forced-loa
     errorSpy.mockRestore();
   });
 
+  it("#436: the eviction guard is scoped per-language — evicting one language mid-flight does not force an unrelated concurrent load to skip its own write", async () => {
+    // Before #436, evictionGuard was one global counter: bumping it for ANY language voided
+    // every OTHER in-flight base-pack load's right to cache too. Calls
+    // loadBasePackFromStorageOrNetwork directly (not the public loadPack) so two genuinely
+    // different language codes can be exercised concurrently — only "it" is READY_PACK_CODES
+    // in the real registry, so loadPack("es", ...) would be rejected by the allowlist gate
+    // before ever reaching this module; the generation-guard behavior under test lives here,
+    // in basePackLoader.ts, independent of that gate.
+    const esJson = JSON.stringify({ ...fakePack(), lang: "es" });
+    let resolveIt!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    let resolveEs!: (v: { ok: boolean; text: () => Promise<string> }) => void;
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/it.json")) return new Promise(res => { resolveIt = res; });
+      if (url.includes("/es.json")) return new Promise(res => { resolveEs = res; });
+      throw new Error(`unexpected fetch url in test: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const itLoad = loadBasePackFromStorageOrNetwork("it", null);
+    const esLoad = loadBasePackFromStorageOrNetwork("es", null);
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+
+    // Evict "es" mid-flight — an unrelated in-flight "it" load must be unaffected.
+    bumpEvictionGeneration("es");
+
+    resolveIt({ ok: true, text: async () => PACK_JSON });
+    resolveEs({ ok: true, text: async () => esJson });
+    const [itResult, esResult] = await Promise.all([itLoad, esLoad]);
+
+    // Both calls are still served the verified pack for this session...
+    expect(itResult.ok).toBe(true);
+    expect(esResult.ok).toBe(true);
+    // ...but "it"'s write lands (its own generation was never bumped) while "es"'s write
+    // is skipped (deleting the per-language scoping would also null out "it"'s cache here).
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBe(PACK_JSON);
+    expect(localStorageMock.getItem("pack-data-v1-es")).toBe(null);
+  });
+
   it("an eviction during an in-flight CACHE-HIT serve prevents the memCache write (K2-001a)", async () => {
     // GIVEN a valid stored cache whose hash re-verification we control
     localStorageMock.setItem("pack-data-v1-it", PACK_JSON);
@@ -1822,6 +1976,38 @@ describe("#378 cycle-2 remediation — eviction windows, SHA failure, forced-loa
     fetchSpy.mockResolvedValue({ ok: true, status: 200, text: async () => PACK_JSON } as never);
     await loadPack("it", fakeManifest());
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("an eviction landing during the post-download storage writes prevents the memCache write (F-C2-1, #416)", async () => {
+    // Sibling regression test for lib/basePackLoader.ts's SECOND generation check
+    // (bracketing the writeCacheMeta/writeCacheData awaits) — K2-001a/b above cover the
+    // CACHE-HIT and OFFLINE-STALE-FALLBACK races; this is the FRESH-DOWNLOAD race, which had
+    // no test at all (audit F016 Deletion Test: deleting that check left every existing test
+    // green). Intercepts the data-key write specifically — meta is written first (#309/#425
+    // ordering), so triggering on the data key lands the eviction strictly between the two
+    // writes, inside the awaited storage-persist block, after the FIRST generation check
+    // (before those writes even start) already passed.
+    const origSetItem = localStorageMock.setItem.bind(localStorageMock);
+    vi.spyOn(localStorageMock, "setItem").mockImplementation((key, value) => {
+      if (key === "pack-data-v1-it") {
+        bumpEvictionGeneration("it");
+      }
+      origSetItem(key, value);
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => PACK_JSON }));
+
+    const result = await loadPack("it", fakeManifest());
+
+    // The initiating caller is still served the verified pack for this session...
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pack.lang).toBe("it");
+    // ...but the memCache write was skipped — deleting the second check lets cacheAndReturn
+    // run unconditionally and resurrect the pack in memory despite the mid-write eviction.
+    expect(memCache.has("it")).toBe(false);
+    // Storage itself WAS written (this test only bumps the generation, unlike the full
+    // evictPack() race above which also clears storage) — isolates the memCache-write guard
+    // specifically from storage removal, which K2-001a/b already cover via the real evictPack.
+    expect(localStorageMock.getItem("pack-data-v1-it")).toBe(PACK_JSON);
   });
 
   it("a forced re-download supersedes a pending normal load's right to cache (N3) — the stale normal bytes cannot clobber the forced fresh bytes", async () => {
@@ -1915,11 +2101,15 @@ describe("#378 WorldClass remediation — manifest dedup and module boundaries",
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("lib/basePackLoader.ts is imported ONLY by lib/packLoader.ts (comment contract, mechanically enforced)", () => {
-    // The basePackLoader header declares packLoader the sole legal importer — a direct
-    // import anywhere else bypasses loadPack's allowlist/entitlement/dedup gates. This
-    // test is the poka-yoke for that contract (an eslint no-restricted-imports rule is
-    // tracked as debt; the config file is outside this stream's ownership).
+  it("lib/basePackLoader.ts is imported by exactly its two legal callers — packLoader.ts and packResolver.ts (comment contract, mechanically enforced, #428)", () => {
+    // The basePackLoader header declares packLoader.ts and packResolver.ts the two legal
+    // importers — a direct import anywhere else bypasses loadPack's
+    // allowlist/entitlement/dedup gates. This test is the poka-yoke for that contract (an
+    // eslint no-restricted-imports rule is tracked as debt; the config file is outside this
+    // stream's ownership). Renamed under #428: the previous name ("imported ONLY by
+    // lib/packLoader.ts") contradicted this very test's own assertion two lines below, which
+    // has always expected exactly TWO importers (packResolver.ts imports the LoadPackOptions
+    // type only, which is erased at compile time and cannot bypass any runtime gate).
     const root = join(__dirname, "..");
     const importers: string[] = [];
     const scan = (dir: string) => {

@@ -9,12 +9,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { ALL_UNITS, UNIT_MAP as ITALIAN_UNIT_MAP } from "@/content/index";
 import { loadPack, fetchManifest, seedMemCache, type LoadPackResult } from "@/lib/packLoader";
-import { isReadyBasePackCode, isSpecialtyPackCode } from "@/lib/langRegistry";
+import { isReadyBasePackCode, isSpecialtyPackCode, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { resolveTargetPack } from "@/lib/packResolver";
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
 import type { Unit } from "@/content/types";
 import { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode } from "@/lib/constants";
 import { useEntitlementStore, isPackUnlocked } from "@/store/entitlementStore";
+import { hasAddOn } from "@/lib/entitlement";
 import { useIsHydrated } from "@/lib/storage";
 
 type LoadPackError = Extract<LoadPackResult, { ok: false }>["error"];
@@ -75,6 +76,17 @@ export function useLangPack(): LangPackState {
   // "known but unready code" repair, which getTargetLangCode cannot detect on its own (it has
   // no visibility into READY_PACK_CODES/SPECIALTY_PACKS).
   const rawTargetLang = getTargetLangCode();
+  // #261: Thread purchasedAddOns into loadPack so the specialty-pack entitlement gate
+  // has the current state. Zustand keeps the reference stable between writes, so the
+  // effect below re-runs only when the array is replaced — on a new purchase, but also on
+  // persist rehydration or a cross-tab storage sync, which write a fresh (possibly
+  // content-identical) array. Each such re-run re-issues fetchManifest over the network
+  // (cache: "no-store") before loadPack short-circuits on memCache — cheap for the pack,
+  // not free for the manifest (#378 audit F027; acceptable at the current 1-2 re-runs per
+  // session, revisit if rehydration frequency ever grows). Subscribed here (before
+  // isKnownCode below), not further down: Task #419's ready-but-unpurchased repair needs
+  // it in the same render pass that decides targetLang.
+  const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
   // #378 audit F011 + WorldClass V1: BOTH halves require readiness — a registered-but-
   // unready code (base OR specialty) is unloadable by everything downstream, so treating it
   // as "known" would strand the user on a permanent "Pack not available." screen with no
@@ -85,18 +97,22 @@ export function useLangPack(): LangPackState {
   // could drift.)
   const isKnownCode =
     isReadyBasePackCode(rawTargetLang) || isSpecialtyPackCode(rawTargetLang);
-  const targetLang = isKnownCode ? rawTargetLang : "it";
+  // #419: a ready-and-registered specialty code the user does not own is "known" above (it
+  // resolves to a real, loadable pack) but unusable for THIS user. Left unhandled, the #339
+  // repair below never fires for it (isKnownCode is true), so a code like "it-medical" left
+  // over from a lapsed/hand-tampered entitlement would strand the user on a permanent
+  // "Add-on not purchased." dead end forever — unlike every other unrecoverable-code case
+  // this hook already self-heals. Redirecting here, in the render body (rather than only
+  // after a failed load), also avoids ever making the doomed network request in the first
+  // place. Falls back to the specialty's OWN baseLang (not a hardcoded "it") so this stays
+  // correct once a non-Italian specialty pack ships. Currently latent — no specialty pack
+  // is ready:true yet.
+  const unpurchasedSpecialty = isSpecialtyPackCode(rawTargetLang) && !hasAddOn({ purchasedAddOns }, rawTargetLang)
+    ? SPECIALTY_PACKS.find(sp => sp.code === rawTargetLang)
+    : undefined;
+  const targetLang = isKnownCode && !unpurchasedSpecialty ? rawTargetLang : (unpurchasedSpecialty?.baseLang ?? "it");
 
   const lang = useMemo(() => getLanguageConfig(targetLang), [targetLang]);
-  // #261: Thread purchasedAddOns into loadPack so the specialty-pack entitlement gate
-  // has the current state. Zustand keeps the reference stable between writes, so the
-  // effect below re-runs only when the array is replaced — on a new purchase, but also on
-  // persist rehydration or a cross-tab storage sync, which write a fresh (possibly
-  // content-identical) array. Each such re-run re-issues fetchManifest over the network
-  // (cache: "no-store") before loadPack short-circuits on memCache — cheap for the pack,
-  // not free for the manifest (#378 audit F027; acceptable at the current 1-2 re-runs per
-  // session, revisit if rehydration frequency ever grows).
-  const purchasedAddOns = useEntitlementStore(state => state.purchasedAddOns);
   // #377/#414: thread unlockedPacks into loadPack as options.unlockedLangs so packLoader's
   // non-free base-pack entitlement gate has a real production caller (Rule 20b — the gate
   // shipped in Task #350 with zero callers; every subscribed user would have hit
@@ -165,12 +181,19 @@ export function useLangPack(): LangPackState {
   // are side-effects and must not run in the render body (StrictMode double-invocation fires
   // them twice). The render body still derives targetLang synchronously (pure); this effect
   // repairs the stored value so the next render returns the correct code without the fallback.
+  // Task #419: rawTargetLang !== targetLang covers both repair cases the render body can
+  // produce — an unknown/unready code (targetLang falls back to "it") and a ready-but-
+  // unpurchased specialty code (targetLang falls back to that pack's own baseLang) — a
+  // second near-duplicate effect isn't needed; only the logged reason differs.
   useEffect(() => {
-    if (!isKnownCode) {
-      console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "it"`);
-      setTargetLangCode("it");
+    if (rawTargetLang === targetLang) return;
+    if (unpurchasedSpecialty) {
+      console.error(`[ERR-LANGPACK-ADDON-UNOWNED] targetLang "${rawTargetLang}" is a ready specialty pack not present in purchasedAddOns — resetting to base language "${targetLang}"`);
+    } else {
+      console.error(`[ERR-LANGPACK-CORRUPT] unrecognised targetLang "${rawTargetLang}" — resetting to "${targetLang}"`);
     }
-  }, [rawTargetLang, isKnownCode]);
+    setTargetLangCode(targetLang);
+  }, [rawTargetLang, targetLang, unpurchasedSpecialty]);
 
   useEffect(() => {
     const staticTarget = STATIC_PACKS[targetLang];
@@ -234,6 +257,13 @@ export function useLangPack(): LangPackState {
           // SPECIALTY pack itself was refused — a propagated BASE-pack invalid_lang means the
           // base language is locked, so it gets the base message ("Pack not available."),
           // never a misleading add-on purchase prompt.
+          // #419: by the time a specialty targetLang reaches this branch, the render body
+          // above has already redirected any code the user doesn't own — so a specialty
+          // code surfacing invalid_lang here is always a genuinely-owned pack failing for
+          // some OTHER reason (missing manifest entry, sha mismatch, etc.), never a purchase
+          // gap. isSpecialtyPackCode(targetLang) is kept as the discriminant (not a
+          // hasAddOn check) for exactly that reason — it now means "this failure needs the
+          // add-on-specific message" rather than "this specific request lacks purchase".
           const errorMsg =
             result.error === "invalid_lang" && !baseFailed && isSpecialtyPackCode(targetLang)
               ? "Add-on not purchased."

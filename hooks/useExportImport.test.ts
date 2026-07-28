@@ -95,9 +95,11 @@ describe("useExportImport — handleExport", () => {
 });
 
 describe("useExportImport — handleImportFile", () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
     mockSetEntitlement.mockClear();
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockClear();
   });
 
   it("handleImportFile calls parseBackup on file content", async () => {
@@ -208,6 +210,81 @@ describe("useExportImport — handleImportFile", () => {
     expect(Object.keys(calledWith).sort()).toEqual(
       ["instanceId", "lastValidated", "licenseKey", "licenseType", "unlockedPacks", "validUntil"].sort()
     );
+  });
+
+  // ── Task #437 (F064): concurrent-import guard ──
+  it("#437: a second import call while one is in flight is rejected with a clear message, then the first completes normally", async () => {
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockReturnValue({
+      ok: true,
+      srs: { cards: {}, streak: 0, lastStudiedDate: null },
+      entitlement: { licenseKey: null, instanceId: null, licenseType: "free", unlockedPacks: [], validUntil: null, purchasedAddOns: [] },
+      langPair: "en-it",
+      validCardCount: 3,
+      skippedCardCount: 0,
+    });
+
+    const { result } = renderHook(() => useExportImport());
+    const file1 = new File([JSON.stringify({ _version: 2 })], "backup1.json", { type: "application/json" });
+    const file2 = new File([JSON.stringify({ _version: 2 })], "backup2.json", { type: "application/json" });
+
+    let firstPromise!: Promise<void>;
+    act(() => {
+      // Calling readFile a second time synchronously, before the first's FileReader has
+      // had a chance to resolve, is exactly the race #437 guards against.
+      firstPromise = result.current.readFile(file1);
+      void result.current.readFile(file2);
+    });
+
+    // The second call's rejection is the last synchronous setDataStatus — it wins until
+    // the first import's async FileReader completes.
+    expect(result.current.dataStatus).toEqual({
+      type: "error",
+      message: "Import already in progress. Wait for it to finish, then try again.",
+    });
+    // The rejected second call never reached parseBackup at all.
+    expect(parseBackup).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await firstPromise;
+    });
+
+    // Deterministic, correctly-attributed final state: the completed first import's
+    // result, not the transient rejection message from the second call.
+    expect(parseBackup).toHaveBeenCalledTimes(1);
+    expect(result.current.dataStatus).toEqual({
+      type: "success",
+      message: "Restored 3 card(s) of progress. No license in backup — license unchanged.",
+    });
+  });
+
+  it("#437: the in-flight lock releases after completion, allowing a subsequent import to proceed normally", async () => {
+    const { parseBackup } = await import("@/lib/importBackup");
+    vi.mocked(parseBackup).mockReturnValue({
+      ok: true,
+      srs: { cards: {}, streak: 0, lastStudiedDate: null },
+      entitlement: { licenseKey: null, instanceId: null, licenseType: "free", unlockedPacks: [], validUntil: null, purchasedAddOns: [] },
+      langPair: "en-it",
+      validCardCount: 1,
+      skippedCardCount: 0,
+    });
+
+    const { result } = renderHook(() => useExportImport());
+    const file1 = new File([JSON.stringify({ _version: 2 })], "backup1.json", { type: "application/json" });
+    const file2 = new File([JSON.stringify({ _version: 2 })], "backup2.json", { type: "application/json" });
+
+    await act(async () => {
+      await result.current.readFile(file1);
+    });
+    await act(async () => {
+      await result.current.readFile(file2);
+    });
+
+    expect(parseBackup).toHaveBeenCalledTimes(2);
+    expect(result.current.dataStatus).toEqual({
+      type: "success",
+      message: "Restored 1 card(s) of progress. No license in backup — license unchanged.",
+    });
   });
 });
 

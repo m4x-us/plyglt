@@ -35,6 +35,13 @@ export type DataStatus =
 
 export function useExportImport() {
   const importRef = useRef<HTMLInputElement>(null);
+  // Task #437 (F064): guards against two rapid concurrent readFile calls racing on
+  // shared state (SRS/entitlement stores, dataStatus) — without this, whichever
+  // FileReader resolves last silently wins, and dataStatus can end up describing the
+  // wrong import. A ref (not state) because it must be read/written synchronously at
+  // call time, before any render — a state setter's update wouldn't be visible to a
+  // second readFile() call that starts before the next render.
+  const importInFlightRef = useRef(false);
   const [dataStatus, setDataStatus] = useState<DataStatus>({ type: "idle" });
 
   function handleExport() {
@@ -64,14 +71,27 @@ export function useExportImport() {
   }
 
   function readFile(file: File): Promise<void> {
+    // Task #437: reject a second import while one is still in flight, rather than
+    // letting two independent FileReader instances race on the shared SRS/entitlement
+    // stores. Rejecting (not queuing) keeps the outcome deterministic and simple — the
+    // user just re-selects the file once the first import finishes.
+    if (importInFlightRef.current) {
+      setDataStatus({ type: "error", message: "Import already in progress. Wait for it to finish, then try again." });
+      return Promise.resolve();
+    }
+    importInFlightRef.current = true;
     return new Promise((resolve) => {
+      const finish = () => {
+        importInFlightRef.current = false;
+        resolve();
+      };
       const reader = new FileReader();
       reader.onerror = (event) => {
         const domError = (event.target as FileReader).error;
         console.error(`[ERR-IMPORT-FILEREADER-${Date.now()}]`, domError);
         setDataStatus({ type: "error", message: "Could not read the file." });
         if (importRef.current) importRef.current.value = "";
-        resolve();
+        finish();
       };
       reader.onload = () => {
         try {
@@ -79,7 +99,7 @@ export function useExportImport() {
           if (!result.ok) {
             setDataStatus({ type: "error", message: result.error });
             if (importRef.current) importRef.current.value = "";
-            resolve();
+            finish();
             return;
           }
           const activeLangPair = getLangPair(); // Task #340: no direct localStorage access outside lib/constants
@@ -89,7 +109,7 @@ export function useExportImport() {
               message: `This backup is for ${result.langPair} but you are studying ${activeLangPair}. Switch languages first, then import.`,
             });
             if (importRef.current) importRef.current.value = "";
-            resolve();
+            finish();
             return;
           }
           useSRSStore.setState({ ...result.srs, activeSession: null });
@@ -129,7 +149,7 @@ export function useExportImport() {
           setDataStatus({ type: "error", message: "Could not read the file — is it a valid backup?" });
         }
         if (importRef.current) importRef.current.value = "";
-        resolve();
+        finish();
       };
       reader.readAsText(file);
     });

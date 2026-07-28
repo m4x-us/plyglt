@@ -37,7 +37,7 @@ vi.mock("@/store/entitlementStore", () => ({
   },
 }));
 
-import { useLicenseActivation } from "./useLicenseActivation";
+import { useLicenseActivation, LICENSE_KEY_MAX_LENGTH } from "./useLicenseActivation";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -82,6 +82,29 @@ describe("useLicenseActivation — handleActivate", () => {
   it("rejects keys longer than 200 characters without calling activateLicense", async () => {
     const { result } = renderHook(() => useLicenseActivation());
     act(() => { result.current.setLicenseInput("A".repeat(300)); });
+    await act(async () => { await result.current.handleActivate(); });
+
+    expect(mockActivateLicense).not.toHaveBeenCalled();
+    expect(result.current.licenseStatus).toMatchObject({
+      type: "error",
+      message: expect.stringContaining("format"),
+    });
+  });
+
+  // Task #423: pins the named constant's exact boundary, not just "some large number".
+  it("accepts a key exactly at LICENSE_KEY_MAX_LENGTH characters", async () => {
+    mockActivateLicense.mockResolvedValueOnce({ ok: false, error: "Activation failed." });
+    const { result } = renderHook(() => useLicenseActivation());
+    const key = "A".repeat(LICENSE_KEY_MAX_LENGTH);
+    act(() => { result.current.setLicenseInput(key); });
+    await act(async () => { await result.current.handleActivate(); });
+
+    expect(mockActivateLicense).toHaveBeenCalledWith(key);
+  });
+
+  it("rejects a key one character past LICENSE_KEY_MAX_LENGTH", async () => {
+    const { result } = renderHook(() => useLicenseActivation());
+    act(() => { result.current.setLicenseInput("A".repeat(LICENSE_KEY_MAX_LENGTH + 1)); });
     await act(async () => { await result.current.handleActivate(); });
 
     expect(mockActivateLicense).not.toHaveBeenCalled();

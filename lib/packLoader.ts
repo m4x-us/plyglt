@@ -49,7 +49,7 @@ import { loadSpecialtyPack, clearSpecialtyCache } from "@/lib/specialtyPackLoade
 export { getLoadedAddOns } from "@/lib/specialtyPackLoader";
 // Storage/network load mechanics + eviction-generation guard live in lib/basePackLoader.ts
 // (Rule 1 extraction, #378 remediation). That module's loader is exported for THIS file only.
-import { loadBasePackFromStorageOrNetwork, bumpEvictionGeneration } from "@/lib/basePackLoader";
+import { loadBasePackFromStorageOrNetwork, bumpEvictionGeneration, resetAllEvictionGuardsForTesting } from "@/lib/basePackLoader";
 import type { LoadPackOptions } from "@/lib/basePackLoader";
 export type { LoadPackOptions } from "@/lib/basePackLoader";
 import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
@@ -70,13 +70,21 @@ function manifestUrl(): string {
 // dedup below. Cleared on settle so a later refresh still refetches. (#378 WorldClass V2)
 let inFlightManifest: Promise<Manifest | null> | null = null;
 
+// A sha256 digest, hex-encoded, is always exactly 64 hex characters (sha256Hex in
+// lib/utils.ts produces lowercase; accept either case — a manifest entry's exact casing
+// is not this codebase's to dictate, only well-formedness is). #431: typeof "string" alone
+// let a manifest entry with sha256:"" or sha256:"x" pass shape validation, degrading to
+// "checksum never matches" (every download rejected as checksum_mismatch, indistinguishable
+// from real corruption) instead of a clear, distinct rejection at the validation boundary.
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
+
 /**
  * Structural gate for the manifest (#379): a CDN can return an HTTP-200 error envelope
  * (valid JSON, wrong shape) that the former bare `as Manifest` cast waved through — loadPack
  * then saw packs === undefined and silently skipped sha256 verification for the session.
  * Checks exactly the fields loadPack consumes: a packs object whose every entry carries a
- * string version and sha256. Anything else is "no manifest" — same degradation as a network
- * failure, but LOGGED (Rule 8).
+ * string version and a well-formed 64-char hex sha256 digest (#431). Anything else is "no
+ * manifest" — same degradation as a network failure, but LOGGED (Rule 8).
  */
 function isValidManifestShape(raw: unknown): raw is Manifest {
   if (typeof raw !== "object" || raw === null) return false;
@@ -92,7 +100,8 @@ function isValidManifestShape(raw: unknown): raw is Manifest {
       typeof entry === "object" &&
       entry !== null &&
       typeof (entry as { version?: unknown }).version === "string" &&
-      typeof (entry as { sha256?: unknown }).sha256 === "string"
+      typeof (entry as { sha256?: unknown }).sha256 === "string" &&
+      SHA256_HEX_PATTERN.test((entry as { sha256: string }).sha256)
   );
 }
 
@@ -177,6 +186,14 @@ export async function loadPack(
   // purchasedAddOns is threaded through so loadSpecialtyPack can enforce the
   // client-side entitlement gate (Task #261).
   if (isReadySpecialtyPack) {
+    // Task #432: forceRedownload is BASE-pack-only (see LoadPackOptions' doc comment in
+    // lib/basePackLoader.ts for why a forced specialty reload can't safely be implemented
+    // as a bolted-on parameter — unit-duplication hazard). Before this fix, a caller that
+    // requested it for a specialty code got silently served the cached/merged copy with no
+    // signal the request was ignored. Now it's an observable no-op, not a silent one.
+    if (options?.forceRedownload) {
+      console.warn(`[FORCE_REDOWNLOAD_NOOP-${lang}-${Date.now()}] forceRedownload has no effect on specialty pack codes — serving the cached/merged copy if present`);
+    }
     return loadSpecialtyPack(lang, memCache, manifest, options?.purchasedAddOns ?? []);
   }
 
@@ -211,8 +228,10 @@ export async function loadPack(
     // A forced load supersedes any already-pending normal load's right to cache: bump the
     // generation so the pending load (whose snapshot is now stale) skips its writes and
     // cannot clobber the forced load's fresh bytes if it settles later (#378 cycle-2 N3).
-    // The forced load itself snapshots AFTER this bump, so its own writes land.
-    bumpEvictionGeneration();
+    // The forced load itself snapshots AFTER this bump, so its own writes land. Scoped to
+    // `lang` only (#436) — bumping globally would also void an unrelated in-flight load
+    // for a different language.
+    bumpEvictionGeneration(lang);
   }
   const load = loadBasePackFromStorageOrNetwork(lang, manifest, options);
   inFlightBaseLoads.set(lang, load);
@@ -342,9 +361,10 @@ export async function evictPack(lang: string): Promise<EvictPackResult> {
   // #378 audit F001: bump BEFORE clearing so any base-pack load already in flight sees a
   // stale generation snapshot and skips its cache writes — an in-flight load must never
   // resurrect the pack this eviction is about to clear. Placed AFTER the validation guard
-  // (WorldClass V4): a rejected no-op call must not void every in-flight load's caching
-  // rights globally.
-  bumpEvictionGeneration();
+  // (WorldClass V4): a rejected no-op call must not void this (or, pre-#436, any other)
+  // in-flight load's caching rights. Scoped to `lang` only (#436) — evicting "es" no
+  // longer forces an unrelated in-flight "it" load to discard its own write.
+  bumpEvictionGeneration(lang);
   // #378 cycle-2 N4: drop the evicted lang's in-flight entry so NEW callers start a fresh,
   // gate-checked load instead of piggybacking on the pre-eviction promise. Already-attached
   // callers still receive that promise's (uncached) result — see the registry doc above.
@@ -362,6 +382,8 @@ export function clearCacheForTesting(): void {
   clearSpecialtyCache();  // resets loadedAddOns and inFlight (lib/specialtyPackLoader.ts)
   inFlightBaseLoads.clear();  // resets base-pack load dedup (#378)
   // #378 cycle-2 F-C2-6: a load left in flight by a previous test must not write into the
-  // cache this reset just cleared — same resurrection class evictPack guards against.
-  bumpEvictionGeneration();
+  // cache this reset just cleared — same resurrection class evictPack guards against. This
+  // reset is global (ALL languages' state), so it uses the dedicated all-languages variant
+  // (#436) rather than the per-lang bumpEvictionGeneration.
+  resetAllEvictionGuardsForTesting();
 }

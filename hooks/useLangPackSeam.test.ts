@@ -66,15 +66,19 @@ describe("#378 seam — hook's base seed satisfies loadSpecialtyPack's precondit
     expect(result.current.error).toBe("Pack data corrupted. Try again.");
   });
 
-  it("an unpurchased specialty target is refused by the REAL purchase gate with the purchase prompt", async () => {
-    // purchasedAddOns stays [] — the real loadSpecialtyPack's entitlement gate refuses with
-    // invalid_lang BEFORE the base precondition matters; the hook maps it to the add-on
-    // prompt because the specialty pack itself (not its base) was refused.
+  it("an unpurchased specialty target is redirected to its base language before the REAL purchase gate is ever reached (#419)", async () => {
+    // purchasedAddOns stays [] — Task #419's render-body redirect now catches this locally
+    // (isSpecialtyPackCode + !hasAddOn) and falls back to "it-legal"'s own baseLang BEFORE
+    // ever attempting the specialty load, so the real loadSpecialtyPack's entitlement gate
+    // is never even reached for this target. This replaces the pre-#419 behavior (permanent
+    // "Add-on not purchased." dead end) with a working base-language pack and a self-healed
+    // LANG_PAIR_KEY.
     localStorage.setItem(LANG_PAIR_KEY, "en-it-legal");
 
     const { result } = renderHook(() => useLangPack());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.error).toBe("Add-on not purchased.");
+    expect(result.current.error).toBeNull();
+    expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
   });
 });

@@ -257,4 +257,24 @@ describe("getLanguageConfig poka-yoke", () => {
       spy.mockRestore();
     }
   });
+
+  // Task #425: getLanguageConfig cannot check SPECIALTY_PACKS registration (circular-import
+  // constraint documented on the function) — a garbage suffix on a valid prefix must take
+  // the SAME silent-success (warn, not error) path as a genuinely registered specialty code
+  // like "it-medical" above. This pins that behavior explicitly so the doc comment's
+  // "weak signal" claim stays true — a future attempt to distinguish them here without
+  // resolving the circular import would need to update this test.
+  it("silently returns the base language config for a garbage suffix on a valid prefix ('it-typo'), identical to a real specialty code — logs warn, never error", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const cfg = getLanguageConfig("it-typo");
+      expect(cfg).toBe(ITALIAN);
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("WARN-LANG-CONFIG-SPECIALTY"));
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
 });

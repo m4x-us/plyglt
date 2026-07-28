@@ -114,10 +114,21 @@ const LANGUAGE_MAP: Record<string, LanguageConfig> = {
  * Importing lib/langRegistry.ts to check SPECIALTY_PACKS directly is not possible here
  * because langRegistry.ts already imports ITALIAN/SPANISH from this file.
  *
- * Falls back to ITALIAN with an error log for genuinely unrecognised codes — the fallback
- * is intentional for graceful degradation, but the error signal prevents silent masking
- * of misconfigured callers. Add new languages to LANGUAGE_MAP above; the poka-yoke test
- * in tests/language.test.ts will catch LANGUAGE_MAP / LANGUAGE_REGISTRY drift.
+ * Two distinct fallback signals, of DIFFERENT strength (Task #425 — do not conflate them):
+ * - No hyphen, or a hyphen whose prefix isn't in LANGUAGE_MAP either: genuinely
+ *   unrecognised. Logs console.ERROR and returns ITALIAN — this is the strong signal that
+ *   actually "prevents silent masking of misconfigured callers".
+ * - A hyphen whose prefix IS in LANGUAGE_MAP: logs only console.WARN and silently returns
+ *   the base config. Because this function cannot check SPECIALTY_PACKS membership (the
+ *   circular-import constraint above), a garbage suffix on a valid prefix (e.g. "it-typo")
+ *   takes the exact same silent-success path as a genuinely registered specialty code
+ *   (e.g. "it-medical") — this is a WEAK signal by construction, not the same guarantee as
+ *   the no-hyphen branch above. Callers that need to distinguish a real specialty code from
+ *   a typo must check lib/langRegistry.ts's isSpecialtyPackCode()/isRegisteredSpecialtyCode()
+ *   themselves; this function alone cannot tell them apart.
+ *
+ * Add new languages to LANGUAGE_MAP above; the poka-yoke test in tests/language.test.ts
+ * will catch LANGUAGE_MAP / LANGUAGE_REGISTRY drift.
  */
 export function getLanguageConfig(code: string): LanguageConfig {
   const config = LANGUAGE_MAP[code];

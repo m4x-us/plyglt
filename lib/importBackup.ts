@@ -147,6 +147,16 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // gates on ready). Same policy as store/migrations.ts's v2→v3 filter — both now share
   // lib/langRegistry.ts's isRegisteredSpecialtyCode (Task #407), so they cannot drift.
   // Old backups (pre-purchasedAddOns) arrive with e.purchasedAddOns undefined → rawAddOns=[] → [].
+  //
+  // Task #422 (F023): this validated value is currently NEVER consumed by any production
+  // caller — hooks/useExportImport.ts:readFile deliberately strips purchasedAddOns from
+  // result.entitlement before it ever reaches setEntitlement (see excludePurchasedAddOns /
+  // RestorableEntitlement there, Task #440): add-on purchases require a server-verified
+  // receipt via purchaseAddOn() and can never be restored from an unsigned backup file.
+  // The validation here is kept anyway — deliberately, not dead code left by oversight —
+  // so BackupEntitlement stays a fully-validated, self-consistent shape for exportBackup's
+  // round trip and any future caller, rather than an unvalidated field silently smuggled
+  // through parseBackup's otherwise-strict output.
   const rawAddOns = Array.isArray(e.purchasedAddOns) ? e.purchasedAddOns : [];
   const validAddOns: string[] = rawAddOns.filter((item): item is string => typeof item === "string" && isRegisteredSpecialtyCode(item));
   if (validAddOns.length < rawAddOns.length) {

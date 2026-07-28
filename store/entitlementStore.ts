@@ -18,12 +18,11 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { ENTITLEMENT_VERSION, migrateEntitlementStore } from "@/store/migrations";
-import { FREE_PACK_CODES, SPECIALTY_PACKS, isSpecialtyPackCode, isRegisteredSpecialtyCode, type PackCode } from "@/lib/langRegistry";
+import { FREE_PACK_CODES, SPECIALTY_PACKS, isRegisteredSpecialtyCode, type PackCode } from "@/lib/langRegistry";
 import { resetSpecialtyLoadState } from "@/lib/specialtyPackLoader";
 import { evictPack, getLoadedAddOns } from "@/lib/packLoader";
-import { invoke } from "@/lib/tauri";
 import { hasAddOn as libHasAddOn } from "@/lib/entitlement";
-import { getFeatureFlags, isProEnabled, SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
+import { SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 
 // LicenseType lives in lib/ (lower layer) to avoid lib/→store/ upward imports.
 // Imported for use within this file; re-exported so existing callers of
@@ -43,43 +42,22 @@ export type { PackCode } from "@/lib/langRegistry";
 // this module (tests, components/EntitlementValidator.tsx) keep working unchanged.
 export { SUBSCRIPTION_GRACE_PERIOD_MS } from "@/lib/featureFlags";
 
-// ── purchaseAddOn error constants ─────────────────────────────────────────────
-// Named constants prevent string drift between the implementation and callers.
-// Import these — never repeat the string literal inline.
-export const ERR_ADDON_INVALID_CODE    = "invalid_code"    as const; // code is not a registered specialty pack
-export const ERR_ADDON_RECEIPT_INVALID = "receipt_invalid" as const; // verify_addon_receipt returned falsy
-export const ERR_ADDON_IPC_ERROR       = "ipc_error"       as const; // Tauri IPC threw
-export const ERR_ADDON_NOT_PRO         = "not_pro"         as const; // purchaser does not hold a Pro subscription
-
-// purchaseAddOn contract (Tasks #287, #285):
-//   signature: (code: string, receiptToken: string) => Promise<PurchaseAddOnResult>
-//   success:   { ok: true } — code appended to purchasedAddOns
-//   failure:   { ok: false; error: one of the ERR_ADDON_* constants above }
-//   web mode:  invoke() returns null → receipt_invalid — no purchase without Tauri IPC
-//
-// ── DELIBERATE DEFERRAL (Task #295) ─────────────────────────────────────────
-// purchaseAddOn is an intentionally unreachable stub in all current runtimes:
-//   1. The Tauri command verify_addon_receipt does not exist in src-tauri —
-//      it is not registered in generate_handler! and has no implementation in
-//      license.rs. invoke() will throw (Tauri) or return null (web), causing
-//      ERR_ADDON_IPC_ERROR or ERR_ADDON_RECEIPT_INVALID in every call.
-//   2. No production caller passes a real code+receipt to this function.
-//      LanguageGrid's specialty-tile CTA opens the generic BuyModal (subscription
-//      checkout only); no per-add-on code or receipt-delivery mechanism exists.
-// Both the Rust backend and the frontend wiring wait for real specialty-pack content
-// and pricing per the BRAND.md roadmap. This is a deliberate design decision, not a
-// bug or oversight. Do not attempt to call purchaseAddOn until specialty content ships.
-export type PurchaseAddOnResult =
-  | { ok: true }
-  | { ok: false; error: typeof ERR_ADDON_INVALID_CODE | typeof ERR_ADDON_RECEIPT_INVALID | typeof ERR_ADDON_IPC_ERROR | typeof ERR_ADDON_NOT_PRO };
-
 // Poll window: the LS API is called at most once per this interval, preventing
 // hammering on every mount during a network outage.
 export const VALIDATION_POLL_INTERVAL_MS = SUBSCRIPTION_GRACE_PERIOD_MS; // same value, independent policy
 
-// receiptToken validation constants — mirrors the license-key validation in useLicenseActivation.ts
-const RECEIPT_TOKEN_MAX_LENGTH = 200;
-const RECEIPT_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
+// Task #412: purchaseAddOn and its ERR_ADDON_*/PurchaseAddOnResult/RECEIPT_TOKEN_*
+// constants moved to store/entitlementAddOns.ts (Rule 1 — this file was over the
+// 400-line service cap). Re-exported here so existing external imports of these names
+// from this module (tests, callers) keep working unchanged.
+export {
+  ERR_ADDON_INVALID_CODE,
+  ERR_ADDON_RECEIPT_INVALID,
+  ERR_ADDON_IPC_ERROR,
+  ERR_ADDON_NOT_PRO,
+  type PurchaseAddOnResult,
+} from "@/store/entitlementAddOns";
+import { createPurchaseAddOn, type PurchaseAddOnResult } from "@/store/entitlementAddOns";
 
 interface EntitlementState {
   licenseKey: string | null;
@@ -199,8 +177,9 @@ export const useEntitlementStore = create<EntitlementState>()(
 
       clearEntitlement: () => {
         // Task #364 — idempotency: calling clearEntitlement while evictions from a previous
-        // call are still in-flight is safe. The synchronous set() below is idempotent (null
-        // fields simply overwrite null). A second Promise.all races the first but they share
+        // call are still in-flight is safe. The state-reset set() (now inside the .then()
+        // below — Task #438) is idempotent regardless of call order or timing (null fields
+        // simply overwrite null). A second Promise.all races the first but they share
         // the same affectedBaseLangs snapshot — evictPack is also idempotent (evicting an
         // already-empty slot is a no-op). Concurrent calls are not expected in practice
         // (the only caller, useLicenseActivation.ts, awaits before returning), but are safe.
@@ -220,17 +199,6 @@ export const useEntitlementStore = create<EntitlementState>()(
             .filter(isRegisteredSpecialtyCode)
             .map(code => SPECIALTY_PACKS.find(sp => sp.code === code)!.baseLang)
         );
-        // Reset observable state synchronously — callers that don't await the returned
-        // Promise still see licenseKey/purchasedAddOns/etc. cleared immediately.
-        set({
-          licenseKey: null,
-          instanceId: null,
-          licenseType: "free",
-          unlockedPacks: [...FREE_PACK_CODES],
-          purchasedAddOns: [],
-          lastValidated: 0,
-          validUntil: null,
-        });
         // Evict each affected base pack from memCache — and, critically, run this BEFORE
         // resetSpecialtyLoadState() below. evictPack's clearPackCache internally calls
         // clearSpecialtyPacksForLang(baseLang) to find which specialty codes to also purge
@@ -241,10 +209,22 @@ export const useEntitlementStore = create<EntitlementState>()(
         // Returned as a Promise so a caller that needs the eviction to have genuinely
         // completed (not just fired) can await it.
         //
+        // Task #438: the entitlement-state set() below runs AFTER eviction completes, not
+        // before. Before this fix, the synchronous reset ran first — licenseType flipped to
+        // "free" while memCache still served the previously-merged specialty content to any
+        // direct reader (loadPack's memory-cache-hit fast path, a mid-render study session)
+        // for the full duration of the eviction's storage I/O: entitlement state and cached
+        // content were observably inconsistent for that window. The only production caller
+        // (hooks/useLicenseActivation.ts:handleDeactivate) already awaits the full returned
+        // Promise before updating its own UI, so this reorder costs it nothing; a reactive
+        // subscriber elsewhere now sees licenseType flip a beat later (bounded by eviction's
+        // I/O duration) instead of a beat earlier than memCache is actually clean — the
+        // strictly safer direction to be wrong in.
+        //
         // Task #351 (→ #415): eviction failures are collected and re-thrown so callers can
-        // surface an appropriate message. The license state IS reset (set() above is
-        // synchronous); a thrown error here means only that cached specialty content may
-        // persist until the next page load, not that deactivation failed.
+        // surface an appropriate message. The license state IS reset regardless (the set()
+        // below runs before the throw check) — a thrown error here means only that cached
+        // specialty content may persist until the next page load, not that deactivation failed.
         //
         // Task #415: evictPack NEVER rejects (lib/packCache.ts's clearPackCache swallows
         // every storage failure internally via Promise.allSettled) — a `.catch` here could
@@ -277,6 +257,18 @@ export const useEntitlementStore = create<EntitlementState>()(
           // Any specialty code whose SPECIALTY_PACKS entry was removed between merge and
           // deactivation (making baseLang resolution impossible) is also cleared here.
           resetSpecialtyLoadState();
+          // Task #438: entitlement state now flips together with the cache eviction it
+          // depends on — no external observer can read licenseType:"free" while memCache
+          // still holds specialty content merged under the just-revoked entitlement.
+          set({
+            licenseKey: null,
+            instanceId: null,
+            licenseType: "free",
+            unlockedPacks: [...FREE_PACK_CODES],
+            purchasedAddOns: [],
+            lastValidated: 0,
+            validUntil: null,
+          });
           // Task #362: increment _cacheEvictionGeneration AFTER evictions complete so
           // useLangPack's useEffect runs its re-seed AFTER memCache has been cleared,
           // not before (which would cause a race where eviction clears the re-seeded entry).
@@ -305,79 +297,11 @@ export const useEntitlementStore = create<EntitlementState>()(
       // explicitly directs this; it is the single source of truth for non-React callers.
       hasAddOn: (code) => libHasAddOn(get(), code),
 
-      // Tasks #287 + #285: Validates the specialty pack code and verifies a Lemon Squeezy
-      // receipt via Tauri IPC before recording the purchase. In web/browser mode invoke()
-      // returns null, so purchases are only possible through the Tauri desktop app.
-      // Tauri command: verify_addon_receipt(code: &str, receipt_token: &str) -> bool
-      //
-      // ⚠ STUB — see the purchaseAddOn contract comment above (#295): this function is
-      // unreachable in all current runtimes. Neither the Rust command nor a production
-      // caller exists yet. Do not remove the code-path guards below — they will be active
-      // once specialty content ships and the backend + caller are wired.
-      purchaseAddOn: async (code, receiptToken) => {
-        // Task #287: reject any code that isn't a registered specialty pack code.
-        // Prevents garbage strings from persisting forever in purchasedAddOns (no removal path exists).
-        if (!isSpecialtyPackCode(code)) {
-          console.warn(`[purchaseAddOn] "${code}" is not a registered specialty pack code — rejected`);
-          return { ok: false, error: ERR_ADDON_INVALID_CODE };
-        }
-        // Tasks #357/#388/#395: Pro gate. Specialty packs are add-ons within the Pro tier
-        // (BRAND.md), so the purchaser must hold an active, non-expired subscription.
-        // Enforced HERE at the store layer — not only in the UI — so a direct devtools call
-        // to purchaseAddOn cannot bypass it. Routed through isProEnabled(), the single
-        // mandated combinator for all Pro-gated features (CLAUDE.md / lib/featureFlags.ts).
-        // getFeatureFlags().specialtyPacks defaults to FALSE when NEXT_PUBLIC_FLAGS_SPECIALTY_PACKS
-        // is unset (Task #427 — the safe-off default for this still-unfinished feature), so
-        // in a runtime without that env var explicitly set to a truthy value this gate
-        // always rejects with ERR_ADDON_NOT_PRO regardless of licenseType. Tests exercising
-        // this gate must stub the env var. When the flag IS enabled, this reduces to
-        // licenseType === "subscription" and validUntil not past its grace period (Task
-        // #420 — isProEnabled became expiry-aware, matching isPackUnlocked's identical
-        // policy for pack access).
-        //
-        // Deferral history (#357, Wave 13): a store-level gate was blocked because
-        // tests/entitlement.test.ts (then off-limits) called purchaseAddOn under
-        // licenseType:"free". Wave 13 moved those tests to licenseType:"subscription";
-        // Wave 14 (#388) verified every purchaseAddOn test call site
-        // (tests/entitlement.test.ts, tests/purchaseAddOnGuards.test.ts) now runs under
-        // subscription — the stated blocker no longer existed, so the gate was implemented.
-        if (!isProEnabled(getFeatureFlags().specialtyPacks, get().licenseType, get().validUntil)) {
-          console.warn(`[purchaseAddOn] purchaser does not hold a Pro subscription — rejected`);
-          return { ok: false, error: ERR_ADDON_NOT_PRO };
-        }
-        // Task #322: reject an empty receiptToken before it reaches the IPC boundary.
-        // An empty token always fails verification — rejecting early avoids an IPC round-trip.
-        if (!receiptToken.trim()) {
-          console.warn(`[purchaseAddOn] receiptToken is empty — rejected`);
-          return { ok: false, error: ERR_ADDON_RECEIPT_INVALID };
-        }
-        // Task #349: validate receiptToken length and charset before IPC, mirroring the
-        // license-key validation in useLicenseActivation.ts. LS receipt tokens are
-        // alphanumeric + hyphens/underscores; the 200-char cap rejects megabyte-scale inputs.
-        const trimmedToken = receiptToken.trim();
-        if (trimmedToken.length > RECEIPT_TOKEN_MAX_LENGTH || !RECEIPT_TOKEN_PATTERN.test(trimmedToken)) {
-          console.warn(`[purchaseAddOn] receiptToken failed format validation (length: ${trimmedToken.length}) — rejected`);
-          return { ok: false, error: ERR_ADDON_RECEIPT_INVALID };
-        }
-        // Task #285: verify receipt via Tauri IPC before persisting the purchase.
-        let verified: boolean | null;
-        try {
-          verified = await invoke<boolean>("verify_addon_receipt", { code, receiptToken: trimmedToken });
-        } catch (err) {
-          console.error(`[PURCHASE_ADDON_IPC_FAIL-${Date.now()}]`, { errType: err instanceof Error ? err.name : typeof err });
-          return { ok: false, error: ERR_ADDON_IPC_ERROR };
-        }
-        if (!verified) {
-          console.warn(`[purchaseAddOn] receipt verification rejected for "${code}" — not persisted`);
-          return { ok: false, error: ERR_ADDON_RECEIPT_INVALID };
-        }
-        set((s) => ({
-          purchasedAddOns: s.purchasedAddOns.includes(code)
-            ? s.purchasedAddOns
-            : [...s.purchasedAddOns, code],
-        }));
-        return { ok: true };
-      },
+      // Task #412: implementation extracted to store/entitlementAddOns.ts (Rule 1 —
+      // this file was over the 400-line service cap). createPurchaseAddOn closes over
+      // this store's real set/get, typed against narrow interfaces that
+      // EntitlementState structurally satisfies.
+      purchaseAddOn: createPurchaseAddOn(set, get),
     }),
     {
       name: ENTITLEMENT_STORE_KEY,

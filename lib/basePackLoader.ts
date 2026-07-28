@@ -11,18 +11,25 @@
 // ============================================================
 // DEPENDS ON: @/lib/packCache (cache I/O), @/lib/packTypes (types + shape check),
 //             @/lib/utils (sha256Hex, packUrl), @/lib/generationGuard (the shared
-//             snapshot/bump/isStale primitive behind evictionGuard)
-// USED BY: lib/packLoader.ts ONLY. loadBasePackFromStorageOrNetwork is exported
-//          solely so packLoader can call it — invoking it from anywhere else
-//          bypasses loadPack's allowlist, entitlement, memory-hit, and dedup
-//          gates and is a stop-the-line violation. bumpEvictionGeneration is
-//          called only by packLoader's evictPack.
+//             snapshot/bump/isStale primitive behind evictionGuards)
+// USED BY (Task #428 — corrected, mechanically enforced by the poka-yoke test
+//          "lib/basePackLoader.ts is imported by exactly its two legal callers" in
+//          tests/packLoader.test.ts): TWO legal importers.
+//   - lib/packLoader.ts — the real runtime caller. loadBasePackFromStorageOrNetwork is
+//     exported solely so packLoader can call it — invoking it from anywhere else bypasses
+//     loadPack's allowlist, entitlement, memory-hit, and dedup gates and is a
+//     stop-the-line violation. bumpEvictionGeneration is called from 2 sites here: evictPack
+//     (evicting a language) and loadPack's forced-reload branch (a forced call superseding
+//     an already-pending normal load for the same language, #378 cycle-2 N3).
+//     resetAllEvictionGuardsForTesting (test-only) is called from clearCacheForTesting.
+//   - lib/packResolver.ts — imports the LoadPackOptions TYPE only (erased at compile time,
+//     so it cannot bypass any runtime gate) to type its own function signatures.
 // Comment refs (#NNN = task, FNNN/K2-*/N*/F-C2-* = audit findings): resolve via
 // `git log -S "<ref>"` or .autocode/ history; the prose carries the WHY on its own.
 // ============================================================
 
 import { sha256Hex, packUrl } from "@/lib/utils";
-import { createGenerationGuard } from "@/lib/generationGuard";
+import { createGenerationGuard, type GenerationGuard } from "@/lib/generationGuard";
 import { hasValidUnitsArray } from "@/lib/packTypes";
 import type { Manifest, Pack, LoadPackResult } from "@/lib/packTypes";
 import {
@@ -40,9 +47,20 @@ import {
 /** Options accepted by loadPack and this module's load path. Single named type so the two
  * signatures cannot drift (#378 audit F005 — parallel-literal ban, AGENTS.md).
  * forceRedownload applies to BASE packs only: loadPack's specialty branch delegates to
- * loadSpecialtyPack, which has no force parameter — a forced specialty reload is a no-op
- * serving the merged cached copy (#378 audit F026; parameter plumbing owned by the
- * specialtyPackLoader stream). */
+ * loadSpecialtyPack, which has no force parameter — a forced specialty reload is a
+ * DELIBERATE no-op serving the merged cached copy (#378 audit F026, confirmed and made
+ * observable by Task #432). Not a missing feature: a specialty pack's units are merged
+ * additively into its base pack (`_mergeFromJson` appends, never replaces), and
+ * `isAddOnLoaded(lang)` — the guard a forced reload would need to bypass — is the ONLY
+ * thing preventing a second merge of the same units into the same base pack. Every
+ * existing path that clears `isAddOnLoaded` (clearPackCache's specialty-key eviction,
+ * PackMemCacheImpl.write's specialty cleanup) ALSO resets the base pack itself first, so
+ * the invariant "isAddOnLoaded(lang) === false implies the base pack contains none of
+ * lang's units yet" always holds. Bypassing that guard via a bolted-on forceRedownload
+ * without also implementing a real "unmerge" step would duplicate every unit from a
+ * previously-merged specialty pack. loadPack's specialty branch instead logs a
+ * FORCE_REDOWNLOAD_NOOP warning when this option is set for a specialty code, so the
+ * no-op is observable (Rule 8) rather than a silent swallow — see lib/packLoader.ts. */
 export interface LoadPackOptions {
   forceRedownload?: boolean;
   purchasedAddOns?: string[];
@@ -55,18 +73,40 @@ export interface LoadPackOptions {
 // the snapshot is stale, so a load that was in flight when an eviction ran can never
 // resurrect the evicted pack in memCache or storage. Same class of guard as
 // specialtyPackLoader's deactivationGeneration (Task #394) — Rule 19b symmetry, #378 F001.
-// SCOPE: the guard is global, not per-lang — evicting "es" also voids an in-flight "it"
-// load's right to cache. Deliberate: the cost is one skipped cache write (the caller is
-// still served; the next load re-downloads), and a per-lang map would add bookkeeping for
-// a race that is already rare. Fail-safe in the only direction that matters.
 // Shared primitive (lib/generationGuard.ts) — same shape as specialtyPackLoader's
 // deactivationGeneration; that file's adoption is a tracked carry-forward.
-const evictionGuard = createGenerationGuard();
+//
+// KEYED PER LANGUAGE (Task #436): a single global counter meant evicting "es" also voided
+// an unrelated, already in-flight "it" load's right to cache — that load still served
+// correct data for its one call, but was silently forced to re-download on every
+// subsequent load until its next successful write. One guard instance per language code
+// scopes an eviction's invalidation to only the language actually being evicted.
+const evictionGuards = new Map<string, GenerationGuard>();
 
-/** Invalidates every in-flight base-pack load's right to write back to cache. Called by
- * evictPack (lib/packLoader.ts) before it clears anything. */
-export function bumpEvictionGeneration(): void {
-  evictionGuard.bump();
+function getEvictionGuard(lang: string): GenerationGuard {
+  let guard = evictionGuards.get(lang);
+  if (!guard) {
+    guard = createGenerationGuard();
+    evictionGuards.set(lang, guard);
+  }
+  return guard;
+}
+
+/** Invalidates every in-flight base-pack load's right to write back to cache — for `lang`
+ * only. Called by evictPack (lib/packLoader.ts) before it clears anything, and by loadPack
+ * when a forced re-download supersedes an already-pending normal load for the same lang. */
+export function bumpEvictionGeneration(lang: string): void {
+  getEvictionGuard(lang).bump();
+}
+
+/** Test-only: invalidates every currently-tracked language's eviction guard at once —
+ * clearCacheForTesting resets ALL state globally, not one language's, so a load left in
+ * flight by a previous test (for any language) must not write into the cache this reset
+ * just cleared. Languages never loaded have no guard yet and nothing in flight to
+ * invalidate, so only tracked entries need bumping.
+ * @internal Test use only — do not call in application code. */
+export function resetAllEvictionGuardsForTesting(): void {
+  for (const guard of evictionGuards.values()) guard.bump();
 }
 
 /**
@@ -80,6 +120,7 @@ export async function loadBasePackFromStorageOrNetwork(
   manifest: Manifest | null,
   options?: LoadPackOptions
 ): Promise<LoadPackResult> {
+  const evictionGuard = getEvictionGuard(lang);
   const entryGeneration = evictionGuard.snapshot();
   const manifestEntry = manifest?.packs?.[lang];
   const [cachedMeta, initialCachedData] = await Promise.all([

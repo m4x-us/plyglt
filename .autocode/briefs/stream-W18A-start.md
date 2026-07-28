@@ -1,10 +1,3 @@
----
-status: done
-agent: adam
-stream: W18A
-wave: 18
----
-
 # Adam — Stream W18A — Wave 18 — 2026-07-28
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions

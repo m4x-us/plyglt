@@ -105,7 +105,12 @@ export function isRegisteredSpecialtyCode(s: string): boolean {
 }
 
 /**
- * Returns true iff s is a registered AND ready specialty pack code.
+ * Returns true iff s is a registered AND ready specialty pack code — NOT a
+ * registration-only check despite the name. Task #441: if a call site needs to validate
+ * a persisted/restored code that must survive a pack's `ready` flag later flipping back
+ * to false (Task #384's policy — e.g. store/migrations.ts, lib/importBackup.ts), use
+ * isRegisteredSpecialtyCode above instead; this function will silently return false for
+ * a real, previously-purchased code the moment it goes unready again.
  * Used by purchaseAddOn as the sole code-validity gate before persisting into
  * purchasedAddOns (which has no removal path). Requiring .ready prevents a
  * registered-but-not-yet-shipped pack from being purchased and permanently stored.

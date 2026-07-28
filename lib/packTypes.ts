@@ -126,6 +126,15 @@ export interface PackMemCache {
   has(lang: string): boolean;
   get(lang: string): Pack | undefined;
   keys(): IterableIterator<string>;
+  /**
+   * Replaces `lang`'s entry outright. The in-memory write itself is synchronous — this
+   * method returns only after `this.get(lang)` already reflects `pack` — but it ALSO
+   * triggers un-awaited, fire-and-forget async platform-storage I/O as a side effect
+   * (pruning any specialty pack storage keys tied to the replaced base pack; see
+   * lib/packCache.ts's PackMemCacheImpl.write() and Task #439/F068). A caller does not need
+   * to await anything for the in-memory contract to hold, but should not assume `write()`
+   * returning means all disk/Tauri-store mutations it initiated have completed.
+   */
   write(lang: string, pack: Pack): void;
   merge(lang: string, mergedPack: Pack): void;
   delete(lang: string): void;

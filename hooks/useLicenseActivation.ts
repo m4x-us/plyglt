@@ -7,6 +7,17 @@ import { useState } from "react";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { activateLicense, deactivateLicense, validateLicense } from "@/lib/entitlement";
 
+// Task #423: named constant instead of an inline magic number — mirrors
+// store/entitlementAddOns.ts's RECEIPT_TOKEN_MAX_LENGTH, which validates the parallel
+// receipt-token input via the identical rule. Also mirrored (pending #423, now landed)
+// by lib/importBackup.ts's LICENSE_FIELD_MAX_LENGTH, which validates a restored backup's
+// licenseKey/instanceId — untrusted input reaching the same field via a different path.
+// The three constants are not a single shared import (would require lib/importBackup.ts,
+// a lib/ file, to import from hooks/ — an upward, layer-violating import) but their
+// values must stay in sync; each site cross-references the others in its own comment.
+export const LICENSE_KEY_MAX_LENGTH = 200;
+const LICENSE_KEY_PATTERN = /^[A-Za-z0-9-]+$/;
+
 export type LicenseStatus =
   | { type: "idle" }
   | { type: "loading" }
@@ -21,8 +32,9 @@ export function useLicenseActivation() {
     const key = licenseInput.trim();
     if (!key) return;
     // Local validation before IPC — LS keys are alphanumeric+hyphens, max ~64 chars.
-    // 200 is a generous cap; rejects megabyte-scale inputs before a network round-trip.
-    if (key.length > 200 || !/^[A-Za-z0-9-]+$/.test(key)) {
+    // LICENSE_KEY_MAX_LENGTH is a generous cap; rejects megabyte-scale inputs before a
+    // network round-trip.
+    if (key.length > LICENSE_KEY_MAX_LENGTH || !LICENSE_KEY_PATTERN.test(key)) {
       setLicenseStatus({ type: "error", message: "Invalid license key format." });
       return;
     }

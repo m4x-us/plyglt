@@ -5307,7 +5307,7 @@ components/LanguageGrid.tsx:141-142 decides which button to render via `purchase
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Barry (W18B); extracted purchaseAddOn + its constants/types to new store/entitlementAddOns.ts — entitlementStore.ts now 397 lines, entitlementAddOns.ts 157 lines)
 
 **What:**
 store/entitlementStore.ts is 431 lines, over Rule 1's 400-line service cap, and was not present in .autocode/debt.md as tracked debt — an untracked Rule 1 violation on the most security-relevant store in the codebase. at store/entitlementStore.ts:module:1.
@@ -5391,7 +5391,7 @@ Every eviction failure path in lib/packCache.ts's clearPackCache and _clearSpeci
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A))
 
 **What:**
 lib/basePackLoader.ts:223-230's documented "second generation check" race fix (an eviction landing during the post-download writeCacheMeta/writeCacheData awaits) has no regression test — tests/packLoader.test.ts's #378 cycle-2 block covers the cache-hit race and offline-stale-fallback race but not this path. Deletion Test: delete lines 223-229, no test fails. at lib/basePackLoader.ts:loadBasePackFromStorageOrNetwork:223.
@@ -5451,7 +5451,7 @@ hasValidUnitsArray validates unitCount/cardCount by type only, never cross-check
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Derek (W18D); render-body redirect to the specialty pack's own baseLang before attempting a doomed load, generalizing the existing #339 repair effect to persist it — also updated hooks/useLangPackSeam.test.ts, broken by this change and not owned by any other Wave 18 stream)
 
 **What:**
 isKnownCode (hooks/useLangPack.ts:78-80) treats any registered-and-ready specialty code as "known" regardless of purchase state; the #339 repair effect only fires for !isKnownCode. A user pinned (via persisted LANG_PAIR_KEY) to a ready-but-unpurchased specialty code gets a permanent "Add-on not purchased." state with no in-hook recovery path. Currently latent only because it-medical is ready:false. at hooks/useLangPack.ts:isKnownCode:78.
@@ -5512,7 +5512,7 @@ store/srsStore.ts:26 calls `window.localStorage.getItem(LANG_PAIR_KEY) ?? "en-it
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Charles (W18C); documented as intentionally validated-but-unused rather than removed, since removing would strip validation from a field BackupEntitlement still declares)
 
 **What:**
 lib/importBackup.ts validates and logs purchasedAddOns into BackupEntitlement, but the sole production caller, hooks/useExportImport.ts:81, never destructures it — 4 tests verify a value with no live effect on any real restore path. This is intentional by design (add-ons cannot be restored from an unsigned backup, see Task #422's sibling F069 below) but the validation logic itself is currently dead wiring. Either document this explicitly as intentional dead code with a comment at the validation site, or remove the unused validation. at lib/importBackup.ts:parseBackup:130.
@@ -5532,7 +5532,7 @@ lib/importBackup.ts validates and logs purchasedAddOns into BackupEntitlement, b
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Barry (W18B); added LICENSE_KEY_MAX_LENGTH/LICENSE_KEY_PATTERN, cross-referenced with entitlementAddOns.ts's RECEIPT_TOKEN_MAX_LENGTH rather than a shared import, since that would require lib/importBackup.ts to import from hooks/ — a layer violation. lib/importBackup.ts's own duplicated constant (from Task #424) still needs reconciling — logged as debt)
 
 **What:**
 hooks/useLicenseActivation.ts:25 hardcodes `key.length > 200` inline with a comment instead of a named constant, while store/entitlementStore.ts:78's RECEIPT_TOKEN_MAX_LENGTH=200 explicitly mirrors this same rule for the parallel receipt-token check — inconsistent application of the named-constant rule. AGENTS.md lists any hardcoded string/number that belongs in a named constant as a stop-the-line violation. at hooks/useLicenseActivation.ts:handleActivate:25.
@@ -5572,7 +5572,7 @@ lib/importBackup.ts:148 validates restored licenseKey/instanceId with only `type
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Derek (W18D); corrected the doc comment to name both fallback branches' actual signal strength rather than strengthening the weak one, which would require resolving a documented circular-import constraint out of scope for a documentation-trust finding)
 
 **What:**
 getLanguageConfig's hyphenated-code fallback branch cannot check SPECIALTY_PACKS membership (documented circular-import constraint), so "it-typo" or any garbage suffix sharing a valid 2-letter prefix takes the identical silent-success path (console.warn + base config) as a genuinely registered code like "it-medical" — a weaker signal (warn, not error) than the no-hyphen branch despite the doc comment's claim that "the error signal prevents silent masking." No test covers "valid prefix, garbage suffix." at lib/language.ts:getLanguageConfig:842.
@@ -5633,7 +5633,7 @@ parseFlag (lib/featureFlags.ts:18-21) defaults to TRUE unless the env var is exp
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A); corrected to the final post-#436 two-importer state, not the state the finding was originally written against)
 
 **What:**
 lib/basePackLoader.ts's header and CLAUDE.md Section 1 both claim "USED BY: lib/packLoader.ts ONLY" — false, since lib/packResolver.ts:23 also imports LoadPackOptions from it. The poka-yoke test at tests/packLoader.test.ts:1879-1900 is itself named "imported ONLY by lib/packLoader.ts" but its assertion expects exactly TWO importers — the test's own body contradicts its own name and the header it exists to enforce. Also, bumpEvictionGeneration is called from 3 sites in packLoader.ts, not just evictPack, per the same stale header. at lib/basePackLoader.ts:module-header:15.
@@ -5654,7 +5654,7 @@ lib/basePackLoader.ts's header and CLAUDE.md Section 1 both claim "USED BY: lib/
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A))
 
 **What:**
 tests/packLoader.test.ts:441,450,470,479,488,739,750,953 (path-traversal and invalid-lang tests) would still pass because a separate, later entitlement gate independently produces the identical invalid_lang result regardless of whether the allowlist guard under test exists (entitlement-gate shadowing) — meaning the security-relevant path-traversal allowlist guard itself has no test proving it specifically works. at tests/packLoader.test.ts:441.
@@ -5695,7 +5695,7 @@ A hand-crafted, unsigned backup JSON with arbitrary non-empty licenseKey/instanc
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A))
 
 **What:**
 isValidManifestShape (lib/packLoader.ts:81-96) only checks version/sha256 are typeof string; never validates that sha256 is a well-formed 64-char hex digest. A manifest entry with sha256:"" or "x" passes shape validation, degrading to "checksum never matches" instead of a clear rejection at the validation boundary. at lib/packLoader.ts:isValidManifestShape:81.
@@ -5715,7 +5715,7 @@ isValidManifestShape (lib/packLoader.ts:81-96) only checks version/sha256 are ty
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A); chose the documented-no-op path over a real forced reload, since specialty merges are additive and a forced reload would need an unsafe "unmerge" step — the no-op is now logged (FORCE_REDOWNLOAD_NOOP) instead of silent)
 
 **What:**
 loadPack never threads options?.forceRedownload into loadSpecialtyPack, whose signature has no force parameter at all — a caller believing it forced a fresh specialty download silently gets the cached/merged copy with no error and no way to detect the no-op. LoadPackOptions.forceRedownload is documented as applying "to BASE packs only" yet is declared once and threaded as a single flat option bag for both base and specialty lang values, with no signal to a reader that it's a no-op for specialty codes. at lib/packLoader.ts:loadPack:158.
@@ -5795,7 +5795,7 @@ HYDRATION_FAILSAFE_MS (3000ms, lib/storage.ts:useIsHydrated:114-144) cannot dist
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Adam (W18A); single evictionGuard replaced with a Map<string, GenerationGuard> keyed per language)
 
 **What:**
 lib/basePackLoader.ts:52-64's evictionGuard is a single global generation counter, not per-language: evictPack("es") bumps the generation and causes an unrelated, already in-flight loadPack("it") (a second concurrently-mounted useLangPack instance) to skip its own cache write — "it" still returns correct data this call but is silently forced to re-download on every subsequent load until the next successful write. at lib/basePackLoader.ts:evictionGuard:52.
@@ -5815,7 +5815,7 @@ lib/basePackLoader.ts:52-64's evictionGuard is a single global generation counte
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Charles (W18C); rejects a concurrent import immediately with a clear message rather than queuing)
 
 **What:**
 hooks/useExportImport.ts:readFile:48-106 has no guard against concurrent imports — two rapid handleImportFile/readFile calls run independent FileReader instances with no in-flight lock; final SRS/entitlement state is whichever FileReader resolves last, and the displayed dataStatus can describe the wrong import. at hooks/useExportImport.ts:readFile:48.
@@ -5835,7 +5835,7 @@ hooks/useExportImport.ts:readFile:48-106 has no guard against concurrent imports
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Barry (W18B); the state-reset now runs inside the same .then() as the eviction settling, not before it starts)
 
 **What:**
 store/entitlementStore.ts:clearEntitlement:203-234's synchronous set({...}) flips licenseType to "free" and clears purchasedAddOns/unlockedPacks BEFORE the specialty-content eviction (Promise.all(...evictPack...), resetSpecialtyLoadState()) has run. Any code reading memCache directly during that window still serves previously-merged specialty content — entitlement state and cached data are observably inconsistent for the eviction's I/O duration. at store/entitlementStore.ts:clearEntitlement:203.
@@ -5855,7 +5855,7 @@ store/entitlementStore.ts:clearEntitlement:203-234's synchronous set({...}) flip
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Charles (W18C); doc comment only on the PackMemCache interface, no type/signature change — the async I/O is genuinely fire-and-forget, so Promise<void> would be dishonest too)
 
 **What:**
 write(lang, pack):void (lib/packTypes.ts's PackMemCache interface, implemented at lib/packCache.ts:113-122) is typed as synchronous/void, but the concrete implementation also fires _clearSpecialtyStorageKeys, an async function performing platform-storage removeItem I/O — a caller relying on the interface contract has no signal that write() triggers disk/Tauri-store mutations as a side effect. at lib/packCache.ts:PackMemCacheImpl.write:113.
@@ -5895,7 +5895,7 @@ The promise "purchased add-ons cannot be restored from an unsigned backup" is en
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
+**Status:** COMPLETE — 2026-07-28 (Wave 18 — Derek (W18D); documentation over rename — isRegisteredSpecialtyCode (Wave 17's #407) already provides the registration-only half; added a doc-comment cross-reference on isSpecialtyPackCode instead of reviving the isReadySpecialtyPackCode name Task #380 deliberately deleted)
 
 **What:**
 isSpecialtyPackCode's name promises "is this a specialty pack code" (registration membership), but the implementation is `sp.code===s && sp.ready` — a registered-but-unshipped code returns false, indistinguishable from an unregistered/garbage code. store/migrations.ts and lib/importBackup.ts both had to hand-roll a separate check specifically to route around what the function's name implies it checks — this contract mismatch is the root cause driving Task #407/F001's 5-file duplication. at lib/langRegistry.ts:isSpecialtyPackCode:103.

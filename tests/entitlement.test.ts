@@ -1202,6 +1202,39 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
     expect(memCache.has("it")).toBe(false);
   });
 
+  it("#438: entitlement state does not flip to 'free' until eviction has fully settled — no window where state and cache disagree", async () => {
+    // Before #438, the state-reset set() ran as the first two statements in
+    // clearEntitlement's body — licenseType flipped to "free" synchronously, before the
+    // memCache/storage eviction Promise.all had even started its async work. Any external
+    // observer reading store state during that window saw "free" while memCache still held
+    // the previously-merged specialty content. clearEntitlement's own function body has no
+    // await, so control returns to the caller before ANY .then() callback runs — checking
+    // synchronously right after the call (before awaiting) deterministically observes
+    // whatever ran BEFORE the async eviction, with no artificial delay needed.
+    reset({ licenseKey: "ABC", instanceId: "i1", licenseType: "subscription", unlockedPacks: ["it", "es"] });
+    mockSpecialtyPacksForClearEntitlement.push({ code: "it-medical", baseLang: "it", name: "Medical Italian", ready: true });
+    const mergedPack: Pack = {
+      _version: 1, lang: "it", packVersion: "1.0.0", canonicalSource: "en",
+      name: "Italian", nativeName: "Italiano", flag: "🇮🇹",
+      unitCount: 1, cardCount: 1, units: [],
+    };
+    memCache.write("it", mergedPack);
+    vi.mocked(getLoadedAddOns).mockReturnValueOnce(["it-medical"]);
+
+    const promise = store().clearEntitlement();
+
+    // Still the pre-deactivation state — eviction has not yet settled.
+    expect(store().licenseType).toBe("subscription");
+    expect(store().licenseKey).toBe("ABC");
+    expect(store().unlockedPacks).toEqual(["it", "es"]);
+
+    await promise;
+
+    expect(store().licenseType).toBe("free");
+    expect(store().licenseKey).toBeNull();
+    expect(memCache.has("it")).toBe(false);
+  });
+
   it("#326: clearEntitlement is a no-op on memCache when no specialty content was ever merged", async () => {
     // Regression guard for the common case: a user with no specialty purchases deactivating
     // should not have their base pack evicted from memCache — only affected base languages
@@ -1308,9 +1341,11 @@ describe("purchasedAddOns — add-on entitlement (Task #148, #287, #285)", () =>
       removeItemSpy.mockRestore();
       errorSpy.mockRestore();
     }
-    // The license state IS reset regardless — set() runs synchronously before eviction.
+    // The license state IS reset regardless — the state-reset set() (Task #438: now runs
+    // after eviction settles, in the .then() below) still runs before the throw check.
     expect(store().licenseType).toBe("free");
-    // memCache is still cleared (in-memory, synchronous) despite the storage-layer failure.
+    // memCache is still cleared despite the storage-layer failure (memCache.delete() is
+    // unconditional inside clearPackCache — only the persisted-storage removal failed).
     expect(memCache.has("it")).toBe(false);
   });
 
