@@ -434,10 +434,19 @@ describe("parseBackup", () => {
     });
   });
 
-  it("#477: a numeric-string _version that is NOT newer (≤ CURRENT_BACKUP_VERSION) still gets the generic message — real backups never serialize _version as a string at all", () => {
+  it("#481: a numeric-string _version EQUAL to CURRENT_BACKUP_VERSION is accepted, symmetric with its numeric equivalent", () => {
+    // Before #481, this exact case was REJECTED with the generic message even though the
+    // numerically identical _version: CURRENT_BACKUP_VERSION (number) is accepted — an
+    // unjustified asymmetry between two serializations of the same real version.
     const backup = validBackup({ _version: String(CURRENT_BACKUP_VERSION) });
     const r = parseBackup(backup);
-    expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    expect(r.ok).toBe(true);
+  });
+
+  it("#481: a numeric-string _version strictly LOWER than CURRENT_BACKUP_VERSION is also accepted (not just the boundary-equal case)", () => {
+    const backup = validBackup({ _version: "1" });
+    const r = parseBackup(backup);
+    expect(r.ok).toBe(true);
   });
 
   it("#477: a non-numeric string _version gets the generic message, not the newer-version one", () => {
@@ -450,6 +459,43 @@ describe("parseBackup", () => {
     expect(parseBackup(validBackup({ _version: {} }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
     expect(parseBackup(validBackup({ _version: [2] }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
     expect(parseBackup(validBackup({ _version: true }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+  });
+
+  describe("Task #479 — isFinite, not isNaN, rejects Infinity/hex/fractional _version values", () => {
+    it("rejects a string _version of \"Infinity\" with the generic message, not the newer-version one", () => {
+      // Number("Infinity") === Infinity, and the pre-#479 check was `!isNaN(parsedVersion)`
+      // — isNaN(Infinity) is false, so this string passed straight into the newer-version
+      // branch and produced the nonsensical "backup vInfinity...update plyglt" message.
+      const r = parseBackup(validBackup({ _version: "Infinity" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects a raw JSON literal that overflows to numeric Infinity (e.g. 1e400), not just the string form", () => {
+      // JSON.parse("1e400") is valid JSON syntax that produces the JS value Infinity
+      // (typeof "number") — no string coercion involved at all. The sibling numeric branch
+      // had the identical isFinite gap Task #467 left unfixed two waves ago.
+      const backup = JSON.parse(`{"_version":1e400,"srs":{},"entitlement":{"licenseKey":null,"instanceId":null,"licenseType":"free","unlockedPacks":["it"],"validUntil":null}}`) as Record<string, unknown>;
+      const r = parseBackup(backup);
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects a numeric _version of -Infinity (truthy, so the old !data._version falsy check alone would not catch it)", () => {
+      const r = parseBackup(validBackup({ _version: -Infinity }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects a hex-looking string _version (\"0x10\") instead of silently coercing it to 16", () => {
+      // Number("0x10") === 16 — a plain isFinite() check alone would NOT catch this (16 is
+      // finite); the fix requires validating the string is digits-only BEFORE any numeric
+      // coercion, not just checking the coerced result.
+      const r = parseBackup(validBackup({ _version: "0x10" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects fractional string _version values (\"2.5\", \"999.5\") rather than treating them as plausible versions", () => {
+      expect(parseBackup(validBackup({ _version: "2.5" }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+      expect(parseBackup(validBackup({ _version: "999.5" }))).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
   });
 
   it("coerces malformed langPair format to en-it default", () => {

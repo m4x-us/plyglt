@@ -36,6 +36,16 @@ export type ParseBackupResult =
   | { ok: true; srs: BackupSrs; entitlement: BackupEntitlement; langPair: string; validCardCount: number; skippedCardCount: number }
   | { ok: false; error: string };
 
+// Task #483 (Poka-Yoke, AGENTS.md — hardcoded strings that belong in a named constant):
+// "Invalid backup file — missing required fields." previously appeared 3 times verbatim in
+// parseBackup, and the "newer version...update plyglt" template was independently
+// hand-constructed in 2 places with different interpolated variables. One constant and one
+// helper — every call site below uses these, never a repeated literal.
+const GENERIC_BACKUP_ERROR = "Invalid backup file — missing required fields.";
+function newerVersionError(version: number): string {
+  return `This backup was created by a newer version of the app (backup v${version}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`;
+}
+
 const VALID_STATES: Set<string> = new Set(["new", "learning", "review", "relearning"]);
 // Task #424: mirrors hooks/useLicenseActivation.ts:25's manual-entry format guard. Task #423
 // (a shared named constant so the two sites cannot drift) is deferred to a later wave —
@@ -84,6 +94,12 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // non-array). A truthiness-only check accepted entitlement:"corrupted" or entitlement:5
   // and silently defaulted every entitlement field instead of rejecting the backup the
   // way equally-malformed srs input is rejected.
+  if (
+    typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) ||
+    typeof data.entitlement !== "object" || data.entitlement === null || Array.isArray(data.entitlement)
+  )
+    return { ok: false, error: GENERIC_BACKUP_ERROR };
+
   // Task #467: `!data._version` alone only rejects FALSY values (0/null/undefined/"") — a
   // truthy but non-number _version (e.g. the string "999") passed this guard untouched, and
   // then also skipped the newer-version rejection below (gated on `typeof === "number"`),
@@ -93,38 +109,36 @@ export function parseBackup(raw: unknown): ParseBackupResult {
   // required fields" message — including exactly the "genuinely newer app version that
   // serializes _version as a string" scenario #467's own rationale cites, which deserves
   // the specific "update plyglt" message, not a worse one than the numeric case gets.
-  // typeof data._version === "string" is split out below (checked before the combined
-  // shape guard) so a numeric-looking string can still earn that message; every other
-  // non-number shape (object, array, boolean) falls through to the same combined guard
-  // as before and gets the generic message, unchanged.
-  if (
-    typeof data.srs !== "object" || data.srs === null || Array.isArray(data.srs) ||
-    typeof data.entitlement !== "object" || data.entitlement === null || Array.isArray(data.entitlement)
-  )
-    return { ok: false, error: "Invalid backup file — missing required fields." };
-
   if (typeof data._version === "string") {
-    const parsedVersion = Number(data._version);
-    if (!isNaN(parsedVersion) && parsedVersion > CURRENT_BACKUP_VERSION) {
-      return {
-        ok: false,
-        error: `This backup was created by a newer version of the app (backup v${parsedVersion}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
-      };
+    // Task #479: Number(str) coerces hex ("0x10"→16), exponential notation, and fractional
+    // strings ("2.5") as if they were plausible integer versions, and !isNaN() alone
+    // additionally lets "Infinity" through (Number("Infinity")=Infinity, isNaN(Infinity) is
+    // false) — none of these are plausible serializations of a real integer _version. A
+    // strict digits-only pattern, checked BEFORE any numeric coercion, rejects all of them
+    // uniformly; isFinite() is kept as defense in depth against an absurdly long all-digit
+    // string overflowing to Infinity on coercion (e.g. 400 nines).
+    const isPlainIntegerString = /^\d+$/.test(data._version);
+    const parsedVersion = isPlainIntegerString ? Number(data._version) : NaN;
+    if (!isPlainIntegerString || !isFinite(parsedVersion)) {
+      return { ok: false, error: GENERIC_BACKUP_ERROR };
     }
-    // A non-numeric-looking string (or a numeric string that isn't actually newer — real
-    // backups never serialize _version as a string at all) is genuinely malformed, not a
-    // plausible future version — same generic bucket as every other shape failure here.
-    return { ok: false, error: "Invalid backup file — missing required fields." };
-  }
-
-  if (!data._version || typeof data._version !== "number")
-    return { ok: false, error: "Invalid backup file — missing required fields." };
-
-  if (data._version > CURRENT_BACKUP_VERSION) {
-    return {
-      ok: false,
-      error: `This backup was created by a newer version of the app (backup v${data._version}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`,
-    };
+    if (parsedVersion > CURRENT_BACKUP_VERSION) {
+      return { ok: false, error: newerVersionError(parsedVersion) };
+    }
+    // Task #481: a valid, non-newer numeric-looking string (e.g. "2", "1") is symmetric
+    // with its numeric equivalent (_version: 2) — both name the exact same version and
+    // must be accepted identically, not rejected just because of how the value happened to
+    // be serialized. Falls through to the rest of the function exactly as a numeric
+    // _version would; no further validation of _version itself is needed below.
+  } else if (!data._version || typeof data._version !== "number" || !isFinite(data._version)) {
+    // Task #479: the sibling numeric branch had the identical isFinite gap — a raw
+    // `_version: 1e400` in hand-edited JSON parses to `Infinity` (typeof "number") via
+    // JSON.parse itself, no string coercion involved, and `Infinity > CURRENT_BACKUP_VERSION`
+    // is true, producing the nonsensical "backup vInfinity" message. `!data._version` alone
+    // already rejects 0/NaN (both falsy) but not Infinity/-Infinity (both truthy).
+    return { ok: false, error: GENERIC_BACKUP_ERROR };
+  } else if (data._version > CURRENT_BACKUP_VERSION) {
+    return { ok: false, error: newerVersionError(data._version) };
   }
 
   const srsData = data.srs as Record<string, unknown>;

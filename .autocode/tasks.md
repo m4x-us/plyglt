@@ -2822,12 +2822,13 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 137 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 143 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Sixth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 9 (critical) — 22 findings (F1-F22) merged/scored by Agent C; 11 findings (severity ≥4) promoted as Task #455-#465 below; 11 findings (severity ≤3) logged to debt.md. Critical finding: Task #450's widened Verification Gate is currently red by its own literal wording (29 pre-existing hits) and the batch was carried to zero open tasks without an updated cycle-6 verdict — see Task #455. Task #466 added per Max's explicit direction (2026-07-28) to close this mechanically via CI, not rely on the audit process to catch it again next time. Wave 20 (4 streams: Adam/Barry/Charles/Derek) closed all 12 tasks (#455-466) 2026-07-28, independently re-verified against actual source: tsc clean, 1403/1403 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean (genuinely zero hits — the critical finding is resolved), CI now mechanically enforces the gate on every push/PR. Per BATCH_REMEDIATION_GATE, task completion alone doesn't close the gate — a fresh "/audit batch 12" run must PASS next.
 Seventh re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — cycle-6's critical process failure (the gate silently red) is confirmed genuinely fixed, but 2 new LIVE bugs surfaced via execution-based testing (a backup-restore version-check bypass, and an uncaught-crash bug in the CI pack validator itself), plus the batch's own recurring "fix the instance, miss the sibling" pattern struck again inside this wave's own fixes (4 of 7 promoted findings are the fix-that-recreates-its-own-defect-class shape). 7 findings (severity ≥4) promoted as Task #467-473 below; 13 findings (severity ≤3) logged to debt.md. Wave 21 (4 streams: Adam/Barry/Charles/Derek) closed all 7 tasks 2026-07-28, independently re-verified: tsc clean, 1424/1424 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean, scripts/validatePack.ts now genuinely counted in coverage (67.76%/76.85%/100%/66.66%), aggregate thresholds still exceeded. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Eighth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — no critical bugs this time, but 4 converged findings each trip an explicit stop-the-line rule, and 3 of them are the same shape recurring inside the very fixes meant to close it (a fix/test handling one of two near-identical branches, leaving its twin unaddressed). Security posture confirmed genuinely clean this cycle. 5 findings (severity ≥4) promoted as Task #474-478 below; 6 findings (severity ≤3) logged to debt.md. Wave 22 (4 streams: Adam/Barry/Charles/Derek) closed all 5 tasks 2026-07-28, independently re-verified: tsc clean, 1428/1428 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
+Ninth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — no critical bugs, but two live bugs with the strongest convergence recorded yet in this batch's history (up to 6 of 8 reviewers independently, several via direct execution), plus a uniquely deep single-reviewer finding: Security Agent S traced the actual Zustand library source and found that last cycle's error-logging fix (Task #474) logs a code path that can never actually fire in production under this store's real configuration. 6 findings promoted as Task #479-484 below (5 open — F002/F010 combined into Task #480, #484 merged/closed as a duplicate of #480's own third acceptance criterion); F003 folded into #480's context rather than separately promoted (same code region, low separate-actionability per the auditors' own note that validateCard's independent check already mitigates it); 4 findings (severity ≤3) logged to debt.md. Wave 23 (3 streams: Adam/Barry/Charles) closed all 5 open tasks (#479-483) 2026-07-28, independently re-verified against actual source: tsc clean, full suite passes with coverage well above thresholds (89.81%/85.83%/90.36%/92.02% stmts/branches/funcs/lines vs 84/81/79/82 floors), lint clean (3 pre-existing warnings), Verification Gate grep clean (zero hits). Adam correctly judged isFinite() alone insufficient for the string branch (hex strings are technically finite) and used a strict digits-only pattern first; Charles did genuine investigation rather than deleting the "dead" branch, tracing zustand@5.0.14's actual source and adding a test against the real (non-mocked) persist/createJSONStorage behavior. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
 Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
 Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
@@ -6660,6 +6661,126 @@ Task #467's own rationale explicitly cites "a genuinely newer app version that e
 - [ ] A test supplies two cards both missing/with non-string id and asserts no garbled "Duplicate card IDs:" line is produced
 
 **Source:** Cycle-8 audit finding C8-F05 — severity 4 — convergence 4/8 (Agents A, B, W, Red R — highest convergence this cycle, 2 execution-verified) — code-quality, LIVE.
+
+---
+
+### Task #479: Fix data-integrity: parseBackup's _version handling uses isNaN instead of isFinite, accepting Infinity/hex/fractional strings as plausible versions — in both the new AND a pre-existing branch
+
+**File:** lib/importBackup.ts, tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 23 — Adam (W23A); replaced isNaN with a strict digits-only pattern check before numeric coercion in the string branch, plus an isFinite() guard in both the string and the pre-existing numeric branch; verified independently — tsc clean, full suite/coverage/lint/banned-assertion gate all pass, diff spot-checked directly)
+
+**What:**
+The new string-`_version` branch (Task #477) uses `!isNaN(parsedVersion)` instead of `isFinite(parsedVersion)` — this file already documents elsewhere why that distinction matters ("typeof NaN === 'number' is true — isFinite() is required to reject NaN and Infinity", used correctly in normalizeCardProgress). `Number("Infinity")` = `Infinity`, `isNaN(Infinity)` is false, so `_version:"Infinity"` is accepted into the newer-version branch and produces the nonsensical message "backup vInfinity, app supports v2. Please update plyglt." Also confirmed live: hex strings ("0x10"→16) and fractional strings ("2.5", "999.5") are silently accepted as valid versions. CRITICAL: this same defect ALSO exists in the untouched sibling NUMERIC branch (shipped 2 waves ago in Task #467, not touched by this wave) — a raw `_version:1e400` in hand-edited JSON parses to `Infinity` (typeof number) via the same unguarded path. The defect class exists twice in one function, unaddressed both times. Reachable live via hooks/useExportImport.ts's user-facing backup-restore file picker. at lib/importBackup.ts:108.
+
+**Acceptance Criteria:**
+- [ ] Both the string-parsing branch and the numeric branch use `isFinite()` (not just truthy/isNaN checks) to reject Infinity/-Infinity in both string and number form
+- [ ] Tests cover _version as "Infinity", a raw JSON Infinity-producing literal (e.g. 1e400), hex strings, and fractional strings — all should get the generic rejection message, not the "newer version" message
+
+**Source:** Cycle-9 audit finding F001 — severity 6 — convergence 6/8 (Agents N, B, A, K, Red R, W) — Rule 23 violation, LIVE, reachable via the real backup-restore path.
+
+---
+
+### Task #480: Fix code-quality: validatePack's dedup loop still collides on empty/whitespace-only card ids after Task #478's partial fix
+
+**File:** scripts/validatePack.ts, tests/validatePack.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 23 — Barry (W23B); dedup guard now mirrors validateCard's exact compound check (`!isString(id) || id.trim() === ""`); added empty-string and whitespace-only id tests, and upgraded all 4 related garbled-output tests to also assert validateCard's own per-card id errors are present, closing F010 too; verified independently)
+
+**What:**
+Task #478's fix (`if (!isString(id)) continue;`) closes the undefined/non-string dedup-key collision but does not replicate validateCard's compound check (`!isString(card["id"]) || card["id"].trim() === ""`). Two cards both with `id: ""` both pass `isString("")` (true), collide in the ids Set, and reproduce the exact garbled "Duplicate card IDs: " output Task #478 was supposed to eliminate. A whitespace-only id (" ") survives the same gap. Related, distinct angle (Red Agent R): the `continue` also silently drops ANY invalid-id card from this specific loop with zero record — a real duplicate pair sharing an invalid id shape produces no signal from this check specifically (though validateCard's separate check still reports the shape issue elsewhere). at scripts/validatePack.ts:201.
+
+**Acceptance Criteria:**
+- [ ] The dedup guard mirrors validateCard's exact compound check: `isString(id) && id.trim() !== ""`
+- [ ] Tests cover two cards both with id:"" and both with id:" " (whitespace-only), asserting no garbled "Duplicate card IDs:" line
+- [ ] The new/existing garbled-output tests also assert validateCard's own per-card id errors are still present in the result (not just the absence of the duplicate line), so the test can distinguish "correctly suppressed" from "dedup silently stopped running"
+
+**Source:** Cycle-9 audit finding F002 + F010 — severity 5 — convergence 5/8 (Agents N, B, K, W, Red R) — Rule 23 violation, LIVE (CI validator path).
+
+---
+
+### Task #481: Fix requirements: parseBackup's string-_version branch has no acceptance path, rejecting a numeric string equal to the current version that its numeric equivalent would accept
+
+**File:** lib/importBackup.ts, tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 23 — Adam (W23A); chose symmetric acceptance — a valid, non-newer numeric-looking string now succeeds identically to its numeric equivalent; updated the #477 boundary-equal test in place and added a strictly-lower test; verified independently)
+
+**What:**
+The string-`_version` branch added for Task #477 has no acceptance path at all: after the newer-version check fails, it unconditionally returns the generic "missing required fields" message. This means `_version:"2"` (string, exactly CURRENT_BACKUP_VERSION) is REJECTED, while the numerically identical `_version:2` (number) is ACCEPTED via the sibling branch. Two framings to weigh: (1) a real functional regression/inconsistency — Task #477 only fixed the genuinely-newer sub-case and left the equal-or-lower sub-case asymmetric with its numeric equivalent; (2) an intentional, tested design choice resting on the assumption that real backups never serialize _version as a string at all — true only for the CURRENT export path (lib/exportBackup.ts always writes a number), not structurally enforced against any future export path. at lib/importBackup.ts:106.
+
+**Acceptance Criteria:**
+- [ ] Decide and implement: either the string path accepts a valid, non-newer numeric-string version symmetrically with the numeric path, OR the design tradeoff (string _version is never valid) is explicitly enforced/documented as intentional with the assumption's fragility noted
+- [ ] A test exists for a numeric string strictly LOWER than CURRENT_BACKUP_VERSION (not just the boundary-equal case), since the current test only covers "=" despite its name implying "≤"
+
+**Source:** Cycle-9 audit finding F004 — severity 5 — convergence 3/8 (Agents K, Red R, W — with differing severity framings) — requirements, LIVE.
+
+---
+
+### Task #482: Fix error-handling: entitlementCrossTabSync's Task #474 fix logs a rejection branch that Zustand's real persist.rehydrate() can never actually trigger
+
+**File:** store/entitlementCrossTabSync.ts, tests/entitlementCrossTabSync.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 23 — Charles (W23C); traced zustand@5.0.14's actual middleware.mjs source, confirmed rehydrate() cannot genuinely reject under this app's config, documented the branch as defensive-only in a header doc-comment, and kept it — added a new test against the REAL zustand persist/createJSONStorage (not a synthetic mock) with a genuinely-rejecting storage.getItem, asserting rehydrate() still resolves; verified independently)
+
+**What:**
+Task #474 added console.error logging to the rejection handler of `result.then(done, (err) => {...})`. But under this store's actual persist() configuration — no onRehydrateStorage callback is registered in store/entitlementStore.ts, store/srsStore.ts, or store/settingsStore.ts — Zustand's own hydrate() (verified by tracing node_modules/zustand/esm/middleware.mjs) terminates in a `.catch((e) => { postRehydrationCallback?.(void 0, e); })` that never rethrows or rejects when postRehydrationCallback is undefined. The promise persist.rehydrate() returns can therefore never reject in production — it always resolves. The new rejection branch and its regression test only exercise a path unreachable via the real Zustand dependency this module actually calls; the fix satisfies Rule 8 only against a mock, not against production. Not a security leak (the branch never runs), but the stated diagnosability goal isn't actually accomplished for real users. at store/entitlementCrossTabSync.ts:84.
+
+**Acceptance Criteria:**
+- [ ] Determine whether Zustand's persist.rehydrate() can ever genuinely reject under this app's configuration (check across all Zustand versions/configs in use, not just the current one) — if it truly cannot, document this explicitly in the module's header comment so the "async-reject" branch is understood as defensive-only, not a live diagnostic path
+- [ ] If a genuine rejection path exists elsewhere (e.g. a future onRehydrateStorage callback, or a different persist config), verify the fix actually covers it; otherwise consider whether the test should mock a more faithful (non-rejecting) version of Zustand's real behavior instead of a synthetic always-controllable Promise
+
+**Source:** Cycle-9 audit finding F009 — severity 6 — convergence 1/8 (Security Agent S, verified against actual Zustand source) — highest-confidence single-reviewer finding this cycle.
+
+---
+
+### Task #483: Fix code-quality: parseBackup's generic error message string is now triplicated, and the "newer version" template is duplicated across 2 branches
+
+**File:** lib/importBackup.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 23 — Adam (W23A); extracted `GENERIC_BACKUP_ERROR` constant and `newerVersionError(version)` helper, used at every call site; no behavior change, existing tests pass unmodified; verified independently)
+
+**What:**
+The literal "Invalid backup file — missing required fields." now appears 3 times verbatim in parseBackup (Task #477 added a 3rd occurrence). AGENTS.md's Poka-Yoke stop-the-line rule explicitly bans "any hardcoded string that belongs in a named constant." Separately, the "This backup was created by a newer version...update plyglt" message template is now independently hand-constructed in two places (string branch, number branch) with different interpolated variables — a future wording change requires remembering to edit both. at lib/importBackup.ts:104.
+
+**Acceptance Criteria:**
+- [ ] Both message strings are extracted to named constants or a small helper function, used by all call sites (3 for the generic message, 2 for the newer-version message)
+- [ ] No behavior change; existing tests pass unmodified
+
+**Source:** Cycle-9 audit finding F006 — severity 4 — convergence 2/8 (Agent A, Red Agent R) — Poka-Yoke violation, LIVE.
+
+---
+
+### Task #484: Fix test-quality: validatePack.test.ts's garbled-output regression tests use absence-only assertions that could pass vacuously
+
+**File:** tests/validatePack.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (merged into Task #480 at consolidation time — #480's third acceptance criterion is this exact fix; not separate work, avoiding duplicate promotion of the same underlying finding)
+
+**What:**
+The two Task #478 regression tests (two cards both id:undefined; two cards both id:42) assert only `errors.some((e) => e.startsWith("Duplicate card IDs:")) === false`. This would pass vacuously if the entire dedup-detection loop were disabled or deleted for an unrelated reason, since a disabled loop also never emits that line. Neither test also asserts validateCard's own per-card id errors are still present, so the test can't distinguish "the garbled line was correctly suppressed" from "duplicate-detection silently stopped running altogether." at tests/validatePack.test.ts:207.
+
+**Acceptance Criteria:**
+- [x] Superseded — see Task #480's third acceptance criterion, which covers this exact fix
+
+**Source:** Cycle-9 audit finding F010 — severity 4 — convergence 1/8 (Agent K) — test-quality (duplicate of Task #480's scope, merged).
 
 ---
 

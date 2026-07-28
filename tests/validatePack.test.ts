@@ -204,7 +204,13 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
   // the same dedup key — before the fix, `card["id"] as string` cast both `undefined`s
   // to the literal string "undefined" (via ids.has/add on the raw unchecked value),
   // producing a garbled "Duplicate card IDs: " line with nothing readable after the colon.
-  it("does not report a garbled 'Duplicate card IDs:' line for two cards both missing an id", () => {
+  //
+  // Task #480 F010: these tests (and the two new ones below) assert BOTH that the garbled
+  // duplicate line is absent AND that validateCard's own per-card id errors are still
+  // present — absence-only assertions can't distinguish "correctly suppressed" from
+  // "the dedup loop silently stopped running/being reached at all", which would also make
+  // the garbled-line assertion pass for the wrong reason.
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both missing an id, and still reports each card's own id error", () => {
     const units = [
       makeValidUnit({
         id: "u1",
@@ -213,9 +219,11 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     ];
     const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
     expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[1].id: missing or empty string");
   });
 
-  it("does not report a garbled 'Duplicate card IDs:' line for two cards both with a non-string id", () => {
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both with a non-string id, and still reports each card's own id error", () => {
     const units = [
       makeValidUnit({
         id: "u1",
@@ -224,6 +232,38 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     ];
     const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
     expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[1].id: missing or empty string");
+  });
+
+  // Task #480 (F002): #478's fix (`!isString(id)`) closed the non-string case but missed
+  // that two cards both with id:"" (or id:" ", whitespace-only) both pass isString() —
+  // "" and " " are strings — and so still collide in the ids Set, reproducing the exact
+  // same garbled "Duplicate card IDs: " line #478 was supposed to eliminate entirely.
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both with an empty-string id, and still reports each card's own id error", () => {
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [makeValidCard({ id: "" }), makeValidCard({ id: "" })],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[1].id: missing or empty string");
+  });
+
+  it("does not report a garbled 'Duplicate card IDs:' line for two cards both with a whitespace-only id, and still reports each card's own id error", () => {
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [makeValidCard({ id: " " }), makeValidCard({ id: " " })],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 2 }));
+    expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[1].id: missing or empty string");
   });
 });
 

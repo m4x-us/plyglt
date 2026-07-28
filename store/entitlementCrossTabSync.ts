@@ -45,6 +45,29 @@ export interface CrossTabSyncHandle {
  * practice (entitlement writes are rare) and acceptable given the client-only,
  * honour-system entitlement model (decision 2026-06-24).
  *
+ * Task #482 (F009): the async-reject branch inside triggerRehydrate (result.then(done,
+ * errorHandler)) is DEFENSIVE-ONLY under this app's actual production configuration, not
+ * a live diagnostic path — verified directly against zustand@5.0.14's source
+ * (node_modules/zustand/esm/middleware.mjs's hydrate()): its promise chain always
+ * terminates in a `.catch((e) => { ...; postRehydrationCallback?.(void 0, e); })` that
+ * never rethrows. Since no store in this app (entitlementStore.ts, srsStore.ts,
+ * settingsStore.ts) registers an onRehydrateStorage callback, postRehydrationCallback is
+ * always undefined and that optional call is always a no-op — persist.rehydrate() can
+ * therefore never actually return a rejected Promise today, confirmed with a live
+ * regression test against the real zustand dependency in
+ * tests/entitlementCrossTabSync.test.ts (not a mock). The branch is kept anyway, not as
+ * dead code: this function is a generic, reusable primitive (its `rehydrate` parameter is
+ * typed `() => unknown`, not tied to Zustand specifically — see the module header above),
+ * so it must stay correct for (1) a future onRehydrateStorage callback that itself throws
+ * inside zustand's own final .catch handler — which WOULD produce a genuine rejection,
+ * since nothing catches a throw from inside that handler, (2) reuse of this module with a
+ * non-Zustand or differently-configured rehydrate function, and (3) a future zustand
+ * version changing hydrate()'s internal error handling. tests/entitlementCrossTabSync.test.ts's
+ * async-reject tests exercise this module's OWN contract (correct behavior given any
+ * Promise-returning rehydrate function) via a synthetic controllable Promise — that is
+ * the right scope for a unit test of a generic utility, not a claim that this exact
+ * rejection happens in production today.
+ *
  * @param storeKey the persist store's storage key — only 'storage' events for this key trigger a rehydrate
  * @param rehydrate called fresh on every triggered rehydrate (not captured once), so a
  *   test double or a future re-assignment of the store's own rehydrate method is honored

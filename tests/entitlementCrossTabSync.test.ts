@@ -14,6 +14,8 @@
 // key-matching coverage already proven elsewhere.
 
 import { describe, it, expect, vi } from "vitest";
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { createCrossTabSync } from "@/store/entitlementCrossTabSync";
 
 const STORE_KEY = "test-store-v1";
@@ -210,6 +212,37 @@ describe("createCrossTabSync", () => {
       } finally {
         errorSpy.mockRestore();
       }
+    });
+  });
+
+  // Task #482 (F009 investigation): confirms — against the REAL zustand dependency, not a
+  // mock — that persist.rehydrate() can never actually return a rejected Promise under
+  // this app's real configuration, so the async-reject branch above is defensive-only,
+  // not a live diagnostic path for real users today. This is a durable regression guard:
+  // if a future zustand upgrade changes hydrate()'s internal error handling (e.g. starts
+  // rethrowing when no onRehydrateStorage is registered), this test fails and the
+  // async-reject branch's importance should be re-evaluated.
+  describe("Task #482 — real zustand persist.rehydrate() never rejects under this app's configuration", () => {
+    it("persist.rehydrate() resolves even when the underlying storage.getItem rejects, given no onRehydrateStorage callback (mirrors every real store in this app)", async () => {
+      const rejectingStorage = {
+        getItem: async (): Promise<string | null> => {
+          throw new Error("storage read failed");
+        },
+        setItem: async (): Promise<void> => {},
+        removeItem: async (): Promise<void> => {},
+      };
+      // No onRehydrateStorage option — exactly like store/entitlementStore.ts,
+      // store/srsStore.ts, and store/settingsStore.ts (verified: none registers one).
+      const useProbeStore = create(
+        persist(() => ({ value: 0 }), {
+          name: "test-rehydrate-reject-probe",
+          storage: createJSONStorage(() => rejectingStorage),
+        })
+      );
+
+      // If zustand's hydrate() ever started propagating this rejection, this assertion
+      // would fail with a rejected promise instead of resolving.
+      await expect(useProbeStore.persist.rehydrate()).resolves.toBeUndefined();
     });
   });
 

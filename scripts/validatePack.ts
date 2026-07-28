@@ -191,14 +191,18 @@ export function validatePack(raw: unknown): string[] {
       if (!isObj(unit) || !isArray(unit["cards"])) continue;
       for (const card of (unit["cards"] as Json[])) {
         if (!isObj(card)) continue;
-        // Task #478 (C8-F05): unguarded `card["id"] as string` let two cards both
+        // Task #478 (C8-F05) → #480: unguarded `card["id"] as string` let two cards both
         // missing/with a non-string id collide as the same dedup key, producing a
         // garbled "Duplicate card IDs: " (blank after the colon) — confusing CI noise.
-        // A missing/non-string id is already reported by validateCard's own check
-        // (line 39-41 above via validateUnit's loop) — skipping it here just avoids
-        // using it as a dedup key, not losing any error reporting.
+        // #478's fix (`!isString(id)`) closed the non-string case but missed that two
+        // cards both with id:"" (or id:" ", whitespace-only) both pass isString() and
+        // still collide — reproducing the exact same garbled output. Mirrors
+        // validateCard's own compound check (line 39 above) exactly, not just its first
+        // half — a missing/blank/whitespace-only id is already reported by validateCard's
+        // own check via validateUnit's loop, so skipping it here just avoids using it as
+        // a dedup key, not losing any error reporting.
         const id = card["id"];
-        if (!isString(id)) continue;
+        if (!isString(id) || id.trim() === "") continue;
         if (ids.has(id)) duplicates.add(id);
         ids.add(id);
       }
