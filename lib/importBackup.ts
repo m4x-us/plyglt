@@ -46,6 +46,21 @@ function newerVersionError(version: number): string {
   return `This backup was created by a newer version of the app (backup v${version}, app supports v${CURRENT_BACKUP_VERSION}). Please update plyglt.`;
 }
 
+// Task #485: shared floor check for BOTH the string and numeric _version branches. Before
+// this, each branch implied "positive" a different, accidental way — the numeric branch
+// used `!data._version` (JS truthiness: rejects exactly 0, but NOT -1/-2/etc., which are
+// truthy), and the string branch used a digits-only regex (which can't syntactically
+// represent a negative number at all, so "-1" was rejected for a coincidental reason
+// unrelated to its value). Neither implies "not <= 0"; the two implicit floors disagreed
+// on both 0 and negative integers. Stating the rule explicitly, once, means both branches
+// agree on every input by construction, not by accident — the exact defect class (isNaN
+// vs isFinite branch divergence, #479) this task recreated one input value away.
+// Deliberately NOT checking Number.isInteger here — a fractional numeric _version (e.g.
+// 1.5) is a separate, already-tracked gap (Task #486, not this task's scope).
+function isValidBackupVersionNumber(v: number): boolean {
+  return isFinite(v) && v > 0;
+}
+
 const VALID_STATES: Set<string> = new Set(["new", "learning", "review", "relearning"]);
 // Task #424: mirrors hooks/useLicenseActivation.ts:25's manual-entry format guard. Task #423
 // (a shared named constant so the two sites cannot drift) is deferred to a later wave —
@@ -115,11 +130,13 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     // additionally lets "Infinity" through (Number("Infinity")=Infinity, isNaN(Infinity) is
     // false) — none of these are plausible serializations of a real integer _version. A
     // strict digits-only pattern, checked BEFORE any numeric coercion, rejects all of them
-    // uniformly; isFinite() is kept as defense in depth against an absurdly long all-digit
-    // string overflowing to Infinity on coercion (e.g. 400 nines).
+    // uniformly.
     const isPlainIntegerString = /^\d+$/.test(data._version);
     const parsedVersion = isPlainIntegerString ? Number(data._version) : NaN;
-    if (!isPlainIntegerString || !isFinite(parsedVersion)) {
+    // Task #485: isValidBackupVersionNumber (not just isFinite) — see its definition for
+    // why relying on the regex alone to imply "positive" was wrong (it rejects "-1" for a
+    // syntactic reason, not a semantic one, and happily matches "0").
+    if (!isPlainIntegerString || !isValidBackupVersionNumber(parsedVersion)) {
       return { ok: false, error: GENERIC_BACKUP_ERROR };
     }
     if (parsedVersion > CURRENT_BACKUP_VERSION) {
@@ -130,12 +147,14 @@ export function parseBackup(raw: unknown): ParseBackupResult {
     // must be accepted identically, not rejected just because of how the value happened to
     // be serialized. Falls through to the rest of the function exactly as a numeric
     // _version would; no further validation of _version itself is needed below.
-  } else if (!data._version || typeof data._version !== "number" || !isFinite(data._version)) {
-    // Task #479: the sibling numeric branch had the identical isFinite gap — a raw
-    // `_version: 1e400` in hand-edited JSON parses to `Infinity` (typeof "number") via
-    // JSON.parse itself, no string coercion involved, and `Infinity > CURRENT_BACKUP_VERSION`
-    // is true, producing the nonsensical "backup vInfinity" message. `!data._version` alone
-    // already rejects 0/NaN (both falsy) but not Infinity/-Infinity (both truthy).
+  } else if (typeof data._version !== "number" || !isValidBackupVersionNumber(data._version)) {
+    // Task #479: a raw `_version: 1e400` in hand-edited JSON parses to `Infinity` (typeof
+    // "number") via JSON.parse itself, no string coercion involved, and
+    // `Infinity > CURRENT_BACKUP_VERSION` is true, producing the nonsensical "backup
+    // vInfinity" message.
+    // Task #485: isValidBackupVersionNumber (not the old `!data._version` truthiness check)
+    // — see its definition for why truthiness alone was wrong (it rejects exactly 0 but
+    // NOT -1/-2/etc., which are truthy despite being equally invalid as a version).
     return { ok: false, error: GENERIC_BACKUP_ERROR };
   } else if (data._version > CURRENT_BACKUP_VERSION) {
     return { ok: false, error: newerVersionError(data._version) };

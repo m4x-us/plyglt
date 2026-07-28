@@ -498,6 +498,47 @@ describe("parseBackup", () => {
     });
   });
 
+  describe("Task #485 — string and numeric _version branches must agree on 0 and negative values", () => {
+    // Before #485, the two branches implied "positive" two different, accidental ways: the
+    // numeric branch used `!data._version` (JS truthiness — rejects exactly 0, but NOT
+    // -1/-2/etc., which are truthy) while the string branch used a digits-only regex
+    // (which can't syntactically represent a negative number at all, so "-1" was rejected
+    // for a reason unrelated to its actual value). The two implicit floors disagreed on
+    // both 0 and negative integers — string "0" was accepted while numeric 0 was rejected,
+    // and numeric -1 was accepted while string "-1" was rejected.
+
+    it("rejects _version: 0 (number) with the generic message", () => {
+      const r = parseBackup(validBackup({ _version: 0 }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects _version: \"0\" (string) with the generic message — must agree with the numeric case above", () => {
+      const r = parseBackup(validBackup({ _version: "0" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects _version: -1 (number) with the generic message", () => {
+      const r = parseBackup(validBackup({ _version: -1 }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("rejects _version: \"-1\" (string) with the generic message — must agree with the numeric case above", () => {
+      const r = parseBackup(validBackup({ _version: "-1" }));
+      expect(r).toEqual({ ok: false, error: "Invalid backup file — missing required fields." });
+    });
+
+    it("both serializations of the same nominal value always produce the SAME ok result, across a sweep of representative values", () => {
+      // Direct proof of the symmetry property itself, not just spot-checked individual
+      // values — the exact property whose violation was this finding.
+      const values = [0, -1, -2, 1, 2, 3, 999, -Infinity, Infinity];
+      for (const v of values) {
+        const numResult = parseBackup(validBackup({ _version: v }));
+        const strResult = parseBackup(validBackup({ _version: String(v) }));
+        expect(strResult.ok, `_version ${v} vs "${String(v)}" disagree`).toBe(numResult.ok);
+      }
+    });
+  });
+
   it("coerces malformed langPair format to en-it default", () => {
     const backup = validBackup({ langPair: "en-XXXXXXXX" });
     const r = parseBackup(backup);

@@ -246,6 +246,98 @@ describe("createCrossTabSync", () => {
     });
   });
 
+  // Task #488 (F004): Task #482 proved persist.rehydrate() swallows a storage.getItem()
+  // throw, but that test used a synthetic probe store with no migrate option configured —
+  // it never exercised the OTHER real failure source that funnels into the same swallowed
+  // .catch: a migrate() function throwing. This is not hypothetical — store/migrations.ts's
+  // migrateSrsStore/migrateEntitlementStore/migrateSettingsStore all throw
+  // `Missing ... migration to version X` by design (CLAUDE.md §4: "Throwing on a missing
+  // migration step is intentional — silent fallbacks would corrupt user data"), and all
+  // three real stores register a migrate option per that same convention. This test proves
+  // whether persist.rehydrate() resolves or rejects when migrate() throws, against the REAL
+  // zustand dependency (not a mock) — mirroring Task #482's rigor for the getItem case.
+  describe("Task #488 — real zustand persist.rehydrate() when migrate() throws", () => {
+    it("persist.rehydrate() resolves even when the store's own migrate function throws, given no onRehydrateStorage callback (mirrors every real store in this app)", async () => {
+      // A stored value at version 1 with the probe store configured at version 2 forces
+      // zustand's hydrate() to invoke migrate() — mirrors a real cross-tab scenario where
+      // another tab (or a corrupted version field) writes a stored version this tab's
+      // migrate chain doesn't recognize.
+      const storedBlob = JSON.stringify({ state: { value: 0 }, version: 1 });
+      const throwingStorage = {
+        getItem: async (): Promise<string | null> => storedBlob,
+        setItem: async (): Promise<void> => {},
+        removeItem: async (): Promise<void> => {},
+      };
+      const throwingMigrate = (_persisted: unknown, storedVersion: number): unknown => {
+        // Mirrors the exact throw shape used by every real store's migrate*Store function.
+        throw new Error(`Missing test-probe store migration to version ${storedVersion + 1}`);
+      };
+      // No onRehydrateStorage option — exactly like store/entitlementStore.ts,
+      // store/srsStore.ts, and store/settingsStore.ts (verified: none registers one).
+      const useProbeStore = create(
+        persist(() => ({ value: 0 }), {
+          name: "test-rehydrate-migrate-throw-probe",
+          version: 2,
+          storage: createJSONStorage(() => throwingStorage),
+          migrate: throwingMigrate,
+        })
+      );
+
+      // If zustand's hydrate() ever started propagating a migrate() throw, this assertion
+      // would fail with a rejected promise instead of resolving — exactly the same shape
+      // as Task #482's getItem-throw test above.
+      await expect(useProbeStore.persist.rehydrate()).resolves.toBeUndefined();
+    });
+  });
+
+  // Task #491 (F007): `result instanceof Promise` treated any non-native thenable as
+  // synchronous — deleting the fix (reverting to instanceof Promise) would make this test
+  // fail, because a custom thenable is not an instance of the real Promise constructor even
+  // though it exposes the same .then contract this module depends on.
+  describe("Task #491 — non-native thenable is still tracked as in-flight (not misclassified as synchronous)", () => {
+    it("dedups and requeues correctly when rehydrate() returns a custom (non-native) thenable, not a real Promise", async () => {
+      // A minimal PromiseLike that is deliberately NOT `instanceof Promise` — its
+      // constructor is a plain function, not the global Promise.
+      function makeCustomThenable() {
+        let settle: () => void = () => {};
+        const thenable = {
+          then(onfulfilled?: () => void) {
+            settle = () => onfulfilled?.();
+            return thenable;
+          },
+        };
+        return { thenable, resolve: () => settle() };
+      }
+      expect(makeCustomThenable().thenable instanceof Promise).toBe(false);
+
+      const first = makeCustomThenable();
+      const second = makeCustomThenable();
+      const rehydrate = vi.fn()
+        .mockImplementationOnce(() => first.thenable)
+        .mockImplementationOnce(() => second.thenable);
+      const { handleStorageEvent } = createCrossTabSync(STORE_KEY, rehydrate);
+
+      handleStorageEvent({ key: STORE_KEY }); // #1 starts — must be tracked as in-flight
+      expect(rehydrate).toHaveBeenCalledTimes(1);
+
+      handleStorageEvent({ key: STORE_KEY }); // arrives while #1 is "in flight"
+      // Deleting the fix (instanceof Promise) would call done() synchronously for #1,
+      // making this second event start a NEW rehydrate immediately instead of queuing —
+      // this assertion would then see 2, not 1.
+      expect(rehydrate).toHaveBeenCalledTimes(1);
+
+      first.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The queued event triggers the second (custom-thenable) rehydrate, proving the
+      // dedup/queue guarantee holds end-to-end for a non-native thenable.
+      expect(rehydrate).toHaveBeenCalledTimes(2);
+
+      second.resolve();
+    });
+  });
+
   describe("independent instances (closure-scoped state, not module-scope)", () => {
     it("two createCrossTabSync calls do not share in-flight dedup state", () => {
       const { rehydrate: rehydrateA, calls: callsA } = createControllableRehydrate();

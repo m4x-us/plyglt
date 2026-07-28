@@ -198,9 +198,25 @@ export function validatePack(raw: unknown): string[] {
         // cards both with id:"" (or id:" ", whitespace-only) both pass isString() and
         // still collide — reproducing the exact same garbled output. Mirrors
         // validateCard's own compound check (line 39 above) exactly, not just its first
-        // half — a missing/blank/whitespace-only id is already reported by validateCard's
-        // own check via validateUnit's loop, so skipping it here just avoids using it as
-        // a dedup key, not losing any error reporting.
+        // half.
+        //
+        // Task #492 (F008) — design decision: skipping blank/missing ids here means ANY
+        // number of cards sharing a blank id produce zero output from THIS specific
+        // duplicate-detection loop. That is intentional, not a silent loss of signal:
+        // every blank/missing/non-string-id card, no matter how many, is ALREADY reported
+        // individually and more precisely by validateCard's own check (line 39 above, via
+        // validateUnit's loop) — one "<path>.id: missing or empty string" error per
+        // offending card, each pointing at its own exact unit/card index. Folding N such
+        // cards into a single generic "Duplicate card IDs: <blank>" entry here would be
+        // strictly WORSE: it collapses N independently-actionable, precisely-located
+        // errors into one vague aggregate with no location info at all — exactly the kind
+        // of "confusing CI noise" #478 was filed to eliminate in the first place. A blank
+        // id is not a real identifier colliding with another real identifier — it is
+        // simply absent — so "duplicate" is the wrong frame for it; "missing", which
+        // validateCard already reports per-card, is the correct one. Deliberately not
+        // tracking blank ids in a separate Set for this reason (verified with a
+        // 3-cards-share-a-blank-id test in tests/validatePack.test.ts asserting the
+        // garbled line stays absent AND all three per-card errors are still present).
         const id = card["id"];
         if (!isString(id) || id.trim() === "") continue;
         if (ids.has(id)) duplicates.add(id);

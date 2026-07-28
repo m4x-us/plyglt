@@ -19,6 +19,24 @@ export interface CrossTabSyncHandle {
   handleStorageEvent: (e: { key: string | null }) => void;
 }
 
+// Task #491 (F007): `result instanceof Promise` misclassified any non-native thenable
+// (e.g. a custom Promise-like object, or a Promise from another realm/polyfill whose
+// prototype chain doesn't share this module's global Promise constructor) as synchronous
+// — it would call done() immediately and reset rehydrateInFlight while real async work was
+// still pending, silently breaking the dedup/queue guarantee this module exists to provide.
+// This module's `rehydrate` parameter is typed `() => unknown` and its doc comment above
+// states the module is "not tied to Zustand specifically," intended for reuse with a
+// non-Zustand or differently-configured rehydrate function — an instanceof check contradicts
+// that stated generality. Structural (duck-typed) detection matches the actual async
+// contract this module depends on: anything with a callable .then is awaited the same way.
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
 /**
  * Wires a Zustand persist store's rehydrate() to react to the browser 'storage' event so
  * a second open tab picks up writes made by another tab.
@@ -45,28 +63,48 @@ export interface CrossTabSyncHandle {
  * practice (entitlement writes are rare) and acceptable given the client-only,
  * honour-system entitlement model (decision 2026-06-24).
  *
- * Task #482 (F009): the async-reject branch inside triggerRehydrate (result.then(done,
- * errorHandler)) is DEFENSIVE-ONLY under this app's actual production configuration, not
- * a live diagnostic path — verified directly against zustand@5.0.14's source
- * (node_modules/zustand/esm/middleware.mjs's hydrate()): its promise chain always
- * terminates in a `.catch((e) => { ...; postRehydrationCallback?.(void 0, e); })` that
- * never rethrows. Since no store in this app (entitlementStore.ts, srsStore.ts,
- * settingsStore.ts) registers an onRehydrateStorage callback, postRehydrationCallback is
- * always undefined and that optional call is always a no-op — persist.rehydrate() can
- * therefore never actually return a rejected Promise today, confirmed with a live
- * regression test against the real zustand dependency in
- * tests/entitlementCrossTabSync.test.ts (not a mock). The branch is kept anyway, not as
- * dead code: this function is a generic, reusable primitive (its `rehydrate` parameter is
- * typed `() => unknown`, not tied to Zustand specifically — see the module header above),
- * so it must stay correct for (1) a future onRehydrateStorage callback that itself throws
- * inside zustand's own final .catch handler — which WOULD produce a genuine rejection,
- * since nothing catches a throw from inside that handler, (2) reuse of this module with a
- * non-Zustand or differently-configured rehydrate function, and (3) a future zustand
- * version changing hydrate()'s internal error handling. tests/entitlementCrossTabSync.test.ts's
- * async-reject tests exercise this module's OWN contract (correct behavior given any
- * Promise-returning rehydrate function) via a synthetic controllable Promise — that is
- * the right scope for a unit test of a generic utility, not a claim that this exact
- * rejection happens in production today.
+ * Task #482 (F009), scope narrowed by Task #488 (F004): the async-reject branch inside
+ * triggerRehydrate (result.then(done, errorHandler)) is DEFENSIVE-ONLY under this app's
+ * actual production configuration, not a live diagnostic path — verified directly against
+ * zustand@5.0.14's source (node_modules/zustand/esm/middleware.mjs's hydrate()): its
+ * promise chain always terminates in a `.catch((e) => { ...; postRehydrationCallback?.(void
+ * 0, e); })` that never rethrows. Since no store in this app (entitlementStore.ts,
+ * srsStore.ts, settingsStore.ts) registers an onRehydrateStorage callback,
+ * postRehydrationCallback is always undefined and that optional call is always a no-op —
+ * persist.rehydrate() can therefore never actually return a rejected Promise today. This is
+ * confirmed with a live regression test against the real zustand dependency (not a mock) in
+ * tests/entitlementCrossTabSync.test.ts for BOTH real failure sources that funnel into that
+ * same swallowed .catch: storage.getItem() throwing (Task #482's test), and — the gap Task
+ * #482 left untested — the store's own migrate() function throwing (Task #488's test). The
+ * migrate case is not hypothetical: store/migrations.ts's migrate*Store functions
+ * (registered by all three real stores, per CLAUDE.md §4) throw by design on a missing
+ * migration step, and Task #488 proved that throw is swallowed by the exact same
+ * unreachable-rethrow path as the getItem case.
+ *
+ * Accepted trade-off (Task #488): unlike the initial-mount hydration path, which has an
+ * explicit failsafe (lib/storage.ts's useIsHydrated, HYDRATION_FAILSAFE_MS timeout, Tasks
+ * #406/#435), this direct 'storage'-event path has no equivalent timeout or surfaced log —
+ * a cross-tab rehydrate that silently fails via a migrate() throw (e.g. triggered by
+ * stale/corrupted data written by another tab) leaves this tab's in-memory state stale with
+ * no signal anywhere in the app. Fixing this at the root (making migrate*Store itself
+ * catch-and-log before rethrowing, in store/migrations.ts) is out of this module's scope —
+ * tracked as debt in .autocode/debt.md (Task #488) rather than left as an undocumented gap.
+ * Given the client-only, honour-system entitlement model (decision 2026-06-24) and that a
+ * migrate() throw here requires either a corrupted stored version or a newer app version
+ * writing from another tab, both rare, this is accepted with the same rigor as the
+ * getItem-throw case above, not silently assumed away.
+ *
+ * The branch is kept anyway, not as dead code: this function is a generic, reusable
+ * primitive (its `rehydrate` parameter is typed `() => unknown`, not tied to Zustand
+ * specifically — see the module header above), so it must stay correct for (1) a future
+ * onRehydrateStorage callback that itself throws inside zustand's own final .catch handler —
+ * which WOULD produce a genuine rejection, since nothing catches a throw from inside that
+ * handler, (2) reuse of this module with a non-Zustand or differently-configured rehydrate
+ * function, and (3) a future zustand version changing hydrate()'s internal error handling.
+ * tests/entitlementCrossTabSync.test.ts's async-reject tests exercise this module's OWN
+ * contract (correct behavior given any Promise-returning rehydrate function) via a synthetic
+ * controllable Promise — that is the right scope for a unit test of a generic utility, not a
+ * claim that this exact rejection happens in production today.
  *
  * @param storeKey the persist store's storage key — only 'storage' events for this key trigger a rehydrate
  * @param rehydrate called fresh on every triggered rehydrate (not captured once), so a
@@ -96,7 +134,7 @@ export function createCrossTabSync(storeKey: string, rehydrate: () => unknown): 
     // disable cross-tab sync for this tab's lifetime).
     try {
       const result = rehydrate();
-      if (result instanceof Promise) {
+      if (isThenable(result)) {
         // Task #474: the rejection handler previously was `done` itself — resets the
         // in-flight flag and requeues, but never logs. AGENTS.md Rule 8 ("every catch
         // block must surface the error... swallowing errors is a stop-the-line

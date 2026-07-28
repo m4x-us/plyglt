@@ -2822,13 +2822,14 @@ Unit theme — Clothes & Appearance. Key equivalents: camicia → camisa; pantal
 
 ---
 
-## Batch 12 — Specialty Pack Architecture | 143 tasks | [CURRENT SPRINT]
+## Batch 12 — Specialty Pack Architecture | 151 tasks | [CURRENT SPRINT]
 <!-- BATCH_REMEDIATION_GATE: batch=12; paused_batch=19; paused_batch_old_tag="[CURRENT SPRINT]" -->
 Dependency: Independent of Batch 10 and 11. No owner actions required. These tasks lay the groundwork for future paid add-on specialty packs (medical, business, cooking, etc.) without building any content or payments yet.
 Sixth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 9 (critical) — 22 findings (F1-F22) merged/scored by Agent C; 11 findings (severity ≥4) promoted as Task #455-#465 below; 11 findings (severity ≤3) logged to debt.md. Critical finding: Task #450's widened Verification Gate is currently red by its own literal wording (29 pre-existing hits) and the batch was carried to zero open tasks without an updated cycle-6 verdict — see Task #455. Task #466 added per Max's explicit direction (2026-07-28) to close this mechanically via CI, not rely on the audit process to catch it again next time. Wave 20 (4 streams: Adam/Barry/Charles/Derek) closed all 12 tasks (#455-466) 2026-07-28, independently re-verified against actual source: tsc clean, 1403/1403 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean (genuinely zero hits — the critical finding is resolved), CI now mechanically enforces the gate on every push/PR. Per BATCH_REMEDIATION_GATE, task completion alone doesn't close the gate — a fresh "/audit batch 12" run must PASS next.
 Seventh re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — cycle-6's critical process failure (the gate silently red) is confirmed genuinely fixed, but 2 new LIVE bugs surfaced via execution-based testing (a backup-restore version-check bypass, and an uncaught-crash bug in the CI pack validator itself), plus the batch's own recurring "fix the instance, miss the sibling" pattern struck again inside this wave's own fixes (4 of 7 promoted findings are the fix-that-recreates-its-own-defect-class shape). 7 findings (severity ≥4) promoted as Task #467-473 below; 13 findings (severity ≤3) logged to debt.md. Wave 21 (4 streams: Adam/Barry/Charles/Derek) closed all 7 tasks 2026-07-28, independently re-verified: tsc clean, 1424/1424 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean, scripts/validatePack.ts now genuinely counted in coverage (67.76%/76.85%/100%/66.66%), aggregate thresholds still exceeded. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Eighth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — no critical bugs this time, but 4 converged findings each trip an explicit stop-the-line rule, and 3 of them are the same shape recurring inside the very fixes meant to close it (a fix/test handling one of two near-identical branches, leaving its twin unaddressed). Security posture confirmed genuinely clean this cycle. 5 findings (severity ≥4) promoted as Task #474-478 below; 6 findings (severity ≤3) logged to debt.md. Wave 22 (4 streams: Adam/Barry/Charles/Derek) closed all 5 tasks 2026-07-28, independently re-verified: tsc clean, 1428/1428 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
 Ninth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 6 — no critical bugs, but two live bugs with the strongest convergence recorded yet in this batch's history (up to 6 of 8 reviewers independently, several via direct execution), plus a uniquely deep single-reviewer finding: Security Agent S traced the actual Zustand library source and found that last cycle's error-logging fix (Task #474) logs a code path that can never actually fire in production under this store's real configuration. 6 findings promoted as Task #479-484 below (5 open — F002/F010 combined into Task #480, #484 merged/closed as a duplicate of #480's own third acceptance criterion); F003 folded into #480's context rather than separately promoted (same code region, low separate-actionability per the auditors' own note that validateCard's independent check already mitigates it); 4 findings (severity ≤3) logged to debt.md. Wave 23 (3 streams: Adam/Barry/Charles) closed all 5 open tasks (#479-483) 2026-07-28, independently re-verified against actual source: tsc clean, full suite passes with coverage well above thresholds (89.81%/85.83%/90.36%/92.02% stmts/branches/funcs/lines vs 84/81/79/82 floors), lint clean (3 pre-existing warnings), Verification Gate grep clean (zero hits). Adam correctly judged isFinite() alone insufficient for the string branch (hex strings are technically finite) and used a strict digits-only pattern first; Charles did genuine investigation rather than deleting the "dead" branch, tracing zustand@5.0.14's actual source and adding a test against the real (non-mocked) persist/createJSONStorage behavior. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next.
+Tenth re-audit (2026-07-28, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 (critical) — the strongest single-finding convergence recorded in this batch's entire 10-cycle history: 6 of 8 reviewers (A, B, N, W, Red R via direct reasoning, one via actual code execution with npx tsx; S independently assessed the same bug as present but non-security) independently found that Task #481's "symmetric acceptance" fix from Wave 23 is not actually symmetric — `_version:"0"` (string) is accepted while `_version:0` (number) is rejected, and conversely `_version:"-1"` is rejected while `_version:-1` (number) has always been silently accepted with no lower-bound check at all. This is a textbook Rule 23 violation (a fix recreating its own defect class) occurring inside the very Wave 23 tasks (#479, #481) meant to close cycle-9's F001. A second, independently significant finding: Agents B and W identified that Task #482's investigation into entitlementCrossTabSync's dead reject-branch only verified ONE of two realistic failure paths (a synthetic storage.getItem throw) — the real, designed-to-exist migrate()-throws path (store/migrations.ts throws on missing migrations; all 3 stores register migrate per CLAUDE.md §4) was never tested and still funnels into the same silently-resolved promise with zero failsafe, unlike the mount-time hydration path's explicit timeout. This directly resolved a live disagreement between Agent K (who judged Task #482 fully closed) and Agents B/W (who judged it incompletely verified) in favor of B/W. 8 findings (severity ≥4) promoted as Task #485-492 below; 10 findings (severity ≤3) logged to debt.md. Security posture assessed clean for a 3rd consecutive cycle — the 0/-1 asymmetry itself was independently judged to have no security impact (no code branches on _version's value after the check). Wave 24 (3 streams: Adam/Barry/Charles) closed all 4 open tasks (#485, #488, #491, #492) 2026-07-28, independently re-verified against actual source: tsc clean, 1446/1446 tests pass, lint clean (3 pre-existing warnings), Verification Gate grep clean, coverage above thresholds (89.81%/85.88%/90.4%/92.03%). Adam proved the fix's completeness with a symmetry-sweep test across 9 values rather than just the 4 named boundary cases; Barry proved the migrate()-throws gap live against the real zustand dependency and logged the unfixable-here-in-scope root cause as tracked debt rather than leaving it implicit; Charles made a genuine design decision (documented why folding blank ids into one aggregate would be worse, not just skipped the finding). Tasks #486, #487, #489, #490 remain deferred (each blocked on a task closed this wave) — will be picked up next wave. Per BATCH_REMEDIATION_GATE, a fresh "/audit batch 12" run must PASS next (once #486/#487/#489/#490 also close).
 Re-audit (2026-07-10) FAILed severity 8 — 33 findings (F001-F033) promoted as Task #295-#327 below; all 37 COMPLETE as of 2026-07-13 (Waves 11-12 + Task #326).
 Second re-audit (2026-07-13, 8-agent: A/B/S/N/K/W/V/Red-R) FAILed severity 7 — 49 findings (F001-F049, new numbering) promoted as Task #328-#376 below. Wave 13 (4 streams: Adam/Barry/Charles/Derek) closed 45/46 assigned tasks 2026-07-14, independently re-verified against actual source (not agent say-so) on 2026-07-14: tsc clean, 1168/1168 tests pass, lint clean (2 pre-existing warnings), weak-assertion gate clean, coverage above threshold. Task #357 is DEFERRED, not complete — see its entry below. Tasks #345, #361, #368 were correctly deferred out of Wave 13 (blocked by tasks that are now complete) but their full task text did not persist to tasks.md before this reconciliation and needs regeneration before Wave 14 — see note after Task #376. A scope-drift issue was also found during verification: Derek (Stream W13D) populated the real production `SPECIALTY_PACKS` array in lib/langRegistry.ts with a live `it-medical` entry (previously `Object.freeze([])`) — this was not the literal scope of any assigned task (misattributed to #331 in his completion report; #331's actual scope was a doc-header fix, which is separately verified correct) and deviates from this codebase's long-documented "empty until real content ships" convention. The entry is functionally inert (`ready: false` keeps `isSpecialtyPackCode` returning false) but is a real, undiscussed production change flagged here for Max's awareness — not reverted, since reverting would break Task #335's new test coverage of the `&& sp.ready` guard.
 Per the BATCH_REMEDIATION_GATE rule, task completion alone does not close the gate — a fresh "/audit batch 12" run must PASS before Batch 19 (paused since Wave 11) resumes. Run /audit batch 12 next.
@@ -6781,6 +6782,167 @@ The two Task #478 regression tests (two cards both id:undefined; two cards both 
 - [x] Superseded — see Task #480's third acceptance criterion, which covers this exact fix
 
 **Source:** Cycle-9 audit finding F010 — severity 4 — convergence 1/8 (Agent K) — test-quality (duplicate of Task #480's scope, merged).
+
+---
+
+### Task #485: Fix edge-case: parseBackup's Task #481 "symmetric acceptance" fix is asymmetric — string "0" is accepted, numeric 0 is rejected
+
+**File:** lib/importBackup.ts, tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 24 — Adam (W24A); extracted a shared `isValidBackupVersionNumber(v)` predicate (`isFinite(v) && v > 0`) used by both branches, eliminating the two accidental implicit floors; added 4 boundary tests plus a symmetry-sweep test proving the general property across 9 values including -Infinity/Infinity; verified independently — tsc clean, 1446/1446 tests pass, lint clean, coverage above thresholds, diff spot-checked directly)
+
+**What:**
+Task #481's symmetric-acceptance fix in parseBackup (lines ~103-142) is not actually symmetric. Execution-verified by Agent W via npx tsx: `_version: "0"` (string) is ACCEPTED (regex matches, Number=0, isFinite, not>2, falls through to ok:true) while `_version: 0` (number) is REJECTED (`!data._version` is true for the falsy value 0). Conversely `_version: "-1"` (string) is REJECTED (the digit regex `/^\d+$/` doesn't match a minus sign) while `_version: -1` (number) is ACCEPTED (no lower-bound check in the numeric branch at all). The Task #481 comment's own claim — "a valid, non-newer numeric-looking string... must be accepted identically [to its numeric equivalent]" — is false for the input 0. Neither case is covered by any existing test. Live path, reachable via the real user-facing backup-restore file picker (hooks/useExportImport.ts). Rule 23 violation: this recreates the exact defect class (cycle-9's F001, isNaN/isFinite branch divergence) inside the very task meant to close it, one input value away. at lib/importBackup.ts:parseBackup:103-142.
+
+**Acceptance Criteria:**
+- [ ] The string and numeric `_version` branches agree on every input — in particular, both accept or both reject `0` identically, and both accept or both reject negative integers identically (recommend: reject `_version <= 0` in both branches explicitly, rather than relying on JS truthiness/regex quirks to imply a floor)
+- [ ] Tests cover `_version: 0`, `_version: "0"`, `_version: -1`, `_version: "-1"` and assert both serializations of the same nominal value produce the SAME `ok` result
+
+**Source:** Cycle-10 audit finding F001 — severity 7 — convergence 6/8 (Agents A, B, N, W, Red R via direct reasoning/execution; Security Agent S assessed present but non-security) — the strongest convergence recorded in this batch's 10-cycle history — Rule 23 violation, LIVE, ESCALATE.
+
+---
+
+### Task #486: Fix edge-case: parseBackup's numeric _version branch has no negative/fractional floor — Task #479 only ported the isFinite check, not the accompanying constraint
+
+**File:** lib/importBackup.ts, tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Task #485 (same branch, same fix should land together)
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+Task #479's numeric `_version` branch (line 133) only ported the `isFinite` check from the string branch's fix, not the accompanying no-negative/no-fractional constraint that makes the string branch's `/^\d+$/` pre-check meaningful. Agent W execution-verified: `parseBackup({_version:-1,...})`, `parseBackup({_version:1.5,...})`, and `parseBackup({_version:-0.0001,...})` all return `ok:true` — a fractional or negative numeric version is silently accepted as a valid backup version. This is the recurring "one of two structurally-identical branches fixed, twin left open" pattern named in every cycle since cycle 6, recreated inside Task #479 itself — its own inline comment claims "the sibling numeric branch had the identical isFinite gap" and states it closed it, when it only ported one of two necessary guards. at lib/importBackup.ts:parseBackup:103-142.
+
+**Acceptance Criteria:**
+- [ ] The numeric branch rejects negative and fractional `_version` values the same way the string branch's digits-only regex does (e.g. `Number.isInteger(data._version) && data._version > 0`)
+- [ ] Tests cover `_version: -1`, `_version: 1.5`, `_version: -0.0001` on the numeric path, asserting rejection with the generic message
+
+**Source:** Cycle-10 audit finding F002 — severity 7 — Rule 23a violation (fix did not generalize to every member of the class), LIVE, ESCALATE.
+
+---
+
+### Task #487: Fix tests: the two Task #481 tests only assert r.ok and never diff against the numeric-equivalent result the test names claim symmetry with
+
+**File:** tests/importBackup.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Tasks #485, #486 (fix the underlying bug first, then strengthen the tests that should have caught it)
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+"#481: a numeric-string _version EQUAL to CURRENT_BACKUP_VERSION is accepted..." and "#481: a numeric-string _version strictly LOWER..." (lines 437-450) both assert only `expect(r.ok).toBe(true)`. A stub returning `ok:true` unconditionally passes both tests (Rule 18 Deletion Test fails). Neither test exercises `_version:0`, `_version:"0"`, `_version:-1`, or `_version:1.5` (Rule 16 violation). Most notably, the test names claim symmetry with the numeric equivalent but neither test ever calls `parseBackup` with that numeric equivalent and diffs the two results — the one comparison that would have caught Task #485/#486's bugs is never made. Confirmed independently by Auditors A, B, K, V, and W. at tests/importBackup.test.ts:437-450.
+
+**Acceptance Criteria:**
+- [ ] Both tests assert full result-shape equality against the numeric-equivalent call (matching the file's own established convention, e.g. the "accepts a well-formed current backup" test), not just `r.ok`
+- [ ] New tests added for the 0/negative/fractional boundary cases once Tasks #485/#486 land
+
+**Source:** Cycle-10 audit finding F003 — severity 6 — convergence 5/8 (Agents A, B, K, V, W) — Rule 16/18 violation.
+
+---
+
+### Task #488: Fix error-handling: entitlementCrossTabSync's Task #482 fix doesn't cover the real migrate()-throws failure path, only the synthetic getItem-throws case
+
+**File:** store/entitlementCrossTabSync.ts, tests/entitlementCrossTabSync.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE — 2026-07-28 (Wave 24 — Barry (W24B); added a live-regression test proving migrate()-throws is swallowed identically to getItem-throws against the real zustand dependency; chose the documentation path (out of scope to edit store/migrations.ts) and logged the gap as tracked debt.md (Task #488, severity 5) rather than leaving it implicit; rewrote the doc comment's "confirmed" claim to name both tested failure sources explicitly; verified independently)
+
+**What:**
+Task #482's fix (and its own new documentation) proves the reject-branch logging is unreachable for every real production failure, because zustand's `hydrate()` terminal `.catch` never rethrows when `postRehydrationCallback` is undefined (verified against `node_modules/zustand/esm/middleware.mjs` v5.0.14). Two realistic failure sources funnel into this same swallowed catch: `storage.getItem()` throwing (tested by Task #482's new test) and `migrate()` throwing (NOT tested). The latter is not hypothetical — `store/migrations.ts` throws `Missing...migration to version X` errors, and all three stores (`entitlementStore.ts`, `srsStore.ts`, `settingsStore.ts`) register a `migrate` function per CLAUDE.md §4's documented convention. Task #482's new test exercises only the `getItem`-throws case on a synthetic probe store with no `migrate` option configured. Unlike the initial-mount hydration path, which has an explicit failsafe (`lib/storage.ts`'s `useIsHydrated`, `HYDRATION_FAILSAFE_MS` timeout, Tasks #406/#435), this direct `window.addEventListener("storage", ...)` path has no equivalent timeout or log — a cross-tab rehydrate that silently fails via a `migrate()` throw (e.g. triggered by stale/corrupted data written by another tab) leaves the tab's in-memory state stale forever with zero signal anywhere in the app. Rule 8 violation (a real, designed-to-exist error path is silently swallowed) and Rule 23c violation (the untested twin path shipped without being filed as tracked debt, only implicitly noted in a doc comment). This resolves a genuine disagreement between Agent K (who argued Task #482's root cause — an unverified assumption — was fully verified and pinned) and Agents B/W (who argued the same reasoning proves a second, untested, real failure path also funnels into the same swallow) in favor of B/W: Task #482's own acceptance criteria required verifying the fix "actually covers" any genuine rejection path, and the migrate()-throws path was never exercised. at store/entitlementCrossTabSync.ts:createCrossTabSync:48-69,94-117.
+
+**Acceptance Criteria:**
+- [ ] Add a test exercising the `migrate()`-throws scenario specifically (a `persist` config with a `migrate` function that throws, mirroring this app's real stores) and confirm whether `persist.rehydrate()` resolves or rejects in that case
+- [ ] If it resolves (swallowing the migrate error, per the same zustand behavior documented for `getItem`), decide and implement: either surface this failure some other way (e.g. the store's own `migrate` function should catch-and-log internally before rethrowing, so the error is diagnosable even though the rehydrate promise itself never rejects), or explicitly document this as an additional accepted trade-off with the same rigor as the `getItem` case — not left as an implicit gap
+- [ ] Update the module's doc comment so its "confirmed with a live regression test" claim is scoped to what is actually tested (see Task #490)
+
+**Source:** Cycle-10 audit finding F004 — severity 7 — Rule 8 + Rule 23c violation, ESCALATE.
+
+---
+
+### Task #489: Fix code-quality: entitlementCrossTabSync's Task #482 comment justifies keeping dead code via a generality the file's own header disclaims
+
+**File:** store/entitlementCrossTabSync.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Task #488 (resolve the functional question first, then correct the comment accordingly)
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The module header states this module is "USED BY: store/entitlementStore.ts ONLY" and warns that calling it twice for the same store key duplicates listeners. The Task #482 comment justifies leaving the dead reject-branch in place by citing possible future reuse of this module "with a non-Zustand or differently-configured rehydrate function." A module whose own header discloses exactly one caller cannot justify unreachable code by invoking a generality its own header disclaims two paragraphs above. at store/entitlementCrossTabSync.ts (header block vs Task #482 inline comment).
+
+**Acceptance Criteria:**
+- [ ] Reconcile the header's single-caller claim with the doc comment's multi-caller justification — either the header's scope claim is updated to reflect genuine intended reuse, or the doc comment's justification is narrowed to something consistent with a single-caller module
+- [ ] No behavior change required unless Task #488 also changes something here
+
+**Source:** Cycle-10 audit finding F005 — severity 5 — Rule 20 violation.
+
+---
+
+### Task #490: Fix code-quality: entitlementCrossTabSync's "confirmed with a live regression test" claim overstates what the cited test actually proves
+
+**File:** store/entitlementCrossTabSync.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Task #488
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The Task #482 doc comment states the dead-branch claim is "confirmed with a live regression test." The cited test exercises only one failure injection (`getItem` rejects, no `onRehydrateStorage`); zustand's actual catch-all also applies to `migrate()` throwing, `merge()` throwing, and `setItem()` re-persist rejecting, none of which the test triggers. The word "confirmed" attached to the full blanket claim rather than the narrower tested sub-case is not literally true. at store/entitlementCrossTabSync.ts (Task #482 comment block).
+
+**Acceptance Criteria:**
+- [ ] Narrow the doc comment's claim to name specifically which failure path the cited test covers, rather than implying full coverage of every path that funnels into zustand's swallowed catch
+- [ ] Coordinate with Task #488 — if that task adds a migrate()-throws test, the comment can then honestly claim broader coverage
+
+**Source:** Cycle-10 audit finding F006 — severity 4.
+
+---
+
+### Task #491: Fix async: triggerRehydrate's `instanceof Promise` check misclassifies non-native thenables, contradicting the module's own stated generality
+
+**File:** store/entitlementCrossTabSync.ts, tests/entitlementCrossTabSync.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE — 2026-07-28 (Wave 24 — Barry (W24B); broadened the check via a new `isThenable()` structural/duck-typed helper replacing `instanceof Promise`, honoring the module's stated Zustand-independent generality; added a test with a genuinely non-native thenable proving the dedup/queue guarantee holds; verified independently)
+
+**What:**
+`if (result instanceof Promise)` (line 99) misclassifies any non-native thenable as synchronous: it calls `done()` immediately and resets `rehydrateInFlight = false` while real async work is still in flight, silently breaking the dedup/queue guarantee this module exists to provide. This directly contradicts the doc comment's stated generality (`rehydrate` typed as `() => unknown`, described as "not tied to Zustand specifically," intended for future reuse with "a non-Zustand or differently-configured rehydrate function"). Not exercised by any current caller since zustand returns a native Promise — latent gap, not an active bug today. at store/entitlementCrossTabSync.ts:triggerRehydrate:99.
+
+**Acceptance Criteria:**
+- [ ] Either broaden the check to detect any thenable (e.g. `result && typeof (result as any).then === "function"`) so the module's stated generality is genuinely honored, or narrow the doc comment's generality claim to match what the code actually supports (native Promises only)
+- [ ] If broadened: add a test with a custom non-native thenable proving the dedup/queue guarantee still holds
+
+**Source:** Cycle-10 audit finding F007 — severity 4.
+
+---
+
+### Task #492: Fix data-loss: validatePack's new blank-id dedup guard excludes blank-id cards from duplicate detection entirely
+
+**File:** scripts/validatePack.ts, tests/validatePack.test.ts
+**Complexity:** ⚡ Direct — 2 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-07-28 (Wave 24 — Charles (W24C); decided and documented that relying on validateCard's separate per-card check is sufficient — folding N blank-id cards into one vague "Duplicate card IDs" aggregate would be strictly worse than the precise per-card errors already emitted; added a 3-cards-share-a-blank-id test plus a blank-id-alongside-a-real-duplicate regression guard; verified independently)
+
+**What:**
+The Task #480 `id.trim() === ""` guard excludes any card with `id: ""` or `id: "   "` from the `ids` Set before duplicate detection runs, so any number of cards sharing a blank id now produce ZERO errors from this specific loop — where previously two such cards would have been flagged as duplicates (as a blank-string entry in the "Duplicate card IDs" list). No check in this loop separately reports a missing/blank id as its own error (`validateCard` does, in a different function/loop, so the gap is not a total loss of signal, but this specific dedup check no longer flags blank-id collisions at all). at scripts/validatePack.ts (dedup loop).
+
+**Acceptance Criteria:**
+- [ ] Decide and implement: either track blank/invalid ids separately so N>=2 cards sharing a blank id are still flagged as a distinct "duplicate blank id" condition, or explicitly document why relying solely on validateCard's separate per-card check is sufficient
+- [ ] Add a test with 3+ cards sharing a blank id, confirming the chosen behavior is intentional (either a specific error is emitted, or the design decision is asserted/documented)
+
+**Source:** Cycle-10 audit finding F008 — severity 5.
 
 ---
 

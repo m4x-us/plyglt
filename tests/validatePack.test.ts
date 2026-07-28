@@ -265,6 +265,51 @@ describe("validatePack — duplicate card-ID check tolerates malformed cards fie
     expect(errors).toContain("units[0].cards[0].id: missing or empty string");
     expect(errors).toContain("units[0].cards[1].id: missing or empty string");
   });
+
+  // Task #492 (F008) — design decision test: blank/missing ids are deliberately excluded
+  // from THIS loop's duplicate-detection Set (see the comment at the skip site in
+  // scripts/validatePack.ts). With 3+ cards sharing a blank id, this asserts the chosen
+  // behavior is intentional and complete, not a partial fix that happens to work for 2:
+  // no generic "Duplicate card IDs:" aggregate appears (blank ids are "missing", not
+  // "duplicate", and folding N of them into one vague line would be less useful, not
+  // more), AND all 3 cards are still individually reported via validateCard's own
+  // precisely-located per-card check — so no signal is actually lost, only reshaped into
+  // a strictly more actionable form.
+  it("with 3+ cards sharing a blank id: no garbled aggregate line, but all 3 are individually reported at their own paths (#492 design decision)", () => {
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [
+          makeValidCard({ id: "" }),
+          makeValidCard({ id: "" }),
+          makeValidCard({ id: "" }),
+        ],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 3 }));
+    expect(errors.some((e) => e.startsWith("Duplicate card IDs:"))).toBe(false);
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[1].id: missing or empty string");
+    expect(errors).toContain("units[0].cards[2].id: missing or empty string");
+  });
+
+  it("a REAL duplicate id is still unaffected by the blank-id design decision — a blank id and a real duplicate in the same pack both report correctly", () => {
+    // Guards against a fix that accidentally broadens the skip to swallow real duplicates
+    // too (e.g. skipping the whole card instead of just the blank id as a dedup key).
+    const units = [
+      makeValidUnit({
+        id: "u1",
+        cards: [
+          makeValidCard({ id: "" }),
+          makeValidCard({ id: "dupe" }),
+          makeValidCard({ id: "dupe" }),
+        ],
+      }),
+    ];
+    const errors = validatePack(makeValidPack({ units, unitCount: 1, cardCount: 3 }));
+    expect(errors).toContain("Duplicate card IDs: dupe");
+    expect(errors).toContain("units[0].cards[0].id: missing or empty string");
+  });
 });
 
 // ── validateUnit: sanity that the exported function still works standalone ───
