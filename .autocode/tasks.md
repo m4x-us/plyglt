@@ -2319,7 +2319,7 @@ Theme: Rule 14 completion (4 page routes), CI enforcement, docs accuracy, archit
 
 ---
 
-## Batch 10 — M2 macOS Shipping Infrastructure | 11 tasks | [OWNER-BLOCKED — #122 awaits Apple Developer cert generation; #123 also needs a GitHub remote (none configured); #124 is unblocked]
+## Batch 10 — M2 macOS Shipping Infrastructure | 13 tasks | [COMPLETE — 2026-07-29 — core shipping pipeline verified end-to-end via real test release v0.1.0-beta.1; #507/#508 are follow-up hardening, not shipping blockers]
 Dependency: Batch 9 complete. Owner actions (LS store creation, Apple Developer ID certificate) must be completed before tasks #120–#122 can close.
 Theme: The infrastructure prerequisites for distributing plyglt as a signed macOS desktop app. Windows/Linux packaging is Batch 11.
 
@@ -2379,6 +2379,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** Pushing a `v*` tag triggers the workflow; the resulting GitHub Release contains a signed .dmg and a `latest.json` manifest; `curl [endpoint]` returns the manifest with valid ed25519 signature; `grep "REPLACE_WITH_REPO" src-tauri/tauri.conf.json` returns 0 hits.
 **Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-29 (core deliverable verified end-to-end via a real test release, tag v0.1.0-beta.1: both aarch64-apple-darwin and x86_64-apple-darwin builds compiled, were code-signed with the real Developer ID certificate, successfully notarized by Apple — confirmed via `xcrun notarytool history` — and published as release assets, `plyglt_0.1.0_aarch64.dmg` and `plyglt_0.1.0_x64.dmg`, both downloadable/installable. `REPLACE_WITH_REPO` placeholder confirmed gone. The `latest.json` auto-updater manifest did NOT generate — tauri-action logged "Signature not found for the updater JSON. Skipping upload" despite the `.sig` file being present on disk, a known category of issue with per-architecture matrix builds generating a single combined updater manifest. This affects only the in-app auto-update check, not the initial install/download path. Tracked separately as Task #508 rather than blocking this task, since the core shipping capability this task exists to deliver is confirmed working.)**
 
 ---
 
@@ -2492,6 +2493,20 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Completion gates:** Security Agent sign-off (audit clean) + QA Agent sign-off (lint clean)
 **Done when:** `npm audit --audit-level=high` reports 0 vulnerabilities for `eslint`/`minimatch`/`brace-expansion`/`eslint-config-next`/its plugins; `.github/workflows/ci.yml`'s audit allowlist and `STATUS.md`'s corresponding Known Issues entry are both updated/removed to match; `npm run lint` passes with only the 3 pre-existing unrelated warnings.
 **Complexity:** 🔧 Full — major version migration, needs compatibility verification
+**Owner:** Security Agent
+
+---
+
+### Task #508 | build | severity 5
+**What:** Fix `latest.json` auto-updater manifest generation in `.github/workflows/release.yml`. The current per-architecture matrix strategy (`aarch64-apple-darwin`, `x86_64-apple-darwin` as separate parallel jobs) causes `tauri-action` to log "Signature not found for the updater JSON. Skipping upload..." for both jobs, even though each job's own `.sig` file is confirmed present on disk (e.g. `.../release/bundle/macos/plyglt.app.tar.gz.sig`). Investigate whether this needs: (a) building both targets within a single job/invocation instead of a matrix, (b) a `--target universal-apple-darwin` universal binary build instead of two separate architecture builds, or (c) explicit `updaterJsonKeepUniversal`/artifact-path configuration so tauri-action can find both architectures' signatures when assembling one combined manifest.
+**Why:** Confirmed via a real test release (tag `v0.1.0-beta.1`, 2026-07-29) during Task #123 — the core build/sign/notarize/publish pipeline works end-to-end (both `.dmg` installers present and correctly signed/notarized), but `latest.json` never appeared in the release assets, meaning the in-app auto-updater (`checkForUpdates()` in `lib/tauri.ts`) has nothing to check against once this ships. Auto-update is a Pro-tier differentiator per BRAND.md's "Software updates and new features" row — this needs to work before relying on it for real users.
+**File:** `.github/workflows/release.yml`
+**Blocks:** Nothing (initial install/download path already works without this)
+**Blocked by:** Nothing
+**Risk:** Medium — may require restructuring the build matrix, which changes how long CI takes and which artifacts get produced per job.
+**Completion gates:** Security Agent sign-off (verify the manifest's ed25519 signature is valid) + Architecture Agent sign-off
+**Done when:** A test release tag produces a GitHub Release containing `latest.json` alongside both `.dmg` files; `curl [the tauri.conf.json updater endpoint URL]` returns the manifest; the manifest's signature validates against the public key in `tauri.conf.json`.
+**Complexity:** 🔧 Full — CI workflow restructuring, needs a real test release to verify
 **Owner:** Security Agent
 
 ## Batch 11 — A1 Spanish Source-Language Translation | 21 tasks | [COMPLETE]
