@@ -43,6 +43,10 @@ jobs:
             if (unexpected.length > 0) {
               console.error("FAIL: new high-severity vulnerabilities not in the documented baseline:", unexpected.join(", "));
               console.error("See STATUS.md Known Issues for the accepted baseline and why each entry is deferred.");
+              for (const name of unexpected) {
+                console.error(`--- full detail for "${name}" ---`);
+                console.error(JSON.stringify(vulns[name], null, 2));
+              }
               process.exit(1);
             }
             console.log("OK: all high-severity findings are documented, accepted baseline entries — see STATUS.md.");
