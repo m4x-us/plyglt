@@ -2392,6 +2392,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** Toggling "Enable review reminders" ON shows an explanation sentence before the OS dialog fires (or inline in the settings card before the toggle if permission has already been granted); `npm test` passes; no Tauri IPC changes.
 **Complexity:** ⚡ Direct — 2 files, no package boundary, no implementation-scope keywords in What
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-28 (discovered the feature itself — components/NotificationPermissionGate.tsx, wired into app/settings/page.tsx:68 — was already built and matches the task spec word-for-word; the task list was never updated. The one real gap was a missing co-located test file, a Rule 14 violation. Added components/NotificationPermissionGate.test.tsx covering all 4 permission states, spot-check verified PASS.)**
 
 ---
 
