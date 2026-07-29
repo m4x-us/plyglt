@@ -2319,7 +2319,7 @@ Theme: Rule 14 completion (4 page routes), CI enforcement, docs accuracy, archit
 
 ---
 
-## Batch 10 — M2 macOS Shipping Infrastructure | 11 tasks | [OWNER-BLOCKED — #122/#123 await Apple Developer cert generation]
+## Batch 10 — M2 macOS Shipping Infrastructure | 11 tasks | [OWNER-BLOCKED — #122 awaits Apple Developer cert generation; #123 also needs a GitHub remote (none configured); #124 is unblocked]
 Dependency: Batch 9 complete. Owner actions (LS store creation, Apple Developer ID certificate) must be completed before tasks #120–#122 can close.
 Theme: The infrastructure prerequisites for distributing plyglt as a signed macOS desktop app. Windows/Linux packaging is Batch 11.
 
@@ -2334,6 +2334,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** `curl https://plyglt.lemonsqueezy.com/buy/monthly` (or updated slug) returns HTTP 200; `grep LS_STORE_SLUG lib/checkout.ts` matches the real LS store slug.
 **Complexity:** ⚡ Direct — 1 file (if slug update needed), otherwise owner action only
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-07-28 (discovered already done during Batch 10 review; lib/checkout.ts:12 has a real LS product URL, not a placeholder — live-verified via curl, HTTP 302 through LS's checkout redirect flow. The task list was never updated when this actually shipped. Note: current pricing is annual-only ($34.99/yr) per lib/checkout.ts:18-20 — no monthly product exists, consistent with BRAND.md's "Pro is monthly or annual only" language and Task #120's own original wording being superseded by the later monthly-removal decision documented elsewhere in project memory.)**
 
 ---
 
@@ -8575,10 +8576,10 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 
 ---
 
-## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 74 tasks | [CURRENT SPRINT]
+## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 74 tasks | [COMPLETE — 2026-07-28 — audited clean, 17 findings accepted as debt]
 Dependency: None (standalone remediation batch). Theme: /audit #164 (2026-07-04, verdict FAIL, severity 9, 39 findings) found that Task #163's OS trigger toggle controls (wake/unlock/idle + idle threshold) are entirely non-functional — `os_events.rs` never reads the settings it was built to expose. F001-F006 are the stop-the-line core; everything else is downstream test/doc/hardening debt discovered in the same audit. Fix order: F001-F004 (wiring) → F006 (Rust test coverage) → F015-F017/F040 (JS test hardening) → remainder.
 
-<!-- BATCH_REMEDIATION_GATE: opened 2026-07-28 by /audit batch 19 (first-ever batch-level audit, 8-agent cycle 1, verdict FAIL — 1 finding at severity 7, F1/Task #506). This batch remains [CURRENT SPRINT] until a later "/audit batch 19" run returns PASS (Task #506 fixed, re-audited clean) or Max explicitly accepts the remainder as debt. Do not mark this batch [COMPLETE] until this gate closes. -->
+Remediation gate CLOSED 2026-07-28: first-ever `/audit batch 19` (8-agent cycle 1) found 1 severity-7 finding (F1 — StudyDoneScreen's unguarded exit-mandatory-mode button) among 18 total; F1 was fixed directly as Task #506 and F2-F18 (severity 2-6) logged to `debt.md` per this project's Audit Severity Calibration rule. A 3-agent re-audit (cycle 2 — A, K, Red R) independently verified Task #506's fix at the root-cause level, including two agents performing a LIVE Deletion Test (reverting the fix, confirming the new tests fail, restoring and re-verifying byte-identical) rather than reasoning about it statically. Cycle 2 verdict: PASS — no other unprotected call site of the same defect class exists, no regression introduced, one new minor debt item logged (severity 3, pre-existing partial-IPC-failure masking, not introduced by this fix).
 
 ### Task #187: Fix functional-defect: wake_enabled is written by update_interrupt_config but never read anywhere else in the crate.
 
@@ -10142,7 +10143,7 @@ NEW
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** NEW
+**Status:** COMPLETE — 2026-07-28
 
 **What:**
 `components/StudyDoneScreen.tsx:37`'s onClick handler awaits `onExitInterrupt()` (bound to `exitMandatoryMode` at `app/study/page.tsx:111`) with no try/catch, unlike the two sibling call sites in `app/study/page.tsx` (lines 75 and 126), which both catch the error and unconditionally navigate regardless of outcome. This batch (Task #164-era work) formalized `exitMandatoryMode`'s throw-on-IPC-failure contract (`lib/tauriInterrupt.ts:81-90`) without auditing forward to this third consumer of the same function in the same feature area.
@@ -10167,6 +10168,7 @@ Reachable today via the ordinary post-session flow (finish a mandatory-mode revi
 | ALL_PACK_CODES vs READY_PACK_CODES decision (Task #068) | Should loadPack validate against all registered pack codes (including es with ready:false) or only packs that are actually ready to download? With es.json now in the CDN but hidden, this question is active again. | (A) Validate against READY_PACK_CODES only — es.json inaccessible until ready:true; (B) Validate against all registered codes — allows direct pack URL access even when hidden from UI |
 | Sentence generator go/no-go | BRAND.md flags this as "under evaluation." No task created. | (A) Greenlight — add BUILD task to Batch 10/11; (B) Hold — revisit at B2 content milestone |
 | Spanish pack quality gate | es.json (245KB, v0.9.0) exists but Max confirmed "not yet ready" on 2026-06-29. When is it ready? | Owner sets criteria: word count target, unit count, QA pass |
-| LS store creation (Task #120) | Owner action: create LS store before Task #120 can close. | Max creates store at dashboard.lemonsqueezy.com; confirms slug |
+| LS store creation (Task #120) — **RESOLVED 2026-07-28**: confirmed already live during Batch 10 review — lib/checkout.ts:12 has a real product URL, live-verified via curl (HTTP 302). Task #120 marked COMPLETE; this row kept only for history. | n/a | — |
 | Apple Developer Program membership — **RESOLVED 2026-07-08: Max's enrollment is approved.** Task #122 still needs one more concrete step before it can close: generate a "Developer ID Application" certificate from this membership (developer.apple.com or Xcode), export it as a `.p12`, and wire 6 GitHub Actions secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) — see Task #122. Not yet started. | n/a — membership prerequisite cleared, cert generation still pending | When ready: generate + export the cert, then resume with `/task #122` |
+| No GitHub remote configured for this repo — **discovered 2026-07-28 during Batch 10 review.** `git remote -v` is empty; `gh auth status` confirms `gh` IS authenticated (2 accounts available: m4x-us, figly-app). Task #123's release workflow triggers on pushing a `v*` tag to GitHub — this cannot happen, and CI secrets cannot be set, until the repo is actually pushed to a real GitHub remote. Not previously tracked anywhere. | Max decides which GitHub account/org owns this repo, then creates the remote (`gh repo create` or manually) and pushes | Once decided: `gh repo create [account]/plyglt --private --source=. --push` (or public, per Max's preference) |
 | BRAND.md's "variety rule" is undeliverable with the current content model (Batch 18 WorldClass cycle 1) | `getNextCardType` (lib/introduction.ts) correctly implements retrieval-angle rotation, but the content model authors one `Card` object per word per type — there is no sibling card to rotate to. Delivering this requires generating sibling `Card` objects per word across the curriculum (an 8,000-word content-authoring initiative per CURRICULUM.md), not a code fix. Disclosed in BRAND.md 2026-07-08; logged as debt.md severity 5. | (A) Greenlight a future content-model batch to author sibling cards per word; (B) Accept the current one-card-per-word model permanently and remove the variety rule from BRAND.md instead of disclosing it as pending; (C) Hold — revisit at next content milestone |

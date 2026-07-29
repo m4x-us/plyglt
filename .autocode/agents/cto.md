@@ -1391,6 +1391,16 @@ Done-when: PASS; scripts/deep-audit.sh DEFERRED — absent
 Fixed this cycle: DSC-1 | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task
 
+### Task #506 | Fix error-handling: StudyDoneScreen's exit-mandatory-mode button had no error handling | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
+
+#### Cycle 1 — 2026-07-28 — Direct Task (Builder path)
+Build approach: components/StudyDoneScreen.tsx:37-42 — wrapped the "Done" button's `onClick` in try/catch matching app/study/page.tsx:75's established pattern (`try { await onExitInterrupt(); } catch (err) { console.error(\`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:\`, err); }`), then calls `onHome()` unconditionally after the try/catch instead of only on success. components/StudyDoneScreen.test.tsx:61-78 — new test mocks `onExitInterrupt` to reject and asserts `onHome` is called exactly once plus the error is logged with the `ERR-IPC-EXIT` ref tag. Bundled debt item F10 (severity 3, Debt Review Step 0.0b, Max selected "yes"): lib/tauriInterrupt.ts:74-84 — added the same try/catch + `ERR-IPC-*` ref-ID rethrow pattern to `enterMandatoryMode()`, matching its 3 siblings (`updateInterruptConfig`, `snoozeInterrupt`, `exitMandatoryMode`); tests/tauri.test.ts:150-181 — new "enterMandatoryMode — IPC error surfacing" describe block mirrors the existing `snoozeInterrupt` block exactly (3 tests: rejects with "IPC failed" on mocked invoke rejection, resolves on invoke-returns-null success, no-ops in web mode); also corrected the file's header comment, which falsely claimed `enterMandatoryMode`/`exitMandatoryMode` "cannot be unit-tested here" — both already were, via the same `@tauri-apps/api/core` invoke-mocking technique used for their siblings.
+Scripts: PASS (tsc clean; full suite 1465/1465 tests, 66 files; lint 0 errors, 3 pre-existing unrelated warnings; no weak assertions introduced in either changed test file)
+Spot check: PASS — independent agent performed the Deletion Test on both new tests (StudyDoneScreen: reverting the try/catch leaves `onHome` uncalled on rejection, failing `toHaveBeenCalledTimes(1)`; enterMandatoryMode: reverting to a bare `await invoke(...)` makes the rejection message "Tauri IPC error" instead of containing "IPC failed", failing `.rejects.toThrow("IPC failed")`) — both tests confirmed to genuinely catch the regression, not pseudocode.
+Done-when: PASS (all 5 acceptance criteria met and independently verified)
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+
 ### Task #487 | Fix tests: strengthen #481 _version tests to full-shape equality, add F012/F016/F017 debt-bundle coverage | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
 
 #### Cycle 1 — 2026-07-28 — Direct Task (Builder path)
