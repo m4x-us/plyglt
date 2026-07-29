@@ -39,13 +39,22 @@ jobs:
               "minimatch", "brace-expansion"
             ]);
             const vulns = data.vulnerabilities || {};
-            const unexpected = Object.keys(vulns).filter((name) => !acceptedBaseline.has(name));
+            // npm audit nests EVERY package touching a vulnerable chain into this object,
+            // including moderate/low-severity ones pulled in only via a "via" reference to
+            // a genuinely high-severity package (e.g. geist showed up here at severity
+            // "moderate", via: ["next"] — it is not itself a high-severity finding). Only
+            // entries whose OWN severity is high/critical are real --audit-level=high hits.
+            const highOrCritical = Object.entries(vulns).filter(
+              ([, v]) => v.severity === "high" || v.severity === "critical"
+            );
+            const unexpected = highOrCritical.filter(([name]) => !acceptedBaseline.has(name));
             if (unexpected.length > 0) {
-              console.error("FAIL: new high-severity vulnerabilities not in the documented baseline:", unexpected.join(", "));
+              const names = unexpected.map(([name]) => name);
+              console.error("FAIL: new high/critical-severity vulnerabilities not in the documented baseline:", names.join(", "));
               console.error("See STATUS.md Known Issues for the accepted baseline and why each entry is deferred.");
-              for (const name of unexpected) {
+              for (const [name, v] of unexpected) {
                 console.error(`--- full detail for "${name}" ---`);
-                console.error(JSON.stringify(vulns[name], null, 2));
+                console.error(JSON.stringify(v, null, 2));
               }
               process.exit(1);
             }
