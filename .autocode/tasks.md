@@ -2364,6 +2364,7 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** `grep "signingIdentity" src-tauri/tauri.conf.json` returns a non-null string value; a test macOS build on CI produces a notarized .dmg that opens without Gatekeeper warning on a clean macOS install.
 **Complexity:** ⚡ Direct — 1 file, no package boundary, single-scope change
 **Owner:** Security Agent
+**Status: COMPLETE — 2026-07-29 (Developer ID Application certificate generated, installed, and exported; all 6 GitHub Actions secrets confirmed set via `gh secret list`; `src-tauri/tauri.conf.json:signingIdentity` updated from `null` to the real cert name. The second half of Done When — a CI build actually producing a notarized, Gatekeeper-clean .dmg — can only be verified once Task #123's release workflow exists and runs; that's the next task.)**
 
 ---
 
@@ -2478,6 +2479,20 @@ Theme: The infrastructure prerequisites for distributing plyglt as a signed macO
 **Done when:** Neither file has `.toBeDefined()` wrapping a `getBy*` result. `npm test` passes.
 **Owner:** QA Agent
 **Status: COMPLETE — 2026-07-01**
+
+---
+
+### Task #507 | security | severity 5
+**What:** Upgrade ESLint from `^9` to `10.8.0` (and update `eslint-config-next` / plugin versions as needed for compatibility). Verify flat-config (`eslint.config.*`) and all existing lint rules still apply correctly — ESLint 9→10 is a major version bump and may change plugin compatibility or rule defaults. Re-run `npm run lint` and confirm 0 new errors/warnings beyond the 3 pre-existing ones.
+**Why:** Discovered 2026-07-29 when CI ran for the first time against the newly-created GitHub repo (`m4x-us/plyglt`) — `npm audit --audit-level=high` flagged `eslint`, `minimatch`, `brace-expansion`, `eslint-config-next`, `eslint-plugin-import`, `eslint-plugin-jsx-a11y`, `eslint-plugin-react`, `@eslint/config-array`, `@eslint/eslintrc` as high-severity, all only fixable via this major ESLint upgrade. Deferred as its own task rather than rushed alongside the Batch 10 shipping-infrastructure work; documented as an accepted, tracked baseline in `STATUS.md § Known Issues` and allowlisted in `.github/workflows/ci.yml`'s Audit step in the meantime.
+**File:** `package.json`, possibly `eslint.config.mjs` (or equivalent flat-config file)
+**Blocks:** Nothing (CI's audit allowlist covers this in the meantime)
+**Blocked by:** Nothing
+**Risk:** Medium — major version bump could change lint behavior; test thoroughly before merging.
+**Completion gates:** Security Agent sign-off (audit clean) + QA Agent sign-off (lint clean)
+**Done when:** `npm audit --audit-level=high` reports 0 vulnerabilities for `eslint`/`minimatch`/`brace-expansion`/`eslint-config-next`/its plugins; `.github/workflows/ci.yml`'s audit allowlist and `STATUS.md`'s corresponding Known Issues entry are both updated/removed to match; `npm run lint` passes with only the 3 pre-existing unrelated warnings.
+**Complexity:** 🔧 Full — major version migration, needs compatibility verification
+**Owner:** Security Agent
 
 ## Batch 11 — A1 Spanish Source-Language Translation | 21 tasks | [COMPLETE]
 Dependency: Batch 10 is owner-blocked (Tasks #120–#122 need owner actions). These tasks are fully independent and run immediately.

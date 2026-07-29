@@ -38,8 +38,11 @@ License verification is entirely client-side — there is no server round-trip t
 **Placeholder language registrations removed (2026-06-27).**
 Three placeholder registrations (French, German, Portuguese) with no real content or packs were cleaned out of lib/langRegistry.ts in Batch 3. Only `it` (Italian, ready) and `es` (Spanish, not yet ready) remain. Re-add a language only when a real LanguageConfig and pack exist — see CONTRIBUTING_LANGUAGE.md.
 
-**2 moderate npm vulnerabilities in the next/postcss dependency chain (known, unfixable without major Next.js downgrade).**
-`npm audit` reports two moderate-severity advisories (`next` and `postcss`). Both are build-time CSS ReDoS issues — not runtime vulnerabilities. They cannot be resolved without a major Next.js version downgrade, which is not worth the cost. CI gates on `--audit-level=high` so only new high/critical advisories block a build. Do not investigate or attempt to fix these two moderate entries — they are the accepted baseline.
+**`next`/`postcss`/`sharp` high-severity npm vulnerabilities — bundled inside Next.js itself, unfixable without a major Next.js downgrade (updated 2026-07-29).**
+`npm audit` reports high-severity advisories for `postcss` and `sharp` even at Next.js's latest available version (16.2.12) — both are dependencies Next.js bundles internally, not something this project chooses independently. (This entry previously described 2 *moderate*-severity build-time CSS ReDoS issues; the underlying packages have since accumulated additional, higher-severity CVEs and the advisory database now classifies them as high.) The only "fix" `npm audit fix --force` offers is downgrading to `next@9.3.3`, an ancient, incompatible version — not a real option. CI's audit step (`.github/workflows/ci.yml`) allows exactly this documented set of package names through; any new high-severity advisory outside this list still fails the build. Do not investigate or attempt to fix these — they require an upstream Next.js patch release.
+
+**`eslint`/`minimatch`/`brace-expansion`/`eslint-config-next`'s plugins — high-severity, fixable only via a major ESLint 9→10 upgrade (added 2026-07-29).**
+`npm audit` reports these as high-severity, with a fix available only by upgrading `eslint` from `^9` to `10.8.0` — a major-version migration (potential flat-config/plugin compatibility changes), not a safe drop-in patch. Deferred as a dedicated future task rather than rushed alongside unrelated work. CI's audit step allows this documented set through in the meantime; keep the allowlist in `.github/workflows/ci.yml` in sync with this entry.
 
 ---
 
