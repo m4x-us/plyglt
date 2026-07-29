@@ -71,10 +71,16 @@ export async function snoozeInterrupt(minutes: number): Promise<void> {
   }
 }
 
-/** Lock window to always-on-top and disable close/minimise. No-op in web. */
+/** Lock window to always-on-top and disable close/minimise. No-op in web. Throws on IPC failure. */
 export async function enterMandatoryMode(): Promise<void> {
   if (!isTauri) return;
-  await invoke("enter_mandatory_mode");
+  try {
+    await invoke("enter_mandatory_mode");
+  } catch (err) {
+    const ref = `ERR-IPC-${Date.now()}`;
+    console.error(`[${ref}] enter_mandatory_mode IPC failed — window not locked`, err);
+    throw new Error(`Enter mandatory mode IPC failed (${ref})`);
+  }
 }
 
 /** Restore window decorations (and hide if it was auto-opened). No-op in web. Throws on IPC failure. */

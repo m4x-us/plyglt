@@ -34,7 +34,10 @@ export default function StudyDoneScreen({
         <h1 className="text-3xl font-bold text-green-400 mb-2">Review complete.</h1>
         <p className="text-gray-400 mb-8">{sessionCorrect}/{sessionTotal} correct</p>
         <button
-          onClick={async () => { await onExitInterrupt(); onHome(); }}
+          onClick={async () => {
+            try { await onExitInterrupt(); } catch (err) { console.error(`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:`, err); }
+            onHome();
+          }}
           className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
         >
           Done

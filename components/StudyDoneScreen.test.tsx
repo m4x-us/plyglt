@@ -3,7 +3,7 @@
 // ============================================================
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import StudyDoneScreen from "./StudyDoneScreen";
 import type { Unit } from "@/content/types";
 
@@ -56,5 +56,27 @@ describe("StudyDoneScreen", () => {
     render(<StudyDoneScreen {...baseProps} isInterrupt />);
     expect(screen.getByText("Review complete.")).toBeInTheDocument();
     expect(screen.queryByText(/!/)).toBeNull();
+  });
+
+  // Task #506 — the interrupt-mode "Done" button previously had no error handling around
+  // onExitInterrupt(): a rejection left onHome() uncalled, stranding the user on this screen
+  // with the mandatory-mode window lock still engaged. This test fails if that regression
+  // reappears — it asserts onHome() still fires when onExitInterrupt() rejects.
+  it("still calls onHome when onExitInterrupt rejects", async () => {
+    const onHome = vi.fn();
+    const onExitInterrupt = vi.fn().mockRejectedValue(new Error("Tauri IPC failed"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<StudyDoneScreen {...baseProps} isInterrupt onHome={onHome} onExitInterrupt={onExitInterrupt} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Done"));
+    });
+
+    expect(onExitInterrupt).toHaveBeenCalledTimes(1);
+    expect(onHome).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-IPC-EXIT"), expect.any(Error));
+
+    errorSpy.mockRestore();
   });
 });

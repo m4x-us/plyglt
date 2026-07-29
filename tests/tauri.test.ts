@@ -3,14 +3,17 @@
  *
  * What IS testable here: environment detection and web-mode no-ops.
  *
- * What IS testable via @tauri-apps/* mocks: updateInterruptConfig(), snoozeInterrupt()
- * (now in lib/tauriInterrupt.ts), checkForUpdates() — tested via vi.doMock of the
- * plugin modules below.
+ * What IS testable via @tauri-apps/* mocks: updateInterruptConfig(), snoozeInterrupt(),
+ * enterMandatoryMode(), exitMandatoryMode() (all in lib/tauriInterrupt.ts), checkForUpdates()
+ * — tested via vi.doMock of the plugin modules below, using the same invoke()-mocking
+ * technique for each (Task #506 corrected this comment — it previously claimed
+ * enterMandatoryMode/exitMandatoryMode weren't unit-testable, which was never actually true).
  *
  * What is NOT testable without the Tauri runtime: invoke(), listen(), emit(),
- * updateTrayBadge(), enterMandatoryMode(), exitMandatoryMode(), enableAutostart(),
- * disableAutostart() — these gate on isTauri and return null / no-op in web mode.
- * The Rust IPC layer requires a running Tauri webview and cannot be unit-tested here.
+ * updateTrayBadge(), enableAutostart(), disableAutostart() — these gate on isTauri and
+ * return null / no-op in web mode, with no invoke()-mockable IPC error path of their own.
+ * The Rust IPC layer's actual runtime behavior requires a running Tauri webview and cannot
+ * be unit-tested here.
  */
 
 import { readFileSync } from "node:fs";
@@ -142,6 +145,42 @@ describe("snoozeInterrupt — IPC error surfacing", () => {
   it("returns void (no-op) in web mode — does not throw", async () => {
     const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
     await expect(snoozeInterrupt(30)).resolves.toBeUndefined();
+  });
+});
+
+// Task #506 (bundled F10) — enterMandatoryMode previously had no try/catch, unlike its 3
+// siblings (updateInterruptConfig, snoozeInterrupt, exitMandatoryMode), all of which catch,
+// log an ERR-IPC- ref, and rethrow. This block mirrors snoozeInterrupt's IPC error-surfacing
+// tests above to prove the same contract now holds for enterMandatoryMode.
+describe("enterMandatoryMode — IPC error surfacing", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("rejects with an error containing 'IPC failed' when invoke throws (mocked Tauri env)", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn().mockRejectedValue(new Error("Tauri IPC error")),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { enterMandatoryMode } = await import("@/lib/tauriInterrupt");
+    await expect(enterMandatoryMode()).rejects.toThrow("IPC failed");
+  });
+
+  it("resolves successfully when invoke returns null (void command success in Tauri)", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn().mockResolvedValue(null),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { enterMandatoryMode } = await import("@/lib/tauriInterrupt");
+    await expect(enterMandatoryMode()).resolves.toBeUndefined();
+  });
+
+  it("returns void (no-op) in web mode — does not throw", async () => {
+    const { enterMandatoryMode } = await import("@/lib/tauriInterrupt");
+    await expect(enterMandatoryMode()).resolves.toBeUndefined();
   });
 });
 

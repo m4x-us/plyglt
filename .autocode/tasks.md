@@ -8575,8 +8575,10 @@ Task #254's fix (store/srsStore.ts:recordIntroductionResult's corrupt-date catch
 
 ---
 
-## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 73 tasks | [CURRENT SPRINT]
+## Batch 19 — OS Trigger Settings Remediation (Audit #164 findings) | 74 tasks | [CURRENT SPRINT]
 Dependency: None (standalone remediation batch). Theme: /audit #164 (2026-07-04, verdict FAIL, severity 9, 39 findings) found that Task #163's OS trigger toggle controls (wake/unlock/idle + idle threshold) are entirely non-functional — `os_events.rs` never reads the settings it was built to expose. F001-F006 are the stop-the-line core; everything else is downstream test/doc/hardening debt discovered in the same audit. Fix order: F001-F004 (wiring) → F006 (Rust test coverage) → F015-F017/F040 (JS test hardening) → remainder.
+
+<!-- BATCH_REMEDIATION_GATE: opened 2026-07-28 by /audit batch 19 (first-ever batch-level audit, 8-agent cycle 1, verdict FAIL — 1 finding at severity 7, F1/Task #506). This batch remains [CURRENT SPRINT] until a later "/audit batch 19" run returns PASS (Task #506 fixed, re-audited clean) or Max explicitly accepts the remainder as debt. Do not mark this batch [COMPLETE] until this gate closes. -->
 
 ### Task #187: Fix functional-defect: wake_enabled is written by update_interrupt_config but never read anywhere else in the crate.
 
@@ -10130,6 +10132,32 @@ NEW
 - [ ] Audit passes: bash scripts/deep-audit.sh lib/constants.ts
 
 **Source:** Audit finding F034 — severity 6 — requirements
+
+---
+
+### Task #506: Fix error-handling: StudyDoneScreen's exit-mandatory-mode button has no error handling and can permanently strand the user in a locked window
+
+**File:** components/StudyDoneScreen.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** NEW
+
+**What:**
+`components/StudyDoneScreen.tsx:37`'s onClick handler awaits `onExitInterrupt()` (bound to `exitMandatoryMode` at `app/study/page.tsx:111`) with no try/catch, unlike the two sibling call sites in `app/study/page.tsx` (lines 75 and 126), which both catch the error and unconditionally navigate regardless of outcome. This batch (Task #164-era work) formalized `exitMandatoryMode`'s throw-on-IPC-failure contract (`lib/tauriInterrupt.ts:81-90`) without auditing forward to this third consumer of the same function in the same feature area.
+
+Concrete failure sequence (first-ever `/audit batch 19` run, Red Agent R, cycle 1): the Rust `exit_mandatory_mode` command (`src-tauri/src/interrupt.rs:183-203`) chains four `window.set_*()` calls with `?`-early-return and no rollback. An ordinary transient OS-level failure on any one call (e.g. `set_closable(true)` failing after `set_always_on_top(false)` already succeeded) causes the command to return `Err`, which `exitMandatoryMode()` turns into a thrown `Error`. Because `StudyDoneScreen.tsx:37` has no try/catch, `onHome()` never executes — the user is left on the "Review complete" screen with the mandatory-mode window lock (non-closable, non-minimizable, always-on-top) still engaged, with no visible error and no retry path. Only a force-quit recovers.
+
+Reachable today via the ordinary post-session flow (finish a mandatory-mode review session → tap "Done") with no special setup or corrupted input required — this is why the audit scored it severity 7 despite this project's calibration rule capping most other findings in the same batch at 4-6.
+
+**Acceptance Criteria:**
+- [ ] Wrap `StudyDoneScreen.tsx:37`'s `onClick` handler in the same try/catch + unconditional-navigate pattern already used at `app/study/page.tsx:75` and `:126` (catch, log via a `console.error` ref-ID tag, then call `onHome()` regardless of outcome)
+- [ ] Add a regression test to `components/StudyDoneScreen.test.tsx` that mocks `onExitInterrupt`/`exitMandatoryMode` to reject and asserts `onHome()` is still called — no test today covers this rejection path anywhere (confirmed by both Agent B and Red Agent R during the audit)
+- [ ] Bundled debt item (F10, severity 3): add the same try/catch + `ERR-IPC-` ref-ID logging pattern to `enterMandatoryMode()` in `lib/tauriInterrupt.ts:74-78`, matching its 3 siblings (`updateInterruptConfig`, `snoozeInterrupt`, `exitMandatoryMode`) which already catch, log, and rethrow. Add or extend a `tests/tauri.test.ts` case asserting `enterMandatoryMode()` rejects with an `IPC failed` message on a mocked `invoke` rejection, mirroring the existing `updateInterruptConfig`/`snoozeInterrupt` IPC-error-surfacing tests.
+- [ ] `npx tsc --noEmit`, `npm test`, `npm run lint` all clean
+
+**Source:** `/audit batch 19` (2026-07-28, first-ever audit of this batch, 8-agent cycle 1) — Finding F1 — severity 7 — error-handling. Full findings list (F1-F18) merged/scored by Agent C; F2-F18 (severity ≤6) logged to `debt.md` per this project's Audit Severity Calibration rule (AGENTS.md) rather than blocking further. F10 bundled into this task's scope per Max's decision at the Debt Review gate, 2026-07-28.
 
 ---
 
