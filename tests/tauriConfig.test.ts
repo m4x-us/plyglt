@@ -25,10 +25,11 @@ describe("tauri.conf.json — plugins section", () => {
     expect(config.plugins.autostart).toBeUndefined();
   });
 
-  it("updater plugin has a real pubkey, not a placeholder", () => {
+  it("updater plugin has the real, currently-active pubkey, not a placeholder", () => {
     expect(config.plugins.updater.pubkey).not.toBe("REPLACE_WITH_TAURI_SIGNING_PUBLIC_KEY");
-    expect(typeof config.plugins.updater.pubkey).toBe("string");
-    expect(config.plugins.updater.pubkey.length).toBeGreaterThan(0);
+    expect(config.plugins.updater.pubkey).toBe(
+      "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzQTJGQ0Q5MTVDQ0JGMzIKUldReXY4d1YyZnlpUTBYbjRMMjhzNVdoZ3lBbmo2Zk9jbmNyeGdUY1ZrWURiNHZmOUQ2WVJEelkK"
+    );
   });
 
   it("updater endpoint points to a real repo, not the REPLACE_WITH_REPO placeholder", () => {
