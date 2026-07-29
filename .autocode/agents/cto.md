@@ -1391,6 +1391,16 @@ Done-when: PASS; scripts/deep-audit.sh DEFERRED — absent
 Fixed this cycle: DSC-1 | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task
 
+### Task #124 | Add notification permission onboarding explanation | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
+
+#### Cycle 1 — 2026-07-28 — Direct Task (Builder path)
+Build approach: discovered during Batch 10 review that the feature itself (components/NotificationPermissionGate.tsx, wired into app/settings/page.tsx:68) was already built prior to this session and matches the task spec word-for-word — the task list simply never reflected it. Added components/NotificationPermissionGate.test.tsx (new file, 4 tests) covering all 4 PermissionState values (default, denied, granted, unsupported), closing a Rule 14 gap (every user-facing component needs a co-located test).
+Scripts: PASS (tsc clean; full suite 1469/1469 tests, 67 files; lint 0 errors, 3 pre-existing unrelated warnings)
+Spot check: PASS (1 trivial note, severity 2 — "unsupported" test exercises the same fallback branch as "granted," acceptable, could use it.each for elegance — not logged to debt, too trivial)
+Done-when: PASS (component strings verified word-for-word against spec; notifPermission confirmed wired to the real Notification.permission browser API, not stale/hardcoded; npm test passes; no Tauri IPC changes)
+Fixed this cycle: — | Still open: — | New findings: DSC-1 (sev 2, not logged) | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+
 ### Task #506 | Fix error-handling: StudyDoneScreen's exit-mandatory-mode button had no error handling | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
 
 #### Cycle 1 — 2026-07-28 — Direct Task (Builder path)
