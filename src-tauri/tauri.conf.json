@@ -43,7 +43,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0RDAzNjcyNUNCQjIwQjkKUldTNUlMdGNjamJRRk9DcE1lelV6bXVVSFFWc2ZZZ0xHenhrU2VzNHlEcnFUbE5nQ0xpMko0UEYK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzQTJGQ0Q5MTVDQ0JGMzIKUldReXY4d1YyZnlpUTBYbjRMMjhzNVdoZ3lBbmo2Zk9jbmNyeGdUY1ZrWURiNHZmOUQ2WVJEelkK",
       "endpoints": [
         "https://github.com/m4x-us/plyglt/releases/latest/download/latest.json"
       ]
