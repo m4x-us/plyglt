@@ -5,7 +5,8 @@
   "identifier": "app.plyglt",
   "build": {
     "frontendDist": "../out",
-    "devUrl": "http://localhost:3000"
+    "devUrl": "http://localhost:3050",
+    "beforeDevCommand": "npm run dev -- -p 3050"
   },
   "app": {
     "windows": [
@@ -47,9 +48,6 @@
       "endpoints": [
         "https://github.com/m4x-us/plyglt/releases/latest/download/latest.json"
       ]
-    },
-    "autostart": {
-      "visible": false
     }
   }
 }
