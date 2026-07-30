@@ -1387,6 +1387,94 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["a114-t1-151"],
     },
+
+    // -------------------------------------------------------------------------
+    // TIER 3 — Sentences: closing word-isolation gaps (seq 114–119)
+    // -------------------------------------------------------------------------
+    {
+      id: "a114-t3-114",
+      type: "produce",
+      prompt: "The duck swims in the pond every morning.",
+      accepted: [
+        "L'anatra nuota nello stagno ogni mattina.",
+        "L'anatra nuota nello stagno ogni mattina",
+      ],
+      prompts: { "es": "El pato nada en el estanque cada mañana." },
+      hint: "nello stagno = in the pond (in + lo); ogni mattina = every morning",
+      tags: ["sentence", "animal", "farm", "nuotare", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-150"],
+    },
+    {
+      id: "a114-t3-115",
+      type: "produce",
+      prompt: "The giraffe and the deer live at the zoo.",
+      accepted: [
+        "La giraffa e il cervo vivono allo zoo.",
+        "La giraffa e il cervo vivono allo zoo",
+      ],
+      prompts: { "es": "La jirafa y el ciervo viven en el zoológico." },
+      hint: "vivono = they live (vivere); allo zoo = at the zoo (a + lo)",
+      tags: ["sentence", "animal", "wild", "zoo", "vivere", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-158", "a114-t1-153"],
+    },
+    {
+      id: "a114-t3-116",
+      type: "produce",
+      prompt: "The spider makes a web in the corner.",
+      accepted: [
+        "Il ragno fa una ragnatela nell'angolo.",
+        "Il ragno fa una ragnatela nell'angolo",
+      ],
+      prompts: { "es": "La araña hace una telaraña en el rincón." },
+      hint: "fare = to make; fa = 3rd person singular; nell'angolo = in the corner",
+      tags: ["sentence", "animal", "insect", "fare", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-155"],
+    },
+    {
+      id: "a114-t3-117",
+      type: "produce",
+      prompt: "The ant is small, the fly is fast.",
+      accepted: [
+        "La formica è piccola, la mosca è veloce.",
+        "La formica è piccola, la mosca è veloce",
+      ],
+      prompts: { "es": "La hormiga es pequeña, la mosca es rápida." },
+      hint: "piccola = small (fem.); veloce = fast — no article before the adjective",
+      tags: ["sentence", "animal", "insect", "adjective", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-159", "a114-t1-160"],
+    },
+    {
+      id: "a114-t3-118",
+      type: "produce",
+      prompt: "The duck and the goose live near the water.",
+      accepted: [
+        "L'anatra e l'oca vivono vicino all'acqua.",
+        "L'anatra e l'oca vivono vicino all'acqua",
+      ],
+      prompts: { "es": "El pato y el ganso viven cerca del agua." },
+      hint: "vivono = they live (vivere); vicino a = near",
+      tags: ["sentence", "animal", "farm", "vivere", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-150", "a114-t1-161"],
+    },
+    {
+      id: "a114-t3-119",
+      type: "produce",
+      prompt: "The deer and the fox live in the forest.",
+      accepted: [
+        "Il cervo e la volpe vivono nel bosco.",
+        "Il cervo e la volpe vivono nel bosco",
+      ],
+      prompts: { "es": "El ciervo y el zorro viven en el bosque." },
+      hint: "vivono = they live (vivere); nel bosco = in the forest",
+      tags: ["sentence", "animal", "wild", "vivere", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-153", "a114-t1-019"],
+    },
   ],
 };
 

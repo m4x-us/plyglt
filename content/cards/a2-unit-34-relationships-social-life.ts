@@ -206,6 +206,12 @@ const unit: Unit = {
     { id: "a234-t3-039", type: "fill_blank", prompt: "Vuole ___ tutti alla sua festa di compleanno, ed essere invitato a una delle sue feste è sempre speciale.", accepted: ["invitare"], hint: "the verb for asking people to come", tags: ["fill_blank", "party", "invitare"], tier: 3 },
     { id: "a234-t3-040", type: "fill_blank", prompt: "La festa doveva iniziare alle nove, come diceva ___, quindi abbiamo deciso di organizzare una festa a sorpresa prima che arrivassero tutti.", accepted: ["l'invito"], hint: "the noun for the card announcing the party", tags: ["fill_blank", "party", "invito"], tier: 3 },
     { id: "a234-t3-041", type: "fill_blank", prompt: "Vogliamo ___ il suo compleanno con il regalo che aspettava da mesi.", accepted: ["festeggiare"], hint: "the verb for marking an occasion", tags: ["fill_blank", "party", "festeggiare"], tier: 3 },
+
+    // ── Tier 3 – Chunks & Phrases (coverage backfill) ─────────────────────────
+    { id: "a234-t3-042", type: "produce", prompt: "Luca says he wants to be engaged before he turns thirty.", accepted: ["Luca dice che vuole essere fidanzato prima di compiere trent'anni."], hint: "'essere fidanzato' + 'volere' + infinitive", tags: ["chunk", "dating", "fidanzato"], tier: 3 },
+    { id: "a234-t3-043", type: "produce", prompt: "Anna and Paolo will keep staying together even if they move to different cities.", accepted: ["Anna e Paolo continueranno a stare insieme anche se si trasferiranno in città diverse."], hint: "'stare insieme' after 'continuare a'", tags: ["chunk", "relationship", "stare-insieme"], tier: 3 },
+    { id: "a234-t3-044", type: "produce", prompt: "Marco didn't want to be in love with anyone after the divorce.", accepted: ["Marco non voleva essere innamorato di nessuno dopo il divorzio."], hint: "'essere innamorato (di)' — imperfetto for a past state", tags: ["chunk", "dating", "innamorarsi"], tier: 3 },
+    { id: "a234-t3-045", type: "produce", prompt: "It's easy to make friends when you travel alone.", accepted: ["È facile fare amicizia quando viaggi da solo."], hint: "'fare amicizia'", tags: ["chunk", "friendship", "amicizia"], tier: 3 },
   ],
 };
 export default unit;

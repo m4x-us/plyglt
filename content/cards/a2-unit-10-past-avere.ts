@@ -1529,6 +1529,35 @@ const unit: Unit = {
       tier: 3,
     },
 
+    // --- New phrases: coverage for isolated vocabulary (seq 032–034) ---
+    {
+      id: "u10-t3-032",
+      type: "produce",
+      prompt: "I had to finish the work before dinner.",
+      accepted: ["Ho dovuto finire il lavoro prima di cena."],
+      hint: "ho dovuto + infinitive = I had to; finire = to finish",
+      tags: ["chunk", "passato-prossimo", "modal", "collocation"],
+      tier: 3,
+    },
+    {
+      id: "u10-t3-033",
+      type: "produce",
+      prompt: "I couldn't sleep last night.",
+      accepted: ["Non ho potuto dormire ieri notte."],
+      hint: "non ho potuto + infinitive = I couldn't; dormire = to sleep",
+      tags: ["chunk", "passato-prossimo", "modal", "negation"],
+      tier: 3,
+    },
+    {
+      id: "u10-t3-034",
+      type: "produce",
+      prompt: "I had to call the doctor.",
+      accepted: ["Ho dovuto telefonare al dottore."],
+      hint: "ho dovuto + infinitive = I had to; telefonare = to phone",
+      tags: ["chunk", "passato-prossimo", "modal", "collocation"],
+      tier: 3,
+    },
+
     // ── Tier 4 – Sentences & Passages (expansion) ───────────────────────────
     {
       id: "u10-t4-006",

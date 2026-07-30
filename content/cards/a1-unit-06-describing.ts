@@ -1035,6 +1035,58 @@ const unit: Unit = {
       tier: 3,
     },
 
+    // ── TIER 3: COVERAGE BACKFILL ───────────────────────────────
+    {
+      id: "u06-t3-112",
+      type: "produce",
+      prompt: "The dog is short and slow.",
+      accepted: ["Il cane è basso e lento.", "Il cane è basso e lento"],
+      prompts: { "es": "El perro es bajo y lento." },
+      hint: "basso and lento both agree with cane (m).",
+      tags: ["phrases", "describing", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u06-t3-113",
+      type: "produce",
+      prompt: "The book is short and light.",
+      accepted: ["Il libro è corto e leggero.", "Il libro è corto e leggero"],
+      prompts: { "es": "El libro es corto y ligero." },
+      hint: "corto and leggero both agree with libro (m).",
+      tags: ["phrases", "describing", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u06-t3-114",
+      type: "produce",
+      prompt: "It is very hot.",
+      accepted: ["È molto caldo.", "È molto calda.", "È molto caldo", "È molto calda"],
+      prompts: { "es": "Está muy caliente." },
+      hint: "molto is invariable; caldo/calda agree with the noun.",
+      tags: ["phrases", "describing", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u06-t3-115",
+      type: "produce",
+      prompt: "Is it hot or cold?",
+      accepted: ["È caldo o freddo?", "È calda o fredda?"],
+      prompts: { "es": "¿Está caliente o frío?" },
+      hint: "o = or; match caldo/freddo or calda/fredda to the noun.",
+      tags: ["phrases", "describing", "questions", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u06-t3-116",
+      type: "produce",
+      prompt: "The car is low but fast.",
+      accepted: ["La macchina è bassa ma veloce.", "La macchina è bassa ma veloce"],
+      prompts: { "es": "El coche es bajo pero rápido." },
+      hint: "bassa agrees with macchina (f); veloce stays same.",
+      tags: ["phrases", "describing", "A1"],
+      tier: 3,
+    },
+
     // ── TIER 4: SENTENCES ──────────────────────────────────────
     {
       id: "u06-t4-001",

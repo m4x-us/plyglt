@@ -1204,6 +1204,53 @@ const unit: Unit = {
       tier: 3,
     },
 
+    // ── Tier 3 – Chunks & Phrases (word-context backfill) ────────────────────
+    {
+      id: "u18-t3-032",
+      type: "produce",
+      prompt: "to check the itinerary before the departure",
+      accepted: ["controllare l'itinerario prima della partenza"],
+      hint: "l'itinerario + la partenza — both nouns after prepositions",
+      tags: ["chunk", "collocation", "travel", "A2"],
+      tier: 3,
+    },
+    {
+      id: "u18-t3-033",
+      type: "produce",
+      prompt: "The tourist confirmed the reservation online.",
+      accepted: ["Il turista ha confermato la prenotazione online."],
+      hint: "il turista + la prenotazione — passato prossimo with avere",
+      tags: ["chunk", "travel", "A2"],
+      tier: 3,
+    },
+    {
+      id: "u18-t3-034",
+      type: "produce",
+      prompt: "Every portion includes a drink of your choice.",
+      accepted: ["Ogni porzione include una bevanda a scelta."],
+      hint: "la porzione + la bevanda — restaurant menu language",
+      tags: ["chunk", "collocation", "food", "A2"],
+      tier: 3,
+    },
+    {
+      id: "u18-t3-035",
+      type: "produce",
+      prompt: "Every ingredient in this cuisine comes from local farms.",
+      accepted: ["Ogni ingrediente di questa cucina viene da fattorie locali."],
+      hint: "l'ingrediente + la cucina",
+      tags: ["chunk", "food", "A2"],
+      tier: 3,
+    },
+    {
+      id: "u18-t3-036",
+      type: "produce",
+      prompt: "to show the boarding pass at the gate",
+      accepted: ["mostrare la carta d'imbarco al gate"],
+      hint: "la carta d'imbarco — boarding pass",
+      tags: ["chunk", "collocation", "travel", "A2"],
+      tier: 3,
+    },
+
     // ── Tier 4 – Sentences & Passages (expansion) ────────────────────────────
     {
       id: "u18-t4-006",

@@ -1329,6 +1329,44 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u07-t1-151", "u07-t2-002", "u07-t3-005"],
     },
+
+    // --- Tier 3: context backfill for "canzone" / "gioco" (seq 115–117) ---
+    {
+      id: "u07-t3-115",
+      type: "produce",
+      prompt: "I like this song a lot.",
+      accepted: ["Mi piace molto questa canzone."],
+      prompts: { "es": "Me gusta mucho esta canción." },
+      hint: "molto after piace for emphasis; 'canzone' is feminine singular",
+      tags: ["chunk", "piacere", "music", "opinion", "tier3", "A1"],
+      tier: 3,
+      prerequisites: ["u07-t1-160", "u07-t2-001"],
+    },
+    {
+      id: "u07-t3-116",
+      type: "produce",
+      prompt: "Do you like this game?",
+      accepted: ["Ti piace questo gioco?"],
+      prompts: { "es": "¿Te gusta este juego?" },
+      hint: "questo gioco = this game; piace because gioco is singular",
+      tags: ["chunk", "piacere", "hobby", "question", "tier3", "A1"],
+      tier: 3,
+      prerequisites: ["u07-t1-161", "u07-t2-002"],
+    },
+    {
+      id: "u07-t3-117",
+      type: "recognize",
+      prompt: "Non mi piace il gioco, preferisco ascoltare una canzone.",
+      accepted: [
+        "I don't like the game, I prefer to listen to a song.",
+        "I don't like the game, I prefer listening to a song.",
+      ],
+      translations: { "es": ["No me gusta el juego, prefiero escuchar una canción."] },
+      hint: "combines non mi piace (singular) with preferire + infinitive",
+      tags: ["chunk", "piacere", "preferire", "opinion", "hobby", "music", "tier3", "A1"],
+      tier: 3,
+      prerequisites: ["u07-t2-005", "u07-t3-004"],
+    },
   ],
 };
 

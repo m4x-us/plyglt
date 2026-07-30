@@ -1034,6 +1034,75 @@ const unit: Unit = {
       tier: 3,
     },
 
+    // ── TIER 3 — MORE PHRASES (seq 113–117) ────────────────────
+    {
+      id: "u04-t3-113",
+      type: "produce",
+      prompt: "Excuse me, where is the church?",
+      prompts: { "es": "Disculpe, ¿dónde está la iglesia?" },
+      accepted: [
+        "Scusi, dov'è la chiesa?",
+        "Scusi, dov'è la chiesa",
+        "Scusa, dov'è la chiesa?",
+        "Scusa, dov'è la chiesa",
+      ],
+      hint: "Scusi/Scusa + dov'è + la chiesa.",
+      tags: ["city", "directions", "phrases", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u04-t3-114",
+      type: "produce",
+      prompt: "The neighborhood is near the church.",
+      prompts: { "es": "El barrio está cerca de la iglesia." },
+      accepted: [
+        "Il quartiere è vicino alla chiesa.",
+        "Il quartiere è vicino alla chiesa",
+      ],
+      hint: "vicino alla = near the (a + la = alla).",
+      tags: ["city", "phrases", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u04-t3-115",
+      type: "produce",
+      prompt: "The airport is far from the city center.",
+      prompts: { "es": "El aeropuerto está lejos del centro." },
+      accepted: [
+        "L'aeroporto è lontano dal centro.",
+        "L'aeroporto è lontano dal centro",
+      ],
+      hint: "dal = da + il; lontano da = far from.",
+      tags: ["city", "directions", "phrases", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u04-t3-116",
+      type: "produce",
+      prompt: "Via Roma is near the market.",
+      prompts: { "es": "La calle Via Roma está cerca del mercado." },
+      accepted: [
+        "Via Roma è vicino al mercato.",
+        "Via Roma è vicino al mercato",
+      ],
+      hint: "Italian street names use Via + name; al = a + il.",
+      tags: ["city", "phrases", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u04-t3-117",
+      type: "produce",
+      prompt: "I live in this neighborhood, near the church and the airport.",
+      prompts: { "es": "Vivo en este barrio, cerca de la iglesia y del aeropuerto." },
+      accepted: [
+        "Abito in questo quartiere, vicino alla chiesa e all'aeroporto.",
+        "Abito in questo quartiere, vicino alla chiesa e all'aeroporto",
+      ],
+      hint: "Abito = I live (abitare, io); all'aeroporto = a + l'aeroporto.",
+      tags: ["city", "phrases", "A1"],
+      tier: 3,
+    },
+
     // ── TIER 4 — SENTENCES ─────────────────────────────────────
     {
       id: "u04-t4-001",

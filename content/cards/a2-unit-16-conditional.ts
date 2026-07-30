@@ -1493,6 +1493,15 @@ const unit: Unit = {
       tags: ["chunk", "politeness", "condizionale", "dispiacere"],
       tier: 3,
     },
+    {
+      id: "u16-t3-040",
+      type: "produce",
+      prompt: "Excuse me, would you mind...? I would need a small favor.",
+      accepted: ["Mi scusi, Le dispiacerebbe...? Avrei bisogno di un piccolo favore."],
+      hint: "Le dispiacerebbe...? is a polite hesitant opener that trails off before finishing the request",
+      tags: ["chunk", "politeness", "condizionale", "dispiacere"],
+      tier: 3,
+    },
   ],
 };
 export default unit;

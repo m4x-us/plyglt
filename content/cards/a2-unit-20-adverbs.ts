@@ -1665,6 +1665,57 @@ const unit: Unit = {
       prerequisites: ["a220-t1-059"],
     },
 
+    // ── Tier 3 – Word-isolation fix (adverbs not yet in a sentence) ─────
+    {
+      id: "a220-t3-041",
+      type: "produce",
+      prompt: "Come right away, I need help.",
+      accepted: [
+        "Vieni subito, ho bisogno di aiuto.",
+        "vieni subito, ho bisogno di aiuto.",
+        "Vieni subito, ho bisogno di aiuto",
+        "vieni subito, ho bisogno di aiuto",
+      ],
+      hint: "subito follows the imperative vieni, marking urgency",
+      tags: ["sentence", "subito", "time", "A2"],
+      tier: 3,
+      prerequisites: ["a220-t1-007"],
+    },
+    {
+      id: "a220-t3-042",
+      type: "produce",
+      prompt: "I'm busy right now, I'll call you tonight.",
+      accepted: [
+        "Adesso sono occupato, ti chiamerò stasera.",
+        "adesso sono occupato, ti chiamerò stasera.",
+        "Adesso sono occupato, ti chiamerò stasera",
+        "adesso sono occupato, ti chiamerò stasera",
+        "Adesso sono occupata, ti chiamerò stasera.",
+        "adesso sono occupata, ti chiamerò stasera.",
+        "Adesso sono occupata, ti chiamerò stasera",
+        "adesso sono occupata, ti chiamerò stasera",
+      ],
+      hint: "adesso opens the sentence, contrasting the present moment with a future action",
+      tags: ["sentence", "adesso", "time", "A2"],
+      tier: 3,
+      prerequisites: ["a220-t1-010"],
+    },
+    {
+      id: "a220-t3-043",
+      type: "produce",
+      prompt: "Speak louder, I can't hear you.",
+      accepted: [
+        "Parla più forte, non ti sento.",
+        "parla più forte, non ti sento.",
+        "Parla più forte, non ti sento",
+        "parla più forte, non ti sento",
+      ],
+      hint: "forte follows più to intensify the imperative parla, meaning loudly",
+      tags: ["sentence", "forte", "manner", "A2"],
+      tier: 3,
+      prerequisites: ["a220-t1-022"],
+    },
+
     // ── Tier 4 – Passage Cloze ───────────────────────────────────────────
     {
       id: "a220-t4-001",

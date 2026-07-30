@@ -1019,6 +1019,28 @@ const unit: Unit = {
       tags: ["chunk", "potere", "work", "question", "tier3", "A1"],
       tier: 3,
     },
+    {
+      id: "u08-t3-119",
+      type: "produce",
+      prompt: "I have to reply to the email.",
+      accepted: ["Devo rispondere all'email."],
+      prompts: { "es": "Tengo que responder al correo." },
+      hint: "rispondere a = to reply to; all'email = a + l'email (elision)",
+      tags: ["chunk", "dovere", "rispondere", "work", "tier3", "A1"],
+      tier: 3,
+      prerequisites: ["u08-t1-162", "u08-t1-154"],
+    },
+    {
+      id: "u08-t3-120",
+      type: "produce",
+      prompt: "Can you reply to the boss?",
+      accepted: ["Puoi rispondere al capo?"],
+      prompts: { "es": "¿Puedes responder al jefe?" },
+      hint: "puoi + rispondere; al capo = to the boss (a + il)",
+      tags: ["chunk", "potere", "rispondere", "work", "question", "tier3", "A1"],
+      tier: 3,
+      prerequisites: ["u08-t1-162", "u08-t1-158"],
+    },
 
     // -------------------------------------------------------------------------
     // TIER 4 — Sentences: modal verbs in context

@@ -1264,6 +1264,33 @@ const unit: Unit = {
       tags: ["chunk", "essere", "passato-prossimo", "nascere", "crescere"],
       tier: 3,
     },
+    {
+      id: "u11-t3-035",
+      type: "produce",
+      prompt: "Before going out, she looked at herself in the mirror.",
+      accepted: ["Prima di uscire, si è guardata allo specchio."],
+      hint: "uscire (infinitive after prima di) + si è guardata (reflexive, lei) + allo specchio",
+      tags: ["chunk", "essere", "passato-prossimo", "uscire", "specchio", "reflexive"],
+      tier: 3,
+    },
+    {
+      id: "u11-t3-036",
+      type: "produce",
+      prompt: "Last summer we went to the sea. (mixed group)",
+      accepted: ["L'estate scorsa siamo andati al mare."],
+      hint: "andare → siamo andati (noi, maschile/misto); al mare = a + il mare",
+      tags: ["chunk", "essere", "passato-prossimo", "andare", "mare"],
+      tier: 3,
+    },
+    {
+      id: "u11-t3-037",
+      type: "produce",
+      prompt: "We came back from the sea very tired. (mixed group)",
+      accepted: ["Siamo tornati dal mare molto stanchi."],
+      hint: "tornare → siamo tornati; dal mare = da + il mare",
+      tags: ["chunk", "essere", "passato-prossimo", "tornare", "mare"],
+      tier: 3,
+    },
 
     // ── Tier 4 – Production & Passage Cloze (expansion) ───────────────────────
     {

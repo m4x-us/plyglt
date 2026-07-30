@@ -1,14 +1,14 @@
 {
   "_version": 1,
-  "generatedAt": "2026-07-30T22:23:50.367Z",
+  "generatedAt": "2026-07-30T22:54:35.261Z",
   "packs": {
     "it": {
       "name": "Italian",
       "nativeName": "Italiano",
       "flag": "🇮🇹",
       "version": "1.0.0",
-      "size": 2101946,
-      "sha256": "18fe1957708146af755d8baee20261d2ddd4206487dc62371687dff92439dbf9"
+      "size": 2129818,
+      "sha256": "908e9b0a08fc0bafb95c677d6595de632cec048794ed286eb1de082516291501"
     },
     "es": {
       "name": "Spanish",

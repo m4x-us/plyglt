@@ -1183,6 +1183,30 @@ const unit: Unit = {
       prerequisites: ["u01-t1-012", "u01-t1-013", "u01-t1-172"],
     },
 
+    // ─── Tier 3 – Coverage for previously isolated vocabulary (yes/no) ────
+    {
+      id: "u01-t3-117",
+      type: "produce",
+      prompt: "Yes, I am Italian.",
+      prompts: { "es": "Sí, soy italiano." },
+      accepted: ["Sì, sono italiano.", "Sì, sono italiana."],
+      hint: "sì + sono + nationality",
+      tags: ["chunks", "identity", "A1"],
+      tier: 3,
+      prerequisites: ["u01-t1-161", "u01-t2-001"],
+    },
+    {
+      id: "u01-t3-118",
+      type: "produce",
+      prompt: "No, I am not French.",
+      prompts: { "es": "No, no soy francés." },
+      accepted: ["No, non sono francese.", "No, non sono francese"],
+      hint: "no + non sono = negation of essere",
+      tags: ["chunks", "identity", "A1"],
+      tier: 3,
+      prerequisites: ["u01-t1-162", "u01-t1-016"],
+    },
+
     // ─── Tier 4 – Sentences ────────────────────────────────────────────────
     {
       id: "u01-t4-001",
