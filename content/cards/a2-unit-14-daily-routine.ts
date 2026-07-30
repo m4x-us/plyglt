@@ -1528,6 +1528,80 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u14-t1-029", "u14-t1-018", "u14-t2-054"],
     },
+
+    // ── Tier 3 – Chunks (word-in-context coverage) ──────────────────────────
+    {
+      id: "u14-t3-027",
+      type: "produce",
+      prompt: "In the shower I use soap and then shampoo for my hair.",
+      accepted: [
+        "Sotto la doccia uso il sapone e poi lo shampoo per i capelli.",
+        "Sotto la doccia uso il sapone e poi lo shampoo per i capelli",
+      ],
+      hint: "il sapone + lo shampoo – hygiene collocation",
+      tags: ["chunk", "collocation", "hygiene"],
+      tier: 3,
+    },
+    {
+      id: "u14-t3-028",
+      type: "produce",
+      prompt: "First I use the razor, then I put on lotion.",
+      accepted: [
+        "Prima uso il rasoio, poi metto la crema.",
+        "Prima uso il rasoio, poi metto la crema",
+      ],
+      hint: "il rasoio + la crema – morning hygiene",
+      tags: ["chunk", "collocation", "hygiene"],
+      tier: 3,
+    },
+    {
+      id: "u14-t3-029",
+      type: "produce",
+      prompt: "I keep the toothbrush and the comb in the bathroom drawer.",
+      accepted: [
+        "Tengo lo spazzolino e il pettine nel cassetto del bagno.",
+        "Tengo lo spazzolino e il pettine nel cassetto del bagno",
+      ],
+      hint: "lo spazzolino + il pettine – hygiene objects",
+      tags: ["chunk", "collocation", "hygiene"],
+      tier: 3,
+    },
+    {
+      id: "u14-t3-030",
+      type: "produce",
+      prompt: "I open the wardrobe and choose my clothes for work.",
+      accepted: [
+        "Apro l'armadio e scelgo i vestiti per il lavoro.",
+        "Apro l'armadio e scelgo i vestiti per il lavoro",
+      ],
+      hint: "l'armadio – furniture",
+      tags: ["chunk", "routine", "objects"],
+      tier: 3,
+    },
+    {
+      id: "u14-t3-031",
+      type: "produce",
+      prompt: "I have to get up right away, or I'll be late for work.",
+      accepted: [
+        "Devo alzarmi subito, altrimenti farò tardi al lavoro.",
+        "Devo alzarmi subito, altrimenti farò tardi al lavoro",
+      ],
+      hint: "subito – adverb",
+      tags: ["chunk", "time", "adverb"],
+      tier: 3,
+    },
+    {
+      id: "u14-t3-032",
+      type: "produce",
+      prompt: "My waking up is always difficult on Monday mornings.",
+      accepted: [
+        "Il mio risveglio è sempre difficile il lunedì mattina.",
+        "Il mio risveglio è sempre difficile il lunedì mattina",
+      ],
+      hint: "il risveglio – noun form of svegliarsi",
+      tags: ["chunk", "morning", "routine"],
+      tier: 3,
+    },
   ],
 };
 export default unit;

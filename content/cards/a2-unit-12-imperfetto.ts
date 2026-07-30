@@ -1523,6 +1523,65 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u12-t1-025", "u12-t1-040", "u12-t1-022", "u12-t2-004"],
     },
+
+    // ── Tier 3 – Chunks & Phrases (word-in-context coverage) ──────────────────
+    {
+      id: "u12-t3-031",
+      type: "produce",
+      prompt: "As a child, I played with the doll every day and was never sad.",
+      accepted: [
+        "Da bambina, giocavo con la bambola tutti i giorni e non ero mai triste.",
+        "Da bambino, giocavo con la bambola tutti i giorni e non ero mai triste.",
+      ],
+      hint: "giocare imperfetto io + essere imperfetto io (negative)",
+      tags: ["imperfetto", "sentence", "childhood"],
+      tier: 3,
+    },
+    {
+      id: "u12-t3-032",
+      type: "produce",
+      prompt: "My classmate (male) knew how to draw very well, and my classmate (female) drew often too.",
+      accepted: [
+        "Il compagno di classe sapeva disegnare molto bene, e anche la compagna di classe disegnava spesso.",
+      ],
+      hint: "sapere imperfetto lui + infinitive; disegnare imperfetto lei",
+      tags: ["imperfetto", "sentence", "childhood"],
+      tier: 3,
+    },
+    {
+      id: "u12-t3-033",
+      type: "produce",
+      prompt: "Grandpa was strict, but the neighbor (female) wanted to dance with us on the weekend.",
+      accepted: [
+        "Il nonno era severo, ma la vicina di casa voleva ballare con noi il weekend.",
+      ],
+      hint: "essere imperfetto lui + volere imperfetto lei + infinitive",
+      tags: ["imperfetto", "sentence", "childhood"],
+      tier: 3,
+    },
+    {
+      id: "u12-t3-034",
+      type: "produce",
+      prompt: "On weekends, the field was full of children who were playing ball.",
+      accepted: [
+        "Il fine settimana, il campo era pieno di bambini che giocavano a pallone.",
+      ],
+      hint: "essere imperfetto (era) + giocare imperfetto (loro)",
+      tags: ["imperfetto", "sentence", "routine"],
+      tier: 3,
+    },
+    {
+      id: "u12-t3-035",
+      type: "produce",
+      prompt: "As a child, the toys were my greatest joy and I played with them every day.",
+      accepted: [
+        "Da bambino, i giocattoli erano la mia gioia più grande e ci giocavo ogni giorno.",
+        "Da bambina, i giocattoli erano la mia gioia più grande e ci giocavo ogni giorno.",
+      ],
+      hint: "essere imperfetto (erano) + giocare imperfetto io",
+      tags: ["imperfetto", "sentence", "childhood"],
+      tier: 3,
+    },
   ],
 };
 export default unit;

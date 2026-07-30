@@ -1550,6 +1550,128 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["a223-t1-065", "a223-t1-066", "a223-t1-061"],
     },
+
+    // ── Tier 3 – Chunks & Phrases (context coverage for tier-1 words) ───────
+    {
+      id: "a223-t3-036",
+      type: "produce",
+      prompt: "I live on the sixth floor, but my office is on the seventh.",
+      accepted: [
+        "Abito al sesto piano, ma il mio ufficio è al settimo.",
+        "abito al sesto piano, ma il mio ufficio è al settimo",
+      ],
+      hint: "sesto and settimo are ordinals agreeing with piano (m.)",
+      tags: ["ordinal", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-037",
+      type: "produce",
+      prompt: "This year we're celebrating the store's eighth anniversary; next year will be the ninth.",
+      accepted: [
+        "Quest'anno festeggiamo l'ottavo anniversario del negozio; il prossimo sarà il nono.",
+        "quest'anno festeggiamo l'ottavo anniversario del negozio; il prossimo sarà il nono",
+      ],
+      hint: "ottavo and nono follow settimo in the ordinal sequence",
+      tags: ["ordinal", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-038",
+      type: "produce",
+      prompt: "The store opened its tenth location and plans to open the twentieth within the year.",
+      accepted: [
+        "Il negozio ha aperto il suo decimo punto vendita e conta di aprire il ventesimo entro l'anno.",
+        "il negozio ha aperto il suo decimo punto vendita e conta di aprire il ventesimo entro l'anno",
+      ],
+      hint: "decimo and ventesimo — ordinals for ten and twenty",
+      tags: ["ordinal", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-039",
+      type: "produce",
+      prompt: "For the thirtieth anniversary, the store sold more than five hundred items in a single day.",
+      accepted: [
+        "Per il trentesimo anniversario, il negozio ha venduto più di cinquecento pezzi in un giorno solo.",
+        "per il trentesimo anniversario, il negozio ha venduto più di cinquecento pezzi in un giorno solo",
+      ],
+      hint: "trentesimo (ordinal) and cinquecento (large number) together",
+      tags: ["ordinal", "large-number", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-040",
+      type: "produce",
+      prompt: "The company is worth almost a billion euros today, but it started with barely a thousand euros in capital.",
+      accepted: [
+        "L'azienda vale oggi quasi un miliardo di euro, ma è nata con appena mille euro di capitale.",
+        "l'azienda vale oggi quasi un miliardo di euro, ma è nata con appena mille euro di capitale",
+      ],
+      hint: "miliardo, appena, and mille — from a thousand to a billion",
+      tags: ["number", "large-number", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-041",
+      type: "produce",
+      prompt: "A third of the customers spent more than a hundred euros, and hundreds of people came back the following week.",
+      accepted: [
+        "Un terzo dei clienti ha speso più di cento euro, e centinaia di persone sono tornate la settimana dopo.",
+        "un terzo dei clienti ha speso più di cento euro, e centinaia di persone sono tornate la settimana dopo",
+      ],
+      hint: "un terzo (a third) and centinaia (hundreds) in a shopping context",
+      tags: ["fraction", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-042",
+      type: "produce",
+      prompt: "I didn't buy enough flour, but I got too much sugar.",
+      accepted: [
+        "Non ho comprato abbastanza farina, ma ho preso troppo zucchero.",
+        "non ho comprato abbastanza farina, ma ho preso troppo zucchero",
+      ],
+      hint: "abbastanza (enough) contrasted with troppo (too much)",
+      tags: ["quantity-adverb", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-043",
+      type: "produce",
+      prompt: "I asked someone for help, but nobody answered me and in the end I found nothing.",
+      accepted: [
+        "Ho chiesto aiuto a qualcuno, ma nessuno mi ha risposto e alla fine non ho trovato niente.",
+        "ho chiesto aiuto a qualcuno, ma nessuno mi ha risposto e alla fine non ho trovato niente",
+      ],
+      hint: "qualcuno, nessuno, and niente — indefinite pronouns",
+      tags: ["quantity-adverb", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-044",
+      type: "produce",
+      prompt: "We need to split the bill and then halve the part that's left for each person.",
+      accepted: [
+        "Dobbiamo suddividere il conto e poi dimezzare la parte che resta a ciascuno.",
+        "dobbiamo suddividere il conto e poi dimezzare la parte che resta a ciascuno",
+      ],
+      hint: "modal + infinitive keeps suddividere and dimezzare in their dictionary form",
+      tags: ["quantity-verb", "chunk"],
+      tier: 3,
+    },
+    {
+      id: "a223-t3-045",
+      type: "produce",
+      prompt: "As a whole, the new recipe requires triple the amount of butter compared to the original one.",
+      accepted: [
+        "Nell'insieme, la nuova ricetta richiede il triplo del burro rispetto a quella originale.",
+        "nell'insieme, la nuova ricetta richiede il triplo del burro rispetto a quella originale",
+      ],
+      hint: "nell'insieme (as a whole) and il triplo (triple) together",
+      tags: ["quantity-noun", "chunk"],
+      tier: 3,
+    },
   ],
 };
 export default unit;

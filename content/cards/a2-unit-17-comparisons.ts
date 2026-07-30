@@ -1330,6 +1330,116 @@ const unit: Unit = {
       tier: 3,
     },
 
+    // ── Tier 3 – Chunks & Phrases (word-in-context backfill) ──────────────────
+    {
+      id: "u17-t3-027",
+      type: "produce",
+      prompt: "This coat looks expensive, but the other one is more affordable and just as warm.",
+      accepted: [
+        "Questo cappotto sembra caro, ma l'altro è più economico e altrettanto caldo.",
+        "questo cappotto sembra caro, ma l'altro è più economico e altrettanto caldo",
+      ],
+      hint: "caro = expensive; altrettanto + adjective = just as ___",
+      tags: ["chunk", "comparative", "opinion"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-028",
+      type: "produce",
+      prompt: "In my opinion, that phone is too costly for what it offers.",
+      accepted: [
+        "Secondo me, quel telefono è troppo costoso per quello che offre.",
+        "secondo me, quel telefono è troppo costoso per quello che offre",
+      ],
+      hint: "secondo me = in my opinion; troppo costoso = too costly",
+      tags: ["chunk", "opinion", "price"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-029",
+      type: "produce",
+      prompt: "This little table is low and short, but stable enough to work on.",
+      accepted: [
+        "Questo tavolino è basso e corto, ma abbastanza stabile per lavorarci.",
+        "questo tavolino è basso e corto, ma abbastanza stabile per lavorarci",
+      ],
+      hint: "basso = low; corto = short (length); abbastanza = enough",
+      tags: ["chunk", "adjective", "degree"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-030",
+      type: "produce",
+      prompt: "After a very cold winter, my grandfather feels weaker than usual.",
+      accepted: [
+        "Dopo un inverno molto freddo, mio nonno si sente più debole del solito.",
+        "dopo un inverno molto freddo, mio nonno si sente più debole del solito",
+      ],
+      hint: "freddo agrees with 'inverno' (masc.); più debole del solito = weaker than usual",
+      tags: ["chunk", "comparative", "adjective"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-031",
+      type: "produce",
+      prompt: "That sofa looks uncomfortable and also a bit dirty; I prefer the other one.",
+      accepted: [
+        "Quel divano sembra scomodo e anche un po' sporco; preferisco l'altro.",
+        "quel divano sembra scomodo e anche un po' sporco; preferisco l'altro",
+      ],
+      hint: "scomodo/sporco agree with 'divano' (masc.)",
+      tags: ["chunk", "opinion", "adjective"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-032",
+      type: "produce",
+      prompt: "This stamp is very rare, but for me it's fairly useless.",
+      accepted: [
+        "Questo francobollo è molto raro, ma per me è abbastanza inutile.",
+        "questo francobollo è molto raro, ma per me è abbastanza inutile",
+      ],
+      hint: "raro = rare; inutile = useless (same form m/f)",
+      tags: ["chunk", "opinion", "adjective"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-033",
+      type: "produce",
+      prompt: "In my opinion, driving in the city is easier than driving on the highway at night.",
+      accepted: [
+        "Secondo me, guidare in città è più facile che guidare in autostrada di notte.",
+        "secondo me, guidare in città è più facile che guidare in autostrada di notte",
+      ],
+      hint: "più facile che + infinitive = easier than doing something",
+      tags: ["chunk", "comparative", "opinion"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-034",
+      type: "produce",
+      prompt: "Prices are becoming more and more expensive, while salaries stay the same.",
+      accepted: [
+        "I prezzi diventano sempre più cari, mentre gli stipendi restano gli stessi.",
+        "i prezzi diventano sempre più cari, mentre gli stipendi restano gli stessi",
+      ],
+      hint: "sempre più + adjective = more and more ___",
+      tags: ["chunk", "degree", "price"],
+      tier: 3,
+    },
+    {
+      id: "u17-t3-035",
+      type: "produce",
+      prompt: "People read fewer and fewer books compared to the past.",
+      accepted: [
+        "Le persone leggono sempre meno libri rispetto al passato.",
+        "le persone leggono sempre meno libri rispetto al passato",
+      ],
+      hint: "sempre meno + noun = fewer and fewer ___",
+      tags: ["chunk", "degree"],
+      tier: 3,
+    },
+
     // ── Tier 4 – Production & Passage Cloze (expansion) ───────────────────────
     {
       id: "u17-t4-006",
