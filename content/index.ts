@@ -26,7 +26,7 @@ import a1Unit18 from "./cards/a1-unit-18-routine";
 import a1Unit19 from "./cards/a1-unit-19-work";
 import a1Unit20 from "./cards/a1-unit-20-clothes";
 
-// A2 — Elementary (16 units)
+// A2 — Elementary (21 units)
 import a2Unit10 from "./cards/a2-unit-10-past-avere";
 import a2Unit11 from "./cards/a2-unit-11-past-essere";
 import a2Unit12 from "./cards/a2-unit-12-imperfetto";
@@ -43,6 +43,11 @@ import a2Unit22 from "./cards/a2-unit-22-professions";
 import a2Unit23 from "./cards/a2-unit-23-numbers-ii";
 import a2Unit24 from "./cards/a2-unit-24-adjectives-ii";
 import a2Unit25 from "./cards/a2-unit-25-nature";
+import a2Unit26 from "./cards/a2-unit-26-irregular-participles";
+import a2Unit27 from "./cards/a2-unit-27-reflexive-verbs-expanded";
+import a2Unit28 from "./cards/a2-unit-28-travel-transportation";
+import a2Unit29 from "./cards/a2-unit-29-restaurants-food-culture";
+import a2Unit30 from "./cards/a2-unit-30-technology-internet";
 
 // B1 — Intermediate (14 units)
 import b1Unit19 from "./cards/b1-unit-19-relative-pronouns";
@@ -85,6 +90,7 @@ export const ALL_UNITS: Unit[] = [
   a2Unit10, a2Unit11, a2Unit12, a2Unit13, a2Unit14,
   a2Unit15, a2Unit16, a2Unit17, a2Unit18,
   a2Unit19, a2Unit20, a2Unit21, a2Unit22, a2Unit23, a2Unit24, a2Unit25,
+  a2Unit26, a2Unit27, a2Unit28, a2Unit29, a2Unit30,
   // B1
   b1Unit19, b1Unit20, b1Unit21, b1Unit22, b1Unit23,
   b1Unit24, b1Unit25, b1Unit26, b1Unit27, b1Unit28,
