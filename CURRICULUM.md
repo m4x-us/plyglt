@@ -10,6 +10,31 @@ The curriculum is structured around four CEFR levels, each broken into thematic 
 
 ---
 
+## Content Generation Status (updated 2026-07-30)
+
+**A1 and A2 are DONE, at full target density. B1 and B2 are NOT started (still at old, thin density).**
+
+| Level | Units | Cards | Target cards | Status |
+|-------|-------|-------|--------------|--------|
+| A1 | 20/20 | 2,297 | ~2,600 | ✓ Complete (was already at ~target density before this expansion effort) |
+| A2 | 30/30 | 4,774 | ~5,700 | ✓ Complete — all 30 units exist and are at/near ~190 cards/unit target density |
+| B1 | 14/35 | 444 | ~9,450 | NOT STARTED — 21 units missing; the 14 existing units are thin (~32 cards/unit avg, need expanding to ~270/unit) |
+| B2 | 13/40 | 411 | ~15,200 | NOT STARTED — 27 units missing; the 13 existing units are thin (~32 cards/unit avg, need expanding to ~380/unit) |
+| **Total** | **77/125** | **7,926** | **~32,950** | ~24% of the way to the full target by card count |
+
+**Owner decision (2026-07-29/30):** the actual shipped curriculum had drifted far below this file's original density targets — existing units averaged ~30-40 cards each versus the ~130-380/unit targets in the table below. Max explicitly chose to hit the ORIGINAL card-count targets (not just "write the missing units at whatever density"), which means every existing thin unit needs expansion too, not just the ~62 missing units.
+
+**The process that worked for A1/A2 (repeat this for B1, then B2):**
+1. **New units**: for each missing unit, generate the complete file from scratch at full target density (~190 cards for A2, ~270 for B1, ~380 for B2) in one pass, following the exact schema in `content/types.ts` and the Card Quality Standards below. Batch 5-10 units per run.
+2. **Existing thin units**: for each already-shipped unit, an agent reads the file, identifies what's already taught, and APPENDS new cards deepening the same theme/grammar point — never modifying or deleting an existing card. Verify this with a byte-identical diff check against the pre-expansion git commit for every original card, not just by trusting the agent's own report.
+3. **Review**: every generated/expanded unit gets an independent adversarial review pass checking: card count vs. target, ID sequencing/uniqueness, schema correctness, natural-sentence quality, no duplicate sentences (within the file AND against a corpus-wide scan — short vocabulary-phrase overlaps between related units are fine; duplicated *invented example sentences* are not), and correct grammar level for the CEFR tier.
+4. **Integration**: wire new unit files into `content/index.ts` (import + add to `ALL_UNITS` array, in level order), then run `npm run pack:export`, `npm run pack:validate`, `npx tsc --noEmit`, and `npm test` before committing.
+5. This was done via a multi-agent workflow (parallel generation + review agents) — see git log around 2026-07-30 (`content: add ... A2 units` commits) for the exact prompts used; they're reusable as a template for B1/B2.
+
+Real bugs the review passes actually caught and fixed (so future passes know what to watch for): subjunctive grammar leaking into A2-level content, mistranslated accepted-answer variants, fill_blank cards testing words never taught in their own unit, dangling/wrong prerequisite card-ID references, gender-mismatched accepted answers, self-contradictory example sentences, and unnatural preposition choices.
+
+---
+
 ## Word Count Targets
 
 | Level | New words | Cumulative | Units | Avg cards/unit | Total cards |
