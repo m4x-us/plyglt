@@ -26,7 +26,7 @@ import a1Unit18 from "./cards/a1-unit-18-routine";
 import a1Unit19 from "./cards/a1-unit-19-work";
 import a1Unit20 from "./cards/a1-unit-20-clothes";
 
-// A2 — Elementary (21 units)
+// A2 — Elementary (30 units)
 import a2Unit10 from "./cards/a2-unit-10-past-avere";
 import a2Unit11 from "./cards/a2-unit-11-past-essere";
 import a2Unit12 from "./cards/a2-unit-12-imperfetto";
@@ -48,6 +48,15 @@ import a2Unit27 from "./cards/a2-unit-27-reflexive-verbs-expanded";
 import a2Unit28 from "./cards/a2-unit-28-travel-transportation";
 import a2Unit29 from "./cards/a2-unit-29-restaurants-food-culture";
 import a2Unit30 from "./cards/a2-unit-30-technology-internet";
+import a2Unit31 from "./cards/a2-unit-31-passato-vs-imperfetto";
+import a2Unit32 from "./cards/a2-unit-32-at-the-doctor";
+import a2Unit33 from "./cards/a2-unit-33-media-entertainment";
+import a2Unit34 from "./cards/a2-unit-34-relationships-social-life";
+import a2Unit35 from "./cards/a2-unit-35-describing-people-personalities";
+import a2Unit36 from "./cards/a2-unit-36-education-studies";
+import a2Unit37 from "./cards/a2-unit-37-money-banking";
+import a2Unit38 from "./cards/a2-unit-38-time-expressions";
+import a2Unit39 from "./cards/a2-unit-39-housing-renting";
 
 // B1 — Intermediate (14 units)
 import b1Unit19 from "./cards/b1-unit-19-relative-pronouns";
@@ -91,6 +100,8 @@ export const ALL_UNITS: Unit[] = [
   a2Unit15, a2Unit16, a2Unit17, a2Unit18,
   a2Unit19, a2Unit20, a2Unit21, a2Unit22, a2Unit23, a2Unit24, a2Unit25,
   a2Unit26, a2Unit27, a2Unit28, a2Unit29, a2Unit30,
+  a2Unit31, a2Unit32, a2Unit33, a2Unit34, a2Unit35,
+  a2Unit36, a2Unit37, a2Unit38, a2Unit39,
   // B1
   b1Unit19, b1Unit20, b1Unit21, b1Unit22, b1Unit23,
   b1Unit24, b1Unit25, b1Unit26, b1Unit27, b1Unit28,
