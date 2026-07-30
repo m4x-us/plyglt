@@ -4714,17 +4714,9 @@
     "u38-t4-002",
     "u38-t4-003"
   ],
-  "withinUnitDuplicateGroupKeys": [
-    "a1-unit-01-greetings::no::no",
-    "a1-unit-01-greetings::how are you? (informal)::come stai|come stai?",
-    "a1-unit-01-greetings::how are you? (formal)::come sta|come sta?",
-    "a1-unit-01-greetings::what is your name? (informal)::come ti chiami|come ti chiami?",
-    "a1-unit-01-greetings::where are you from? (informal)::di dove sei|di dove sei?",
-    "a1-unit-09-colors::beige::beige",
-    "a1-unit-15-numbers::zero::zero"
-  ],
+  "withinUnitDuplicateGroupKeys": [],
   "crossUnitPhraseDuplicateGroupKeys": [
-    "is there a discount?::c'è uno sconto|c'è uno sconto?",
-    "to change one's mind::cambiare idea"
+    "produce::is there a discount?::c'è uno sconto|c'è uno sconto?",
+    "produce::to change one's mind::cambiare idea"
   ]
 }

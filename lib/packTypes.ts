@@ -126,6 +126,30 @@ export function hasValidUnitsArray(pack: Pack): boolean {
   return totalCards === pack.cardCount;
 }
 
+// Retired cards (Card.deprecated === true) must stay IN the exported pack forever —
+// scripts/checkCardIds.ts fails CI if a card ID ever disappears between two pack exports,
+// since a real user's FSRS/introduction progress is keyed by that ID. "Never shown to a
+// user" and "never removed from the data" are two different requirements: this function is
+// the runtime-only half (called by hooks/useLangPack.ts, the single point where both the
+// bundled-static and network-loaded pack paths converge into the Unit[] every study-session
+// consumer reads from) — it strips deprecated cards from what the UI ever sees, without
+// touching the exported JSON or the ID itself. Until this function existed, `deprecated` was
+// present in content/types.ts's Card interface and documented in scripts/checkCardIds.ts as
+// the correct way to retire a card, but had zero runtime consumers — marking a card
+// deprecated:true did not actually stop it from being served in a study session.
+export function excludeDeprecatedCards(units: Unit[]): Unit[] {
+  return units.map((u) => ({
+    ...u,
+    // Array.isArray guard: mirrors hasValidUnitsArray's own defensive style for untrusted/
+    // malformed shapes. u.cards is typed as Card[] and real production data is validated by
+    // hasValidUnitsArray/validatePack before it ever reaches this function, but callers in
+    // this codebase's own test suite construct deliberately minimal mock units (e.g.
+    // `{ id: "pt-u01" }` with no cards field, cast through `as never`) to exercise unrelated
+    // logic — filtering those unconditionally threw instead of passing the shape through.
+    cards: Array.isArray(u.cards) ? u.cards.filter((c) => c.deprecated !== true) : u.cards,
+  }));
+}
+
 /**
  * Contract for the in-memory pack cache, shared by lib/packLoader.ts (which owns the concrete
  * implementation) and lib/specialtyPackLoader.ts (which reads/writes it only through this

@@ -93,6 +93,29 @@ describe("checkDensityFloor", () => {
     };
     expect(checkDensityFloor(pack)).toEqual([]);
   });
+
+  it("does not count a deprecated card toward a unit's density — a retired card is not live content", () => {
+    // All three units have the same RAW card count (120) — a version of checkDensityFloor
+    // that counted deprecated cards would see identical densities everywhere and flag
+    // nothing. Only unit-c's LIVE count (50, the rest retired) is actually thin.
+    const pack: LintPack = {
+      units: [
+        { id: "a1-unit-01-a", cards: Array.from({ length: 120 }, (_, i) => card({ id: `a${i}`, tier: (i % 4) + 1 })) },
+        { id: "a1-unit-02-b", cards: Array.from({ length: 120 }, (_, i) => card({ id: `b${i}`, tier: (i % 4) + 1 })) },
+        {
+          id: "a1-unit-03-thin",
+          cards: [
+            ...Array.from({ length: 50 }, (_, i) => card({ id: `c${i}`, tier: (i % 4) + 1 })),
+            ...Array.from({ length: 70 }, (_, i) => card({ id: `dep${i}`, tier: (i % 4) + 1, deprecated: true })),
+          ],
+        },
+      ],
+    };
+    const violations = checkDensityFloor(pack);
+    expect(violations).toEqual([
+      { rule: "density-floor", gate: "hard", unitId: "a1-unit-03-thin", detail: "50 cards is below 70% of the a1 median (120, floor 84)" },
+    ]);
+  });
 });
 
 describe("checkGlobalSentenceDuplicates", () => {
@@ -202,7 +225,7 @@ describe("checkWithinUnitDuplicates", () => {
     };
     const violations = checkWithinUnitDuplicates(pack);
     expect(violations).toEqual([
-      { key: "a1-unit-01::how are you? (informal)::come stai?", unitId: "a1-unit-01", cardIds: ["u01-t2-009", "u01-t3-001"] },
+      { key: "a1-unit-01::produce::how are you? (informal)::come stai?", unitId: "a1-unit-01", cardIds: ["u01-t2-009", "u01-t3-001"] },
     ]);
   });
 
@@ -212,6 +235,44 @@ describe("checkWithinUnitDuplicates", () => {
         {
           id: "unit-a",
           cards: [card({ id: "c1", prompt: "hello" }), card({ id: "c2", prompt: "goodbye", accepted: ["ciao"] })],
+        },
+      ],
+    };
+    expect(checkWithinUnitDuplicates(pack)).toEqual([]);
+  });
+
+  it("no longer flags a duplicate once the redundant twin is retired via deprecated: true", () => {
+    // Proves the actual fix applied to the real corpus: retiring a duplicate (rather than
+    // deleting it, per scripts/checkCardIds.ts) resolves this violation instead of leaving
+    // it permanently baselined — liveCards() excludes deprecated cards from detection.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "a1-unit-01",
+          cards: [
+            card({ id: "u01-t2-009", prompt: "how are you? (informal)", accepted: ["Come stai?"], tier: 2 }),
+            card({ id: "u01-t3-001", prompt: "how are you? (informal)", accepted: ["Come stai?"], tier: 3, deprecated: true }),
+          ],
+        },
+      ],
+    };
+    expect(checkWithinUnitDuplicates(pack)).toEqual([]);
+  });
+
+  it("does not flag a legitimate recognize/produce pair for a word spelled identically in both languages", () => {
+    // Real false positive caught during the 2026-07-30 backfill: "no", "beige", and "zero"
+    // are spelled the same in Italian and English, so a recognize card (Italian shown,
+    // English typed) and a produce card (English shown, Italian typed) for the same word
+    // end up with the SAME normalized prompt+accepted — a legitimate 1-recognize+1-produce
+    // pair per CURRICULUM.md's Tier 1 rule, not a duplicate. `type` must be part of the key.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "produce", prompt: "no", accepted: ["no"], tier: 1 }),
+            card({ id: "c2", type: "recognize", prompt: "no", accepted: ["no"], tier: 1 }),
+          ],
         },
       ],
     };
@@ -229,7 +290,7 @@ describe("checkCrossUnitPhraseDuplicates", () => {
     };
     const violations = checkCrossUnitPhraseDuplicates(pack);
     expect(violations).toEqual([
-      { key: "to change one's mind::cambiare idea", unitIds: ["unit-a", "unit-b"], cardIds: ["a1", "b1"] },
+      { key: "produce::to change one's mind::cambiare idea", unitIds: ["unit-a", "unit-b"], cardIds: ["a1", "b1"] },
     ]);
   });
 

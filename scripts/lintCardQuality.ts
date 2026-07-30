@@ -55,12 +55,23 @@ export interface LintCard {
   accepted: string[];
   hint?: string;
   tier: number;
+  deprecated?: boolean;
 }
 
 export interface LintUnit {
   id: string;
   level?: string;
   cards: LintCard[];
+}
+
+// A retired card (Card.deprecated === true — see lib/packTypes.ts's excludeDeprecatedCards)
+// is never shown to a real user, so it should not count toward density, tier balance, hint
+// coverage, or duplicate detection either — every rule below operates on liveCards(unit),
+// never unit.cards directly. This also means retiring a duplicate (rather than deleting it,
+// per scripts/checkCardIds.ts) actually resolves the within-unit-duplicate violation instead
+// of leaving it permanently baselined.
+function liveCards(unit: LintUnit): LintCard[] {
+  return unit.cards.filter((c) => c.deprecated !== true);
 }
 
 export interface LintPack {
@@ -97,8 +108,15 @@ function normalize(s: string): string {
   return s.trim().toLowerCase();
 }
 
-function normKey(prompt: string, accepted: string[]): string {
-  return `${normalize(prompt)}::${accepted.map(normalize).sort().join("|")}`;
+// `type` is part of the identity, not just prompt+accepted: a recognize card and a produce
+// card for the same word have prompt/accepted swapped, so a word spelled identically in
+// Italian and English (e.g. "no", "beige", "zero" — invariable borrowings or coincidental
+// overlap) produces the SAME normalized (prompt, accepted) pair for two cards that are a
+// legitimate recognize+produce pair, not a duplicate. Caught during the 2026-07-30 backfill:
+// the first version of this key without `type` false-flagged 3 genuine recognize/produce
+// pairs as "within-unit duplicates" alongside 4 real ones.
+function normKey(type: string, prompt: string, accepted: string[]): string {
+  return `${type}::${normalize(prompt)}::${accepted.map(normalize).sort().join("|")}`;
 }
 
 // ── HARD gate 1 — every unit must have cards in all 4 tiers ───────────────────
@@ -110,7 +128,7 @@ function normKey(prompt: string, accepted: string[]): string {
 export function checkTierBalance(pack: LintPack): Violation[] {
   const violations: Violation[] = [];
   for (const unit of pack.units) {
-    const present = new Set(unit.cards.map((c) => c.tier));
+    const present = new Set(liveCards(unit).map((c) => c.tier));
     for (const tier of [1, 2, 3, 4]) {
       if (!present.has(tier)) {
         violations.push({
@@ -136,7 +154,7 @@ export function checkDensityFloor(pack: LintPack): Violation[] {
   for (const unit of pack.units) {
     const level = unit.id.split("-unit-")[0] ?? "unknown";
     const list = byLevel.get(level) ?? [];
-    list.push({ unitId: unit.id, count: unit.cards.length });
+    list.push({ unitId: unit.id, count: liveCards(unit).length });
     byLevel.set(level, list);
   }
   for (const [level, list] of byLevel) {
@@ -168,7 +186,7 @@ export function checkGlobalSentenceDuplicates(pack: LintPack): Violation[] {
   const violations: Violation[] = [];
   const seen = new Map<string, { unitId: string; cardId: string }>();
   for (const unit of pack.units) {
-    for (const card of unit.cards) {
+    for (const card of liveCards(unit)) {
       if (card.type !== "fill_blank" && card.type !== "passage_cloze") continue;
       const key = normalize(card.prompt);
       const prior = seen.get(key);
@@ -198,7 +216,7 @@ export function checkGlobalSentenceDuplicates(pack: LintPack): Violation[] {
 export function checkEmptyHints(pack: LintPack): string[] {
   const ids: string[] = [];
   for (const unit of pack.units) {
-    for (const card of unit.cards) {
+    for (const card of liveCards(unit)) {
       if (!card.hint || card.hint.trim() === "") {
         ids.push(card.id);
       }
@@ -228,11 +246,11 @@ function extractItalianTerms(card: LintCard): string[] {
 export function checkTier1Context(pack: LintPack): string[] {
   const ids: string[] = [];
   for (const unit of pack.units) {
-    const contextCorpus = unit.cards
+    const contextCorpus = liveCards(unit)
       .filter((c) => c.tier !== 1)
       .map((c) => `${c.prompt} ${c.accepted.join(" ")}`.toLowerCase())
       .join(" ");
-    for (const card of unit.cards) {
+    for (const card of liveCards(unit)) {
       if (card.tier !== 1) continue;
       const terms = extractItalianTerms(card);
       const found = terms.some((t) => contextCorpus.includes(t));
@@ -251,7 +269,7 @@ export function checkTier1Context(pack: LintPack): string[] {
 export function checkTier4Passage(pack: LintPack): string[] {
   const ids: string[] = [];
   for (const unit of pack.units) {
-    for (const card of unit.cards) {
+    for (const card of liveCards(unit)) {
       if (card.tier === 4 && card.type !== "passage_cloze") {
         ids.push(card.id);
       }
@@ -260,22 +278,25 @@ export function checkTier4Passage(pack: LintPack): string[] {
   return ids;
 }
 
-// ── BASELINE gate 4 — no duplicate card within the same unit (any tier) ────────
-// Found by the 2026-07-30 audit: 7 cards re-shelved verbatim under a different tier label
+// ── BASELINE gate 4 — no duplicate LIVE card within the same unit (any tier) ───
+// Found by the 2026-07-30 audit: 4 cards re-shelved verbatim under a different tier label
 // (e.g. the identical "Come stai?" card exists as both a tier-2 AND a tier-3 card) — pure
-// card-count padding with no new retrieval-angle variety. NOT auto-fixed by this gate's
-// introduction: card IDs are permanent (scripts/checkCardIds.ts) and this project's
-// `deprecated` flag, while present in the schema, has no runtime consumer yet (nothing in
-// lib/queue.ts or store/srsStore.ts filters on it) — marking these deprecated:true today
-// would not actually stop them from being shown, so retiring them safely is blocked on that
-// separate fix landing first. Tracked as debt, not silently patched here.
+// card-count padding with no new retrieval-angle variety. (The audit's first pass also
+// flagged 3 "no"/"beige"/"zero" pairs as duplicates — those were a false positive in this
+// function's own dedup key, since a recognize card and a produce card for a word spelled
+// identically in both languages legitimately share prompt+accepted; `type` is now part of
+// the key.) The 4 real duplicates were retired via Card.deprecated — safe to do only once
+// lib/packTypes.ts's excludeDeprecatedCards actually filtered runtime consumption (until
+// then, marking deprecated:true would not have stopped them from being shown). Operating on
+// liveCards(unit) here means retiring a duplicate resolves this violation rather than
+// leaving it permanently baselined forever.
 
 export function checkWithinUnitDuplicates(pack: LintPack): { key: string; unitId: string; cardIds: string[] }[] {
   const results: { key: string; unitId: string; cardIds: string[] }[] = [];
   for (const unit of pack.units) {
     const seen = new Map<string, string[]>();
-    for (const card of unit.cards) {
-      const key = normKey(card.prompt, card.accepted);
+    for (const card of liveCards(unit)) {
+      const key = normKey(card.type, card.prompt, card.accepted);
       const list = seen.get(key) ?? [];
       list.push(card.id);
       seen.set(key, list);
@@ -299,9 +320,9 @@ export function checkWithinUnitDuplicates(pack: LintPack): { key: string; unitId
 export function checkCrossUnitPhraseDuplicates(pack: LintPack): { key: string; unitIds: string[]; cardIds: string[] }[] {
   const seen = new Map<string, { unitId: string; cardId: string }[]>();
   for (const unit of pack.units) {
-    for (const card of unit.cards) {
+    for (const card of liveCards(unit)) {
       if (card.tier !== 3 && card.tier !== 4) continue;
-      const key = normKey(card.prompt, card.accepted);
+      const key = normKey(card.type, card.prompt, card.accepted);
       const list = seen.get(key) ?? [];
       list.push({ unitId: unit.id, cardId: card.id });
       seen.set(key, list);

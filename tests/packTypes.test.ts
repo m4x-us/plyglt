@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hasValidUnitsArray } from "@/lib/packTypes";
+import { hasValidUnitsArray, excludeDeprecatedCards } from "@/lib/packTypes";
 import type { Pack } from "@/lib/packTypes";
+import type { Unit, Card } from "@/content/types";
 
 // Task #418: unitCount/cardCount default to the ACTUAL units.length / summed cards.length
 // of the given `units` override, not a hardcoded 0/0 — a genuine pack's declared counts
@@ -320,5 +321,69 @@ describe("hasValidUnitsArray — downstream-dereferenced unit fields (Task #392)
     for (const level of ["A1", "A2", "B1", "B2"]) {
       expect(hasValidUnitsArray(fakePack({ units: [{ ...validUnit, level }] as unknown as [] }))).toBe(true);
     }
+  });
+});
+
+describe("excludeDeprecatedCards", () => {
+  function makeCard(overrides: Partial<Card> & { id: string }): Card {
+    return {
+      type: "produce",
+      prompt: "hello",
+      accepted: ["ciao"],
+      tags: [],
+      tier: 1,
+      ...overrides,
+    };
+  }
+
+  function makeUnit(overrides: Partial<Unit> & { id: string; cards: Card[] }): Unit {
+    return {
+      name: "Test Unit",
+      level: "A1",
+      theme: "Test",
+      emoji: "🧪",
+      prerequisiteUnits: [],
+      ...overrides,
+    };
+  }
+
+  it("strips a card marked deprecated: true, keeping every other card", () => {
+    const units = [
+      makeUnit({
+        id: "unit-a",
+        cards: [
+          makeCard({ id: "c1", deprecated: true }),
+          makeCard({ id: "c2" }),
+          makeCard({ id: "c3", deprecated: false }),
+        ],
+      }),
+    ];
+    const result = excludeDeprecatedCards(units);
+    expect(result[0]!.cards.map((c) => c.id)).toEqual(["c2", "c3"]);
+  });
+
+  it("does not mutate the input units or cards array", () => {
+    const original = [
+      makeUnit({ id: "unit-a", cards: [makeCard({ id: "c1", deprecated: true }), makeCard({ id: "c2" })] }),
+    ];
+    const originalCardCount = original[0]!.cards.length;
+    excludeDeprecatedCards(original);
+    expect(original[0]!.cards.length).toBe(originalCardCount);
+  });
+
+  it("leaves a unit with no deprecated cards completely unaffected", () => {
+    const units = [makeUnit({ id: "unit-a", cards: [makeCard({ id: "c1" }), makeCard({ id: "c2" })] })];
+    const result = excludeDeprecatedCards(units);
+    expect(result[0]!.cards.map((c) => c.id)).toEqual(["c1", "c2"]);
+  });
+
+  it("passes a unit's cards field through unchanged when it is not an array, instead of throwing", () => {
+    // Real production data is validated by hasValidUnitsArray before reaching this
+    // function, but hooks/useLangPack.test.ts's own mocks construct minimal units like
+    // { id: "pt-u01" } with no cards field at all (cast through `as never`) to exercise
+    // unrelated load-cancellation logic — this must not crash the hook that calls it.
+    const malformed = { id: "unit-a" } as unknown as Unit;
+    const result = excludeDeprecatedCards([malformed]);
+    expect(result[0]!.cards).toBeUndefined();
   });
 });

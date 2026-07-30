@@ -916,6 +916,11 @@ const unit: Unit = {
       tags: ["chunks", "greetings", "informal"],
       tier: 3,
       prerequisites: ["u01-t2-009"],
+      // 2026-07-30 card-quality audit: byte-identical duplicate of u01-t2-009, re-shelved
+      // under tier 3 — pure card-count padding, no new retrieval angle. Retired rather than
+      // deleted per scripts/checkCardIds.ts (card ids are permanent). Kept u01-t2-009 active
+      // since other cards' prerequisites reference it, not this id.
+      deprecated: true,
     },
     {
       id: "u01-t3-002",
@@ -927,6 +932,8 @@ const unit: Unit = {
       tags: ["chunks", "greetings", "formal"],
       tier: 3,
       prerequisites: ["u01-t2-010"],
+      // 2026-07-30 card-quality audit: byte-identical duplicate of u01-t2-010 — see u01-t3-001.
+      deprecated: true,
     },
     {
       id: "u01-t3-003",
@@ -1016,6 +1023,8 @@ const unit: Unit = {
       tags: ["chunks", "identity", "informal", "A1"],
       tier: 3,
       prerequisites: ["u01-t2-117"],
+      // 2026-07-30 card-quality audit: byte-identical duplicate of u01-t2-117 — see u01-t3-001.
+      deprecated: true,
     },
     {
       id: "u01-t3-103",
@@ -1038,6 +1047,8 @@ const unit: Unit = {
       tags: ["chunks", "identity", "informal", "A1"],
       tier: 3,
       prerequisites: ["u01-t2-119"],
+      // 2026-07-30 card-quality audit: byte-identical duplicate of u01-t2-119 — see u01-t3-001.
+      deprecated: true,
     },
     {
       id: "u01-t3-105",

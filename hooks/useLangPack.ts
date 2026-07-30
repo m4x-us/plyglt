@@ -9,6 +9,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { ALL_UNITS, UNIT_MAP as ITALIAN_UNIT_MAP } from "@/content/index";
 import { loadPack, fetchManifest, seedMemCache, type LoadPackResult } from "@/lib/packLoader";
+import { excludeDeprecatedCards } from "@/lib/packTypes";
 import { isReadyBasePackCode, isSpecialtyPackCode, SPECIALTY_PACKS } from "@/lib/langRegistry";
 import { resolveTargetPack } from "@/lib/packResolver";
 import { getLanguageConfig, type LanguageConfig } from "@/lib/language";
@@ -45,6 +46,23 @@ export { LANG_PAIR_KEY, getTargetLangCode, setTargetLangCode };
 const STATIC_PACKS: Record<string, { units: Unit[]; unitMap: Record<string, Unit> }> = {
   it: { units: ALL_UNITS, unitMap: ITALIAN_UNIT_MAP },
 };
+
+// Runtime-only view of STATIC_PACKS with deprecated cards (Card.deprecated === true)
+// stripped out — see lib/packTypes.ts's excludeDeprecatedCards for why this must happen
+// here and not in the exported pack data. STATIC_PACKS itself stays untouched: its raw
+// ALL_UNITS/ITALIAN_UNIT_MAP feed seedMemCache below, which the specialty-pack merge path
+// depends on containing every card, deprecated or not. Computed ONCE at module load (not
+// inline at each use site) so every read returns the SAME array/object reference — the
+// `prev.units === staticTarget.units`-style reference-equality bail-outs further down this
+// file depend on that stability; recomputing a fresh array per call would defeat them and
+// reintroduce the exact re-render loop their comments warn against.
+const FILTERED_STATIC_PACKS: Record<string, { units: Unit[]; unitMap: Record<string, Unit> }> =
+  Object.fromEntries(
+    Object.entries(STATIC_PACKS).map(([code, pack]) => {
+      const units = excludeDeprecatedCards(pack.units);
+      return [code, { units, unitMap: Object.fromEntries(units.map((u) => [u.id, u])) }];
+    })
+  );
 
 // #378 cycle-2 F-C2-2: how long the dynamic-load effect waits for entitlement-store
 // hydration before proceeding with store defaults. Generous vs. a storage read (~ms) so it
@@ -195,7 +213,10 @@ export function useLangPack(): LangPackState {
       // below, NOT here: a module-cache write in the render body is exactly the class of
       // side effect this file's own #339 rule forbids (StrictMode double-invocation).
       // (#378 cycle-2 naive finding.) Nothing reads memCache between render and effect.
-      return { ...static_, lang, loading: false, error: null };
+      // Deprecated-card filtering: FILTERED_STATIC_PACKS, not static_, so this hook never
+      // returns a card the study session must not serve (see that constant's own comment).
+      const filtered = FILTERED_STATIC_PACKS[targetLang]!;
+      return { units: filtered.units, unitMap: filtered.unitMap, lang, loading: false, error: null };
     }
     return { units: [], unitMap: {}, lang, loading: true, error: null };
   });
@@ -254,11 +275,16 @@ export function useLangPack(): LangPackState {
       // the hook kept returning the PREVIOUS language's units forever. Functional update
       // with a reference bail so mount-time static renders (initializer already correct)
       // don't loop.
+      // Deprecated-card filtering: FILTERED_STATIC_PACKS (a stable module-level reference,
+      // not a fresh filter per call) so the reference-bail below still settles correctly —
+      // see that constant's own comment for why a fresh array here would reintroduce the
+      // loop this effect exists to avoid.
+      const filtered = FILTERED_STATIC_PACKS[targetLang]!;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- the reference-bail functional update settles in exactly one extra render on a real transition and zero on mount; the alternative (setState during render) violates this file's #339 purity rule
       setState(prev =>
-        prev.units === staticTarget.units && !prev.loading && prev.error === null
+        prev.units === filtered.units && !prev.loading && prev.error === null
           ? prev
-          : { units: staticTarget.units, unitMap: staticTarget.unitMap, lang, loading: false, error: null }
+          : { units: filtered.units, unitMap: filtered.unitMap, lang, loading: false, error: null }
       );
       return;
     }
@@ -287,7 +313,9 @@ export function useLangPack(): LangPackState {
       .then(({ result, baseFailed }) => {
         if (cancelled) return;
         if (result.ok) {
-          const { units } = result.pack;
+          // Deprecated-card filtering: strip before this ever reaches a study session,
+          // exactly like the static-pack branches above (see excludeDeprecatedCards).
+          const units = excludeDeprecatedCards(result.pack.units);
           const unitMap = Object.fromEntries(units.map((u) => [u.id, u]));
           setState({ units, unitMap, lang, loading: false, error: null });
         } else {

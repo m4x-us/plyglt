@@ -29,6 +29,10 @@ export interface Card {
   tier: Tier;
   // Card IDs that must have state === "review" before this card is offered
   prerequisites?: string[];
+  // Retire a card by setting this true — never delete the card object or its id (real user
+  // FSRS/introduction progress is keyed by id; see scripts/checkCardIds.ts). Filtered out of
+  // every study session by lib/packTypes.ts's excludeDeprecatedCards, applied in
+  // hooks/useLangPack.ts before any consumer (queue, stats, badge counts) sees the data.
   deprecated?: boolean;
 }
 

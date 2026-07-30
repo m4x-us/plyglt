@@ -14,6 +14,12 @@ import { HYDRATION_GRACE_MS } from "@/hooks/useLangPack";
 // #378: same module instance the hook's STATIC_PACKS.it.units is built from — used to assert
 // reference identity of the seeded units array (structural equality would accept a copy).
 import { ALL_UNITS } from "@/content/index";
+import { excludeDeprecatedCards } from "@/lib/packTypes";
+// The bundled Italian content now has real deprecated:true cards (2026-07-30 backfill's 4
+// retired duplicates) — the hook is expected to filter them, so ALL_UNITS itself (raw,
+// unfiltered) is no longer what result.current.units should equal. This is the exact
+// expected output shape, computed the same way the hook computes it.
+const EXPECTED_ITALIAN_UNITS = excludeDeprecatedCards(ALL_UNITS);
 
 // Mock packLoader — controls the async dynamic-load path
 vi.mock("@/lib/packLoader", () => ({
@@ -176,6 +182,31 @@ describe("useLangPack — hook body behavioral tests", () => {
     expect(result.current.units[0]!.id).toBe("es-u01");
   });
 
+  it("strips a deprecated:true card from a network-loaded pack before it ever reaches a caller", async () => {
+    // Proves the fix end-to-end: before excludeDeprecatedCards existed, Card.deprecated was
+    // present in content/types.ts's schema and documented in scripts/checkCardIds.ts as the
+    // correct way to retire a card, but had zero runtime consumers — a card marked
+    // deprecated:true would still have been served here.
+    const unitWithDeprecatedCard = {
+      id: "es-u02",
+      name: "Colors",
+      emoji: "🎨",
+      prerequisiteUnits: [],
+      cards: [
+        { id: "kept-card", type: "produce", prompt: "hello", accepted: ["ciao"], tags: [], tier: 1 },
+        { id: "retired-card", type: "produce", prompt: "hi", accepted: ["ciao"], tags: [], tier: 1, deprecated: true },
+      ],
+    };
+    mockLoadPack.mockResolvedValue({ ok: true as const, pack: { units: [unitWithDeprecatedCard] } as never });
+
+    const { result } = renderHook(() => useLangPack());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const cardIds = result.current.units[0]!.cards.map((c) => c.id);
+    expect(cardIds).toEqual(["kept-card"]);
+  });
+
   it("Italian static pack returns immediately with loading: false — no network call", () => {
     // "it" is bundled in STATIC_PACKS — exercises the static branch in useState initializer
     // and the early-return guard in useEffect (line 63 of hook)
@@ -185,9 +216,13 @@ describe("useLangPack — hook body behavioral tests", () => {
 
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
-    // #378 audit F023: reference identity to the bundled content — a truncated, wrong, or
-    // copied array fails this; a length check passed for any non-empty array.
-    expect(result.current.units).toBe(ALL_UNITS);
+    // #378 audit F023: content equality with the bundled content — a truncated, wrong, or
+    // corrupted array fails this; a length check passed for any non-empty array.
+    // NOT reference identity (toBe) since the deprecated-card fix: excludeDeprecatedCards
+    // (lib/packTypes.ts) always returns fresh unit/card objects, even when nothing is
+    // actually filtered out, so this can never be the literal ALL_UNITS reference anymore —
+    // see FILTERED_STATIC_PACKS in hooks/useLangPack.ts.
+    expect(result.current.units).toEqual(EXPECTED_ITALIAN_UNITS);
     expect(mockLoadPack).not.toHaveBeenCalled();
     expect(mockFetchManifest).not.toHaveBeenCalled();
   });
@@ -788,7 +823,8 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
 
     // Repaired to the Italian static pack: served synchronously, no loadPack, storage fixed.
     expect(result.current.loading).toBe(false);
-    expect(result.current.units).toBe(ALL_UNITS);
+    // Content equality, not reference identity — see the deprecated-card fix note above.
+    expect(result.current.units).toEqual(EXPECTED_ITALIAN_UNITS);
     expect(mockLoadPack).not.toHaveBeenCalled();
     expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
     errorSpy.mockRestore();
@@ -964,7 +1000,8 @@ describe("#378 — specialty pack target seeds/loads its base pack before reques
     const { result } = renderHook(() => useLangPack());
 
     expect(result.current.loading).toBe(false);
-    expect(result.current.units).toBe(ALL_UNITS);
+    // Content equality, not reference identity — see the deprecated-card fix note above.
+    expect(result.current.units).toEqual(EXPECTED_ITALIAN_UNITS);
     expect(mockLoadPack).not.toHaveBeenCalled();
     expect(localStorage.getItem(LANG_PAIR_KEY)).toBe("en-it");
     errorSpy.mockRestore();
