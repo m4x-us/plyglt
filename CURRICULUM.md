@@ -12,15 +12,17 @@ The curriculum is structured around four CEFR levels, each broken into thematic 
 
 ## Content Generation Status (updated 2026-07-30)
 
-**A1 and A2 are DONE, at full target density. B1 and B2 are NOT started (still at old, thin density).**
+**A1 and A2 are DONE, at full target density — including a 2026-07-30 backfill pass that fixed 6 units audited as thinner than their siblings (3 of them, A1 units 08/09/10, had ZERO tier-2 grammar cards despite each unit's whole theme being a grammar point — modal verbs, adjective agreement, "mi fa male"). B1 and B2 are NOT started (still at old, thin density).**
 
 | Level | Units | Cards | Target cards | Status |
 |-------|-------|-------|--------------|--------|
-| A1 | 20/20 | 2,297 | ~2,600 | ✓ Complete (was already at ~target density before this expansion effort) |
-| A2 | 30/30 | 4,774 | ~5,700 | ✓ Complete — all 30 units exist and are at/near ~190 cards/unit target density |
+| A1 | 20/20 | 2,434 | ~2,600 | ✓ Complete — backfilled units 08, 09, 10, 12, 19 (2026-07-30) |
+| A2 | 30/30 | 4,830 | ~5,700 | ✓ Complete — backfilled unit 38 (2026-07-30) |
 | B1 | 14/35 | 444 | ~9,450 | NOT STARTED — 21 units missing; the 14 existing units are thin (~32 cards/unit avg, need expanding to ~270/unit) |
 | B2 | 13/40 | 411 | ~15,200 | NOT STARTED — 27 units missing; the 13 existing units are thin (~32 cards/unit avg, need expanding to ~380/unit) |
-| **Total** | **77/125** | **7,926** | **~32,950** | ~24% of the way to the full target by card count |
+| **Total** | **77/125** | **8,119** | **~32,950** | ~25% of the way to the full target by card count |
+
+**2026-07-30 backfill note:** a per-unit density audit (comparing each unit's card count and tier breakdown against its siblings, not just the level-wide total) found that the level-wide totals above were masking real gaps: 6 units (A1: 08, 09, 10, 12, 19; A2: 38) were meaningfully thinner than their peers, and three of them (A1 08/09/10) had never had a single tier-2 (grammar) card written despite each unit's theme *being* a grammar point. All 6 were expanded append-only (verified via `git diff` showing zero modified/deleted lines among original cards, beyond two stale placeholder comments), re-validated (`tsc`, full test suite, `pack:export`/`pack:validate`, corpus-wide duplicate-sentence and duplicate-ID scans — all clean), then committed. Lesson for future audits: check per-unit density and tier balance, not just the level-wide card-count total — a healthy aggregate can hide individually thin or structurally incomplete units.
 
 **Owner decision (2026-07-29/30):** the actual shipped curriculum had drifted far below this file's original density targets — existing units averaged ~30-40 cards each versus the ~130-380/unit targets in the table below. Max explicitly chose to hit the ORIGINAL card-count targets (not just "write the missing units at whatever density"), which means every existing thin unit needs expansion too, not just the ~62 missing units.
 
