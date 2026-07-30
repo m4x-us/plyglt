@@ -1072,6 +1072,7 @@ const unit: Unit = {
       hint: "Two infinitives as subjects of mi piace",
       tags: ["sentence", "piacere", "food", "drinks", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-001", // mangiare
         "u07-t1-002", // bere
@@ -1094,6 +1095,7 @@ const unit: Unit = {
       hint: "piacciono (pl. libri) vs piace (sing. film)",
       tags: ["sentence", "piacere", "piacciono", "negation", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-009", // il libro
         "u07-t1-011", // il film
@@ -1117,6 +1119,7 @@ const unit: Unit = {
       hint: "cucinare and mangiare are infinitives used as nouns",
       tags: ["sentence", "piacere", "negation", "adoro", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-001", // mangiare
         "u07-t1-006", // cucinare
@@ -1132,6 +1135,7 @@ const unit: Unit = {
       hint: "la musica is singular — which form of piacere?",
       tags: ["sentence", "piacere", "fill-blank", "music", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-010", // la musica
         "u07-t2-001", // mi piace construction
@@ -1152,6 +1156,7 @@ const unit: Unit = {
       hint: "preferisco = I prefer (preferire, -isc- form)",
       tags: ["sentence", "piacere", "preferire", "leggere", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-003", // leggere
         "u07-t1-012", // lo sport
@@ -1171,6 +1176,7 @@ const unit: Unit = {
       hint: "piacere + infinitive; la musica is the object of ascoltare",
       tags: ["sentence", "piacere", "infinitive", "music", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-005", "u07-t1-010", "u07-t2-001", "u07-t2-109"],
     },
     {
@@ -1182,6 +1188,7 @@ const unit: Unit = {
       hint: "nuotare is the infinitive acting as subject",
       tags: ["sentence", "piacere", "infinitive", "sport", "question", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-152", "u07-t2-002", "u07-t3-005"],
     },
     {
@@ -1193,6 +1200,7 @@ const unit: Unit = {
       hint: "ci = to us; molto can come before or after la pizza",
       tags: ["sentence", "piacere", "food", "plural", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-013", "u07-t2-100", "u07-t3-001"],
     },
     {
@@ -1204,6 +1212,7 @@ const unit: Unit = {
       hint: "le piace + infinitive for both clauses; non negates the second",
       tags: ["sentence", "piacere", "infinitive", "negation", "music", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-153", "u07-t1-159", "u07-t2-004", "u07-t2-005", "u07-t2-112"],
     },
     {
@@ -1214,6 +1223,7 @@ const unit: Unit = {
       hint: "dormire is an infinitive — singular subject → piace",
       tags: ["sentence", "piacere", "fill-blank", "negation", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-008", "u07-t2-005", "u07-t2-111"],
     },
     {
@@ -1225,6 +1235,7 @@ const unit: Unit = {
       hint: "gli = to them; la cucina italiana is singular",
       tags: ["sentence", "piacere", "food", "third-person", "plural", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t2-003", "u07-t2-004"],
     },
     {
@@ -1241,6 +1252,7 @@ const unit: Unit = {
       hint: "non so + infinitive = I don't know how to / I can't",
       tags: ["sentence", "adoro", "sapere", "negation", "music", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-153", "u07-t1-159", "u07-t3-003", "u07-t3-114"],
     },
     {
@@ -1251,6 +1263,7 @@ const unit: Unit = {
       hint: "i libri is plural — piace or piacciono?",
       tags: ["sentence", "piacere", "fill-blank", "plural", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-009", "u07-t2-011", "u07-t2-102"],
     },
     {
@@ -1262,6 +1275,7 @@ const unit: Unit = {
       hint: "a + name = named indirect object; camminare (infinitive) → piace",
       tags: ["sentence", "piacere", "infinitive", "third-person", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-007", "u07-t2-107", "u07-t2-109"],
     },
     {
@@ -1273,6 +1287,7 @@ const unit: Unit = {
       hint: "piacciono (pl. libri) but preferisco i film (prefer, 1st sing.)",
       tags: ["sentence", "piacere", "preferire", "plural", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-009", "u07-t1-011", "u07-t2-102", "u07-t3-004"],
     },
     {
@@ -1289,6 +1304,7 @@ const unit: Unit = {
       hint: "two contrasting activities; preferisco = I prefer (1st person)",
       tags: ["sentence", "piacere", "preferire", "negation", "hobby", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: [
         "u07-t1-003",
         "u07-t1-004",
@@ -1305,6 +1321,7 @@ const unit: Unit = {
       hint: "la musica is singular",
       tags: ["sentence", "piacere", "fill-blank", "question", "music", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-010", "u07-t2-002", "u07-t2-011"],
     },
     {
@@ -1316,6 +1333,7 @@ const unit: Unit = {
       hint: "non le piace (negated) + ma + adora (positive contrast)",
       tags: ["sentence", "piacere", "adoro", "negation", "sport", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-007", "u07-t1-152", "u07-t2-004", "u07-t2-005", "u07-t3-003"],
     },
     {
@@ -1327,7 +1345,130 @@ const unit: Unit = {
       hint: "viaggiare (infinitive) → piace; ti = to you",
       tags: ["sentence", "piacere", "infinitive", "travel", "question", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u07-t1-151", "u07-t2-002", "u07-t3-005"],
+    },
+
+    // --- Tier 4: passage_cloze mini-stories (seq 114–125) ---
+    {
+      id: "u07-t4-114",
+      type: "passage_cloze",
+      prompt: "Sara ama leggere da quando era piccola.\nOgni sera, prima di dormire, legge qualche pagina di un romanzo.\nA lei ___ molto i libri di avventura, con pirati e isole misteriose.\nQuando finisce una storia, ne inizia subito un'altra.",
+      accepted: ["piacciono"],
+      hint: "i libri is plural — the books please her — piace or piacciono?",
+      tags: ["passage_cloze", "piacere", "hobby", "plural", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-009", "u07-t2-003", "u07-t2-011"],
+    },
+    {
+      id: "u07-t4-115",
+      type: "passage_cloze",
+      prompt: "Luca lavora sei giorni su sette e il venerdì è il suo giorno preferito.\nGli ___ molto il cinema, soprattutto i film d'azione.\nOgni venerdì sera compra un biglietto e guarda l'ultimo film uscito.\nDopo, torna a casa contento e racconta la trama a tutti.",
+      accepted: ["piace"],
+      hint: "il cinema is singular — which form of piacere fits here?",
+      tags: ["passage_cloze", "piacere", "hobby", "singular", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-154", "u07-t2-004", "u07-t2-011"],
+    },
+    {
+      id: "u07-t4-116",
+      type: "passage_cloze",
+      prompt: "Elena lavora in ufficio tutto il giorno e torna a casa stanca.\nLa sera, mette gli auricolari e ascolta ___ per rilassarsi.\nPreferisce le canzoni italiane degli anni novanta, quando era ragazza.\nA volte canta ad alta voce, anche se non ha una bella voce.",
+      accepted: ["la musica"],
+      hint: "what she puts her headphones on for — feminine noun for 'music'",
+      tags: ["passage_cloze", "hobby", "music", "noun", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-010", "u07-t1-005"],
+    },
+    {
+      id: "u07-t4-117",
+      type: "passage_cloze",
+      prompt: "Paolo e Francesca vogliono guardare qualcosa insieme stasera.\nA Paolo piace un ___ di fantascienza, con astronavi e pianeti lontani.\nA Francesca invece piacciono di più i film romantici.\nAlla fine scelgono una commedia, così sono tutti e due contenti.",
+      accepted: ["film"],
+      hint: "the word for 'movie' — borrowed directly from English",
+      tags: ["passage_cloze", "hobby", "film", "noun", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-011", "u07-t2-004"],
+    },
+    {
+      id: "u07-t4-118",
+      type: "passage_cloze",
+      prompt: "Marco è un ragazzo molto attivo e non sta mai fermo.\nGli piace ___, soprattutto il calcio.\nOgni domenica gioca a calcio con gli amici al parco.\nDopo la partita, tutti hanno fame e mangiano insieme una pizza.",
+      accepted: ["lo sport", "sport"],
+      hint: "the general word for 'sport' — masculine, takes 'lo' before it",
+      tags: ["passage_cloze", "hobby", "sport", "noun", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-012", "u07-t1-156", "u07-t2-004"],
+    },
+    {
+      id: "u07-t4-119",
+      type: "passage_cloze",
+      prompt: "Chiara abita da sola e ogni sera deve pensare alla cena.\nNon le piace ___, perché trova la cucina noiosa e lenta.\nPreferisce ordinare qualcosa o mangiare un panino veloce.\nDice sempre: «Il tempo è prezioso, meglio un piatto semplice.»",
+      accepted: ["cucinare"],
+      hint: "the infinitive for 'to cook' — she finds the kitchen boring and slow",
+      tags: ["passage_cloze", "piacere", "negation", "food", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-006", "u07-t2-005", "u07-t1-158"],
+    },
+    {
+      id: "u07-t4-120",
+      type: "passage_cloze",
+      prompt: "Anna lavora tutto l'anno per risparmiare i soldi delle vacanze.\nA lei piace molto ___, specialmente in posti nuovi e lontani.\nQuest'estate vuole visitare la Spagna con la sua migliore amica.\nGuarda già le foto delle spiagge e sogna il viaggio.",
+      accepted: ["viaggiare"],
+      hint: "the infinitive for 'to travel' — she saves money all year for this",
+      tags: ["passage_cloze", "piacere", "travel", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-151", "u07-t2-001"],
+    },
+    {
+      id: "u07-t4-121",
+      type: "passage_cloze",
+      prompt: "Matteo guarda un documentario sulla storia della sua città.\nDopo dieci minuti comincia a sbadigliare senza sosta.\nTrova il documentario molto ___, con troppi numeri e poche immagini.\nSpegne la televisione e decide di ascoltare la sua canzone preferita.",
+      accepted: ["noioso"],
+      hint: "the opposite of 'interessante' — he keeps yawning",
+      tags: ["passage_cloze", "opinion", "adjective", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-158", "u07-t1-167", "u07-t3-104"],
+    },
+    {
+      id: "u07-t4-122",
+      type: "passage_cloze",
+      prompt: "Ogni venerdì sera, Giulia e le sue amiche escono insieme.\nA Giulia piace molto cantare, ma non le piace ___ in discoteca.\nPreferisce restare seduta al tavolo e parlare con gli amici.\nLe amiche ridono e dicono: «Sei sempre la stessa, Giulia!»",
+      accepted: ["ballare"],
+      hint: "the infinitive for 'to dance' — she prefers to stay seated and talk",
+      tags: ["passage_cloze", "piacere", "negation", "music", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-159", "u07-t1-153", "u07-t2-005", "u07-t2-112"],
+    },
+    {
+      id: "u07-t4-123",
+      type: "passage_cloze",
+      prompt: "Ogni domenica pomeriggio, la famiglia di Marco si riunisce a casa.\nDopo pranzo, i bambini scelgono il ___ preferito e giocano insieme per ore.\nAi nonni piace guardare i nipoti e ridere delle loro battaglie.\nÈ un momento semplice, ma tutti sono davvero felici.",
+      accepted: ["gioco"],
+      hint: "the noun for 'game' — the kids choose their favorite one after lunch",
+      tags: ["passage_cloze", "hobby", "noun", "family", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-161", "u07-t1-173"],
+    },
+    {
+      id: "u07-t4-124",
+      type: "passage_cloze",
+      prompt: "Sara sente una melodia alla radio mentre guida verso casa.\nNon conosce il titolo, ma le piace subito ___.\nCerca le parole su internet appena arriva a casa.\nDa quel giorno, la ascolta ogni mattina prima di uscire.",
+      accepted: ["la canzone"],
+      hint: "the noun for 'song' — she doesn't know the title yet",
+      tags: ["passage_cloze", "music", "noun", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-160", "u07-t2-001"],
+    },
+    {
+      id: "u07-t4-125",
+      type: "passage_cloze",
+      prompt: "Ogni mattina, prima di andare al lavoro, Luca fa una passeggiata.\nGli piace molto ___ nel parco vicino a casa sua.\nDice che l'aria fresca lo aiuta a pensare meglio.\nAnche quando piove, esce lo stesso con l'ombrello.",
+      accepted: ["camminare"],
+      hint: "the infinitive for 'to walk' — he does this every morning before work",
+      tags: ["passage_cloze", "piacere", "daily", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u07-t1-007", "u07-t2-001"],
     },
 
     // --- Tier 3: context backfill for "canzone" / "gioco" (seq 115–117) ---
@@ -1366,6 +1507,26 @@ const unit: Unit = {
       tags: ["chunk", "piacere", "preferire", "opinion", "hobby", "music", "tier3", "A1"],
       tier: 3,
       prerequisites: ["u07-t2-005", "u07-t3-004"],
+    },
+    {
+      id: "u07-t3-118",
+      type: "produce",
+      prompt: "I like to drink water and read the book after dinner.",
+      accepted: ["Mi piace bere acqua e leggere il libro dopo cena.", "Mi piace bere acqua e leggere il libro dopo cena"],
+      prompts: { "es": "Me gusta beber agua y leer el libro después de cenar." },
+      hint: "bere = to drink; il libro = the book",
+      tags: ["chunk", "piacere", "hobby", "tier3", "A1"],
+      tier: 3,
+    },
+    {
+      id: "u07-t3-119",
+      type: "produce",
+      prompt: "I like to swim in summer.",
+      accepted: ["Mi piace nuotare d'estate.", "Mi piace nuotare d'estate"],
+      prompts: { "es": "Me gusta nadar en verano." },
+      hint: "nuotare = to swim",
+      tags: ["chunk", "piacere", "hobby", "sport", "tier3", "A1"],
+      tier: 3,
     },
   ],
 };

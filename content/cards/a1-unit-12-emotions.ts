@@ -1128,6 +1128,26 @@ const unit: Unit = {
       tags: ["phrase", "emotion", "A1"],
       tier: 3,
     },
+    {
+      id: "a112-t3-026",
+      type: "produce",
+      prompt: "Today I am sad but tomorrow I will be calm and relaxed again.",
+      accepted: ["Oggi sono triste ma domani sarò di nuovo tranquillo e rilassato."],
+      prompts: { "es": "Hoy estoy triste pero mañana estaré de nuevo tranquilo y relajado." },
+      hint: "triste = sad; tranquillo = calm; rilassato = relaxed",
+      tags: ["phrase", "emotion", "A1"],
+      tier: 3,
+    },
+    {
+      id: "a112-t3-027",
+      type: "produce",
+      prompt: "My friend is nice but he is disappointed about the exam.",
+      accepted: ["Il mio amico è simpatico ma è deluso per l'esame."],
+      prompts: { "es": "Mi amigo es simpático pero está decepcionado por el examen." },
+      hint: "simpatico = nice/likeable; deluso = disappointed",
+      tags: ["phrase", "emotion", "A1"],
+      tier: 3,
+    },
 
     // ── TIER 4: SENTENCES ─────────────────────────────────────────────────
 
@@ -1140,6 +1160,7 @@ const unit: Unit = {
       hint: "felice + perché + è il mio compleanno",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-002",
@@ -1150,6 +1171,7 @@ const unit: Unit = {
       hint: "stanca + e + un po' + stressata",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-003",
@@ -1160,6 +1182,7 @@ const unit: Unit = {
       hint: "solo here means 'just/only'",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-004",
@@ -1170,6 +1193,7 @@ const unit: Unit = {
       hint: "nervoso + perché + ha una riunione",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-005",
@@ -1180,6 +1204,7 @@ const unit: Unit = {
       hint: "grato/a + per + il tuo aiuto",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-006",
@@ -1190,6 +1215,7 @@ const unit: Unit = {
       hint: "avere paura di = to be afraid of",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-007",
@@ -1200,6 +1226,7 @@ const unit: Unit = {
       hint: "tranquillo/a + sentirsi + rilassato/a",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-008",
@@ -1210,6 +1237,7 @@ const unit: Unit = {
       hint: "emozionati (mixed/m pl) / emozionate (f pl)",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-009",
@@ -1220,6 +1248,7 @@ const unit: Unit = {
       hint: "deluso/a + perché + è annullato",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-010",
@@ -1230,6 +1259,7 @@ const unit: Unit = {
       hint: "imbarazzata + ma + non è grave",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-011",
@@ -1240,6 +1270,7 @@ const unit: Unit = {
       hint: "curioso + di + tutto",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-012",
@@ -1250,6 +1281,7 @@ const unit: Unit = {
       hint: "confuso/a + puoi + infinitive",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-013",
@@ -1259,6 +1291,7 @@ const unit: Unit = {
       hint: "same m/f — triste",
       tags: ["sentence", "emotion", "fill_blank", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-014",
@@ -1268,6 +1301,7 @@ const unit: Unit = {
       hint: "masculine singular — imbarazzato",
       tags: ["sentence", "emotion", "fill_blank", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-015",
@@ -1278,6 +1312,7 @@ const unit: Unit = {
       hint: "non essere + adjective; va bene = it's fine",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-016",
@@ -1288,6 +1323,7 @@ const unit: Unit = {
       hint: "gentile + e + aiuta sempre tutti",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-017",
@@ -1298,6 +1334,7 @@ const unit: Unit = {
       hint: "non vedere l'ora del + noun",
       tags: ["sentence", "emotion", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-018",
@@ -1307,6 +1344,7 @@ const unit: Unit = {
       hint: "buono → buon before umore",
       tags: ["sentence", "emotion", "fill_blank", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a112-t4-019",
@@ -1316,6 +1354,100 @@ const unit: Unit = {
       prompts: { "es": "Es tímido, pero es muy simpático cuando lo conoces." },
       hint: "timido + ma + simpatico + quando + lo conosci",
       tags: ["sentence", "emotion", "A1"],
+      tier: 4,
+      deprecated: true,
+    },
+
+    // ── TIER 4: PASSAGE CLOZE — self-contained mini-stories ────────────────
+
+    {
+      id: "a112-t4-020",
+      type: "passage_cloze",
+      prompt: "Mia madre aspetta una telefonata da mio fratello.\nLui ha un esame difficile all'università oggi.\nLei è molto ___ e continua a guardare il telefono.\nFinalmente lui chiama e dice che è andato tutto bene.\nMia madre sorride e si rilassa subito.",
+      accepted: ["preoccupata"],
+      hint: "a mother waiting anxiously for news about her son's exam",
+      tags: ["passage_cloze", "emotion", "family", "sembrare", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-021",
+      type: "passage_cloze",
+      prompt: "Il mio amico Paolo compra un telefono nuovissimo.\nIo ho ancora il vecchio telefono di tre anni fa.\nUn po' sono ___ del suo telefono, lo ammetto.\nPerò Paolo è molto gentile e mi lascia usarlo qualche volta.\nAlla fine non sono più invidioso, solo curioso di provarlo.",
+      accepted: ["geloso", "gelosa"],
+      hint: "the feeling of wanting what a friend has — envy of the new phone",
+      tags: ["passage_cloze", "emotion", "friendship", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-022",
+      type: "passage_cloze",
+      prompt: "I miei genitori tornano da un lungo viaggio in treno.\nIl viaggio dura dieci ore, senza pause.\nSono molto ___ e vogliono solo dormire.\nMio padre dice che il divano sembra un letto perfetto.\nDopo una doccia calda, tutti e due si sentono meglio.",
+      accepted: ["stanchi"],
+      hint: "how you feel after ten hours on a train — masculine plural",
+      tags: ["passage_cloze", "emotion", "family", "travel", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-023",
+      type: "passage_cloze",
+      prompt: "Marco conosce una ragazza simpatica alla festa di sabato.\nParlano per tutta la sera di libri e di musica.\nDopo pochi giorni, Marco è già ___ di lei.\nPensa a lei ogni momento della giornata.\nI suoi amici dicono che sembra una persona nuova.",
+      accepted: ["innamorato"],
+      hint: "what Marco falls into after meeting her — masculine",
+      tags: ["passage_cloze", "emotion", "relationships", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-024",
+      type: "passage_cloze",
+      prompt: "Stasera vado al cinema con mia sorella.\nAspettiamo questo film da mesi, con grande entusiasmo.\nPurtroppo la storia è noiosa e senza senso.\nUsciamo dalla sala molto ___ e un po' arrabbiati.\nDecidiamo di non guardare mai più i film di quel regista.",
+      accepted: ["delusi"],
+      hint: "how a long-awaited film that turns out boring leaves you feeling — masculine plural",
+      tags: ["passage_cloze", "emotion", "entertainment", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-025",
+      type: "passage_cloze",
+      prompt: "Mia figlia studia ogni sera per l'esame di matematica.\nÈ un esame molto difficile, ma lei non si arrende mai.\nOggi torna a casa con un voto altissimo.\nSono così ___ di lei che quasi piango di gioia.\nLe preparo il suo dolce preferito per festeggiare.",
+      accepted: ["orgoglioso", "orgogliosa"],
+      hint: "what a parent feels seeing a child succeed after hard work",
+      tags: ["passage_cloze", "emotion", "family", "school", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-026",
+      type: "passage_cloze",
+      prompt: "Il nuovo studente si chiama Andrea e viene da un'altra città.\nIl primo giorno non parla con nessuno in classe.\nÈ molto ___ e guarda sempre il pavimento.\nUna ragazza gentile gli chiede di sedersi vicino a lei.\nPiano piano Andrea comincia a sorridere e a fare amicizia.",
+      accepted: ["timido"],
+      hint: "why the new student avoids eye contact on his first day — masculine",
+      tags: ["passage_cloze", "emotion", "school", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-027",
+      type: "passage_cloze",
+      prompt: "Domani prendo il primo aereo della mia vita.\nÈ il mio primo volo e ho tante domande.\nStanotte dormo poco perché sono un po' ___.\nMia madre mi dice di respirare e di stare tranquilla.\nAll'aeroporto, però, mi sento già più calma.",
+      accepted: ["agitata", "agitato"],
+      hint: "how you feel the night before your first flight ever",
+      tags: ["passage_cloze", "emotion", "travel", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-028",
+      type: "passage_cloze",
+      prompt: "Ogni domenica i nipoti vanno a trovare il nonno.\nLui racconta sempre storie della sua giovinezza in Sicilia.\nI bambini sono molto ___ e fanno tante domande.\nIl nonno sorride e racconta ancora un altro ricordo.\nLa nonna porta il tè e tutti ascoltano insieme.",
+      accepted: ["curiosi"],
+      hint: "how children react to a grandparent's stories — masculine plural",
+      tags: ["passage_cloze", "emotion", "family", "tier4"],
+      tier: 4,
+    },
+    {
+      id: "a112-t4-029",
+      type: "passage_cloze",
+      prompt: "La professoressa Bianchi insegna italiano da vent'anni.\nI suoi studenti fanno spesso gli stessi errori di grammatica.\nLei è sempre molto ___ e spiega le regole con calma.\nNon si arrabbia mai, nemmeno quando la classe è rumorosa.\nPer questo, tutti gli studenti la rispettano molto.",
+      accepted: ["paziente"],
+      hint: "the quality of a teacher who never gets angry at repeated mistakes",
+      tags: ["passage_cloze", "emotion", "school", "tier4"],
       tier: 4,
     },
   ],

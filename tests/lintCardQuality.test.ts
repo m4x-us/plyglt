@@ -228,6 +228,25 @@ describe("checkTier1Context", () => {
     };
     expect(checkTier1Context(pack)).toEqual([]);
   });
+
+  it("finds a short 2-character word (il tè -> tè) that genuinely has context", () => {
+    // Real bug caught during the 2026-07-30 passage backfill: "il tè" strips its article to
+    // "tè" (2 chars) — a >=3 length floor silently excluded it from every search, flagging it
+    // as missing context even when a real sentence like "Il tè nella tazza è già freddo."
+    // already covered it. Short real Italian words must still be searched for.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "produce", prompt: "the tea", accepted: ["il tè"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "the tea in the cup is cold", accepted: ["Il tè nella tazza è freddo."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
 });
 
 describe("checkTier4Passage", () => {

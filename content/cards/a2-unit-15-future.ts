@@ -228,6 +228,7 @@ const unit: Unit = {
       hint: "Use fare in futuro for 'will take'",
       tags: ["sentence", "futuro-semplice", "travel", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-010", "u15-t1-001", "u15-t2-005"],
     },
     {
@@ -239,6 +240,7 @@ const unit: Unit = {
       hint: "Irregular stem: sapr-",
       tags: ["sentence", "sapere", "futuro-semplice", "travel", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-002", "u15-t1-008"],
     },
     {
@@ -274,6 +276,7 @@ const unit: Unit = {
       hint: "forse + futuro; irregular venire stem",
       tags: ["sentence", "venire", "forse", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-009", "u15-t2-006"],
     },
 
@@ -1304,6 +1307,7 @@ const unit: Unit = {
       accepted: ["Spero di laurearmi l'anno prossimo.", "Spero di laurearmi l'anno prossimo"],
       tags: ["sentence", "laurearsi", "sperare", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-047", "u15-t1-065", "u15-t1-010"],
     },
     {
@@ -1313,6 +1317,7 @@ const unit: Unit = {
       accepted: ["Si sposeranno in primavera.", "Si sposeranno in primavera"],
       tags: ["sentence", "sposarsi", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-067"],
     },
     {
@@ -1325,6 +1330,7 @@ const unit: Unit = {
       ],
       tags: ["sentence", "trasferirsi", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-063"],
     },
     {
@@ -1334,6 +1340,7 @@ const unit: Unit = {
       accepted: ["Prenderò una decisione entro domani.", "Prenderò una decisione entro domani"],
       tags: ["sentence", "decisione", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-015", "u15-t3-007"],
     },
     {
@@ -1343,6 +1350,7 @@ const unit: Unit = {
       accepted: ["Manterrà la sua promessa.", "Manterrà la sua promessa"],
       tags: ["sentence", "promettere", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-049", "u15-t3-012"],
     },
     {
@@ -1355,6 +1363,7 @@ const unit: Unit = {
       ],
       tags: ["sentence", "organizzare", "travel", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-043", "u15-t1-001", "u15-t1-008"],
     },
     {
@@ -1364,6 +1373,7 @@ const unit: Unit = {
       accepted: ["Non so cosa farò dopo il colloquio.", "Non so cosa farò dopo il colloquio"],
       tags: ["sentence", "fare", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t2-005", "u15-t2-041"],
     },
     {
@@ -1373,6 +1383,7 @@ const unit: Unit = {
       accepted: ["Cambierà lavoro il mese prossimo.", "Cambierà lavoro il mese prossimo"],
       tags: ["sentence", "cambiare", "career", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-061", "u15-t1-009"],
     },
     {
@@ -1382,6 +1393,7 @@ const unit: Unit = {
       accepted: ["Raggiungerete il vostro obiettivo.", "Raggiungerete il vostro obiettivo"],
       tags: ["sentence", "raggiungere", "obiettivo", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-059", "u15-t1-019", "u15-t3-009"],
     },
     {
@@ -1394,6 +1406,7 @@ const unit: Unit = {
       ],
       tags: ["sentence", "progetto", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-013", "u15-t1-007"],
     },
     {
@@ -1403,6 +1416,7 @@ const unit: Unit = {
       accepted: ["Prometto che ti chiamerò stasera.", "Prometto che ti chiamerò stasera"],
       tags: ["sentence", "promettere", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-049"],
     },
     {
@@ -1412,6 +1426,7 @@ const unit: Unit = {
       accepted: ["Decideremo insieme.", "Decideremo insieme"],
       tags: ["sentence", "decidere", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-045"],
     },
     {
@@ -1422,6 +1437,7 @@ const unit: Unit = {
       hint: "Regular -ERE future",
       tags: ["sentence", "raggiungere", "carriera", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t1-059", "u15-t1-069"],
     },
     {
@@ -1432,6 +1448,7 @@ const unit: Unit = {
       hint: "Irregular stem: sapr-",
       tags: ["sentence", "sapere", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t2-013"],
     },
     {
@@ -1442,6 +1459,7 @@ const unit: Unit = {
       hint: "Irregular stem: star-",
       tags: ["sentence", "stare", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t2-032"],
     },
     {
@@ -1452,6 +1470,7 @@ const unit: Unit = {
       hint: "Irregular stem: rimarr-",
       tags: ["sentence", "rimanere", "futuro-semplice", "A2"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["u15-t2-021", "u15-t1-037"],
     },
     {
@@ -1497,6 +1516,118 @@ const unit: Unit = {
       tags: ["passage_cloze", "dovere", "futuro-semplice", "scadenza", "A2"],
       tier: 4,
       prerequisites: ["u15-t2-009", "u15-t1-025", "u15-t1-021"],
+    },
+
+    // ── Tier 4 – Passage Cloze (replacement passages for retired cards) ──
+    {
+      id: "u15-t4-026",
+      type: "passage_cloze",
+      prompt:
+        "Elena sta organizzando un viaggio in Sicilia per l'estate prossima.\nHa già prenotato il volo e un piccolo albergo vicino al mare.\nDice che ___ i templi greci di Agrigento e le spiagge di Taormina.\nSuo fratello vuole venire con lei, ma deve prima parlare con il capo.\nSpera di avere tutto pronto entro giugno.",
+      accepted: ["visiterà"],
+      hint: "-ARE regular future, lei form (Elena)",
+      tags: ["passage_cloze", "visitare", "futuro-semplice", "travel", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t1-001", "u15-t1-002"],
+    },
+    {
+      id: "u15-t4-027",
+      type: "passage_cloze",
+      prompt:
+        "Filippo lavora in un negozio da tre anni ma non è soddisfatto.\nLa prossima settimana avrà un colloquio in un'azienda più grande.\nSe tutto va bene, ___ (iniziare) il nuovo lavoro fra un mese.\nI suoi genitori sono contenti e gli danno molti consigli.\nLui promette di fare del suo meglio.",
+      accepted: ["inizierà"],
+      hint: "-ARE regular future, lui form (Filippo)",
+      tags: ["passage_cloze", "iniziare", "futuro-semplice", "career", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t1-069", "u15-t1-030"],
+    },
+    {
+      id: "u15-t4-028",
+      type: "passage_cloze",
+      prompt:
+        "Chiara e Sofia devono organizzare le vacanze di agosto.\nChiara vuole andare al mare, ma Sofia preferisce la montagna.\n«___ (decidere, voi) insieme quando arriva il weekend prossimo?» chiede la madre di Chiara.\nLe due amiche promettono di trovare una soluzione presto.\nAlla fine sceglieranno una destinazione che piace a entrambe.",
+      accepted: ["Deciderete"],
+      hint: "-ERE regular future, voi form",
+      tags: ["passage_cloze", "decidere", "futuro-semplice", "travel", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t1-045", "u15-t1-037"],
+    },
+    {
+      id: "u15-t4-029",
+      type: "passage_cloze",
+      prompt:
+        "Mia nonna vive in un paese piccolo e la vedo raramente.\nLe ho promesso che ___ (venire, io) a trovarla dopodomani.\nPorterò con me delle foto della mia famiglia.\nLei sarà felice di raccontarmi le storie della sua giovinezza.\nNon vedo l'ora di passare del tempo insieme a lei.",
+      accepted: ["verrò"],
+      hint: "Irregular stem: verr-, io form",
+      tags: ["passage_cloze", "venire", "futuro-semplice", "family", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t2-006", "u15-t1-027"],
+    },
+    {
+      id: "u15-t4-030",
+      type: "passage_cloze",
+      prompt:
+        "L'azienda di Roberto sta crescendo velocemente in questi mesi.\nEntro l'anno prossimo, i dipendenti ___ (avere, loro) un ufficio più grande.\nRoberto è responsabile del progetto e lavora ogni giorno fino a tardi.\nSpera di raggiungere il suo obiettivo prima della scadenza.\nIl capo gli ha promesso una promozione se tutto va bene.",
+      accepted: ["avranno"],
+      hint: "Irregular stem: avr-, loro form",
+      tags: ["passage_cloze", "avere", "futuro-semplice", "career", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t1-013", "u15-t1-019", "u15-t1-025"],
+    },
+    {
+      id: "u15-t4-031",
+      type: "passage_cloze",
+      prompt:
+        "La madre di Luca è stata malata per due settimane.\nIl dottore dice che tra pochi giorni ___ (potere, lei) tornare al lavoro.\nLuca ha organizzato tutto in casa per aiutarla.\nLei promette di riposare ancora un po' prima di ricominciare.\nLa famiglia è sollevata e piena di speranza per il futuro.",
+      accepted: ["potrà"],
+      hint: "Irregular stem: potr-, lei form",
+      tags: ["passage_cloze", "potere", "futuro-semplice", "family", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t2-008", "u15-t1-021"],
+    },
+    {
+      id: "u15-t4-032",
+      type: "passage_cloze",
+      prompt:
+        "Sara e io abbiamo deciso di cambiare casa il mese prossimo.\nAbbiamo già trovato un appartamento vicino al centro città.\nQuesto weekend ___ (fare, noi) i primi scatoloni con i libri e i vestiti.\nSpero che il trasloco non sia troppo difficile.\nNon vediamo l'ora di sistemare la nuova cucina insieme.",
+      accepted: ["faremo"],
+      hint: "Irregular stem: far-, noi form",
+      tags: ["passage_cloze", "fare", "futuro-semplice", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t2-005", "u15-t1-009"],
+    },
+    {
+      id: "u15-t4-033",
+      type: "passage_cloze",
+      prompt:
+        "Gli studenti hanno finito l'esame di storia questa mattina.\nIl professore ha detto che ___ (sapere, voi) il risultato dopodomani.\nAlcuni sono nervosi, altri sono già sicuri di aver risposto bene.\nTutti sperano di superare l'esame senza doverlo ripetere.\nQuanto prima arriva il risultato, meglio è per tutti.",
+      accepted: ["saprete"],
+      hint: "Irregular stem: sapr-, voi form",
+      tags: ["passage_cloze", "sapere", "futuro-semplice", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t2-012", "u15-t1-027"],
+    },
+    {
+      id: "u15-t4-034",
+      type: "passage_cloze",
+      prompt:
+        "Il mio migliore amico ha accettato un lavoro all'estero.\nFra tre mesi ___ (trasferirsi) in una città che non conosce ancora bene.\nÈ emozionato ma anche un po' spaventato dal cambiamento.\nCi siamo promessi di scriverci ogni settimana.\nSo che realizzerà i suoi sogni in questo nuovo capitolo della vita.",
+      accepted: ["si trasferirà"],
+      hint: "Reflexive future: trasferirsi, lui form",
+      tags: ["passage_cloze", "trasferirsi", "futuro-semplice", "career", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t1-063", "u15-t1-017"],
+    },
+    {
+      id: "u15-t4-035",
+      type: "passage_cloze",
+      prompt:
+        "I miei cugini non vedono i nonni da quasi un anno.\nLa settimana prossima finalmente ___ (andare, loro) a trovarli in campagna.\nPorteranno regali e racconteranno tutte le novità della città.\nI nonni hanno già preparato la stanza degli ospiti.\nSarà una bella occasione per stare insieme in famiglia.",
+      accepted: ["andranno"],
+      hint: "Irregular stem: andr-, loro form",
+      tags: ["passage_cloze", "andare", "futuro-semplice", "family", "A2"],
+      tier: 4,
+      prerequisites: ["u15-t2-004", "u15-t1-008"],
     },
 
     // ── Tier 3 – Chunks & Expressions (flagged-word coverage) ────────────
@@ -1602,6 +1733,18 @@ const unit: Unit = {
       ],
       hint: "non riesco a + infinitive = I can't (manage to)",
       tags: ["sentence", "immaginare", "progetto", "A2"],
+      tier: 3,
+    },
+    {
+      id: "u15-t3-040",
+      type: "produce",
+      prompt: "I am really looking forward to the vacation next month.",
+      accepted: [
+        "Non vedo l'ora di andare in vacanza il mese prossimo.",
+        "Non vedo l'ora di andare in vacanza il mese prossimo",
+      ],
+      hint: "non vedere l'ora di + infinito (same subject, no subjunctive needed); la vacanza = the vacation",
+      tags: ["sentence", "vacanza", "A2"],
       tier: 3,
     },
   ],

@@ -1041,6 +1041,16 @@ const unit: Unit = {
       tier: 3,
       prerequisites: ["u08-t1-162", "u08-t1-158"],
     },
+    {
+      id: "u08-t3-121",
+      type: "produce",
+      prompt: "I have to call my colleague to help decide.",
+      accepted: ["Devo chiamare la mia collega per aiutare a decidere.", "Devo chiamare la mia collega per aiutare a decidere"],
+      prompts: { "es": "Tengo que llamar a mi colega para ayudar a decidir." },
+      hint: "chiamare = to call; aiutare = to help; decidere = to decide",
+      tags: ["chunk", "dovere", "work", "tier3", "A1"],
+      tier: 3,
+    },
 
     // -------------------------------------------------------------------------
     // TIER 4 — Sentences: modal verbs in context
@@ -1055,6 +1065,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-001", "u08-t1-010", "u08-t1-012", "u08-t3-001"],
+      deprecated: true,
     },
     {
       id: "u08-t4-002",
@@ -1069,6 +1080,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-007", "u08-t1-009", "u08-t3-005"],
+      deprecated: true,
     },
     {
       id: "u08-t4-003",
@@ -1080,6 +1092,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "question", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-006", "u08-t1-154", "u08-t1-158", "u08-t1-164", "u08-t3-101"],
+      deprecated: true,
     },
     {
       id: "u08-t4-004",
@@ -1094,6 +1107,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-002", "u08-t1-008", "u08-t1-154", "u08-t3-001"],
+      deprecated: true,
     },
     {
       id: "u08-t4-005",
@@ -1105,6 +1119,7 @@ const unit: Unit = {
       tags: ["sentence", "preferire", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-004", "u08-t1-013", "u08-t3-006"],
+      deprecated: true,
     },
     {
       id: "u08-t4-100",
@@ -1116,6 +1131,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-002", "u08-t1-005", "u08-t1-010", "u08-t1-176"],
+      deprecated: true,
     },
     {
       id: "u08-t4-101",
@@ -1133,6 +1149,7 @@ const unit: Unit = {
         "u08-t1-172",
         "u08-t3-001",
       ],
+      deprecated: true,
     },
     {
       id: "u08-t4-102",
@@ -1147,6 +1164,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "question", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-168", "u08-t3-005"],
+      deprecated: true,
     },
     {
       id: "u08-t4-103",
@@ -1158,6 +1176,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "negation", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-007", "u08-t1-011", "u08-t3-103"],
+      deprecated: true,
     },
     {
       id: "u08-t4-104",
@@ -1172,6 +1191,7 @@ const unit: Unit = {
       tags: ["sentence", "preferire", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-009", "u08-t1-154", "u08-t3-006"],
+      deprecated: true,
     },
     {
       id: "u08-t4-105",
@@ -1183,6 +1203,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-158", "u08-t1-160", "u08-t3-104"],
+      deprecated: true,
     },
     {
       id: "u08-t4-106",
@@ -1194,6 +1215,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-006", "u08-t1-156", "u08-t1-174", "u08-t3-002"],
+      deprecated: true,
     },
     {
       id: "u08-t4-107",
@@ -1208,6 +1230,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-013", "u08-t1-168", "u08-t3-005"],
+      deprecated: true,
     },
     {
       id: "u08-t4-108",
@@ -1219,6 +1242,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "question", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-010", "u08-t1-158", "u08-t3-101"],
+      deprecated: true,
     },
     {
       id: "u08-t4-109",
@@ -1230,6 +1254,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-152", "u08-t3-005"],
+      deprecated: true,
     },
     {
       id: "u08-t4-110",
@@ -1244,6 +1269,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-009", "u08-t1-156", "u08-t3-001"],
+      deprecated: true,
     },
     {
       id: "u08-t4-111",
@@ -1258,6 +1284,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-011", "u08-t1-170", "u08-t3-002"],
+      deprecated: true,
     },
     {
       id: "u08-t4-112",
@@ -1269,6 +1296,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-007", "u08-t1-172", "u08-t3-005"],
+      deprecated: true,
     },
     {
       id: "u08-t4-113",
@@ -1280,6 +1308,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-004", "u08-t1-188", "u08-t3-001"],
+      deprecated: true,
     },
     {
       id: "u08-t4-114",
@@ -1291,6 +1320,7 @@ const unit: Unit = {
       tags: ["sentence", "volere", "work", "question", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-158", "u08-t1-184", "u08-t3-116"],
+      deprecated: true,
     },
     {
       id: "u08-t4-115",
@@ -1302,6 +1332,7 @@ const unit: Unit = {
       tags: ["sentence", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-186", "u08-t3-106"],
+      deprecated: true,
     },
     {
       id: "u08-t4-116",
@@ -1313,6 +1344,7 @@ const unit: Unit = {
       tags: ["sentence", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-182", "u08-t3-113", "u08-t3-115"],
+      deprecated: true,
     },
     {
       id: "u08-t4-117",
@@ -1324,6 +1356,7 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-012", "u08-t1-180", "u08-t3-001"],
+      deprecated: true,
     },
     {
       id: "u08-t4-118",
@@ -1338,6 +1371,163 @@ const unit: Unit = {
       tags: ["sentence", "dovere", "potere", "work", "tier4", "A1"],
       tier: 4,
       prerequisites: ["u08-t1-003", "u08-t1-010", "u08-t1-188", "u08-t3-001"],
+      deprecated: true,
+    },
+
+    // -------------------------------------------------------------------------
+    // TIER 4 — Passages: self-contained mini-stories with one blank (Task: real
+    // passage_cloze format per CURRICULUM.md, replacing the retired single-
+    // sentence "sentence" cards above)
+    // -------------------------------------------------------------------------
+    {
+      id: "u08-t4-119",
+      type: "passage_cloze",
+      prompt: "Marco lavora in un ufficio del centro.\nOgni mattina saluta i colleghi e accende il computer.\nOggi il ___ vuole vedere tutti i documenti del nuovo progetto.\nMarco è un po' nervoso, ma prepara tutto con calma.\nAlle undici comincia la riunione importante.",
+      accepted: ["capo"],
+      hint: "the person who wants to see the documents today — the boss",
+      tags: ["passage_cloze", "work", "capo", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-002", "u08-t1-006", "u08-t1-158", "u08-t1-180", "u08-t1-004"],
+    },
+    {
+      id: "u08-t4-120",
+      type: "passage_cloze",
+      prompt: "Sono le otto di mattina e sono già in ufficio.\nHo tante email da leggere e un messaggio dal capo.\nPrima ___ rispondere a un cliente importante, poi posso prendere un caffè con Sara.\nIl lavoro non finisce mai, ma mi piace il mio ufficio.\nOggi voglio finire tutto prima delle sei.",
+      accepted: ["devo"],
+      hint: "I have to reply first, before the coffee break — dovere, io form",
+      tags: ["passage_cloze", "dovere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-154", "u08-t1-158", "u08-t2-004", "u08-t1-162", "u08-t1-012"],
+    },
+    {
+      id: "u08-t4-121",
+      type: "passage_cloze",
+      prompt: "Ogni lunedì mattina c'è una ___ con tutto il team.\nSara arriva sempre in anticipo e prepara il caffè per tutti.\nIl capo parla dei nuovi progetti e ognuno fa delle domande.\nDopo un'ora, tutti tornano al proprio computer per lavorare.\nÈ un buon modo per cominciare la settimana.",
+      accepted: ["riunione"],
+      hint: "the Monday gathering with the whole team — the meeting",
+      tags: ["passage_cloze", "work", "riunione", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-004", "u08-t1-158", "u08-t1-180", "u08-t1-152", "u08-t1-006"],
+    },
+    {
+      id: "u08-t4-122",
+      type: "passage_cloze",
+      prompt: "Luca lavora fino a tardi quasi ogni giorno.\nStasera è l'ultimo collega rimasto e deve ___ l'ufficio da solo.\nControlla che il computer sia spento e prende le chiavi.\nFuori piove forte, ma Luca non ha l'ombrello.\nCorre fino alla fermata dell'autobus.",
+      accepted: ["chiudere"],
+      hint: "what Luca must do to the office before leaving — to close",
+      tags: ["passage_cloze", "dovere", "chiudere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-002", "u08-t1-003", "u08-t1-006", "u08-t1-186", "u08-t3-118"],
+    },
+    {
+      id: "u08-t4-123",
+      type: "passage_cloze",
+      prompt: "Sono le tre del pomeriggio e ho già finito il progetto.\nMi sento stanco e voglio una pausa.\nChiedo al capo: «___ prendere una pausa di dieci minuti?»\nLui sorride e dice di sì.\nVado a bere un caffè con Giulia.",
+      accepted: ["Posso"],
+      hint: "asking permission from the boss — potere, io form: can I?",
+      tags: ["passage_cloze", "potere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-180", "u08-t1-182", "u08-t1-158", "u08-t2-001"],
+    },
+    {
+      id: "u08-t4-124",
+      type: "passage_cloze",
+      prompt: "In ufficio, il mio ___ preferito si chiama Davide.\nLavoriamo insieme da tre anni e ci aiutiamo sempre.\nOggi lui deve finire un documento importante prima delle cinque.\nIo gli porto un caffè e gli faccio compagnia.\nÈ bello avere qualcuno con cui parlare al lavoro.",
+      accepted: ["collega"],
+      hint: "the coworker named Davide — colleague",
+      tags: ["passage_cloze", "work", "collega", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-003", "u08-t1-002", "u08-t1-170", "u08-t1-156", "u08-t1-168"],
+    },
+    {
+      id: "u08-t4-125",
+      type: "passage_cloze",
+      prompt: "Elena ha ricevuto dieci email questa mattina.\nDeve leggerle tutte prima di pranzo.\nUn cliente aspetta una risposta urgente, quindi lei decide di ___ subito a quella email.\nScrive con calma, controlla le parole e invia il messaggio.\nFinalmente può prendere un po' di pausa.",
+      accepted: ["rispondere"],
+      hint: "what Elena decides to do to the urgent email — to reply",
+      tags: ["passage_cloze", "rispondere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-154", "u08-t1-160", "u08-t1-150", "u08-t1-162", "u08-t1-182"],
+    },
+    {
+      id: "u08-t4-126",
+      type: "passage_cloze",
+      prompt: "Il capo entra in ufficio con un grande sorriso.\nOggi ___ parlare con tutti i colleghi, uno per uno.\nPrima chiama Marco, poi Sara, poi Luca.\nOgnuno spiega il proprio progetto in pochi minuti.\nÈ una giornata diversa dal solito, ma tutti sono curiosi.",
+      accepted: ["vuole"],
+      hint: "the boss wants to talk to everyone today — volere, lui/lei form",
+      tags: ["passage_cloze", "volere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-158", "u08-t1-002", "u08-t1-168", "u08-t1-003", "u08-t2-008"],
+    },
+    {
+      id: "u08-t4-127",
+      type: "passage_cloze",
+      prompt: "Sara deve firmare un ___ importante prima delle quattro.\nIl capo glielo manda per email con un messaggio breve.\nLei lo legge due volte per essere sicura di capire tutto.\nPoi lo firma e lo rimanda subito indietro.\nSi sente soddisfatta di aver finito in tempo.",
+      accepted: ["documento"],
+      hint: "the important paper Sara must sign — the document",
+      tags: ["passage_cloze", "work", "documento", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-156", "u08-t1-158", "u08-t1-154", "u08-t1-007", "u08-t1-011"],
+    },
+    {
+      id: "u08-t4-128",
+      type: "passage_cloze",
+      prompt: "Paolo arriva in ufficio alle nove in punto.\nIl capo non è ancora arrivato, quindi Paolo deve ___ davanti alla porta.\nAccende il telefono e legge qualche messaggio.\nDopo dieci minuti, finalmente vede arrivare il capo.\nInsieme entrano e cominciano la giornata di lavoro.",
+      accepted: ["aspettare"],
+      hint: "what Paolo must do until the boss arrives — to wait",
+      tags: ["passage_cloze", "dovere", "aspettare", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-158", "u08-t1-160", "u08-t1-005", "u08-t1-007", "u08-t1-013"],
+    },
+    {
+      id: "u08-t4-129",
+      type: "passage_cloze",
+      prompt: "Anna e Chiara lavorano nello stesso progetto da settimane.\nOggi ___ finire tutto prima della riunione delle tre.\nScrivono insieme un documento lungo e controllano ogni parola.\nAlle due e mezza, mandano tutto al capo.\nPoi respirano e aspettano una risposta.",
+      accepted: ["devono"],
+      hint: "Anna and Chiara have to finish today — dovere, loro form",
+      tags: ["passage_cloze", "dovere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-180", "u08-t1-004", "u08-t1-156", "u08-t1-158", "u08-t2-006"],
+    },
+    {
+      id: "u08-t4-130",
+      type: "passage_cloze",
+      prompt: "Il nuovo ___ dell'ufficio comincia questo mese.\nMarco e Sara lavorano insieme ogni giorno per organizzarlo.\nDevono scrivere molti documenti e mandare email ai colleghi.\nÈ un lavoro difficile, ma interessante.\nSperano di finire tutto prima dell'estate.",
+      accepted: ["progetto"],
+      hint: "the new thing at the office that starts this month — the project",
+      tags: ["passage_cloze", "work", "progetto", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-180", "u08-t1-002", "u08-t1-156", "u08-t1-009", "u08-t1-003"],
+    },
+    {
+      id: "u08-t4-131",
+      type: "passage_cloze",
+      prompt: "Il capo spiega il nuovo progetto molto in fretta.\nLuca ascolta con attenzione, ma non riesce a ___ tutto.\nAlla fine fa una domanda semplice al collega Davide.\nDavide gli spiega di nuovo, con parole più chiare.\nOra Luca è sicuro di aver capito bene.",
+      accepted: ["capire"],
+      hint: "what Luca can't quite do while listening — to understand",
+      tags: ["passage_cloze", "capire", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-158", "u08-t1-180", "u08-t1-152", "u08-t1-003", "u08-t1-011"],
+    },
+    {
+      id: "u08-t4-132",
+      type: "passage_cloze",
+      prompt: "Sara ed io finiamo il progetto un'ora prima del previsto.\nChiediamo al capo: «___ andare a casa presto oggi?»\nLui controlla l'orologio e risponde di sì.\nUsciamo dall'ufficio contenti e leggeri.\nDomani ricominciamo con una nuova riunione.",
+      accepted: ["Possiamo"],
+      hint: "asking the boss together — potere, noi form: can we?",
+      tags: ["passage_cloze", "potere", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-180", "u08-t1-158", "u08-t1-002", "u08-t2-003", "u08-t1-004"],
+    },
+    {
+      id: "u08-t4-133",
+      type: "passage_cloze",
+      prompt: "Devo prendere un ___ con il capo per parlare del mio lavoro.\nChiamo la sua segretaria e chiedo un orario libero.\nLei mi dice che posso venire giovedì alle undici.\nScrivo subito la data sul calendario dell'ufficio.\nSono un po' nervoso, ma preparo bene le mie domande.",
+      accepted: ["appuntamento"],
+      hint: "what you make with the boss to talk about work — the appointment",
+      tags: ["passage_cloze", "appuntamento", "work", "tier4", "A1"],
+      tier: 4,
+      prerequisites: ["u08-t1-184", "u08-t1-158", "u08-t1-001", "u08-t1-010", "u08-t1-008"],
     },
   ],
 };

@@ -250,7 +250,11 @@ function extractItalianTerms(card: LintCard): string[] {
       // Elided articles (l'abbraccio, l'impegno) have NO space after the apostrophe, unlike
       // the other articles below — matched separately since "il|lo|la..." all require \s+.
       .replace(/^(il|lo|la|i|gli|le|un|uno|una)\s+|^l'/, ""))
-    .filter((p) => p.length >= 3);
+    // >= 2, not >= 3: found during the 2026-07-30 passage backfill — "il tè" strips to "tè"
+    // (2 chars), which a >=3 floor silently excluded from every context search regardless of
+    // whether real context existed (it did: "Il tè nella tazza è già freddo." already covered
+    // it). A short real Italian word must still be searched for, just like a long one.
+    .filter((p) => p.length >= 2);
 }
 
 export function checkTier1Context(pack: LintPack): string[] {
