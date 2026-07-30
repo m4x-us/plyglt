@@ -1258,6 +1258,21 @@ const unit: Unit = {
       prerequisites: ["a111-t1-011", "a111-t1-012", "a111-t1-159"],
     },
 
+    // --- Context-restoration card (Task: retire non-passage tier-4 cards) ---
+    // "formaggio" (cheese) only appeared in two now-deprecated tier-4 cards
+    // (a111-t4-101, a111-t4-107). This card restores its in-context coverage.
+    {
+      id: "a111-t3-118",
+      type: "produce",
+      prompt: "I put the cheese in the sandwich.",
+      accepted: ["Metto il formaggio nel panino.", "Metto il formaggio nel panino"],
+      prompts: { "es": "Pongo el queso en el sándwich." },
+      hint: "metto = I put (mettere); nel = in + il",
+      tags: ["chunk", "cooking", "food", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a111-t1-002", "a111-t1-151"],
+    },
+
     // -------------------------------------------------------------------------
     // TIER 4 — Passage Cloze / Sentences
     // -------------------------------------------------------------------------
@@ -1296,6 +1311,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "family", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-005", "a111-t1-009"],
+      deprecated: true,
     },
     {
       id: "a111-t4-101",
@@ -1310,6 +1326,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "shopping", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-001", "a111-t1-002"],
+      deprecated: true,
     },
     {
       id: "a111-t4-102",
@@ -1324,6 +1341,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "meals", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-008", "a111-t1-010"],
+      deprecated: true,
     },
     {
       id: "a111-t4-103",
@@ -1334,6 +1352,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "article", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-022"],
+      deprecated: true,
     },
     {
       id: "a111-t4-104",
@@ -1350,6 +1369,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "dairy", "negation", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-019"],
+      deprecated: true,
     },
     {
       id: "a111-t4-105",
@@ -1364,6 +1384,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "cooking", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-017", "a111-t1-018", "a111-t1-026"],
+      deprecated: true,
     },
     {
       id: "a111-t4-106",
@@ -1374,6 +1395,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "dessert", "partitive", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-025", "a111-t2-001"],
+      deprecated: true,
     },
     {
       id: "a111-t4-107",
@@ -1388,6 +1410,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "pizza", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-002", "a111-t1-010", "a111-t1-014", "a111-t1-152"],
+      deprecated: true,
     },
     {
       id: "a111-t4-108",
@@ -1402,6 +1425,7 @@ const unit: Unit = {
       tags: ["sentence", "food", "cooking", "A1", "tier4"],
       tier: 4,
       prerequisites: ["a111-t1-015", "a111-t1-016", "a111-t1-150"],
+      deprecated: true,
     },
     {
       id: "a111-t4-109",
@@ -1419,6 +1443,112 @@ const unit: Unit = {
         "a111-t1-020",
         "a111-t1-027",
         "a111-t2-002",
+      ],
+    },
+
+    // --- New self-contained passages (Task: retire non-passage tier-4 cards) ---
+
+    {
+      id: "a111-t4-110",
+      type: "passage_cloze",
+      prompt: "La mattina faccio colazione con mio fratello Paolo.\nLui beve il latte e mangia un biscotto al cioccolato.\nIo preferisco il pane con un po' di burro e un po' di ___.\nMia madre entra in cucina e sorride: «Buongiorno, ragazzi!»\nUsciamo di casa insieme, pronti per la giornata.",
+      accepted: ["zucchero"],
+      hint: "a classic Italian breakfast treat — bread with butter and this sweet ingredient",
+      tags: ["passage_cloze", "food", "breakfast", "family", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-019",
+        "a111-t1-027",
+        "a111-t1-028",
+        "a111-t1-001",
+        "a111-t1-018",
+        "a111-t1-017",
+      ],
+    },
+    {
+      id: "a111-t4-111",
+      type: "passage_cloze",
+      prompt: "Stasera vado al ristorante con mia sorella Anna.\nLei ordina l'insalata con la cipolla e il peperone.\nIo voglio provare qualcosa di diverso e ordino il ___ con il riso.\nIl cameriere porta anche il pane e l'olio d'oliva per il tavolo.\nMangiamo lentamente e parliamo della nostra settimana.",
+      accepted: ["pollo"],
+      hint: "a protein from this unit, often served with rice — not fish, not meat in general",
+      tags: ["passage_cloze", "food", "restaurant", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-004",
+        "a111-t1-008",
+        "a111-t1-011",
+        "a111-t1-012",
+        "a111-t1-159",
+        "a111-t1-001",
+        "a111-t1-014",
+      ],
+    },
+    {
+      id: "a111-t4-112",
+      type: "passage_cloze",
+      prompt: "Oggi fa freddo e voglio preparare una zuppa calda.\nTaglio la cipolla, la carota e un po' di aglio.\nMetto tutto in una pentola con dell'acqua e un po' di sale.\nDopo mezz'ora aggiungo anche dei funghi e un po' di ___.\nLa zuppa è pronta e profuma tutta la casa.",
+      accepted: ["pepe"],
+      hint: "the ground spice stirred in at the end for a little kick — not the vegetable peperone",
+      tags: ["passage_cloze", "food", "cooking", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-150",
+        "a111-t1-012",
+        "a111-t1-157",
+        "a111-t1-013",
+        "a111-t1-015",
+        "a111-t1-158",
+        "a111-t1-016",
+      ],
+    },
+    {
+      id: "a111-t4-113",
+      type: "passage_cloze",
+      prompt: "Il sabato sera cucino la pasta per i miei amici.\nMetto un po' di olio d'oliva e di peperone in padella.\nAggiungo i pomodori freschi e un pizzico di sale.\nPoi taglio anche un po' di ___ per dare sapore.\nI miei amici arrivano e sentono subito un profumo buonissimo.\nCi sediamo a tavola e mangiamo insieme, felici.",
+      accepted: ["aglio"],
+      hint: "the pungent vegetable classic in aglio, olio e peperoncino — cut into small pieces here",
+      tags: ["passage_cloze", "food", "cooking", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-007",
+        "a111-t1-014",
+        "a111-t1-159",
+        "a111-t1-010",
+        "a111-t1-015",
+        "a111-t1-013",
+      ],
+    },
+    {
+      id: "a111-t4-114",
+      type: "passage_cloze",
+      prompt: "In estate porto i miei figli in gelateria ogni domenica.\nMia figlia vuole sempre il gelato al cioccolato.\nMio figlio invece preferisce la frutta: sceglie la fragola e la banana.\nIo prendo un caffè e un pezzo di ___ con le fragole sopra.\nUsciamo tutti contenti, con le mani un po' appiccicose.",
+      accepted: ["torta"],
+      hint: "a slice of this dessert, topped with strawberries — not gelato this time",
+      tags: ["passage_cloze", "food", "dessert", "family", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-025",
+        "a111-t1-028",
+        "a111-t1-020",
+        "a111-t1-154",
+        "a111-t1-023",
+        "a111-t1-026",
+      ],
+    },
+    {
+      id: "a111-t4-115",
+      type: "passage_cloze",
+      prompt: "Stasera arrivano ospiti importanti e devo cucinare bene.\nVado al supermercato e compro della carne, delle patate e dei funghi.\nA casa taglio le patate e le metto in forno con un po' di ___.\nLa carne invece la cucino in padella con la cipolla.\nQuando gli ospiti arrivano, la casa profuma già di buono.",
+      accepted: ["olio d'oliva"],
+      hint: "what you drizzle on potatoes before roasting them — a common Italian condiment",
+      tags: ["passage_cloze", "food", "cooking", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a111-t1-003",
+        "a111-t1-009",
+        "a111-t1-158",
+        "a111-t1-012",
+        "a111-t1-014",
       ],
     },
   ],

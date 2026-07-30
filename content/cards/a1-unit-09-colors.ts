@@ -1259,6 +1259,7 @@ const unit: Unit = {
       hint: "la mela (f.) → rossa",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-101",
@@ -1269,6 +1270,7 @@ const unit: Unit = {
       hint: "blu is invariable; scuro agrees with giacca (f.) → scura",
       tags: ["sentence", "color", "modifier", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-102",
@@ -1279,6 +1281,7 @@ const unit: Unit = {
       hint: "di che colore è = what color is",
       tags: ["sentence", "color", "question", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-103",
@@ -1289,6 +1292,7 @@ const unit: Unit = {
       hint: "gatto (m.) → nero; cane (m.) → bianco",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-105",
@@ -1299,6 +1303,7 @@ const unit: Unit = {
       hint: "camicia (f.) → grigia; ogni giorno = every day",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-106",
@@ -1309,6 +1314,7 @@ const unit: Unit = {
       hint: "cielo (m.) → azzurro; limpido = clear/limpid",
       tags: ["sentence", "color", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-108",
@@ -1319,6 +1325,7 @@ const unit: Unit = {
       hint: "verde invariable; scarpe (f. pl.) → nere",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-109",
@@ -1329,6 +1336,7 @@ const unit: Unit = {
       hint: "colori (m. pl.) → chiari; in estate = in summer",
       tags: ["sentence", "color", "modifier", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-111",
@@ -1339,6 +1347,7 @@ const unit: Unit = {
       hint: "pantaloni (m. pl.) → grigio scuro (compound color, often invariable)",
       tags: ["sentence", "color", "modifier", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-112",
@@ -1349,6 +1358,7 @@ const unit: Unit = {
       hint: "collana (f.) → dorata; ogni giorno = every day",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
 
     // --- Extended sentences (seq 113+) ---
@@ -1361,6 +1371,7 @@ const unit: Unit = {
       hint: "quaderno (m.); verde and brillante are both invariable",
       tags: ["sentence", "color", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-114",
@@ -1371,6 +1382,7 @@ const unit: Unit = {
       hint: "colori (m. pl.) → perfetti; pastello is invariable",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-115",
@@ -1381,6 +1393,7 @@ const unit: Unit = {
       hint: "camera (f.) → azzurra, bianca",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-116",
@@ -1391,6 +1404,7 @@ const unit: Unit = {
       hint: "macchina (f.) → nera, lucida",
       tags: ["sentence", "color", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-117",
@@ -1401,6 +1415,7 @@ const unit: Unit = {
       hint: "bottoni (m. pl.) → rotondi, colorati (agrees with bottoni, not camicia)",
       tags: ["sentence", "color", "shape", "agreement", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
     },
     {
       id: "a109-t4-118",
@@ -1411,6 +1426,133 @@ const unit: Unit = {
       hint: "tavolo (m.) → quadrato; marrone scuro stays invariable as a compound color",
       tags: ["sentence", "color", "shape", "tier4", "A1"],
       tier: 4,
+      deprecated: true,
+    },
+
+    // -------------------------------------------------------------------------
+    // TIER 4 — Passages: self-contained mini-stories with one cloze blank each
+    // -------------------------------------------------------------------------
+    {
+      id: "a109-t4-119",
+      type: "passage_cloze",
+      prompt: "Marco entra in un negozio di vestiti.\nVuole comprare una camicia per il lavoro.\nVede una camicia bianca, una blu e una nera.\nAlla fine sceglie quella ___, perché il nero è elegante per l'ufficio.\nPaga alla cassa ed esce contento.",
+      accepted: ["nera"],
+      hint: "nera agrees with camicia (f.) — Marco picks the black shirt for the office",
+      tags: ["passage_cloze", "color", "agreement", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-120",
+      type: "passage_cloze",
+      prompt: "Giulia lavora in un negozio di fiori.\nOggi arrivano rose rosse, tulipani gialli e fiori viola.\nUna cliente chiede dei fiori per il compleanno della madre.\nGiulia le mostra i fiori ___, perché sono il colore preferito della cliente.\nLa cliente sorride e compra un mazzo intero.",
+      accepted: ["gialli"],
+      hint: "gialli agrees with fiori (m. pl.) — the customer's favorite color",
+      tags: ["passage_cloze", "color", "agreement", "plural", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-121",
+      type: "passage_cloze",
+      prompt: "Sara esce di casa presto la mattina.\nGuarda il cielo e sorride: non ci sono nuvole.\nOggi il cielo è completamente ___, senza una nuvola grigia.\nDecide di fare una passeggiata al parco con il cane.\nÈ una giornata perfetta per stare all'aria aperta.",
+      accepted: ["azzurro", "celeste"],
+      hint: "azzurro/celeste agrees with cielo (m.) — a clear, cloudless sky",
+      tags: ["passage_cloze", "color", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-122",
+      type: "passage_cloze",
+      prompt: "Luca fa sport ogni sabato mattina.\nHa bisogno di scarpe nuove per correre.\nIn negozio trova scarpe blu, scarpe grigie e scarpe verdi.\nCompra quelle ___, perché il verde è il colore della sua squadra.\nCorre subito nel parco con le scarpe nuove.",
+      accepted: ["verdi"],
+      hint: "verdi agrees with scarpe (f. pl.) — Luca's team color",
+      tags: ["passage_cloze", "color", "agreement", "plural", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-123",
+      type: "passage_cloze",
+      prompt: "Anna riceve un vaso in regalo per il compleanno.\nÈ un vaso rotondo, perfetto per il tavolo del salotto.\nLa superficie non brilla e non riflette la luce.\nAnna dice che il vaso è ___, non lucido.\nLe piace molto e lo mette vicino alla finestra.",
+      accepted: ["opaco"],
+      hint: "opaco agrees with vaso (m.) — a matte finish, opposite of lucido",
+      tags: ["passage_cloze", "color", "finish", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-124",
+      type: "passage_cloze",
+      prompt: "Marta compra un regalo per sua nonna.\nVa in gioielleria e guarda molti anelli diversi.\nTrova un anello dorato e uno argentato.\nSua nonna preferisce sempre l'oro, quindi Marta sceglie quello ___.\nLa nonna apre il regalo ed è felicissima.",
+      accepted: ["dorato"],
+      hint: "dorato agrees with anello (m.) — grandmother prefers gold",
+      tags: ["passage_cloze", "color", "agreement", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-125",
+      type: "passage_cloze",
+      prompt: "Roberto decide di ridipingere la sua camera.\nNon vuole colori troppo vivaci o fluorescenti.\nSceglie un beige chiaro per le pareti.\nPer la porta preferisce un colore più ___, quasi marrone.\nIl risultato finale è caldo e rilassante.",
+      accepted: ["scuro"],
+      hint: "scuro agrees with colore (m., implied) — a darker shade for the door",
+      tags: ["passage_cloze", "color", "modifier", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-126",
+      type: "passage_cloze",
+      prompt: "Ogni estate Elena va al mare con la sua famiglia.\nPortano un ombrellone e delle sedie per la spiaggia.\nQuest'anno Elena compra un nuovo costume da bagno.\nSceglie un costume ___, perché le ricorda il colore del mare.\nSi tuffa subito in acqua con il fratello.",
+      accepted: ["turchese"],
+      hint: "turchese is invariable — the color of the sea, matching costume (m.)",
+      tags: ["passage_cloze", "color", "invariable", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-127",
+      type: "passage_cloze",
+      prompt: "Il signor Bianchi vuole comprare una macchina nuova.\nVisita un concessionario in centro città.\nVede una macchina grigia, una nera e una bordeaux.\nSceglie quella ___, perché gli piace molto quel colore vivace.\nGuida la nuova macchina fino a casa con grande gioia.",
+      accepted: ["bordeaux"],
+      hint: "bordeaux is invariable — stays the same with macchina (f.)",
+      tags: ["passage_cloze", "color", "invariable", "tier4", "A1"],
+      tier: 4,
+    },
+    {
+      id: "a109-t4-128",
+      type: "passage_cloze",
+      prompt: "Il ristorante ha bisogno di tavoli nuovi per la sala grande.\nIl proprietario preferisce forme moderne e semplici.\nCompra dieci tavoli, tutti con lo stesso stile.\nOgni tavolo è ___, perfetto per quattro persone sedute agli angoli.\nI clienti trovano i nuovi tavoli molto comodi.",
+      accepted: ["quadrato"],
+      hint: "quadrato agrees with tavolo (m.) — a square shape, seating four at the corners",
+      tags: ["passage_cloze", "shape", "agreement", "tier4", "A1"],
+      tier: 4,
+    },
+
+    // --- Tier-3 rescue cards: restore context for words orphaned by tier-4 deprecation above ---
+    {
+      id: "a109-t3-133",
+      type: "produce",
+      prompt: "a bright yellow (shade)",
+      accepted: ["un giallo brillante"],
+      prompts: { "es": "un amarillo brillante" },
+      hint: "brillante is invariable — describes a bright, shiny shade",
+      tags: ["chunk", "color", "tier3", "A1"],
+      tier: 3,
+    },
+    {
+      id: "a109-t3-134",
+      type: "produce",
+      prompt: "a pastel green",
+      accepted: ["un verde pastello"],
+      prompts: { "es": "un verde pastel" },
+      hint: "pastello is invariable — follows the color word",
+      tags: ["chunk", "color", "invariable", "tier3", "A1"],
+      tier: 3,
+    },
+    {
+      id: "a109-t3-135",
+      type: "produce",
+      prompt: "The watch is square.",
+      accepted: ["L'orologio è quadrato."],
+      prompts: { "es": "El reloj es cuadrado." },
+      hint: "quadrato agrees with orologio (m.) — describing its shape",
+      tags: ["chunk", "shape", "tier3", "A1"],
+      tier: 3,
     },
   ],
 };

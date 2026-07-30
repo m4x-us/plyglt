@@ -267,6 +267,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo"],
       tier: 4,
       prerequisites: ["u11-t1-005", "u11-t1-010", "u11-t2-006"],
+      deprecated: true,
     },
     {
       id: "u11-t4-002",
@@ -277,6 +278,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo"],
       tier: 4,
       prerequisites: ["u11-t1-007", "u11-t1-012", "u11-t2-008"],
+      deprecated: true,
     },
     {
       id: "u11-t4-003",
@@ -310,6 +312,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "nascere"],
       tier: 4,
       prerequisites: ["u11-t1-008", "u11-t2-009"],
+      deprecated: true,
     },
 
     // ── Tier 1 – Vocabulary (expansion) ───────────────────────────────────────
@@ -1291,6 +1294,42 @@ const unit: Unit = {
       tags: ["chunk", "essere", "passato-prossimo", "tornare", "mare"],
       tier: 3,
     },
+    {
+      id: "u11-t3-038",
+      type: "produce",
+      prompt: "We arrived at the airport two hours early. (mixed group)",
+      accepted: ["Siamo arrivati all'aeroporto con due ore di anticipo."],
+      hint: "arrivare → siamo arrivati; all'aeroporto = a + l'aeroporto",
+      tags: ["chunk", "essere", "passato-prossimo", "arrivare", "aeroporto"],
+      tier: 3,
+    },
+    {
+      id: "u11-t3-039",
+      type: "produce",
+      prompt: "The mailman went by the door but didn't ring the bell.",
+      accepted: ["Il postino è passato davanti alla porta ma non ha suonato il campanello."],
+      hint: "passare → è passato; la porta = the door",
+      tags: ["chunk", "essere", "passato-prossimo", "passare", "porta"],
+      tier: 3,
+    },
+    {
+      id: "u11-t3-040",
+      type: "produce",
+      prompt: "My cousins arrived early to the party and helped set the tables. (mixed group)",
+      accepted: ["I miei cugini sono arrivati presto alla festa e hanno aiutato ad apparecchiare i tavoli."],
+      hint: "arrivare → sono arrivati; alla festa = at the party",
+      tags: ["chunk", "essere", "passato-prossimo", "arrivare", "festa"],
+      tier: 3,
+    },
+    {
+      id: "u11-t3-041",
+      type: "produce",
+      prompt: "At the bus stop, Marco slipped and fell.",
+      accepted: ["Alla fermata dell'autobus, Marco è scivolato ed è caduto."],
+      hint: "cadere → è caduto; la fermata (dell'autobus) = the (bus) stop",
+      tags: ["chunk", "essere", "passato-prossimo", "cadere", "fermata"],
+      tier: 3,
+    },
 
     // ── Tier 4 – Production & Passage Cloze (expansion) ───────────────────────
     {
@@ -1302,6 +1341,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "svegliarsi", "vestirsi"],
       tier: 4,
       prerequisites: ["u11-t1-022", "u11-t1-024", "u11-t1-003"],
+      deprecated: true,
     },
     {
       id: "u11-t4-007",
@@ -1311,6 +1351,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "alzarsi", "arrivare"],
       tier: 4,
       prerequisites: ["u11-t1-023", "u11-t1-004", "u11-t1-032"],
+      deprecated: true,
     },
     {
       id: "u11-t4-008",
@@ -1320,6 +1361,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "cadere"],
       tier: 4,
       prerequisites: ["u11-t1-016", "u11-t1-047", "u11-t1-001"],
+      deprecated: true,
     },
     {
       id: "u11-t4-009",
@@ -1330,6 +1372,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "sposarsi", "agreement"],
       tier: 4,
       prerequisites: ["u11-t1-027", "u11-t2-052"],
+      deprecated: true,
     },
     {
       id: "u11-t4-010",
@@ -1339,6 +1382,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "crescere", "trasferirsi"],
       tier: 4,
       prerequisites: ["u11-t1-021", "u11-t1-035", "u11-t1-030"],
+      deprecated: true,
     },
     {
       id: "u11-t4-011",
@@ -1348,6 +1392,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "fermarsi", "addormentarsi"],
       tier: 4,
       prerequisites: ["u11-t1-026", "u11-t1-042", "u11-t1-028"],
+      deprecated: true,
     },
     {
       id: "u11-t4-012",
@@ -1357,6 +1402,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "nascere", "morire"],
       tier: 4,
       prerequisites: ["u11-t1-008", "u11-t1-031", "u11-t1-018"],
+      deprecated: true,
     },
     {
       id: "u11-t4-013",
@@ -1367,6 +1413,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "perdersi", "agreement"],
       tier: 4,
       prerequisites: ["u11-t1-029", "u11-t1-038", "u11-t1-041"],
+      deprecated: true,
     },
     {
       id: "u11-t4-014",
@@ -1409,6 +1456,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "fermarsi", "scendere"],
       tier: 4,
       prerequisites: ["u11-t1-026", "u11-t1-045", "u11-t1-015"],
+      deprecated: true,
     },
     {
       id: "u11-t4-018",
@@ -1418,6 +1466,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "addormentarsi", "svegliarsi"],
       tier: 4,
       prerequisites: ["u11-t1-028", "u11-t1-022"],
+      deprecated: true,
     },
     {
       id: "u11-t4-019",
@@ -1427,6 +1476,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "crescere", "sposarsi"],
       tier: 4,
       prerequisites: ["u11-t1-021", "u11-t1-031", "u11-t1-027"],
+      deprecated: true,
     },
     {
       id: "u11-t4-020",
@@ -1437,6 +1487,7 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "entrare", "salire", "fermarsi"],
       tier: 4,
       prerequisites: ["u11-t1-013", "u11-t1-033", "u11-t1-014", "u11-t1-040"],
+      deprecated: true,
     },
     {
       id: "u11-t4-021",
@@ -1447,6 +1498,119 @@ const unit: Unit = {
       tags: ["production", "essere", "passato-prossimo", "cadere", "alzarsi", "agreement"],
       tier: 4,
       prerequisites: ["u11-t1-016", "u11-t1-047", "u11-t1-023"],
+      deprecated: true,
+    },
+
+    // ── Tier 4 – Passage Cloze (real mini-stories) ────────────────────────────
+    {
+      id: "u11-t4-022",
+      type: "passage_cloze",
+      prompt:
+        "Mia madre racconta spesso della nonna Rosa.\nRosa è nata in un paesino di montagna nel 1930.\nDa giovane è ___ nello stesso paese per aiutare i genitori malati.\nSolo più tardi si è trasferita in città con suo marito.\nOggi quel paesino esiste ancora, ma quasi nessuno ci vive più.",
+      accepted: ["restata"],
+      hint: "restare → restata (lei, femminile)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "restare", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-019", "u11-t1-035", "u11-t2-030"],
+    },
+    {
+      id: "u11-t4-023",
+      type: "passage_cloze",
+      prompt:
+        "I due fratelli Marco e Luca hanno organizzato un viaggio in treno.\n___ partiti dalla stazione di Torino alle sei del mattino.\nDopo cinque ore sono arrivati a Napoli, stanchi ma contenti.\nHanno trascorso il weekend a visitare la città e mangiare pizza.\nLa domenica sera sono tornati a casa in aereo.",
+      accepted: ["Sono"],
+      hint: "essere auxiliary — loro (maschile) form",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "partire"],
+      tier: 4,
+      prerequisites: ["u11-t1-005", "u11-t1-004", "u11-t1-009"],
+    },
+    {
+      id: "u11-t4-024",
+      type: "passage_cloze",
+      prompt:
+        "L'anno scorso ho conosciuto un ragazzo francese durante un corso di italiano.\nAlla fine del corso, lui è tornato a Parigi.\nIo invece sono ___ a trovarlo due mesi dopo, con un po' di paura.\nAbbiamo visitato la città insieme per una settimana intera.\nOra ci scriviamo ogni giorno e aspettiamo la prossima visita.",
+      accepted: ["venuta"],
+      hint: "venire → venuta (io, femminile)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "venire", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-002", "u11-t1-006"],
+    },
+    {
+      id: "u11-t4-025",
+      type: "passage_cloze",
+      prompt:
+        "Mio nonno Pietro ha avuto una vita lunga e piena di storie.\nÈ nato in un piccolo paese di pescatori nel 1935.\nHa lavorato per quarant'anni come falegname nella stessa officina.\nÈ ___ l'inverno scorso, circondato da tutta la famiglia.\nCi manca ogni giorno, ma i suoi racconti restano vivi in noi.",
+      accepted: ["morto"],
+      hint: "morire → morto (lui)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "morire", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-008", "u11-t1-018", "u11-t2-026"],
+    },
+    {
+      id: "u11-t4-026",
+      type: "passage_cloze",
+      prompt:
+        "La mia amica Chiara ha studiato medicina per sei anni all'università di Bologna.\nDurante gli studi ha lavorato anche in ospedale nei weekend.\nL'anno scorso è ___ finalmente medico, dopo l'ultimo esame difficile.\nAdesso lavora al pronto soccorso e aiuta molte persone ogni giorno.\nTutta la famiglia era orgogliosa di lei quel giorno.",
+      accepted: ["diventata"],
+      hint: "diventare → diventata (lei, femminile)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "diventare", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-017", "u11-t2-023"],
+    },
+    {
+      id: "u11-t4-027",
+      type: "passage_cloze",
+      prompt:
+        "Ieri sera i miei colleghi hanno finito il progetto molto tardi.\nVerso le nove sono usciti dall'ufficio insieme, esausti ma soddisfatti.\nHanno cenato in un piccolo ristorante vicino alla stazione.\nDopo cena ___ tornati a casa ognuno per conto proprio.\nOggi in ufficio ridevano ancora ricordando quella serata.",
+      accepted: ["sono"],
+      hint: "essere auxiliary — loro form",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "tornare"],
+      tier: 4,
+      prerequisites: ["u11-t1-003", "u11-t1-006", "u11-t1-033"],
+    },
+    {
+      id: "u11-t4-028",
+      type: "passage_cloze",
+      prompt:
+        "Filippo lavora come giornalista e viaggia spesso per lavoro.\nLa settimana scorsa è partito per la Spagna con poco preavviso.\nQuando è ___ a Madrid, ha scoperto che il suo bagaglio era rimasto a Roma.\nHa dovuto comprare vestiti nuovi per l'intervista del giorno dopo.\nAlla fine tutto è andato bene e ha scritto un bell'articolo.",
+      accepted: ["arrivato"],
+      hint: "arrivare → arrivato (lui)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "arrivare", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-004", "u11-t1-005"],
+    },
+    {
+      id: "u11-t4-029",
+      type: "passage_cloze",
+      prompt:
+        "Io e mia sorella abbiamo deciso di fare una gita di un giorno al lago.\nSiamo partite presto la mattina con la macchina di nostro padre.\n___ andate prima al mercato del paese e poi in barca sul lago.\nAbbiamo mangiato un panino seduti sull'erba, guardando l'acqua.\nLa sera siamo tornate a casa felici e un po' scottate dal sole.",
+      accepted: ["Siamo"],
+      hint: "essere auxiliary — noi (femminile) form",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "andare"],
+      tier: 4,
+      prerequisites: ["u11-t1-001", "u11-t1-006", "u11-t2-002"],
+    },
+    {
+      id: "u11-t4-030",
+      type: "passage_cloze",
+      prompt:
+        "Cara Giulia, scrivo per raccontarti le novità.\nDopo la laurea, Marco è partito per lavorare all'estero, in Germania.\nIo invece sono ___ nella nostra città per stare vicino ai miei genitori.\nA volte mi manca l'idea di viaggiare come lui, ma sono contenta della mia scelta.\nSpero di vederti presto per parlarne di persona.",
+      accepted: ["rimasta"],
+      hint: "rimanere → rimasta (io, femminile)",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "rimanere", "agreement"],
+      tier: 4,
+      prerequisites: ["u11-t1-007", "u11-t2-008"],
+    },
+    {
+      id: "u11-t4-031",
+      type: "passage_cloze",
+      prompt:
+        "Il mio vicino di casa aspettava due gemelli da mesi.\nUna notte di gennaio sono nati in ospedale, sani e forti.\nLa madre li ha guardati a lungo prima di addormentarsi.\nDa quel giorno la vita della famiglia è cambiata completamente.\nOra i due bambini ___ cresciuti e vanno già all'asilo.",
+      accepted: ["sono"],
+      hint: "essere auxiliary — loro form",
+      tags: ["passage-cloze", "essere", "passato-prossimo", "crescere"],
+      tier: 4,
+      prerequisites: ["u11-t1-008", "u11-t1-021", "u11-t2-037"],
     },
   ],
 };

@@ -1165,6 +1165,7 @@ const unit: Unit = {
       tags: ["sentence", "adjectives", "kitchen", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-152"],
+      deprecated: true,
     },
     {
       id: "a113-t4-102",
@@ -1175,6 +1176,7 @@ const unit: Unit = {
       tags: ["fill-blank", "c'è", "furniture", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-009", "a113-t1-013", "a113-t1-154"],
+      deprecated: true,
     },
     {
       id: "a113-t4-103",
@@ -1186,6 +1188,7 @@ const unit: Unit = {
       tags: ["sentence", "adjectives", "room", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-168"],
+      deprecated: true,
     },
     {
       id: "a113-t4-104",
@@ -1197,6 +1200,7 @@ const unit: Unit = {
       tags: ["sentence", "prepositions", "bedroom", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-004", "a113-t1-170"],
+      deprecated: true,
     },
     {
       id: "a113-t4-105",
@@ -1226,6 +1230,7 @@ const unit: Unit = {
       tags: ["fill-blank", "plural", "kitchenware", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-015"],
+      deprecated: true,
     },
     {
       id: "a113-t4-107",
@@ -1237,6 +1242,7 @@ const unit: Unit = {
       tags: ["sentence", "prepositions", "kitchenware", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-014", "a113-t1-018"],
+      deprecated: true,
     },
     {
       id: "a113-t4-108",
@@ -1251,6 +1257,7 @@ const unit: Unit = {
       tags: ["sentence", "adjectives", "room", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-009", "a113-t1-010"],
+      deprecated: true,
     },
     {
       id: "a113-t4-109",
@@ -1265,6 +1272,7 @@ const unit: Unit = {
       tags: ["sentence", "present tense", "kitchenware", "kitchen", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-014", "a113-t1-152"],
+      deprecated: true,
     },
     {
       id: "a113-t4-110",
@@ -1275,6 +1283,7 @@ const unit: Unit = {
       tags: ["fill-blank", "bathroom", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-150", "a113-t1-156", "a113-t1-172"],
+      deprecated: true,
     },
     {
       id: "a113-t4-111",
@@ -1289,6 +1298,136 @@ const unit: Unit = {
       tags: ["sentence", "c'è", "room", "household", "A1"],
       tier: 4,
       prerequisites: ["a113-t1-012", "a113-t1-168"],
+      deprecated: true,
+    },
+
+    // ── TIER 3: RESCUE CONTEXT (words orphaned by Tier-4 deprecation above) ──
+    {
+      id: "a113-t3-112",
+      type: "produce",
+      prompt: "The ceiling in my room is very high.",
+      accepted: [
+        "Il soffitto della mia camera è molto alto.",
+        "Il soffitto della mia camera è molto alto",
+      ],
+      prompts: { "es": "El techo de mi habitación es muy alto." },
+      hint: "soffitto = ceiling; alto = high (masc.).",
+      tags: ["sentence", "adjectives", "bedroom", "household", "A1"],
+      tier: 3,
+      prerequisites: ["a113-t1-010"],
+    },
+    {
+      id: "a113-t3-113",
+      type: "produce",
+      prompt: "I need a spoon for the soup.",
+      accepted: [
+        "Ho bisogno di un cucchiaio per la minestra.",
+        "Ho bisogno di un cucchiaio per la minestra",
+      ],
+      prompts: { "es": "Necesito una cuchara para la sopa." },
+      hint: "ho bisogno di = I need; cucchiaio = spoon.",
+      tags: ["sentence", "kitchenware", "household", "A1"],
+      tier: 3,
+      prerequisites: ["a113-t1-018"],
+    },
+
+    // ── TIER 4: NEW PASSAGE CLOZE (seq 112–117) ───────────────────────────────
+    {
+      id: "a113-t4-112",
+      type: "passage_cloze",
+      prompt:
+        "La sera, tutta la famiglia sta in salotto.\nMio padre si siede sul ___ e guarda la televisione.\nMia sorella legge un libro sulla sedia vicino alla finestra.\nSul pavimento c'è un tappeto morbido.\nIo mi siedo vicino a lui e parliamo della giornata.",
+      accepted: ["divano"],
+      hint: "The piece of furniture father sits on to watch television — masculine noun for sofa.",
+      tags: ["passage_cloze", "living-room", "household", "A1"],
+      tier: 4,
+      prerequisites: [
+        "a113-t1-154",
+        "a113-t1-003",
+        "a113-t1-002",
+        "a113-t1-007",
+        "a113-t1-009",
+        "a113-t1-013",
+      ],
+    },
+    {
+      id: "a113-t4-113",
+      type: "passage_cloze",
+      prompt:
+        "Quando torno a casa, apro la ___ con la chiave.\nLascio le scarpe subito nel corridoio.\nA destra c'è la cucina, a sinistra il salotto.\nAppendo la giacca vicino allo specchio grande.\nMi tolgo le scarpe e mi sento finalmente a casa.",
+      accepted: ["porta"],
+      hint: "What you open with your key when arriving home — feminine noun for door.",
+      tags: ["passage_cloze", "entrance", "household", "A1"],
+      tier: 4,
+      prerequisites: [
+        "a113-t1-006",
+        "a113-t1-168",
+        "a113-t1-152",
+        "a113-t1-154",
+        "a113-t1-012",
+      ],
+    },
+    {
+      id: "a113-t4-114",
+      type: "passage_cloze",
+      prompt:
+        "Ogni mattina scelgo i vestiti per la giornata.\nApro l'___ e guardo cosa c'è dentro.\nSul letto c'è già la camicia che voglio mettere.\nVicino alla finestra il sole illumina la stanza.\nMi vesto in fretta perché sono in ritardo.",
+      accepted: ["armadio"],
+      hint: "Where clothes are stored — masculine noun taking l' before it.",
+      tags: ["passage_cloze", "bedroom", "household", "A1"],
+      tier: 4,
+      prerequisites: ["a113-t1-005", "a113-t1-004", "a113-t1-007"],
+    },
+    {
+      id: "a113-t4-115",
+      type: "passage_cloze",
+      prompt:
+        "Stasera arrivano gli ospiti per cena.\nMetto un piatto e una forchetta per ogni persona.\nAccanto al piatto c'è anche un ___ per l'acqua.\nLa pentola con la pasta è già sul fuoco.\nTutti si siedono al tavolo e iniziamo a mangiare.",
+      accepted: ["bicchiere"],
+      hint: "What holds the water next to each plate — masculine noun for glass.",
+      tags: ["passage_cloze", "kitchen", "household", "A1"],
+      tier: 4,
+      prerequisites: [
+        "a113-t1-015",
+        "a113-t1-016",
+        "a113-t1-019",
+        "a113-t1-020",
+        "a113-t1-001",
+      ],
+    },
+    {
+      id: "a113-t4-116",
+      type: "passage_cloze",
+      prompt:
+        "Ogni mattina mio fratello fa la ___ per primo.\nDopo si asciuga con l'asciugamano blu vicino al lavandino.\nIo mi lavo le mani e mi guardo allo specchio.\nIl bagno è piccolo ma ha tutto quello che serve.\nUsciamo insieme di casa per andare a scuola.",
+      accepted: ["doccia"],
+      hint: "What your brother takes each morning before you — feminine noun for shower.",
+      tags: ["passage_cloze", "bathroom", "household", "A1"],
+      tier: 4,
+      prerequisites: [
+        "a113-t1-156",
+        "a113-t1-172",
+        "a113-t1-158",
+        "a113-t1-012",
+        "a113-t1-150",
+      ],
+    },
+    {
+      id: "a113-t4-117",
+      type: "passage_cloze",
+      prompt:
+        "Il sabato è sempre il giorno delle pulizie a casa.\nMetto i vestiti sporchi nella ___.\nPulisco il pavimento della cucina con l'acqua e il sapone.\nSpolvero anche gli scaffali del salotto.\nAlla fine la casa è pulita e ordinata.",
+      accepted: ["lavatrice"],
+      hint: "The appliance that washes dirty clothes — feminine noun.",
+      tags: ["passage_cloze", "cleaning", "household", "A1"],
+      tier: 4,
+      prerequisites: [
+        "a113-t1-022",
+        "a113-t1-009",
+        "a113-t1-152",
+        "a113-t1-164",
+        "a113-t1-154",
+      ],
     },
   ],
 };

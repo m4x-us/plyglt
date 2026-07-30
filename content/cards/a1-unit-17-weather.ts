@@ -1320,6 +1320,21 @@ const unit: Unit = {
       tier: 3,
       prerequisites: ["a117-t1-152", "a117-t2-002"],
     },
+    // ─── Tier 3 – Context-rescue addition seq 118 ─────────────────────────────
+    {
+      id: "a117-t3-118",
+      type: "produce",
+      prompt: "The lake is calm today because there is no wind.",
+      accepted: [
+        "Il lago è calmo oggi perché non c'è vento.",
+        "Il lago è calmo oggi perché non c'è vento",
+      ],
+      prompts: { "es": "El lago está tranquilo hoy porque no hay viento." },
+      hint: "Il lago + è calmo + oggi + perché + non c'è vento",
+      tags: ["A1", "nature", "weather", "chunks"],
+      tier: 3,
+      prerequisites: ["a117-t1-019", "a117-t2-006"],
+    },
     // ─── Tier 4 – Sentences ────────────────────────────────────────────────────
     {
       id: "a117-t4-001",
@@ -1333,6 +1348,7 @@ const unit: Unit = {
       hint: "Oggi + il tempo è brutto + piove + e + fa freddo",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t2-002", "a117-t2-010"],
     },
     {
@@ -1347,6 +1363,7 @@ const unit: Unit = {
       hint: "In estate + fa molto caldo + a Roma (use 'a' before city names)",
       tags: ["A1", "weather", "seasons", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t3-008"],
     },
     {
@@ -1361,6 +1378,7 @@ const unit: Unit = {
       hint: "C'è il sole? + voglio (I want) + andare + al mare (al = a + il)",
       tags: ["A1", "weather", "nature", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t2-006", "a117-t1-018"],
     },
     {
@@ -1375,6 +1393,7 @@ const unit: Unit = {
       hint: "Oggi + il cielo è nuvoloso + e + c'è la nebbia",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-023", "a117-t1-006", "a117-t2-007"],
     },
     {
@@ -1389,6 +1408,7 @@ const unit: Unit = {
       hint: "La primavera è la mia stagione preferita + fa caldo + e + ci sono i fiori",
       tags: ["A1", "seasons", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-024", "a117-t2-001", "a117-t2-009"],
     },
     // ─── Tier 4 – Additional sentences seq 100–107 ────────────────────────────
@@ -1404,6 +1424,7 @@ const unit: Unit = {
       hint: "In autunno + le foglie (leaves) + sono + gialle (f.pl) + e + rosse (f.pl)",
       tags: ["A1", "seasons", "nature", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-026"],
     },
     {
@@ -1418,6 +1439,7 @@ const unit: Unit = {
       hint: "Non mi piace + la nebbia + perché + non vedo (I don't see) + niente",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-006"],
     },
     {
@@ -1432,6 +1454,7 @@ const unit: Unit = {
       hint: "Quando (when) + nevica + le montagne + sono + bianche (white, f.pl)",
       tags: ["A1", "weather", "nature", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t2-011", "a117-t1-017"],
     },
     {
@@ -1446,6 +1469,7 @@ const unit: Unit = {
       hint: "In inverno + non voglio + uscire (to go out) + perché + fa troppo freddo",
       tags: ["A1", "seasons", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-027", "a117-t2-002", "a117-t2-015"],
     },
     {
@@ -1456,6 +1480,7 @@ const unit: Unit = {
       hint: "After every storm (temporale) comes the rainbow",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-007", "a117-t1-150"],
     },
     {
@@ -1470,6 +1495,7 @@ const unit: Unit = {
       hint: "Tira molto vento + non posso (I can't) + andare in spiaggia",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t2-012", "a117-t1-160"],
     },
     {
@@ -1484,6 +1510,7 @@ const unit: Unit = {
       hint: "Il lago + è bello (beautiful, m.sg.) + in estate",
       tags: ["A1", "nature", "seasons", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t1-019", "a117-t1-025"],
     },
     {
@@ -1498,7 +1525,89 @@ const unit: Unit = {
       hint: "Piove molto + in questa (in this) + città + in inverno",
       tags: ["A1", "weather", "sentences"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a117-t2-010", "a117-t1-027"],
+    },
+    // ─── Tier 4 – Passage cloze (real 4-6 sentence mini-stories, seq 108–115) ──
+    {
+      id: "a117-t4-108",
+      type: "passage_cloze",
+      prompt: "Marco abita vicino al mare.\nOggi il cielo è azzurro e non ci sono nuvole.\nLui dice: «Che bella giornata! C'è il ___ e voglio nuotare.»\nPrende l'asciugamano e corre in spiaggia con gli amici.\nRestano al mare fino al tramonto.",
+      accepted: ["sole"],
+      hint: "The weather word for a clear, bright sky — what makes Marco want to swim",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t1-001", "a117-t1-018", "a117-t1-160"],
+    },
+    {
+      id: "a117-t4-109",
+      type: "passage_cloze",
+      prompt: "Sono le otto di mattina e Anna esce di casa.\nIl cielo è grigio e ci sono molte nuvole.\nAnna guarda fuori e dice: «Oggi ___, prendo l'ombrello.»\nCammina fino alla fermata dell'autobus sotto la pioggia.\nArriva al lavoro un po' bagnata ma contenta.",
+      accepted: ["piove"],
+      hint: "The impersonal verb for rain — what the grey sky and umbrella tell you",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t2-010", "a117-t1-162"],
+    },
+    {
+      id: "a117-t4-110",
+      type: "passage_cloze",
+      prompt: "In inverno, Luca va sempre in montagna con suo padre.\nQuando arrivano, il paesaggio è bianco e freddo.\nLuca dice: «Guarda, papà! ___ tanto qui!»\nMettono gli sci e scendono felici lungo la montagna.\nLa sera tornano a casa stanchi ma felici.",
+      accepted: ["Nevica"],
+      hint: "The impersonal verb for snow, capitalized — matches the white landscape",
+      tags: ["A1", "weather", "seasons", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t2-011", "a117-t1-017", "a117-t1-027"],
+    },
+    {
+      id: "a117-t4-111",
+      type: "passage_cloze",
+      prompt: "Oggi Sara vuole andare in spiaggia con la sua bicicletta.\nMa fuori tira molto ___ e le nuvole si muovono veloci.\nSara decide di restare a casa e legge un libro.\nDalla finestra guarda gli alberi: si muovono forte fuori.\nDomani, forse, c'è di nuovo il sole.",
+      accepted: ["vento"],
+      hint: "Follows 'tira' — the fixed expression for windy weather",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t2-012", "a117-t1-160"],
+    },
+    {
+      id: "a117-t4-112",
+      type: "passage_cloze",
+      prompt: "Il signor Rossi guida verso l'ufficio molto presto la mattina.\nFuori c'è la ___ e non vede bene la strada.\nAccende le luci della macchina e guida piano piano.\nDopo dieci minuti il cielo si schiarisce e lui vede meglio.\nIl signor Rossi arriva al lavoro in orario.",
+      accepted: ["nebbia"],
+      hint: "Why he can't see the road well and turns on his lights",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t1-006", "a117-t1-023"],
+    },
+    {
+      id: "a117-t4-113",
+      type: "passage_cloze",
+      prompt: "È una sera d'estate e Giulia è in giardino con il cane.\nAll'improvviso il cielo diventa scuro e il vento tira forte.\nGiulia sente un rumore forte: è il primo ___ della stagione.\nCorre dentro casa con il cane prima della pioggia.\nGuardano insieme il temporale dalla finestra.",
+      accepted: ["tuono"],
+      hint: "A loud sound you hear, not something you see like il fulmine",
+      tags: ["A1", "weather", "seasons", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t1-008", "a117-t1-007", "a117-t1-025"],
+    },
+    {
+      id: "a117-t4-114",
+      type: "passage_cloze",
+      prompt: "Siamo a gennaio e la temperatura è molto bassa in città.\nLa piccola Elena non vuole uscire di casa senza il cappotto.\nSua madre le dice: «Metti anche i guanti, oggi fa ___.»\nElena si veste bene e finalmente esce con la madre.\nCamminano insieme fino al parco vicino a casa.",
+      accepted: ["freddo"],
+      hint: "Why Elena needs a coat and gloves before going out in January",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t2-002"],
+    },
+    {
+      id: "a117-t4-115",
+      type: "passage_cloze",
+      prompt: "Dopo tre giorni di pioggia, oggi il tempo cambia in fretta.\nLe nuvole vanno via e il sole torna a splendere.\nMarco guarda fuori dalla finestra e grida: «Guarda, mamma, un ___!»\nCorrono insieme in giardino per vederlo meglio.\nIl cielo è pieno di colori sopra le montagne.",
+      accepted: ["arcobaleno"],
+      hint: "What appears after rain when the sun comes back, full of colors",
+      tags: ["A1", "weather", "passage_cloze"],
+      tier: 4,
+      prerequisites: ["a117-t1-002", "a117-t1-150", "a117-t2-006"],
     },
   ],
 };

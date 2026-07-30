@@ -242,6 +242,7 @@ const unit: Unit = {
       tags: ["sentence", "condizionale", "potere", "negation"],
       tier: 4,
       prerequisites: ["u16-t1-004", "u16-t1-007", "u16-t2-004"],
+      deprecated: true,
     },
     {
       id: "u16-t4-002",
@@ -252,6 +253,7 @@ const unit: Unit = {
       tags: ["fill_blank", "restaurant", "condizionale", "vorrei"],
       tier: 4,
       prerequisites: ["u16-t1-003", "u16-t2-001"],
+      deprecated: true,
     },
     {
       id: "u16-t4-003",
@@ -262,6 +264,7 @@ const unit: Unit = {
       tags: ["fill_blank", "hotel", "condizionale", "essere"],
       tier: 4,
       prerequisites: ["u16-t1-005", "u16-t1-010", "u16-t2-008"],
+      deprecated: true,
     },
     {
       id: "u16-t4-004",
@@ -1278,6 +1281,7 @@ const unit: Unit = {
       tags: ["sentence", "condizionale", "hypothetical"],
       tier: 4,
       prerequisites: ["u16-t1-010", "u16-t1-013"],
+      deprecated: true,
     },
     {
       id: "u16-t4-007",
@@ -1288,6 +1292,7 @@ const unit: Unit = {
       tags: ["fill_blank", "condizionale", "venire"],
       tier: 4,
       prerequisites: ["u16-t1-010", "u16-t2-043"],
+      deprecated: true,
     },
     {
       id: "u16-t4-008",
@@ -1298,6 +1303,7 @@ const unit: Unit = {
       tags: ["fill_blank", "restaurant", "condizionale", "prendere"],
       tier: 4,
       prerequisites: ["u16-t1-004", "u16-t1-019", "u16-t2-036"],
+      deprecated: true,
     },
     {
       id: "u16-t4-009",
@@ -1308,6 +1314,7 @@ const unit: Unit = {
       tags: ["fill_blank", "condizionale", "dormire"],
       tier: 4,
       prerequisites: ["u16-t1-046", "u16-t2-038"],
+      deprecated: true,
     },
     {
       id: "u16-t4-010",
@@ -1318,6 +1325,7 @@ const unit: Unit = {
       tags: ["fill_blank", "condizionale", "parlare"],
       tier: 4,
       prerequisites: ["u16-t2-031"],
+      deprecated: true,
     },
     {
       id: "u16-t4-011",
@@ -1328,6 +1336,7 @@ const unit: Unit = {
       tags: ["fill_blank", "condizionale", "sapere"],
       tier: 4,
       prerequisites: ["u16-t1-011", "u16-t1-013", "u16-t2-042"],
+      deprecated: true,
     },
     {
       id: "u16-t4-012",
@@ -1338,6 +1347,7 @@ const unit: Unit = {
       tags: ["fill_blank", "hotel", "condizionale", "dovere"],
       tier: 4,
       prerequisites: ["u16-t1-013", "u16-t2-030"],
+      deprecated: true,
     },
     {
       id: "u16-t4-013",
@@ -1348,6 +1358,7 @@ const unit: Unit = {
       tags: ["fill_blank", "hotel", "condizionale", "potere"],
       tier: 4,
       prerequisites: ["u16-t1-004", "u16-t2-025"],
+      deprecated: true,
     },
     {
       id: "u16-t4-014",
@@ -1378,6 +1389,7 @@ const unit: Unit = {
       tags: ["sentence", "politeness", "condizionale", "avere"],
       tier: 4,
       prerequisites: ["u16-t1-011", "u16-t1-037", "u16-t2-017"],
+      deprecated: true,
     },
     {
       id: "u16-t4-017",
@@ -1388,6 +1400,7 @@ const unit: Unit = {
       tags: ["sentence", "advice", "condizionale", "avere"],
       tier: 4,
       prerequisites: ["u16-t1-039", "u16-t1-043", "u16-t2-014"],
+      deprecated: true,
     },
     {
       id: "u16-t4-018",
@@ -1398,6 +1411,7 @@ const unit: Unit = {
       tags: ["fill_blank", "condizionale", "essere"],
       tier: 4,
       prerequisites: ["u16-t2-010"],
+      deprecated: true,
     },
     {
       id: "u16-t4-019",
@@ -1408,6 +1422,7 @@ const unit: Unit = {
       tags: ["sentence", "condizionale", "potere", "negation"],
       tier: 4,
       prerequisites: ["u16-t1-004", "u16-t1-007", "u16-t2-026"],
+      deprecated: true,
     },
     {
       id: "u16-t4-020",
@@ -1418,6 +1433,98 @@ const unit: Unit = {
       tags: ["passage_cloze", "restaurant", "condizionale", "vorrei"],
       tier: 4,
       prerequisites: ["u16-t1-014", "u16-t2-001"],
+    },
+
+    // ── Tier 4 – Passage Cloze (replacing retired non-passage sentence cards) ─
+    {
+      id: "u16-t4-021",
+      type: "passage_cloze",
+      prompt: "Elena organizza una cena a sorpresa per il compleanno del marito.\nTelefona al ristorante preferito e chiede se ci sarebbe un tavolo libero vicino alla finestra.\nIl gestore risponde che il sabato sera è sempre pieno, ma per lei farebbe un'eccezione.\nElena ringrazia e promette di confermare il numero esatto degli invitati entro venerdì.\n___ davvero felice di vedere la faccia sorpresa di suo marito quel giorno.",
+      accepted: ["Sarebbe"],
+      hint: "essere in condizionale, third person singular, referring to Elena",
+      tags: ["passage_cloze", "restaurant", "condizionale", "essere"],
+      tier: 4,
+      prerequisites: ["u16-t2-010"],
+    },
+    {
+      id: "u16-t4-022",
+      type: "passage_cloze",
+      prompt: "Dopo un lungo viaggio in treno, Paolo arriva finalmente in albergo.\nAll'accoglienza spiega di avere un dubbio sulla sua prenotazione, perché il sito mostrava un prezzo diverso.\nL'impiegata controlla il sistema e conferma che il prezzo giusto è quello più basso.\nSollevato, Paolo chiede anche una camera silenziosa, lontana dall'ascensore.\n___ (potere) mostrarmi la camera prima di lasciare i bagagli?",
+      accepted: ["Potrebbe"],
+      hint: "potere in condizionale, formal request to see the room",
+      tags: ["passage_cloze", "hotel", "condizionale", "potere", "dubbio"],
+      tier: 4,
+      prerequisites: ["u16-t1-039", "u16-t1-005", "u16-t1-024", "u16-t2-023"],
+    },
+    {
+      id: "u16-t4-023",
+      type: "passage_cloze",
+      prompt: "Giorgio nota che il suo amico Marco sembra stanco e stressato dal lavoro.\nGli chiede se ci sono problemi e Marco ammette di avere troppi impegni questa settimana.\nGiorgio gli dice: 'Se potessi, ti darei una mano con qualche commissione.'\nMarco sorride e risponde che accetterebbe volentieri l'aiuto.\nIl carico di lavoro ___ molto meno pesante, diviso tra due persone.",
+      accepted: ["sembrerebbe"],
+      hint: "sembrare in condizionale, third person singular, regular -are pattern",
+      tags: ["passage_cloze", "condizionale", "sembrare", "se potessi"],
+      tier: 4,
+      prerequisites: ["u16-t1-010", "u16-t2-031"],
+    },
+    {
+      id: "u16-t4-024",
+      type: "passage_cloze",
+      prompt: "Francesca si sveglia con un forte mal di gola e la voce quasi assente.\nTelefona alla sorella, che lavora come infermiera, per un consiglio veloce.\nLa sorella le dice che ___ bere molte tisane calde e riposare tutto il giorno.\nAggiunge che se la situazione non migliora entro domani, converrebbe chiamare il medico.\nFrancesca ringrazia e decide di restare a letto fino a sera.",
+      accepted: ["dovrebbe"],
+      hint: "dovere in condizionale, third person singular, reported advice",
+      tags: ["passage_cloze", "condizionale", "dovere", "consiglio"],
+      tier: 4,
+      prerequisites: ["u16-t1-011", "u16-t2-027"],
+    },
+    {
+      id: "u16-t4-025",
+      type: "passage_cloze",
+      prompt: "All'aeroporto, il volo di Simone è stato cancellato all'ultimo momento per un guasto tecnico.\nAllo sportello chiede all'impiegata quali altre opzioni ci sono per raggiungere Milano oggi stesso.\nL'impiegata controlla il computer e propone un treno che parte tra un'ora.\nSimone accetta subito, sollevato di non dover aspettare fino al giorno dopo.\n___ (potere) darmi il biglietto del treno, per cortesia?",
+      accepted: ["Potrebbe"],
+      hint: "potere in condizionale, formal request for the ticket",
+      tags: ["passage_cloze", "travel", "condizionale", "potere"],
+      tier: 4,
+      prerequisites: ["u16-t2-023"],
+    },
+    {
+      id: "u16-t4-026",
+      type: "passage_cloze",
+      prompt: "Martina entra in un negozio di scarpe per comprare un regalo alla madre.\nLa commessa le mostra due paia molto simili, ma di colori diversi.\nMartina esita e alla fine dice: '___ il modello blu, sembra più elegante.'\nLa commessa incarta il pacco con cura e augura buone feste a Martina.\nUscendo dal negozio, Martina pensa già a come reagirà sua madre al regalo.",
+      accepted: ["Preferirei"],
+      hint: "preferire in condizionale, first person singular",
+      tags: ["passage_cloze", "shopping", "condizionale", "preferire"],
+      tier: 4,
+      prerequisites: ["u16-t2-037"],
+    },
+    {
+      id: "u16-t4-027",
+      type: "passage_cloze",
+      prompt: "Luca ha dimenticato il portafoglio a casa e ha urgente bisogno di pagare un taxi.\nChiama il collega Davide, che abita vicino all'ufficio, e gli spiega la situazione.\nDavide ride e dice che capita a tutti, non c'è motivo di preoccuparsi.\n'Mi ___ un grande favore?', chiede Luca. 'Potresti anticiparmi venti euro fino a stasera?'\nDavide accetta senza esitazione e promette di portarglieli tra dieci minuti.",
+      accepted: ["faresti"],
+      hint: "fare in condizionale, second person singular, informal favor request",
+      tags: ["passage_cloze", "condizionale", "fare", "favore"],
+      tier: 4,
+      prerequisites: ["u16-t1-012"],
+    },
+    {
+      id: "u16-t4-028",
+      type: "passage_cloze",
+      prompt: "Sara e i suoi colleghi festeggiano la fine di un progetto importante in un ristorante di pesce.\nIl cameriere consiglia il piatto del giorno, preparato con pescato fresco della mattina.\nTutti annuiscono entusiasti e uno di loro dice: '___ anche una bottiglia di vino bianco, per festeggiare.'\nAlla fine della cena, chiedono la ricevuta per dividere il conto in parti uguali.\nEscono dal ristorante soddisfatti, promettendo di tornare presto.",
+      accepted: ["Vorremmo"],
+      hint: "volere in condizionale, first person plural",
+      tags: ["passage_cloze", "restaurant", "condizionale", "volere"],
+      tier: 4,
+      prerequisites: ["u16-t1-048", "u16-t2-020"],
+    },
+    {
+      id: "u16-t4-029",
+      type: "passage_cloze",
+      prompt: "Chiara sogna da anni di visitare il Giappone, ma non ha mai trovato il momento giusto.\nUn giorno scopre online un volo scontato per Tokyo, con partenza tra due mesi.\nChiama subito la sua migliore amica per proporle di partire insieme.\nL'amica esita per il costo, ma Chiara insiste dicendo che una tale occasione capita raramente.\n___ un peccato lasciarsela sfuggire dopo tanti anni di attesa.",
+      accepted: ["Sarebbe"],
+      hint: "essere in condizionale, third person singular, impersonal expression",
+      tags: ["passage_cloze", "travel", "condizionale", "essere", "occasione"],
+      tier: 4,
+      prerequisites: ["u16-t1-016", "u16-t2-010"],
     },
 
     // ── Tier 3 – Chunks & Phrases (context-coverage pass) ─────────────────────

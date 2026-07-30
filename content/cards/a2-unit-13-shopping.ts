@@ -231,6 +231,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "demonstratives", "object-pronouns"],
       tier: 4,
       prerequisites: ["u13-t1-004", "u13-t2-003", "u13-t2-006"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-002",
@@ -241,6 +244,9 @@ const unit: Unit = {
       tags: ["shopping", "object-pronouns", "fill-blank"],
       tier: 4,
       prerequisites: ["u13-t1-005", "u13-t2-005"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-003",
@@ -251,6 +257,9 @@ const unit: Unit = {
       tags: ["shopping", "object-pronouns", "fill-blank"],
       tier: 4,
       prerequisites: ["u13-t1-006", "u13-t2-003"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-004",
@@ -1308,6 +1317,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-017", "u13-t2-033"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-007",
@@ -1318,6 +1330,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "negotiation"],
       tier: 4,
       prerequisites: ["u13-t1-021", "u13-t1-039", "u13-t1-041"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-008",
@@ -1328,6 +1343,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-011", "u13-t1-055"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-009",
@@ -1348,6 +1366,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-002", "u13-t1-057"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-011",
@@ -1358,6 +1379,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-013", "u13-t1-067", "u13-t1-059"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-012",
@@ -1367,6 +1391,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "materials"],
       tier: 4,
       prerequisites: ["u13-t1-013", "u13-t1-067", "u13-t1-063"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-013",
@@ -1376,6 +1403,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "materials"],
       tier: 4,
       prerequisites: ["u13-t1-007", "u13-t1-069", "u13-t1-037"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-014",
@@ -1396,6 +1426,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "returns", "object-pronouns"],
       tier: 4,
       prerequisites: ["u13-t1-027", "u13-t2-004"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-016",
@@ -1405,6 +1438,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-001", "u13-t3-020"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-017",
@@ -1415,6 +1451,9 @@ const unit: Unit = {
       tags: ["shopping", "fill-blank", "materials"],
       tier: 4,
       prerequisites: ["u13-t1-015", "u13-t1-065"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
     {
       id: "u13-t4-018",
@@ -1434,6 +1473,9 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "returns"],
       tier: 4,
       prerequisites: ["u13-t1-021", "u13-t1-057"],
+      // 2026-07-30 tier-4 passage audit: retired — standalone 1-2 sentence card, not a genuine
+      // passage per BRAND.md/CURRICULUM.md. Replaced by real passage_cloze mini-stories (u13-t4-020+).
+      deprecated: true,
     },
 
     // ── Tier 3 – Chunks & Phrases (word-coverage fix) ────────────────────────
@@ -1496,6 +1538,88 @@ const unit: Unit = {
       tags: ["shopping", "sentence", "negotiation"],
       tier: 3,
       prerequisites: ["u13-t1-047", "u13-t1-039", "u13-t1-033"],
+    },
+
+    // ── Tier 4 – Sentences & Passages (genuine multi-sentence passages) ──────
+    {
+      id: "u13-t4-020",
+      type: "passage_cloze",
+      prompt: "Elena entra in un negozio e vede un paio di jeans blu.\nChiede alla commessa se può provarli e la commessa le indica il camerino.\nElena li prova subito e sono perfetti.\nCostano solo trenta euro grazie ai saldi di stagione.\nElena decide di ___ prima della fine dei saldi.",
+      accepted: ["comprarli"],
+      hint: "buy them — comprare + the object pronoun li, attached to the infinitive",
+      tags: ["shopping", "passage", "clothing", "object-pronouns"],
+      tier: 4,
+      prerequisites: ["u13-t1-015", "u13-t1-051", "u13-t1-037", "u13-t2-004"],
+    },
+    {
+      id: "u13-t4-021",
+      type: "passage_cloze",
+      prompt: "Filippo cerca un regalo per il compleanno di suo padre.\nEntra in un grande magazzino e vede un maglione elegante.\nLa commessa gli dice: «È ___, perfetto per l'inverno.»\nFilippo decide di comprarlo perché il prezzo è conveniente.\nSuo padre lo indossa subito quando lo riceve.",
+      accepted: ["di lana"],
+      hint: "made of wool — material expression with di",
+      tags: ["shopping", "passage", "materials"],
+      tier: 4,
+      prerequisites: ["u13-t1-013", "u13-t1-075", "u13-t1-061"],
+    },
+    {
+      id: "u13-t4-022",
+      type: "passage_cloze",
+      prompt: "Martina va al centro commerciale per comprare una maglietta estiva.\nTrova una maglietta bianca e chiede alla commessa da che tessuto è fatta.\nLa commessa risponde: «È ___, leggera e comoda per l'estate.»\nMartina la prova e le sta benissimo.\nCompra la maglietta e torna a casa contenta.",
+      accepted: ["di cotone"],
+      hint: "made of cotton — material expression with di",
+      tags: ["shopping", "passage", "materials", "clothing"],
+      tier: 4,
+      prerequisites: ["u13-t1-011", "u13-t1-073", "u13-t1-063"],
+    },
+    {
+      id: "u13-t4-023",
+      type: "passage_cloze",
+      prompt: "La settimana scorsa Anna ha comprato un vestito per una festa.\nA casa lo prova di nuovo e vede che è troppo largo.\nTorna al negozio con lo scontrino e la commessa la aiuta subito.\nAnna decide di restituire il ___ e chiede un rimborso.\nLa prossima volta controllerà bene la taglia prima di pagare.",
+      accepted: ["vestito"],
+      hint: "the dress being returned — repeats the noun from the first sentence",
+      tags: ["shopping", "passage", "returns"],
+      tier: 4,
+      prerequisites: ["u13-t1-006", "u13-t1-055", "u13-t1-059", "u13-t3-020"],
+    },
+    {
+      id: "u13-t4-024",
+      type: "passage_cloze",
+      prompt: "Al mercato Giovanni vede un paio di stivali di pelle che gli piacciono molto.\nChiede al venditore: «Quanto costano?»\nIl venditore risponde: «Ottanta euro, ma per lei posso fare uno sconto.»\nGiovanni negozia un po' e alla fine paga sessanta euro.\nEsce dal mercato contento di aver fatto un ___.",
+      accepted: ["affare"],
+      hint: "fare un affare = to get a good deal (collocation, see u13-t3-025)",
+      tags: ["shopping", "passage", "negotiation"],
+      tier: 4,
+      prerequisites: ["u13-t1-027", "u13-t1-069", "u13-t3-025"],
+    },
+    {
+      id: "u13-t4-025",
+      type: "passage_cloze",
+      prompt: "Chiara entra in un negozio di scarpe prima di un viaggio.\nVede un paio di scarpe comode e chiede alla commessa la sua taglia.\nLa commessa porta le scarpe e Chiara le prova subito.\nSono comode e non sono troppo strette né troppo larghe.\nChiara ___ e le paga alla cassa senza esitare.",
+      accepted: ["le prende"],
+      hint: "she takes them — object pronoun le replaces le scarpe",
+      tags: ["shopping", "passage", "clothing", "object-pronouns"],
+      tier: 4,
+      prerequisites: ["u13-t1-005", "u13-t1-008", "u13-t1-057", "u13-t1-059"],
+    },
+    {
+      id: "u13-t4-026",
+      type: "passage_cloze",
+      prompt: "Paolo ha ricevuto un cappotto in regalo per Natale, ma è troppo stretto.\nVa nel negozio dove è stato comprato e spiega il problema alla commessa.\nLa commessa controlla la taglia e trova un cappotto uguale ma più grande.\nPaolo lo prova nel camerino e questa volta gli sta bene.\nFa il cambio e ringrazia la commessa prima di uscire dal ___.",
+      accepted: ["negozio"],
+      hint: "fare il cambio = to make an exchange (collocation, see u13-t3-027)",
+      tags: ["shopping", "passage", "returns"],
+      tier: 4,
+      prerequisites: ["u13-t1-017", "u13-t1-051", "u13-t3-027"],
+    },
+    {
+      id: "u13-t4-027",
+      type: "passage_cloze",
+      prompt: "Roberto vuole comprare un cappello elegante per un matrimonio.\nNel negozio trova un cappello di lana grigio, ma il prezzo è alto.\nChiede al commesso se c'è uno sconto per i clienti abituali.\nIl commesso gli fa uno sconto del quindici per cento.\nRoberto paga alla ___ e esce soddisfatto del suo acquisto.",
+      accepted: ["cassa"],
+      hint: "where you pay before leaving the store",
+      tags: ["shopping", "passage", "negotiation"],
+      tier: 4,
+      prerequisites: ["u13-t1-023", "u13-t1-067", "u13-t1-039", "u13-t1-053"],
     },
   ],
 };

@@ -1198,6 +1198,7 @@ const unit: Unit = {
         "u05-t2-003",
         "u05-t3-004",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-002",
@@ -1218,6 +1219,7 @@ const unit: Unit = {
         "u05-t3-001",
         "u05-t3-002",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-003",
@@ -1236,6 +1238,7 @@ const unit: Unit = {
         "u05-t2-003",
         "u05-t3-007",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-004",
@@ -1250,6 +1253,7 @@ const unit: Unit = {
         "u05-t2-003",
         "u05-t3-007",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-005",
@@ -1267,6 +1271,7 @@ const unit: Unit = {
         "u05-t1-009",
         "u05-t2-007",
       ],
+      deprecated: true,
     },
 
     // ─── TIER 4 — Additional sentences (NEW) ─────────────────────────────
@@ -1288,6 +1293,7 @@ const unit: Unit = {
         "u05-t1-013",
         "u05-t1-170",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-101",
@@ -1306,6 +1312,7 @@ const unit: Unit = {
         "u05-t2-004",
         "u05-t2-109",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-102",
@@ -1323,6 +1330,7 @@ const unit: Unit = {
         "u05-t2-004",
         "u05-t2-111",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-103",
@@ -1341,6 +1349,7 @@ const unit: Unit = {
         "u05-t1-014",
         "u05-t2-002",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-104",
@@ -1358,6 +1367,7 @@ const unit: Unit = {
         "u05-t2-003",
         "u05-t3-006",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-105",
@@ -1371,6 +1381,7 @@ const unit: Unit = {
         "u05-t2-004",
         "u05-t2-107",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-106",
@@ -1386,6 +1397,7 @@ const unit: Unit = {
       prerequisites: [
         "u05-t1-007",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-107",
@@ -1403,6 +1415,7 @@ const unit: Unit = {
         "u05-t1-009",
         "u05-t2-109",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-108",
@@ -1420,6 +1433,7 @@ const unit: Unit = {
         "u05-t2-005",
         "u05-t1-011",
       ],
+      deprecated: true,
     },
     {
       id: "u05-t4-109",
@@ -1433,6 +1447,111 @@ const unit: Unit = {
         "u05-t2-004",
         "u05-t2-110",
       ],
+      deprecated: true,
+    },
+
+    // ─── TIER 4 — Additional passages (NEW) ───────────────────────────────
+    // Self-contained 4-6 sentence mini-stories, ~40-70 words, exactly one blank each.
+
+    {
+      id: "u05-t4-110",
+      type: "passage_cloze",
+      prompt: "Ogni lunedì Marco torna in ufficio dopo il weekend.\nQuesta mattina si sveglia presto, alle sette.\nOggi è ___, il primo giorno della settimana.\nDomani è già martedì, un giorno più tranquillo.\nMarco beve il caffè e comincia a lavorare.",
+      accepted: ["lunedì"],
+      hint: "the first day of the work week, right after the weekend",
+      tags: ["passage_cloze", "calendar", "days", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-001", "u05-t1-002", "u05-t1-009", "u05-t1-014", "u05-t1-012", "u05-t1-152"],
+    },
+    {
+      id: "u05-t4-111",
+      type: "passage_cloze",
+      prompt: "Elena ama molto lo yoga e non vuole mai saltare la lezione.\nOgni giovedì pomeriggio ha lezione con la sua insegnante.\nOggi è mercoledì, quindi la lezione è domani.\nMercoledì sera lei lavora fino a tardi in ufficio.\nIl giorno dopo si chiama ___, il giorno della sua lezione preferita.",
+      accepted: ["giovedì"],
+      hint: "the day after Wednesday — Elena's favorite lesson day",
+      tags: ["passage_cloze", "calendar", "days", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-004", "u05-t1-003", "u05-t1-015", "u05-t1-016", "u05-t1-013", "u05-t1-008", "u05-t1-009"],
+    },
+    {
+      id: "u05-t4-112",
+      type: "passage_cloze",
+      prompt: "Ogni ___ sera Luca esce con gli amici del suo palazzo.\nÈ sempre l'ultimo giorno di lavoro della settimana.\nDopo cena vanno tutti al bar vicino a casa.\nIl sabato e la domenica sono per riposare.\nA Luca piace molto questo momento della settimana.",
+      accepted: ["venerdì"],
+      hint: "the last workday of the week, when Luca goes out with friends",
+      tags: ["passage_cloze", "calendar", "days", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-005", "u05-t1-170", "u05-t1-152", "u05-t1-006", "u05-t1-007", "u05-t1-016"],
+    },
+    {
+      id: "u05-t4-113",
+      type: "passage_cloze",
+      prompt: "Marco vive lontano dalla sua famiglia per lavoro.\nOgni estate torna al suo paese per le vacanze.\nQuest'___ però arriva una settimana prima del solito.\nI suoi genitori sono già molto contenti di vederlo.\nMangiano insieme la sera e parlano per ore.",
+      accepted: ["anno"],
+      hint: "this ___, contracted with quest' — the current twelve-month period",
+      tags: ["passage_cloze", "calendar", "time", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-156", "u05-t1-152", "u05-t1-016"],
+    },
+    {
+      id: "u05-t4-114",
+      type: "passage_cloze",
+      prompt: "Ogni giorno Paola pranza sempre alla stessa ora.\nA ___ esce dall'ufficio e va al bar vicino.\nOrdina un panino e una bottiglia d'acqua fresca.\nMangia in venti minuti e poi torna a lavorare.\nIl pomeriggio per lei sembra sempre molto lungo.",
+      accepted: ["mezzogiorno"],
+      hint: "twelve noon — when Paola leaves the office for lunch",
+      tags: ["passage_cloze", "time", "daily-routine", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-160", "u05-t1-150", "u05-t1-170", "u05-t1-158", "u05-t1-015"],
+    },
+    {
+      id: "u05-t4-115",
+      type: "passage_cloze",
+      prompt: "Il treno di Sara arriva sempre molto tardi la sera.\nStasera aspetta alla stazione da tre ore.\nGuarda l'orologio: sono quasi le dodici, quasi ___.\nFinalmente il treno arriva e Sara sale felice.\nDomani racconta tutto questo viaggio ai suoi amici.",
+      accepted: ["mezzanotte"],
+      hint: "twelve midnight — when Sara's delayed train finally arrives",
+      tags: ["passage_cloze", "time", "travel", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-162", "u05-t1-170", "u05-t1-013", "u05-t1-016", "u05-t1-158", "u05-t1-009"],
+    },
+    {
+      id: "u05-t4-116",
+      type: "passage_cloze",
+      prompt: "Il fine settimana ___ Anna e Marco vanno al mare con i figli.\nDi solito preferiscono restare a casa quando piove.\nQuesta volta il meteo promette sole e caldo.\nI bambini sono già pronti con i costumi in borsa.\nLa sera tutti tornano a casa stanchi ma felici.",
+      accepted: ["prossimo"],
+      hint: "next weekend — the adjective that follows 'il fine settimana'",
+      tags: ["passage_cloze", "calendar", "time-adjective", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-164", "u05-t1-166", "u05-t1-016"],
+    },
+    {
+      id: "u05-t4-117",
+      type: "passage_cloze",
+      prompt: "Paolo lavora fino a tardi quasi ogni sera in ufficio.\nQuando torna a casa, fatica ad addormentarsi.\nDi solito resta sveglio fino a mezzanotte.\nLa ___ però ama leggere un libro tranquillo.\nCosì si rilassa piano piano prima di dormire.",
+      accepted: ["notte"],
+      hint: "nighttime — when Paolo likes to read to relax, despite staying up until midnight",
+      tags: ["passage_cloze", "time-of-day", "daily-routine", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-017", "u05-t1-013", "u05-t1-016", "u05-t1-162"],
+    },
+    {
+      id: "u05-t4-118",
+      type: "passage_cloze",
+      prompt: "Giulia telefona alla sua amica Sara ogni giorno.\nOggi le chiede: «Che fai ___?»\nSara risponde che guarda la televisione in salotto.\nGiulia dice che vuole uscire subito per una passeggiata.\nSara accetta e si preparano insieme in dieci minuti.",
+      accepted: ["adesso", "ora"],
+      hint: "right now — what Giulia asks Sara she's doing this very moment",
+      tags: ["passage_cloze", "time-adverb", "daily-routine", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-011", "u05-t1-150", "u05-t1-008", "u05-t1-174"],
+    },
+    {
+      id: "u05-t4-119",
+      type: "passage_cloze",
+      prompt: "Elena studia l'italiano ogni giorno per un'ora.\nQuesta ___ ha tre lezioni con l'insegnante Marco.\nLunedì e mercoledì studia la grammatica, venerdì la conversazione.\nOgni mese ripete le nuove parole del corso.\nCosì impara sempre qualcosa senza mai stancarsi troppo.",
+      accepted: ["settimana"],
+      hint: "this ___ — Elena has three lessons scheduled in it",
+      tags: ["passage_cloze", "calendar", "study", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["u05-t1-152", "u05-t1-150", "u05-t1-158", "u05-t1-001", "u05-t1-003", "u05-t1-005", "u05-t1-154", "u05-t1-170", "u05-t1-172"],
     },
 
     // ─── TIER 3 — Additional phrases, round 2 (NEW) ───────────────────────

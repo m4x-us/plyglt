@@ -1224,6 +1224,81 @@ const unit: Unit = {
       tier: 3,
       prerequisites: ["a120-t1-172"],
     },
+    // ─── Tier 3 – Context-restoration cards (Task: passage_cloze expansion) ─
+    // These restore sentence context for tier-1 words whose only prior context
+    // sentence lived in a tier-4 card that has since been deprecated.
+    {
+      id: "a120-t3-118",
+      type: "produce",
+      prompt: "I wear a blue shirt to the office.",
+      accepted: ["Porto una camicia blu in ufficio.", "Porto una camicia blu in ufficio"],
+      prompts: { "es": "Llevo una camisa azul a la oficina." },
+      hint: "Porto = I wear; blu is invariable (no agreement)",
+      tags: ["A1", "clothes", "work", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-001"],
+    },
+    {
+      id: "a120-t3-119",
+      type: "produce",
+      prompt: "In winter I wear wool socks.",
+      accepted: ["In inverno porto i calzini di lana.", "In inverno porto i calzini di lana"],
+      prompts: { "es": "En invierno llevo calcetines de lana." },
+      hint: "Calzini = socks; di lana = made of wool",
+      tags: ["A1", "clothes", "seasons", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-013"],
+    },
+    {
+      id: "a120-t3-120",
+      type: "produce",
+      prompt: "This scarf is a gift from my mother.",
+      accepted: ["Questa sciarpa è un regalo di mia madre.", "Questa sciarpa è un regalo di mia madre"],
+      prompts: { "es": "Esta bufanda es un regalo de mi madre." },
+      hint: "Questa sciarpa = this scarf (f. sg.); regalo = gift",
+      tags: ["A1", "clothes", "accessories", "family", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-015"],
+    },
+    {
+      id: "a120-t3-121",
+      type: "produce",
+      prompt: "I always carry my keys in my bag.",
+      accepted: ["Porto sempre le chiavi nella borsa.", "Porto sempre le chiavi nella borsa"],
+      prompts: { "es": "Siempre llevo las llaves en el bolso." },
+      hint: "Nella = in + la; chiavi = keys",
+      tags: ["A1", "clothes", "accessories", "daily-life", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-017"],
+    },
+    {
+      id: "a120-t3-122",
+      type: "produce",
+      prompt: "This belt is too big for these trousers.",
+      accepted: [
+        "Questa cintura è troppo grande per questi pantaloni.",
+        "Questa cintura è troppo grande per questi pantaloni",
+      ],
+      prompts: { "es": "Este cinturón es demasiado grande para estos pantalones." },
+      hint: "Troppo grande = too big; cintura is feminine",
+      tags: ["A1", "clothes", "accessories", "adjectives", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-019"],
+    },
+    {
+      id: "a120-t3-123",
+      type: "produce",
+      prompt: "My father wears a tie only for weddings.",
+      accepted: [
+        "Mio padre porta la cravatta solo per i matrimoni.",
+        "Mio padre porta la cravatta solo per i matrimoni",
+      ],
+      prompts: { "es": "Mi padre lleva corbata solo para las bodas." },
+      hint: "Solo per = only for; matrimoni = weddings",
+      tags: ["A1", "clothes", "accessories", "family", "chunks"],
+      tier: 3,
+      prerequisites: ["a120-t1-152"],
+    },
     // ─── Tier 4 – Sentences ────────────────────────────────────────────────
     {
       id: "a120-t4-001",
@@ -1238,6 +1313,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "work", "adjectives", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-004", "a120-t2-001"],
+      deprecated: true,
     },
     {
       id: "a120-t4-002",
@@ -1252,6 +1328,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "adjectives", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-006", "a120-t3-002"],
+      deprecated: true,
     },
     {
       id: "a120-t4-003",
@@ -1266,6 +1343,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a120-t2-008", "a120-t3-001"],
+      deprecated: true,
     },
     {
       id: "a120-t4-004",
@@ -1280,6 +1358,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "colors", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-001", "a120-t1-002", "a120-t2-012"],
+      deprecated: true,
     },
     {
       id: "a120-t4-005",
@@ -1294,6 +1373,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "footwear", "adjectives", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-011"],
+      deprecated: true,
     },
     // ─── Tier 4 – Additional sentences ────────────────────────────────────
     {
@@ -1309,6 +1389,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "work", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-152"],
+      deprecated: true,
     },
     {
       id: "a120-t4-101",
@@ -1323,6 +1404,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "family", "adjectives", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-017"],
+      deprecated: true,
     },
     {
       id: "a120-t4-102",
@@ -1337,6 +1419,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a120-t3-102"],
+      deprecated: true,
     },
     {
       id: "a120-t4-103",
@@ -1351,6 +1434,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "accessories", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-015", "a120-t1-016"],
+      deprecated: true,
     },
     {
       id: "a120-t4-104",
@@ -1361,6 +1445,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a120-t2-008", "a120-t3-001"],
+      deprecated: true,
     },
     {
       id: "a120-t4-105",
@@ -1375,6 +1460,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a120-t2-011"],
+      deprecated: true,
     },
     {
       id: "a120-t4-106",
@@ -1389,6 +1475,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-013", "a120-t1-019"],
+      deprecated: true,
     },
     {
       id: "a120-t4-107",
@@ -1403,6 +1490,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "family", "colors", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-001", "a120-t1-002"],
+      deprecated: true,
     },
     {
       id: "a120-t4-108",
@@ -1417,6 +1505,7 @@ const unit: Unit = {
       tags: ["A1", "clothes", "family", "seasons", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-015"],
+      deprecated: true,
     },
     {
       id: "a120-t4-109",
@@ -1428,6 +1517,107 @@ const unit: Unit = {
       tags: ["A1", "clothes", "accessories", "sentences"],
       tier: 4,
       prerequisites: ["a120-t1-017", "a120-t1-018"],
+      deprecated: true,
+    },
+    // ─── Tier 4 – Reading passages (passage_cloze) ─────────────────────────
+    {
+      id: "a120-t4-110",
+      type: "passage_cloze",
+      prompt:
+        "Marco lavora in banca e ogni mattina si prepara con cura.\nOggi porta una camicia bianca nuova, comprata la settimana scorsa.\nPoi sceglie la ___ blu, il regalo di sua moglie.\nGuarda l'orologio: sono le otto, è ora di andare.\nMarco esce di casa e saluta i vicini con un sorriso.",
+      accepted: ["cravatta"],
+      hint: "Cravatta = tie; the blue one was a gift from his wife",
+      tags: ["A1", "clothes", "work", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-152", "a120-t1-001"],
+    },
+    {
+      id: "a120-t4-111",
+      type: "passage_cloze",
+      prompt:
+        "Oggi fa molto freddo e nevica in centro città.\nGiulia mette il cappotto pesante e la sciarpa di lana.\nPer uscire, cerca anche i ___ nella borsa, ma non li trova.\nSua sorella le presta un paio nuovo prima di partire.\nCosì Giulia può finalmente andare a scuola senza sentire freddo alle mani.",
+      accepted: ["guanti"],
+      hint: "Guanti = gloves; needed to keep her hands warm",
+      tags: ["A1", "clothes", "weather", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-016", "a120-t1-006", "a120-t1-015"],
+    },
+    {
+      id: "a120-t4-112",
+      type: "passage_cloze",
+      prompt:
+        "È agosto e la famiglia va al mare per una settimana.\nLa mamma mette il cappello e i sandali nuovi.\nIl papà cerca gli ___ perché il sole è fortissimo oggi.\nI bambini corrono sulla sabbia, felici delle vacanze.\nDopo il bagno, tutti mangiano un gelato al bar della spiaggia.",
+      accepted: ["occhiali da sole"],
+      hint: "Occhiali da sole = sunglasses; needed against the strong sun",
+      tags: ["A1", "clothes", "accessories", "seasons", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-158", "a120-t1-156"],
+    },
+    {
+      id: "a120-t4-113",
+      type: "passage_cloze",
+      prompt:
+        "Domani parto per un viaggio di lavoro a Londra.\nMetto in valigia due camicie e un vestito elegante per le riunioni.\nControllo le previsioni: a Londra piove quasi sempre.\nPer questo aggiungo anche l' ___ nello zaino, non si sa mai.\nOra sono pronta e posso chiudere la valigia.",
+      accepted: ["impermeabile"],
+      hint: "Impermeabile = raincoat; needed because it rains often in London",
+      tags: ["A1", "clothes", "weather", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-172", "a120-t1-018"],
+    },
+    {
+      id: "a120-t4-114",
+      type: "passage_cloze",
+      prompt:
+        "Oggi è il compleanno di mia nonna e tutta la famiglia si riunisce.\nLei porta un vestito elegante e l'anello di sua madre.\nAl collo porta anche la ___ d'oro, un regalo di suo marito.\nTutti i nipoti la guardano e dicono che è bellissima.\nDopo la torta, nonna sorride e ringrazia tutti con gli occhi lucidi.",
+      accepted: ["collana"],
+      hint: "Collana = necklace; d'oro = made of gold",
+      tags: ["A1", "clothes", "accessories", "family", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-166", "a120-t1-162"],
+    },
+    {
+      id: "a120-t4-115",
+      type: "passage_cloze",
+      prompt:
+        "Ogni sabato mattina Luca va in palestra con il suo amico Paolo.\nPrima di uscire, Luca mette la ___ grigia e le scarpe da ginnastica.\nIn palestra corrono insieme per trenta minuti e poi fanno pesi.\nDopo l'allenamento sono stanchi ma contenti.\nA casa, Luca lava subito i vestiti sportivi prima di fare la doccia.",
+      accepted: ["tuta"],
+      hint: "Tuta = tracksuit; grigia = grey (f. sg.)",
+      tags: ["A1", "clothes", "footwear", "sports", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-170", "a120-t1-012"],
+    },
+    {
+      id: "a120-t4-116",
+      type: "passage_cloze",
+      prompt:
+        "Al mercato la signora Rossi cerca le chiavi di casa nella borsa.\nNella borsa non c'è il ___ con i documenti.\nTorna indietro verso il banco della frutta, un po' preoccupata.\nPer fortuna il venditore lo trova vicino alle mele.\nLa signora Rossi ringrazia e mette subito tutto nello zaino.",
+      accepted: ["portafoglio"],
+      hint: "Portafoglio = wallet; it holds her documents",
+      tags: ["A1", "clothes", "accessories", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-168", "a120-t1-017"],
+    },
+    {
+      id: "a120-t4-117",
+      type: "passage_cloze",
+      prompt:
+        "Sono le dieci di sera e Sofia è stanca dopo una lunga giornata.\nFa la doccia calda e poi si asciuga con l'asciugamano blu.\nMette il ___ leggero, perfetto per l'estate.\nPrima di dormire, legge qualche pagina del suo libro preferito.\nSpegne la luce e si addormenta subito, tranquilla e felice.",
+      accepted: ["pigiama"],
+      hint: "Pigiama = pajamas; leggero = lightweight, good for summer",
+      tags: ["A1", "clothes", "daily-life", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t1-154"],
+    },
+    {
+      id: "a120-t4-118",
+      type: "passage_cloze",
+      prompt:
+        "La signora Bianchi entra in un negozio di abiti eleganti.\nVede un vestito verde molto bello e chiede alla commessa la taglia.\nLa commessa risponde: «Certo, il ___ è a destra, vicino alla cassa.»\nLa signora Bianchi prova il vestito e le sta benissimo.\nAlla fine lo compra ed esce dal negozio soddisfatta.",
+      accepted: ["camerino"],
+      hint: "Camerino = fitting room; a destra = to the right",
+      tags: ["A1", "clothes", "shopping", "passages"],
+      tier: 4,
+      prerequisites: ["a120-t3-102", "a120-t1-004"],
     },
   ],
 };

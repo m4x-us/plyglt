@@ -303,6 +303,7 @@ const unit: Unit = {
       tags: ["production", "comparative", "irregular"],
       tier: 4,
       prerequisites: ["u17-t2-001", "u17-t2-005", "u17-t2-008"],
+      deprecated: true,
     },
     {
       id: "u17-t4-002",
@@ -313,6 +314,7 @@ const unit: Unit = {
       tags: ["production", "superlative", "irregular"],
       tier: 4,
       prerequisites: ["u17-t2-005", "u17-t2-009"],
+      deprecated: true,
     },
     {
       id: "u17-t4-003",
@@ -346,6 +348,7 @@ const unit: Unit = {
       tags: ["production", "comparative", "equality"],
       tier: 4,
       prerequisites: ["u17-t1-007", "u17-t1-010", "u17-t2-001", "u17-t2-003", "u17-t2-004"],
+      deprecated: true,
     },
 
     // ── Tier 1 – Vocabulary (expansion) ───────────────────────────────────────
@@ -1450,6 +1453,7 @@ const unit: Unit = {
       tags: ["production", "irregular", "adverb"],
       tier: 4,
       prerequisites: ["u17-t2-007", "u17-t2-013"],
+      deprecated: true,
     },
     {
       id: "u17-t4-007",
@@ -1460,6 +1464,7 @@ const unit: Unit = {
       tags: ["production", "irregular", "superlative"],
       tier: 4,
       prerequisites: ["u17-t2-015", "u17-t2-016"],
+      deprecated: true,
     },
     {
       id: "u17-t4-008",
@@ -1490,6 +1495,7 @@ const unit: Unit = {
       tags: ["production", "comparative"],
       tier: 4,
       prerequisites: ["u17-t1-049", "u17-t2-001"],
+      deprecated: true,
     },
     {
       id: "u17-t4-011",
@@ -1500,6 +1506,7 @@ const unit: Unit = {
       tags: ["production", "adverb", "irregular"],
       tier: 4,
       prerequisites: ["u17-t2-013"],
+      deprecated: true,
     },
     {
       id: "u17-t4-012",
@@ -1510,6 +1517,7 @@ const unit: Unit = {
       tags: ["production", "superlative", "irregular"],
       tier: 4,
       prerequisites: ["u17-t2-006", "u17-t2-009"],
+      deprecated: true,
     },
     {
       id: "u17-t4-013",
@@ -1530,6 +1538,7 @@ const unit: Unit = {
       tags: ["production", "superlative"],
       tier: 4,
       prerequisites: ["u17-t1-047", "u17-t1-023", "u17-t2-009"],
+      deprecated: true,
     },
     {
       id: "u17-t4-015",
@@ -1540,6 +1549,79 @@ const unit: Unit = {
       tags: ["production", "comparative"],
       tier: 4,
       prerequisites: ["u17-t2-002"],
+      deprecated: true,
+    },
+
+    // ── Tier 4 – Passage Cloze (self-contained mini-stories) ──────────────────
+    {
+      id: "u17-t4-016",
+      type: "passage_cloze",
+      prompt: "In ufficio lavorano due colleghi molto diversi.\nPaolo è forte e alto, mentre Luca è basso ma velocissimo con i numeri.\nSecondo me, in questo lavoro l'intelligenza conta ___ della forza fisica.\nIl mese scorso il capo ha promosso Luca, e adesso Paolo studia ogni sera per non restare indietro.",
+      accepted: ["più"],
+      hint: "comparative of superiority — 'counts more than'",
+      tags: ["passage_cloze", "comparative"],
+      tier: 4,
+      prerequisites: ["u17-t1-029", "u17-t1-017", "u17-t1-019", "u17-t2-001"],
+    },
+    {
+      id: "u17-t4-017",
+      type: "passage_cloze",
+      prompt: "Ieri sera abbiamo provato un nuovo ristorante vicino a casa.\nIl cibo era buono, ma secondo me quello dove andiamo di solito è ___.\nLì lo chef prepara sempre piatti freschi e i prezzi sono più economici.\nLa prossima volta torneremo di sicuro nel nostro posto preferito.",
+      accepted: ["migliore"],
+      hint: "irregular comparative of buono, agrees with 'ristorante' (masc.)",
+      tags: ["passage_cloze", "comparative", "irregular"],
+      tier: 4,
+      prerequisites: ["u17-t2-005", "u17-t1-004"],
+    },
+    {
+      id: "u17-t4-018",
+      type: "passage_cloze",
+      prompt: "La squadra della mia città ha giocato una partita difficile ieri.\nAll'inizio sembrava debole, ma nel secondo tempo ha giocato molto ___.\nGrazie a questo, ha vinto contro una squadra più forte e più ricca.\nI tifosi erano felicissimi e sperano di vincere anche la partita prossima.",
+      accepted: ["meglio"],
+      hint: "adverb modifying 'ha giocato' — not the adjective migliore",
+      tags: ["passage_cloze", "comparative", "adverb", "irregular"],
+      tier: 4,
+      prerequisites: ["u17-t2-013", "u17-t1-029", "u17-t1-033"],
+    },
+    {
+      id: "u17-t4-019",
+      type: "passage_cloze",
+      prompt: "Sto cercando un appartamento nuovo per il prossimo anno.\nQuello vicino al centro costa ___ di quello dove abito adesso, ma è molto più comodo.\nMio fratello dice che pago già troppo per un posto così piccolo e scomodo.\nForse è meglio aspettare qualche mese prima di decidere.",
+      accepted: ["il doppio"],
+      hint: "quantity chunk — 'costs twice as much'",
+      tags: ["passage_cloze", "quantity"],
+      tier: 4,
+      prerequisites: ["u17-t1-067", "u17-t1-049"],
+    },
+    {
+      id: "u17-t4-020",
+      type: "passage_cloze",
+      prompt: "Quest'estate a Napoli faceva molto caldo, quasi quanto in Sicilia.\nA Milano, invece, l'inverno scorso è stato tanto freddo ___ due anni fa.\nI miei nonni dicono sempre che il clima cambia sempre di più ogni anno.\nPer questo abbiamo deciso di comprare vestiti più pesanti per l'inverno prossimo.",
+      accepted: ["quanto"],
+      hint: "tanto…quanto = as…as, comparing to two years ago",
+      tags: ["passage_cloze", "comparative", "equality"],
+      tier: 4,
+      prerequisites: ["u17-t1-037", "u17-t1-039", "u17-t2-044"],
+    },
+    {
+      id: "u17-t4-021",
+      type: "passage_cloze",
+      prompt: "L'estate scorsa ho visitato tre città italiane: Roma, Firenze e Venezia.\nPer me, Venezia è stata la città ___ interessante di tutte, con i suoi canali e le sue storie antiche.\nRoma era più grande e più caotica, mentre Firenze sembrava più tranquilla.\nL'anno prossimo tornerò sicuramente per vedere anche il sud del paese.",
+      accepted: ["più"],
+      hint: "relative superlative: la città più + adjective",
+      tags: ["passage_cloze", "superlative", "relative"],
+      tier: 4,
+      prerequisites: ["u17-t2-009", "u17-t1-013"],
+    },
+    {
+      id: "u17-t4-022",
+      type: "passage_cloze",
+      prompt: "La settimana scorsa ho fatto un colloquio di lavoro molto importante.\nAll'inizio ero nervoso, ma il colloquio è stato ___: mi hanno offerto il posto subito dopo.\nIl mio amico, invece, ha avuto un colloquio pessimo la settimana prima e non ha ricevuto risposta.\nSecondo me, la preparazione fa sempre la differenza.",
+      accepted: ["ottimo"],
+      hint: "irregular absolute superlative of buono, agrees with 'colloquio' (masc.)",
+      tags: ["passage_cloze", "superlative", "irregular"],
+      tier: 4,
+      prerequisites: ["u17-t2-015", "u17-t2-016", "u17-t1-009"],
     },
   ],
 };

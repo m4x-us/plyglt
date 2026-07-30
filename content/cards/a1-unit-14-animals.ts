@@ -1233,6 +1233,7 @@ const unit: Unit = {
       hint: "giocare = to play; gioca = 3rd person singular; in giardino = in the garden",
       tags: ["sentence", "animal", "pet", "giocare", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-002"],
     },
     {
@@ -1249,6 +1250,7 @@ const unit: Unit = {
       hint: "il mio gatto = my cat; nero = black; bianco = white (both masculine)",
       tags: ["sentence", "animal", "pet", "adjective", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-001"],
     },
     {
@@ -1259,6 +1261,7 @@ const unit: Unit = {
       hint: "the king of the jungle — without the article",
       tags: ["fill_blank", "animal", "wild", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-016"],
     },
     {
@@ -1275,6 +1278,7 @@ const unit: Unit = {
       hint: "mia sorella = my sister; ha = she has; piccolo = small (masc.)",
       tags: ["sentence", "animal", "pet", "avere", "family", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-008"],
     },
     {
@@ -1291,6 +1295,7 @@ const unit: Unit = {
       hint: "c'è = there is; nel lago = in the lake",
       tags: ["sentence", "animal", "nature", "ce-e", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-011"],
     },
     {
@@ -1305,6 +1310,7 @@ const unit: Unit = {
       hint: "il naso = the nose; molto = very; lungo = long (masculine)",
       tags: ["sentence", "animal", "wild", "avere", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-020"],
     },
     {
@@ -1329,6 +1335,7 @@ const unit: Unit = {
       hint: "nel bosco = in the forest; lupi = wolves (plural); volpi = foxes (plural)",
       tags: ["sentence", "animal", "wild", "ci-sono", "plural", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-018", "a114-t1-019"],
     },
     {
@@ -1343,6 +1350,7 @@ const unit: Unit = {
       hint: "animale preferito = favourite animal; il mio = my (masculine)",
       tags: ["sentence", "animal", "sea", "preferito", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-022"],
     },
     {
@@ -1359,6 +1367,7 @@ const unit: Unit = {
       hint: "pericolosa = dangerous (feminine, agrees with la tigre)",
       tags: ["sentence", "animal", "wild", "adjective", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-157"],
     },
     {
@@ -1369,6 +1378,7 @@ const unit: Unit = {
       hint: "zampe = animal legs/paws — animals have zampe, people have gambe",
       tags: ["fill_blank", "animal", "body-parts", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-001"],
     },
     {
@@ -1385,6 +1395,7 @@ const unit: Unit = {
       hint: "mangiare = to eat; mangia = 3rd person singular; nel campo = in the field",
       tags: ["sentence", "animal", "farm", "mangiare", "A1", "tier4"],
       tier: 4,
+      deprecated: true,
       prerequisites: ["a114-t1-151"],
     },
 
@@ -1474,6 +1485,157 @@ const unit: Unit = {
       tags: ["sentence", "animal", "wild", "vivere", "A1", "tier3"],
       tier: 3,
       prerequisites: ["a114-t1-153", "a114-t1-019"],
+    },
+
+    // -------------------------------------------------------------------------
+    // TIER 3 — Sentences: context rescue for words orphaned by Tier 4 deprecations
+    // (elefante, tigre, capra lost their only sentence context — see Tier 4 note)
+    // -------------------------------------------------------------------------
+    {
+      id: "a114-t3-120",
+      type: "produce",
+      prompt: "The elephant lives in Africa.",
+      accepted: [
+        "L'elefante vive in Africa.",
+        "L'elefante vive in Africa",
+      ],
+      prompts: { "es": "El elefante vive en África." },
+      hint: "vivere = to live; vive = 3rd person singular; in Africa = no article before continent names",
+      tags: ["sentence", "animal", "wild", "vivere", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-020"],
+    },
+    {
+      id: "a114-t3-121",
+      type: "produce",
+      prompt: "The tiger hunts at night.",
+      accepted: [
+        "La tigre caccia di notte.",
+        "La tigre caccia di notte",
+      ],
+      prompts: { "es": "El tigre caza de noche." },
+      hint: "cacciare = to hunt; caccia = 3rd person singular; di notte = at night",
+      tags: ["sentence", "animal", "wild", "cacciare", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-157"],
+    },
+    {
+      id: "a114-t3-122",
+      type: "produce",
+      prompt: "The goat climbs the mountain.",
+      accepted: [
+        "La capra sale sulla montagna.",
+        "La capra sale sulla montagna",
+      ],
+      prompts: { "es": "La cabra sube a la montaña." },
+      hint: "salire = to climb; sale = 3rd person singular; sulla montagna = up the mountain",
+      tags: ["sentence", "animal", "farm", "salire", "A1", "tier3"],
+      tier: 3,
+      prerequisites: ["a114-t1-151"],
+    },
+
+    // -------------------------------------------------------------------------
+    // TIER 4 — Passage cloze: self-contained mini-stories (replacing retired
+    // single-sentence Tier 4 cards a114-t4-100 through a114-t4-111, minus 106)
+    // -------------------------------------------------------------------------
+    {
+      id: "a114-t4-112",
+      type: "passage_cloze",
+      prompt: "Ogni mattina Paolo va nella stalla per dare da mangiare agli animali.\nLe mucche mangiano il fieno e bevono l'acqua.\nLe pecore restano vicine, una accanto all'altra.\nPaolo sente il gallo cantare fuori dalla finestra.\nPoi porta l'erba fresca alle ___, che la mangiano subito.",
+      accepted: ["capre"],
+      hint: "plural of la capra — the goats eat the fresh grass right away",
+      tags: ["passage_cloze", "animal", "farm", "plural", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-004", // la mucca
+        "a114-t1-007", // la pecora
+        "a114-t1-152", // il gallo
+        "a114-t1-151", // la capra
+      ],
+    },
+    {
+      id: "a114-t4-113",
+      type: "passage_cloze",
+      prompt: "Sofia ha tre animali domestici in casa.\nIl cane dorme vicino alla porta e il gatto guarda fuori dalla finestra.\nIl coniglio salta nella sua gabbia bianca.\nOgni sera Sofia dà da mangiare a tutti e tre.\nStasera nota che manca la sua ___, che di solito sta sotto il divano.",
+      accepted: ["tartaruga"],
+      hint: "the slow pet that hides under furniture — la tartaruga",
+      tags: ["passage_cloze", "animal", "pet", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-002", // il cane
+        "a114-t1-001", // il gatto
+        "a114-t1-008", // il coniglio
+        "a114-t1-154", // la tartaruga
+      ],
+    },
+    {
+      id: "a114-t4-114",
+      type: "passage_cloze",
+      prompt: "La domenica, Luca va allo zoo con suo nonno.\nVedono il leone che dorme sotto un albero grande.\nLe scimmie saltano da un ramo all'altro, veloci e rumorose.\nVicino alla vasca d'acqua, un animale enorme spruzza acqua con il naso.\nLuca grida: «Guarda il ___! È il mio animale preferito!»",
+      accepted: ["elefante", "l'elefante"],
+      hint: "the enormous zoo animal that sprays water with its trunk — l'elefante",
+      tags: ["passage_cloze", "animal", "wild", "zoo", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-016", // il leone
+        "a114-t1-021", // la scimmia
+        "a114-t1-020", // l'elefante
+      ],
+    },
+    {
+      id: "a114-t4-115",
+      type: "passage_cloze",
+      prompt: "Nel bosco d'inverno fa molto freddo.\nIl cervo cerca cibo sotto la neve, vicino agli alberi.\nLa volpe osserva tutto da lontano, nascosta dietro una roccia.\nD'un tratto, il cervo e la volpe sentono un rumore forte: è il verso di un ___\nche cammina lentamente tra gli alberi, grande e peloso.",
+      accepted: ["orso", "l'orso"],
+      hint: "the large, furry animal that lives in the winter forest — l'orso",
+      tags: ["passage_cloze", "animal", "wild", "forest", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-153", // il cervo
+        "a114-t1-019", // la volpe
+        "a114-t1-017", // l'orso
+      ],
+    },
+    {
+      id: "a114-t4-116",
+      type: "passage_cloze",
+      prompt: "In giardino, in primavera, ci sono molti insetti diversi.\nLe api volano di fiore in fiore e fanno il miele.\nLe farfalle colorate si posano sulle rose.\nSotto una foglia, un piccolo ___ tesse la sua ragnatela in silenzio.\nI bambini osservano tutto con curiosità, senza toccare niente.",
+      accepted: ["ragno", "il ragno"],
+      hint: "the eight-legged creature that weaves a web — il ragno",
+      tags: ["passage_cloze", "animal", "insect", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-015", // l'ape
+        "a114-t1-014", // la farfalla
+        "a114-t1-155", // il ragno
+      ],
+    },
+    {
+      id: "a114-t4-117",
+      type: "passage_cloze",
+      prompt: "All'acquario, Anna guarda con emozione la vasca principale.\nUn delfino salta felice fuori dall'acqua e tutti i bambini applaudono.\nIntorno a lui nuotano tanti ___ piccoli e colorati.\nAnna chiede alla guida quanti animali vivono in quella vasca.\nLa guida sorride e risponde: «Più di cento!»",
+      accepted: ["pesci"],
+      hint: "plural of il pesce — small colourful fish swimming around the dolphin",
+      tags: ["passage_cloze", "animal", "sea", "plural", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-022", // il delfino
+        "a114-t1-011", // il pesce
+      ],
+    },
+    {
+      id: "a114-t4-118",
+      type: "passage_cloze",
+      prompt: "Alla fattoria di nonno Carlo ci sono molti animali diversi.\nI polli camminano liberi nel cortile, cercando semi per terra.\nIl gallo canta forte ogni mattina presto.\nVicino al recinto dorme un grosso ___, rosa e tranquillo, sotto il sole caldo.\nNonno Carlo lo chiama sempre «il pigrone della fattoria».",
+      accepted: ["maiale", "il maiale"],
+      hint: "the pink farm animal known for napping in the sun — il maiale",
+      tags: ["passage_cloze", "animal", "farm", "A1", "tier4"],
+      tier: 4,
+      prerequisites: [
+        "a114-t1-006", // il pollo
+        "a114-t1-152", // il gallo
+        "a114-t1-005", // il maiale
+      ],
     },
   ],
 };

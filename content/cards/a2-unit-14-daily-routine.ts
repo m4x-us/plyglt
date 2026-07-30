@@ -321,6 +321,7 @@ const unit: Unit = {
       tags: ["sentence", "routine", "reflexive"],
       tier: 4,
       prerequisites: ["u14-t1-009", "u14-t2-007", "u14-t2-012"],
+      deprecated: true,
     },
     {
       id: "u14-t4-002",
@@ -331,6 +332,7 @@ const unit: Unit = {
       tags: ["fill-blank", "reflexive", "routine"],
       tier: 4,
       prerequisites: ["u14-t1-007", "u14-t1-002", "u14-t2-010"],
+      deprecated: true,
     },
     {
       id: "u14-t4-003",
@@ -341,6 +343,7 @@ const unit: Unit = {
       tags: ["fill-blank", "stare+gerundio"],
       tier: 4,
       prerequisites: ["u14-t1-003", "u14-t2-015"],
+      deprecated: true,
     },
     {
       id: "u14-t4-004",
@@ -1452,6 +1455,7 @@ const unit: Unit = {
       tags: ["sentence", "routine", "time"],
       tier: 4,
       prerequisites: ["u14-t1-018"],
+      deprecated: true,
     },
     {
       id: "u14-t4-007",
@@ -1462,6 +1466,7 @@ const unit: Unit = {
       tags: ["fill-blank", "reflexive", "asciugarsi"],
       tier: 4,
       prerequisites: ["u14-t1-036", "u14-t2-048"],
+      deprecated: true,
     },
     {
       id: "u14-t4-008",
@@ -1472,6 +1477,7 @@ const unit: Unit = {
       tags: ["fill-blank", "reflexive", "routine"],
       tier: 4,
       prerequisites: ["u14-t1-016"],
+      deprecated: true,
     },
     {
       id: "u14-t4-009",
@@ -1482,6 +1488,7 @@ const unit: Unit = {
       tags: ["fill-blank", "reflexive", "truccarsi"],
       tier: 4,
       prerequisites: ["u14-t1-005", "u14-t2-044"],
+      deprecated: true,
     },
     {
       id: "u14-t4-010",
@@ -1492,6 +1499,7 @@ const unit: Unit = {
       tags: ["sentence", "reflexive", "time"],
       tier: 4,
       prerequisites: ["u14-t1-022", "u14-t2-012"],
+      deprecated: true,
     },
     {
       id: "u14-t4-011",
@@ -1505,6 +1513,7 @@ const unit: Unit = {
       tags: ["sentence", "time"],
       tier: 4,
       prerequisites: ["u14-t1-023", "u14-t1-025"],
+      deprecated: true,
     },
     {
       id: "u14-t4-012",
@@ -1601,6 +1610,86 @@ const unit: Unit = {
       hint: "il risveglio – noun form of svegliarsi",
       tags: ["chunk", "morning", "routine"],
       tier: 3,
+    },
+    {
+      id: "u14-t3-033",
+      type: "produce",
+      prompt: "I always use a clean towel after the shower.",
+      accepted: [
+        "Uso sempre un asciugamano pulito dopo la doccia.",
+        "Uso sempre un asciugamano pulito dopo la doccia",
+      ],
+      hint: "asciugamano – hygiene object",
+      tags: ["chunk", "collocation", "hygiene"],
+      tier: 3,
+    },
+
+    // ── Tier 4 – Passages (real mini-story cloze cards) ─────────────────────
+    {
+      id: "u14-t4-014",
+      type: "passage_cloze",
+      prompt:
+        "Il lunedì mattina è sempre frenetico per me.\nLa sveglia suona alle sei, ma non voglio uscire dal letto.\nAspetto qualche minuto, poi finalmente ___ e vado in bagno.\nMi lavo velocemente e faccio colazione in piedi.\nEsco di casa alle sette meno un quarto, sempre di corsa.",
+      accepted: ["mi alzo"],
+      hint: "alzarsi – io form",
+      tags: ["passage_cloze", "routine", "reflexive"],
+      tier: 4,
+      prerequisites: ["u14-t1-001", "u14-t1-046", "u14-t2-001"],
+    },
+    {
+      id: "u14-t4-015",
+      type: "passage_cloze",
+      prompt:
+        "La sera a casa nostra è un rito preciso.\nI bambini fanno il bagno e poi mettono il pigiama.\nPapà legge una storia seduto sul letto.\nDopo qualche pagina i bambini ___ uno dopo l'altro.\nAllora spegniamo la luce e la casa diventa silenziosa.",
+      accepted: ["si addormentano"],
+      hint: "addormentarsi – loro form",
+      tags: ["passage_cloze", "routine", "reflexive"],
+      tier: 4,
+      prerequisites: ["u14-t1-043", "u14-t1-045", "u14-t2-031"],
+    },
+    {
+      id: "u14-t4-016",
+      type: "passage_cloze",
+      prompt:
+        "Durante la settimana la nostra routine è molto rigida.\nCi svegliamo presto e usciamo subito per il lavoro.\nIl sabato invece tutto cambia completamente.\nIo e mio marito ___ tardi, senza sveglia e senza fretta.\nPoi facciamo colazione con calma, seduti in terrazza.",
+      accepted: ["ci svegliamo"],
+      hint: "svegliarsi – noi form",
+      tags: ["passage_cloze", "routine", "reflexive"],
+      tier: 4,
+      prerequisites: ["u14-t1-029", "u14-t1-051", "u14-t2-019"],
+    },
+    {
+      id: "u14-t4-017",
+      type: "passage_cloze",
+      prompt:
+        "Mia nonna ha una routine mattutina molto elegante.\nSi alza presto, anche se non lavora più.\nDavanti allo specchio prepara i capelli con calma.\nPrende il pettine e ___ con movimenti lenti.\nPoi scende in cucina e prepara il pranzo per tutti.",
+      accepted: ["si pettina"],
+      hint: "pettinarsi – lei form",
+      tags: ["passage_cloze", "routine", "reflexive"],
+      tier: 4,
+      prerequisites: ["u14-t1-010", "u14-t1-005", "u14-t2-033"],
+    },
+    {
+      id: "u14-t4-018",
+      type: "passage_cloze",
+      prompt:
+        "Ogni mattina prima del lavoro, Luca segue sempre lo stesso rito.\nFa la doccia e usa il sapone e lo shampoo.\nPoi prende il rasoio e si guarda nello specchio.\nAlla fine mette un po' di crema sul viso.\nSe non ___ subito, arriva sempre tardi in ufficio.",
+      accepted: ["si prepara"],
+      hint: "prepararsi – lui form",
+      tags: ["passage_cloze", "routine", "reflexive"],
+      tier: 4,
+      prerequisites: ["u14-t1-037", "u14-t1-041", "u14-t2-056"],
+    },
+    {
+      id: "u14-t4-019",
+      type: "passage_cloze",
+      prompt:
+        "Il nonno di Elena è un contadino e ha orari antichi.\nSi sveglia prima dell'alba, quando il paese dorme ancora.\nLavora nei campi fino a mezzogiorno, poi si ferma per il pranzo.\nNel pomeriggio torna al campo fino al tramonto.\nSolo quando il sole scompare, finalmente ___ per la sera.",
+      accepted: ["si riposa"],
+      hint: "riposarsi – lui form",
+      tags: ["passage_cloze", "routine", "time"],
+      tier: 4,
+      prerequisites: ["u14-t1-023", "u14-t1-025", "u14-t1-019"],
     },
   ],
 };

@@ -1189,6 +1189,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-013", "a115-t1-014", "a115-t2-001", "a115-t2-006"],
+      deprecated: true,
     },
     {
       id: "a115-t4-002",
@@ -1203,6 +1204,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-008", "a115-t1-013", "a115-t1-017"],
+      deprecated: true,
     },
     {
       id: "a115-t4-003",
@@ -1217,6 +1219,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-005", "a115-t1-013", "a115-t3-001"],
+      deprecated: true,
     },
     {
       id: "a115-t4-004",
@@ -1231,6 +1234,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-010", "a115-t1-018", "a115-t1-019", "a115-t2-008"],
+      deprecated: true,
     },
     {
       id: "a115-t4-005",
@@ -1245,6 +1249,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences", "ordering"],
       tier: 4,
       prerequisites: ["a115-t1-003", "a115-t2-009", "a115-t2-011"],
+      deprecated: true,
     },
     // ── Tier 4 – Additional sentences ─────────────────────────────────────
     {
@@ -1260,6 +1265,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-017", "a115-t1-162"],
+      deprecated: true,
     },
     {
       id: "a115-t4-101",
@@ -1274,6 +1280,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-007", "a115-t1-013", "a115-t2-001"],
+      deprecated: true,
     },
     {
       id: "a115-t4-102",
@@ -1284,6 +1291,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences", "costare"],
       tier: 4,
       prerequisites: ["a115-t1-013", "a115-t1-160", "a115-t2-002"],
+      deprecated: true,
     },
     {
       id: "a115-t4-103",
@@ -1298,6 +1306,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-011", "a115-t1-013", "a115-t2-002"],
+      deprecated: true,
     },
     {
       id: "a115-t4-104",
@@ -1312,6 +1321,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-006", "a115-t1-013", "a115-t1-015", "a115-t3-102"],
+      deprecated: true,
     },
     {
       id: "a115-t4-105",
@@ -1322,6 +1332,7 @@ const unit: Unit = {
       tags: ["A1", "money", "sentences", "questions"],
       tier: 4,
       prerequisites: ["a115-t2-009", "a115-t2-011"],
+      deprecated: true,
     },
     {
       id: "a115-t4-106",
@@ -1336,6 +1347,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences", "formal"],
       tier: 4,
       prerequisites: ["a115-t1-010", "a115-t1-018", "a115-t1-019", "a115-t2-105"],
+      deprecated: true,
     },
     {
       id: "a115-t4-107",
@@ -1352,6 +1364,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-014", "a115-t1-156", "a115-t1-168"],
+      deprecated: true,
     },
     {
       id: "a115-t4-108",
@@ -1366,6 +1379,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences"],
       tier: 4,
       prerequisites: ["a115-t1-003", "a115-t1-013", "a115-t1-164", "a115-t2-001"],
+      deprecated: true,
     },
     {
       id: "a115-t4-109",
@@ -1382,6 +1396,7 @@ const unit: Unit = {
       tags: ["A1", "numbers", "money", "sentences", "questions"],
       tier: 4,
       prerequisites: ["a115-t1-014", "a115-t1-158"],
+      deprecated: true,
     },
     {
       id: "a115-t4-110",
@@ -1392,6 +1407,155 @@ const unit: Unit = {
       tags: ["A1", "money", "sentences", "prepositions"],
       tier: 4,
       prerequisites: ["a115-t1-166", "a115-t3-100"],
+      deprecated: true,
+    },
+    // ─── Tier 3 – Rescue cards (restore context orphaned by Tier 4 deprecation) ──
+    {
+      id: "a115-t3-115",
+      type: "produce",
+      prompt: "The bread costs eight euros.",
+      accepted: ["Il pane costa otto euro.", "Il pane costa otto euro"],
+      prompts: { "es": "El pan cuesta ocho euros." },
+      hint: "costa (singular) + otto (8) + euro",
+      tags: ["A1", "numbers", "money", "chunks"],
+      tier: 3,
+      prerequisites: ["a115-t1-005", "a115-t1-013", "a115-t2-001"],
+    },
+    {
+      id: "a115-t3-116",
+      type: "produce",
+      prompt: "I need thirty euros for the ticket.",
+      accepted: [
+        "Ho bisogno di trenta euro per il biglietto.",
+        "Ho bisogno di trenta euro per il biglietto",
+      ],
+      prompts: { "es": "Necesito treinta euros para el billete." },
+      hint: "Ho bisogno di + trenta (30) + euro; biglietto = ticket",
+      tags: ["A1", "numbers", "money", "chunks"],
+      tier: 3,
+      prerequisites: ["a115-t1-009", "a115-t1-013", "a115-t2-008"],
+    },
+    {
+      id: "a115-t3-117",
+      type: "produce",
+      prompt: "The pizza costs nine euros.",
+      accepted: ["La pizza costa nove euro.", "La pizza costa nove euro"],
+      prompts: { "es": "La pizza cuesta nueve euros." },
+      hint: "costa (singular) + nove (9) + euro",
+      tags: ["A1", "numbers", "money", "chunks"],
+      tier: 3,
+      prerequisites: ["a115-t1-013", "a115-t1-158", "a115-t2-001"],
+    },
+    // ─── Tier 4 – Passages (self-contained mini-stories, one blank each) ──────
+    {
+      id: "a115-t4-111",
+      type: "passage_cloze",
+      prompt:
+        "Ogni mattina vado in panetteria prima di andare al lavoro.\nIl panettiere mi conosce e prepara subito un caffè e un cornetto.\nOggi prendo anche due cornetti per la mia collega.\nAlla cassa chiedo: «Quant'è?»\nLui risponde: «Sono ___ euro e venti centesimi.»",
+      accepted: ["quattro"],
+      hint: "the number 4 — the euro amount the baker quotes for the coffee and three croissants",
+      tags: ["passage_cloze", "money", "numbers", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-152", "a115-t1-013", "a115-t2-011"],
+    },
+    {
+      id: "a115-t4-112",
+      type: "passage_cloze",
+      prompt:
+        "Vado in libreria per comprare un regalo per mio fratello.\nGuardo molti libri sullo scaffale vicino alla porta.\nTrovo un libro sulla storia dell'Italia e lo mostro alla commessa.\nLei guarda il prezzo e dice: «Costa ___ euro.»\nPago con una banconota e aspetto il resto.",
+      accepted: ["quindici"],
+      hint: "the number 15 — the price the shop assistant quotes for the history book",
+      tags: ["passage_cloze", "money", "numbers", "shopping", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-007", "a115-t1-016", "a115-t2-001", "a115-t1-018", "a115-t1-019"],
+    },
+    {
+      id: "a115-t4-113",
+      type: "passage_cloze",
+      prompt:
+        "Entro in un negozio di vestiti per comprare una giacca nuova.\nLa commessa mi mostra una giacca elegante e bella.\nVedo il prezzo, ma oggi il negozio ha uno ___.\nLa giacca costa solo quaranta euro invece di sessanta.\nDecido di comprarla subito e pago con la carta di credito.",
+      accepted: ["sconto"],
+      hint: "discount — the reason the jacket ends up cheaper than expected",
+      tags: ["passage_cloze", "money", "shopping", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-020", "a115-t1-160", "a115-t1-162", "a115-t1-166", "a115-t2-001"],
+    },
+    {
+      id: "a115-t4-114",
+      type: "passage_cloze",
+      prompt:
+        "Al bar ordino un caffè al banco, come fanno quasi tutti gli italiani.\nIl barista mi dice: «Sono sessanta centesimi.»\nCerco nel portafoglio ma ho solo banconote grandi.\nTrovo una ___ da due euro in tasca e la do al barista.\nLui mi restituisce il resto e io bevo il caffè in piedi.",
+      accepted: ["moneta"],
+      hint: "coin (singular) — what the narrator finds in their pocket to pay the barista",
+      tags: ["passage_cloze", "money", "numbers", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-164", "a115-t1-017", "a115-t1-019", "a115-t1-014", "a115-t1-162"],
+    },
+    {
+      id: "a115-t4-115",
+      type: "passage_cloze",
+      prompt:
+        "Io e mia sorella ceniamo in un piccolo ristorante vicino al mare.\nMangiamo la pasta e beviamo un bicchiere di vino ciascuno.\nAlla fine chiamiamo il cameriere e chiediamo il ___.\nLui porta lo scontrino con il totale della cena.\nPaghiamo con la carta di credito e usciamo soddisfatti.",
+      accepted: ["conto"],
+      hint: "the bill — what you ask the waiter for when ready to pay",
+      tags: ["passage_cloze", "money", "restaurant", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-170", "a115-t1-168", "a115-t1-166"],
+    },
+    {
+      id: "a115-t4-116",
+      type: "passage_cloze",
+      prompt:
+        "Vado in un negozio di scarpe perché le mie sono vecchie.\nProvo un paio di scarpe nere molto comode.\nChiedo alla commessa: «Quanto costano?»\nLei risponde: «Costano ___ euro.»\nDecido di comprarle e pago con una banconota da cento euro.",
+      accepted: ["sessanta"],
+      hint: "the number 60 — the price the shop assistant quotes for the shoes",
+      tags: ["passage_cloze", "money", "numbers", "shopping", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-162", "a115-t2-002", "a115-t1-011", "a115-t1-018"],
+    },
+    {
+      id: "a115-t4-117",
+      type: "passage_cloze",
+      prompt:
+        "Sono al supermercato con un carrello pieno di frutta e verdura.\nAlla cassa la cassiera mi dice il totale: venti euro.\nApro il portafoglio ma trovo solo una banconota da dieci euro.\nMi accorgo che non ho abbastanza ___ per pagare tutto.\nRimetto una mela sullo scaffale e pago il resto della spesa.",
+      accepted: ["soldi"],
+      hint: "money — plural noun for what the narrator doesn't have enough of",
+      tags: ["passage_cloze", "money", "shopping", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-015", "a115-t1-017", "a115-t1-018", "a115-t1-006", "a115-t1-008"],
+    },
+    {
+      id: "a115-t4-118",
+      type: "passage_cloze",
+      prompt:
+        "Mio cugino vuole comprare un computer usato per studiare.\nVa in un negozio di elettronica in centro.\nIl commesso gli mostra due modelli: uno nuovo e uno usato.\nQuello usato costa solo ___ euro, molto meno del nuovo.\nMio cugino lo compra subito, contento dell'affare.",
+      accepted: ["cento"],
+      hint: "the number 100 — the price of the secondhand computer",
+      tags: ["passage_cloze", "money", "numbers", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-011", "a115-t2-001"],
+    },
+    {
+      id: "a115-t4-119",
+      type: "passage_cloze",
+      prompt:
+        "Vado in banca il lunedì mattina per cambiare i soldi.\nL'impiegato conta con attenzione.\nMi dà una ___ da cinquanta euro e una da venti.\nCerco ancora dieci euro in monete nel portafoglio.\nEsco dalla banca con i soldi ben organizzati.",
+      accepted: ["banconota"],
+      hint: "banknote (singular) — what the clerk hands back first",
+      tags: ["passage_cloze", "money", "banking", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-018", "a115-t1-010", "a115-t1-008", "a115-t1-006", "a115-t1-164"],
+    },
+    {
+      id: "a115-t4-120",
+      type: "passage_cloze",
+      prompt:
+        "Compro un paio di guanti in un piccolo negozio del centro.\nPago in contanti e la commessa mi ringrazia.\nA casa noto che i guanti sono troppo piccoli per me.\nTorno al negozio con lo ___ per fare il cambio.\nLa commessa è gentile e mi aiuta subito.",
+      accepted: ["scontrino"],
+      hint: "the receipt — needed to exchange the gloves that don't fit",
+      tags: ["passage_cloze", "money", "shopping", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a115-t1-168", "a115-t1-169"],
     },
   ],
 };

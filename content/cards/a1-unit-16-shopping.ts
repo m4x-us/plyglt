@@ -1219,6 +1219,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-002", "a116-t2-012"],
+      deprecated: true,
     },
     {
       id: "a116-t4-002",
@@ -1233,6 +1234,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t2-001"],
+      deprecated: true,
     },
     {
       id: "a116-t4-003",
@@ -1247,6 +1249,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t2-005"],
+      deprecated: true,
     },
     {
       id: "a116-t4-004",
@@ -1261,6 +1264,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t3-007", "a116-t3-006"],
+      deprecated: true,
     },
     {
       id: "a116-t4-005",
@@ -1275,6 +1279,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-013"],
+      deprecated: true,
     },
     {
       id: "a116-t4-006",
@@ -1289,6 +1294,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-009", "a116-t1-005", "a116-t1-004"],
+      deprecated: true,
     },
     // New – additional sentences
     {
@@ -1304,6 +1310,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-008", "a116-t1-002"],
+      deprecated: true,
     },
     {
       id: "a116-t4-101",
@@ -1318,6 +1325,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences", "payment"],
       tier: 4,
       prerequisites: ["a116-t2-001", "a116-t1-155", "a116-t1-157"],
+      deprecated: true,
     },
     {
       id: "a116-t4-102",
@@ -1328,6 +1336,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-153", "a116-t1-004"],
+      deprecated: true,
     },
     {
       id: "a116-t4-103",
@@ -1342,6 +1351,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-012", "a116-t1-009", "a116-t1-007"],
+      deprecated: true,
     },
     {
       id: "a116-t4-104",
@@ -1356,6 +1366,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-153", "a116-t1-004"],
+      deprecated: true,
     },
     {
       id: "a116-t4-105",
@@ -1366,6 +1377,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences", "pronouns"],
       tier: 4,
       prerequisites: ["a116-t2-008", "a116-t1-019"],
+      deprecated: true,
     },
     {
       id: "a116-t4-106",
@@ -1380,6 +1392,7 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-161", "a116-t1-015"],
+      deprecated: true,
     },
     {
       id: "a116-t4-107",
@@ -1394,6 +1407,99 @@ const unit: Unit = {
       tags: ["A1", "shopping", "sentences"],
       tier: 4,
       prerequisites: ["a116-t1-158", "a116-t2-011"],
+      deprecated: true,
+    },
+    // New – genuine self-contained passage_cloze mini-stories (replacing the
+    // retired one/two-sentence tier-4 cards above with real 4-6 sentence passages)
+    {
+      id: "a116-t4-108",
+      type: "passage_cloze",
+      prompt: "Il sabato mattina Marco va al mercato con sua madre.\nComprano frutta fresca e verdura per tutta la settimana.\nMarco mette le mele nel ___ e cammina verso la cassa.\nSua madre paga in contante e prende lo scontrino.\nTornano a casa contenti, con due sacchetti pieni.",
+      accepted: ["carrello"],
+      hint: "what Marco pushes toward the register, filled with apples",
+      tags: ["passage_cloze", "shopping", "market", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-003", "a116-t1-013", "a116-t1-155", "a116-t1-151", "a116-t1-015", "a116-t1-014"],
+    },
+    {
+      id: "a116-t4-109",
+      type: "passage_cloze",
+      prompt: "Prima di Natale, Elena entra nella libreria del centro.\nCerca un regalo speciale per suo nonno.\nUn cliente accanto a lei chiede un libro di storia al commesso.\nElena trova un romanzo e lo porta alla ___.\nPaga in contante ed esce felice con il pacchetto.",
+      accepted: ["cassa"],
+      hint: "where Elena takes the novel to pay for it",
+      tags: ["passage_cloze", "shopping", "books", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-009", "a116-t1-012", "a116-t1-010", "a116-t1-155", "a116-t1-013", "a116-t1-159"],
+    },
+    {
+      id: "a116-t4-110",
+      type: "passage_cloze",
+      prompt: "Ogni venerdì Paolo va alla macelleria vicino a casa.\nChiede al commesso il ___ della carne prima di comprare.\nOggi la carne costa poco perché c'è uno sconto.\nPaolo paga con una banconota e riceve il resto.\nEsce contento con la carne fresca per la cena.",
+      accepted: ["prezzo"],
+      hint: "what Paolo asks the shop assistant about before buying the meat",
+      tags: ["passage_cloze", "shopping", "market", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-008", "a116-t1-010", "a116-t1-152", "a116-t1-157", "a116-t1-150"],
+    },
+    {
+      id: "a116-t4-111",
+      type: "passage_cloze",
+      prompt: "Durante i saldi, Giulia passa davanti alla pasticceria del paese.\nVede una torta al cioccolato in vetrina e non resiste.\nEntra e chiede alla commessa: «Quanto costa questa torta?»\nLa commessa dice che oggi c'è uno ___ speciale.\nGiulia compra la torta e la porta a una festa.",
+      accepted: ["sconto"],
+      hint: "the special reduction the shop assistant mentions on the cake's price",
+      tags: ["passage_cloze", "shopping", "pastry", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-153", "a116-t1-007", "a116-t1-011", "a116-t1-152"],
+    },
+    {
+      id: "a116-t4-112",
+      type: "passage_cloze",
+      prompt: "Alla cassa del supermercato, Luca cerca il portafoglio nella borsa.\nNon lo trova e comincia a preoccuparsi un po'.\nLa commessa aspetta pazientemente mentre altri clienti fanno la coda.\nFinalmente Luca trova il portafoglio nella tasca della giacca e lo mostra.\nPaga in ___ e ringrazia tutti per la pazienza.",
+      accepted: ["contante"],
+      hint: "how Luca finally pays, once he finds his wallet",
+      tags: ["passage_cloze", "shopping", "payment", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-161", "a116-t1-013", "a116-t1-011", "a116-t1-012", "a116-t1-158", "a116-t1-155"],
+    },
+    {
+      id: "a116-t4-113",
+      type: "passage_cloze",
+      prompt: "Federica entra in un negozio di vestiti nel centro commerciale.\nCerca un maglione nuovo per l'inverno.\nChiede alla commessa: «Vorrei questo maglione, ma non conosco la mia ___.»\nLa commessa aiuta Federica a misurare e trova la taglia giusta.\nFederica paga con la carta di credito ed esce soddisfatta.",
+      accepted: ["taglia"],
+      hint: "what Federica doesn't know about herself when trying on the sweater",
+      tags: ["passage_cloze", "shopping", "clothes", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-001", "a116-t1-004", "a116-t2-001", "a116-t1-154", "a116-t1-011", "a116-t1-156"],
+    },
+    {
+      id: "a116-t4-114",
+      type: "passage_cloze",
+      prompt: "È il compleanno di Sara e Marco cerca un regalo speciale.\nVa alla panetteria preferita di Sara vicino a casa.\nOggi c'è un'___ per chi compra una torta intera.\nMarco compra la torta al cioccolato con lo sconto.\nSara è molto felice quando vede il regalo la sera.",
+      accepted: ["offerta"],
+      hint: "the special deal at the bakery for anyone buying a whole cake",
+      tags: ["passage_cloze", "shopping", "gifts", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-159", "a116-t1-006", "a116-t1-160", "a116-t1-152"],
+    },
+    {
+      id: "a116-t4-115",
+      type: "passage_cloze",
+      prompt: "Anna non si sente bene e cerca una farmacia in centro.\nChiede a un signore per strada: «Dov'è la farmacia più vicina?»\nIl signore le indica il negozio accanto alla libreria.\nAnna entra e chiede il ___ di una medicina semplice.\nIl farmacista le spiega tutto con calma e pazienza.",
+      accepted: ["prezzo"],
+      hint: "what Anna asks about for the simple medicine",
+      tags: ["passage_cloze", "shopping", "pharmacy", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-005", "a116-t1-001", "a116-t1-009", "a116-t1-150"],
+    },
+    {
+      id: "a116-t4-116",
+      type: "passage_cloze",
+      prompt: "Il sabato il supermercato è sempre pieno di gente.\nGiorgio prende il carrello e comincia a fare la spesa.\nCerca il latte, ma non lo ___ subito nello scaffale giusto.\nDopo qualche minuto lo vede vicino al pane.\nPaga alla cassa e torna a casa senza fare la coda.",
+      accepted: ["trova"],
+      hint: "what Giorgio finally does with the milk, near the bread",
+      tags: ["passage_cloze", "shopping", "supermarket", "A1", "tier4"],
+      tier: 4,
+      prerequisites: ["a116-t1-002", "a116-t1-014", "a116-t1-019", "a116-t1-013", "a116-t1-158"],
     },
   ],
 };
