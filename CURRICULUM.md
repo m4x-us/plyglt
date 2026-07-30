@@ -12,17 +12,19 @@ The curriculum is structured around four CEFR levels, each broken into thematic 
 
 ## Content Generation Status (updated 2026-07-30)
 
-**A1 and A2 are DONE, at full target density — including a 2026-07-30 backfill pass that fixed 6 units audited as thinner than their siblings (3 of them, A1 units 08/09/10, had ZERO tier-2 grammar cards despite each unit's whole theme being a grammar point — modal verbs, adjective agreement, "mi fa male"). B1 and B2 are NOT started (still at old, thin density).**
+**A1 and A2 are at full target CARD-COUNT density, including a 2026-07-30 backfill pass that fixed 6 units audited as thinner than their siblings (3 of them, A1 units 08/09/10, had ZERO tier-2 grammar cards despite each unit's whole theme being a grammar point — modal verbs, adjective agreement, "mi fa male"). But a same-day content-quality audit (see below) found A1/A2 are NOT yet "done" in the sense of matching the Card Quality Standards further down this file — real, measured gaps remain. B1 and B2 are NOT started (still at old, thin density).**
 
 | Level | Units | Cards | Target cards | Status |
 |-------|-------|-------|--------------|--------|
-| A1 | 20/20 | 2,434 | ~2,600 | ✓ Complete — backfilled units 08, 09, 10, 12, 19 (2026-07-30) |
-| A2 | 30/30 | 4,830 | ~5,700 | ✓ Complete — backfilled unit 38 (2026-07-30) |
+| A1 | 20/20 | 2,434 | ~2,600 | Card count at target; quality gate debt tracked (see below) — backfilled units 08, 09, 10, 12, 19 (2026-07-30) |
+| A2 | 30/30 | 4,830 | ~5,700 | Card count at target; quality gate debt tracked (see below) — backfilled unit 38 (2026-07-30) |
 | B1 | 14/35 | 444 | ~9,450 | NOT STARTED — 21 units missing; the 14 existing units are thin (~32 cards/unit avg, need expanding to ~270/unit) |
 | B2 | 13/40 | 411 | ~15,200 | NOT STARTED — 27 units missing; the 13 existing units are thin (~32 cards/unit avg, need expanding to ~380/unit) |
 | **Total** | **77/125** | **8,119** | **~32,950** | ~25% of the way to the full target by card count |
 
 **2026-07-30 backfill note:** a per-unit density audit (comparing each unit's card count and tier breakdown against its siblings, not just the level-wide total) found that the level-wide totals above were masking real gaps: 6 units (A1: 08, 09, 10, 12, 19; A2: 38) were meaningfully thinner than their peers, and three of them (A1 08/09/10) had never had a single tier-2 (grammar) card written despite each unit's theme *being* a grammar point. All 6 were expanded append-only (verified via `git diff` showing zero modified/deleted lines among original cards, beyond two stale placeholder comments), re-validated (`tsc`, full test suite, `pack:export`/`pack:validate`, corpus-wide duplicate-sentence and duplicate-ID scans — all clean), then committed. Lesson for future audits: check per-unit density and tier balance, not just the level-wide card-count total — a healthy aggregate can hide individually thin or structurally incomplete units.
+
+**2026-07-30 content-quality audit note:** immediately after the backfill above, Max asked the harder question — is this content actually worldclass, not just at-target by card count. Two independent adversarial reviews (an 8-unit, 1,168-card representative sample, cross-checked against the full 8,119-card corpus for the structural claims) scored pedagogical rigor 61/100 and brand/voice fidelity 74/100. Real, verified findings: only 3 of 20 A1 units have any `passage_cloze` tier-4 cards at all (the rest substitute short standalone sentences, missing BRAND.md's "60-80 word passage" promise entirely); 42% of tier-1 cards corpus-wide don't have their word appearing in any sentence card in their own unit; subjunctive grammar leaks into A2 content in at least 2 units (a recurring failure mode CURRICULUM.md already names); 28% of cards corpus-wide have no hint, wildly unevenly distributed (0% in some units, 79% in one); a handful of verbatim duplicate cards; one real Italian spelling error. This resulted in `scripts/lintCardQuality.ts`, a mechanical Card Quality Gate (see the Card Quality Standards section below) that makes the cheap-to-check defects (empty hints, duplicates, missing tiers) structurally impossible to repeat, and grandfathers the larger structural debt (tier-1 context, tier-4 passages) as a tracked, shrinking baseline rather than a blocking rewrite. The tier-1/tier-4 backfill itself is a separate, large future content project — not done as part of this session (see `.autocode/agents/cto.md`'s Strategic Priorities).
 
 **Owner decision (2026-07-29/30):** the actual shipped curriculum had drifted far below this file's original density targets — existing units averaged ~30-40 cards each versus the ~130-380/unit targets in the table below. Max explicitly chose to hit the ORIGINAL card-count targets (not just "write the missing units at whatever density"), which means every existing thin unit needs expansion too, not just the ~62 missing units.
 
@@ -265,6 +267,26 @@ A word is not known until you know what it collocates with. Every content word (
 
 Every sentence is unique. The same sentence never appears on two different cards. A word may appear in multiple sentences, but each sentence is written fresh.
 
+### Card Quality Gate (mechanical, automated) — `scripts/lintCardQuality.ts`
+
+**Why this exists:** a 2026-07-30 audit (two independent adversarial reviews, scored 61/100 and 74/100 against these standards) found that every concrete defect — empty hints, exact-duplicate cards, a whole unit missing its grammar tier for an unknown length of time — was something a script could have caught before it shipped. Prose review alone let quality drift unit-to-unit with no floor. Run it with `npm run pack:lint-quality`.
+
+Two tiers of rule:
+
+**HARD gates** — zero tolerance, fail on any violation (the corpus has zero violations of these today, so enforcement only prevents regression):
+- Every unit must have cards in all 4 tiers (this is the literal A1-units-08/09/10-shipped-with-no-tier-2 bug, made structurally impossible to repeat)
+- No unit may fall below 70% of its level's median card count (computed dynamically from the current pack, never a hardcoded number)
+- No duplicate sentence among `fill_blank`/`passage_cloze` cards anywhere in the corpus
+
+**BASELINE (ratchet) gates** — real, large existing debt is grandfathered as of the 2026-07-30 baseline capture (`scripts/cardQualityBaseline.json`); any violation NOT in the baseline (i.e. introduced by a new or edited card) fails the gate. The baseline must only ever shrink — same convention as this project's coverage thresholds (AGENTS.md: "thresholds only ever increase — ratchet up, never down"). After a content pass fixes baselined debt, run `npx tsx scripts/lintCardQuality.ts public/packs/it.json scripts/cardQualityBaseline.json --update-baseline` to shrink the file to match:
+- **Empty hint** — 2,276/8,119 cards (28%) have no hint as of 2026-07-30, wildly uneven across units (0% in some, up to 79% in others). The hint is the mechanism that differentiates a curated card from a bare bilingual word list — plyglt's entire paid-content premise.
+- **Tier-1 lacks sentence context** — 1,937/4,594 tier-1 cards (42%) don't have their word appearing in any same-unit tier-2/3/4 card. This is a weaker, mechanically-checkable proxy for "never introduce a word in isolation" — it does NOT require every tier-1 card to embed its own example sentence (that would be a `content/types.ts` schema change plus a `components/StudyCard.tsx` UI change, a bigger decision deferred for now); it only requires the word to appear in a real sentence *somewhere* in its unit.
+- **Tier-4 not a real passage** — 496/709 tier-4 cards (70%) are standalone 1-2 sentence cards instead of `passage_cloze`. Only 3 of 20 A1 units have any `passage_cloze` cards at all, despite this being the brand's flagship "60–80 word passage" promise.
+- **Within-unit duplicate** — 7 cards (2026-07-30) are the identical card re-shelved under a second tier. Not yet auto-removable: card IDs are permanent (`scripts/checkCardIds.ts`) and the schema's `deprecated` flag, while present on `Card`, has no runtime consumer yet — nothing in `lib/queue.ts` or `store/srsStore.ts` filters it out, so marking a card `deprecated: true` today would not actually stop it from being shown. Wiring that up is a separate, tracked task.
+- **Cross-unit phrase duplicate** — 2 known instances of a short tier-3 phrase reused across two related units (e.g. "cambiare idea" in both the future and conditional units). CURRICULUM.md permits this kind of short vocabulary-phrase overlap; baselined as "known acceptable," not a rewrite target.
+
+**Deliberately not a rule:** "no exclamation marks" (BRAND.md's UI-copy voice rule). Checked during design: of 58 corpus-wide hits, almost all are correct Italian exclamatory content being taught ("Aiuto!", "Buongiorno!", "Che bella giornata!") — genuinely different from the app writing chatty toast copy. A handful of real hint-tone slips ("same as English!") aren't mechanically distinguishable from legitimate quoted Italian without a high false-positive rate. Left to human/native-speaker review (Step 4 below).
+
 ---
 
 ## Content Generation Workflow
@@ -284,10 +306,12 @@ Using the spec and the TypeScript card format (see `content/types.ts` and existi
 
 ### Step 3 — Quality review
 
-Every sentence reviewed against three questions:
+Run the mechanical gate first — `npm run pack:lint-quality` — to catch what a script catches (see "Card Quality Gate" above): missing tiers, density, empty hints, duplicate cards, tier-1 context, tier-4 passage structure. Fix every hard-gate violation and every new baseline violation before moving on; this is not optional and does not substitute for the prose review below, it precedes it.
+
+Then every sentence is reviewed against three questions a script cannot answer:
 1. Is it natural? (would a native speaker write this?)
 2. Is it memorable? (does it give the word a context worth remembering?)
-3. Is it correctly levelled? (no B1 grammar in an A1 unit)
+3. Is it correctly levelled? (no B1 grammar in an A1 unit — subjunctive leaking into A2 content is the specific, recurring failure mode to watch for)
 
 Weak sentences are rewritten. Strong ones ship.
 
@@ -300,9 +324,10 @@ Before each level ships, a native Italian speaker reviews all units in that leve
 ```bash
 npx tsx scripts/exportPack.ts it
 npx tsx scripts/validatePack.ts public/packs/it.json
+npm run pack:lint-quality
 ```
 
-Any card failing validation is flagged before reaching a user.
+Any card failing validation, or any new card-quality-gate violation, is flagged before reaching a user.
 
 ---
 

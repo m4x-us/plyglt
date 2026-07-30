@@ -14,6 +14,7 @@
     "pack:validate": "npx tsx scripts/validatePack.ts public/packs/it.json",
     "pack:validate:all": "find public/packs -name '*.json' ! -name 'manifest.json' | xargs -I {} npx tsx scripts/validatePack.ts {}",
     "pack:check-ids": "npx tsx scripts/checkCardIds.ts",
+    "pack:lint-quality": "npx tsx scripts/lintCardQuality.ts public/packs/it.json scripts/cardQualityBaseline.json",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
