@@ -191,6 +191,43 @@ describe("checkTier1Context", () => {
     };
     expect(checkTier1Context(pack)).toEqual([]);
   });
+
+  it("does not require a parenthetical preposition annotation to appear verbatim in a sentence", () => {
+    // Real false negative caught during the 2026-07-30 wave-1 backfill: "innamorarsi (di)"
+    // documents the governing preposition, but "(di)" can never appear as literal prose — a
+    // sentence using "innamorarsi" naturally (e.g. "si sono innamorati subito") must satisfy
+    // this check, not be permanently unfixable.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "innamorarsi (di)", accepted: ["to fall in love (with)"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "he didn't want to fall in love again", accepted: ["Non voleva innamorarsi di nuovo."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
+
+  it("strips an elided article (l'abbraccio) with no space after the apostrophe", () => {
+    // Real bug caught during the 2026-07-30 wave-1 backfill: the old regex only matched
+    // "l' " (with a following space), which a real elided article never has — "l'abbraccio"
+    // silently required the article+noun as one un-splittable unit that could never match.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "l'abbraccio", accepted: ["the hug"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "the hug was long", accepted: ["L'abbraccio è stato lungo."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
 });
 
 describe("checkTier4Passage", () => {

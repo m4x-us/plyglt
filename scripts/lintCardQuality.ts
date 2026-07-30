@@ -237,9 +237,19 @@ export function checkEmptyHints(pack: LintPack): string[] {
 
 function extractItalianTerms(card: LintCard): string[] {
   const raw = card.type === "recognize" ? card.prompt : card.accepted.join(" / ");
-  return raw
+  // Strip parenthetical annotations (e.g. "innamorarsi (di)", "trovarsi (bene/male)") BEFORE
+  // splitting on "/" — the parenthetical documents a grammatical detail (governing
+  // preposition, register variant) that can never appear as literal text in natural prose.
+  // Found during the 2026-07-30 wave-1 backfill: requiring it verbatim produced an unfixable
+  // false negative — content agents correctly refused to write "innamorarsi (di)" into a
+  // sentence rather than game the checker.
+  const withoutParens = raw.replace(/\([^)]*\)/g, " ");
+  return withoutParens
     .split(/\s*\/\s*/)
-    .map((p) => p.trim().toLowerCase().replace(/^(il|lo|la|l'|i|gli|le|un|uno|una)\s+/, ""))
+    .map((p) => p.trim().toLowerCase()
+      // Elided articles (l'abbraccio, l'impegno) have NO space after the apostrophe, unlike
+      // the other articles below — matched separately since "il|lo|la..." all require \s+.
+      .replace(/^(il|lo|la|i|gli|le|un|uno|una)\s+|^l'/, ""))
     .filter((p) => p.length >= 3);
 }
 
