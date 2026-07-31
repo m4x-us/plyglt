@@ -26,6 +26,31 @@ serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest    = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
+# Task #166 — Windows OS-event listeners (src-tauri/src/os_events.rs windows_impl module):
+# message-only window + WNDPROC for WM_POWERBROADCAST (wake) and WM_WTSSESSION_CHANGE (unlock),
+# GetLastInputInfo (idle). windows-sys (not the older winapi crate) is Microsoft's current,
+# actively-maintained low-level Win32 bindings crate.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_LibraryLoader",
+] }
+
+# Task #167 — Linux OS-event listeners (src-tauri/src/os_events.rs linux_impl module):
+# systemd-logind D-Bus signals for wake (PrepareForSleep) and unlock (Session.Unlock), plus
+# IdleHint for idle detection. zbus is the actively-maintained pure-Rust D-Bus library;
+# zbus_systemd provides pregenerated, versioned bindings for systemd's D-Bus interfaces rather
+# than hand-rolled proxy definitions. Requires a small dedicated tokio runtime (zbus_systemd's
+# generated proxies are async-only) confined to this one background thread — see linux_impl::start.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
+zbus_systemd = { version = "0.26100", features = ["login1"] }
+tokio = { version = "1", features = ["rt", "time"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
 [profile.release]
 panic         = "abort"
 codegen-units = 1

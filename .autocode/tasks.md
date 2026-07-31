@@ -4,9 +4,8 @@ Generated: 2026-06-24 | Method: /meet
 Last updated: 2026-07-01
 
 ## Summary
-177 tasks across 17 batches (Batches 1–9, 11–13 COMPLETE; Batch 10 mostly COMPLETE — 2 tasks owner-blocked (#122, #123); Batch 14 CURRENT SPRINT; Batches 15–17 PLANNED)
-Critical (severity 8-9): 19 | High (6-7): 39 | Medium (4-5): 37 | Low (1-3): 22
-Current Sprint: Batch 14 (M3 macOS OS Hooks — stop-the-line pre-reqs first: #173–#177, then #159–#164)
+Batches 1–14, 18, 19 COMPLETE (Batch 10: 2 tasks owner-blocked, #122/#123); Batch 15 CURRENT SPRINT; Batches 16–17 PLANNED (blocked in sequence: 16 needs 15, 17 needs 16). See individual batch headers for exact status and audit history.
+Current Sprint: Batch 15 (Windows + Linux Packaging — Tasks #165–#167)
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7305,8 +7304,10 @@ Theme: Three gaps identified in the world-class audit (2026-06-30) with no exist
 
 ---
 
-## Batch 14 — M3 macOS OS Hooks [TASKS COMPLETE — pending batch audit]
+## Batch 14 — M3 macOS OS Hooks [COMPLETE — 2026-07-31 — audit obligation satisfied via Batch 19]
 Dependency: Batch 10 complete. Theme: Extend the Tauri desktop app to fire interrupts from real OS events — wake from sleep, unlock screen, and idle return — rather than the 30-second interval timer alone. Pre-req stop-the-line tasks (#173–#177) must close before OS hook tasks (#159–#164) begin.
+
+**Batch audit closure note (2026-07-31):** this batch's own audit (2026-07-04, 39 findings) was fully remediated via Batch 19 (confirmed COMPLETE 2026-07-06). Batch 19 then received its own first-ever full 8-agent `/audit` (2026-07-28) against this exact code — F1 (severity 7) was fixed via Task #506 and verified PASS; the remaining 17 findings (F2–F18) were logged to `debt.md` and accepted as debt with Max's explicit sign-off, closing Batch 19 as COMPLETE. Verified today: `git diff` from Task #506's commit to HEAD across every file in this batch's scope (`os_events.rs`, `interrupt.rs`, `lib.rs`, `tray.rs`, `InterruptHandler.tsx`, `app/settings/page.tsx`, `settingsStore.ts`, `migrations.ts`, `lib/tauriInterrupt.ts`, `hooks/useInterruptConfig.ts`) is empty — zero changes since that accepted-debt closure. A fresh independent read of all 10 files (this session) corroborates: no new issues found beyond what's already in `debt.md` (confirmed the F7 `isMacOS`-untested-branch gap is the same one already logged). Re-running a full fresh audit under the "Batch 14" name would be redundant — its deliverable already carries a closed audit trail under Batch 19. Batch 15 is unblocked.
 
 ### Task #173 | architecture | severity 7
 **What:** Extract duplicated `sha256Hex()` and `packUrl()` helpers that exist identically in both `lib/packLoader.ts` and `lib/specialtyPackLoader.ts` into `lib/utils.ts`. The `sha256Hex(text: string): Promise<string>` implementation at `packLoader.ts:94-100` and `specialtyPackLoader.ts:21-27` is byte-for-byte identical. The `packUrl(lang: string): string` at `packLoader.ts:141-143` and `specialtyPackLoader.ts:17-19` is byte-for-byte identical. Remove both from both source files and add one canonical copy to `lib/utils.ts`. Update all callers to import from `lib/utils.ts`.
@@ -7509,8 +7510,8 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 
 ---
 
-## Batch 15 — Windows + Linux Packaging
-Dependency: Batch 14 complete (OS events architecture in place). Theme: Port OS hooks to Windows and Linux, and set up platform packaging and code signing for all three desktop platforms.
+## Batch 15 — Windows + Linux Packaging [CURRENT SPRINT]
+Dependency: Batch 14 complete (OS events architecture in place) — satisfied 2026-07-31. Theme: Port OS hooks to Windows and Linux, and set up platform packaging and code signing for all three desktop platforms.
 
 ### Task #165 | build | severity 7
 **What:** Windows code signing — choose between EV certificate and Azure Trusted Signing. Configure `src-tauri/tauri.conf.json` for Windows signing. Update `.github/workflows/release.yml` to sign and notarize the Windows installer (NSIS format). Document the signing choice in `docs/SIGNING.md` (new).
@@ -7518,9 +7519,10 @@ Dependency: Batch 14 complete (OS events architecture in place). Theme: Port OS 
 **File:** `src-tauri/tauri.conf.json`, `.github/workflows/release.yml`, `docs/SIGNING.md` (new)
 **Severity:** 7 | **DoD Tier:** 2
 **Complexity:** 🔧 Full — 3 files (1 new)
-**Blocked by:** #123 | **Blocks:** #166
+**Blocked by:** #123 | **Blocks:** Nothing (see 2026-07-31 correction below)
 **Done when:** `tauri.conf.json` has Windows bundle signing config. `release.yml` signs Windows installer. NSIS `.exe` generated in release pipeline. SmartScreen does not block the signed installer.
 **Owner:** Architecture Agent
+**Status (2026-07-31): code-complete, decision made, NOT verified end-to-end.** Decision: Azure Trusted/Artifact Signing (owner choice over EV cert — see `docs/SIGNING.md`). `tauri.conf.json`'s `bundle.windows.signCommand`, `.github/workflows/release.yml`'s Windows signing step, and `docs/SIGNING.md` are all written. **Cannot be marked COMPLETE** — Max has not yet done the Azure Portal setup (account, identity validation, certificate profile, App Registration — see `docs/SIGNING.md`'s numbered checklist) and supplied the 6 required GitHub secrets, so the release pipeline's Windows signing step will fail if run today. **Correction to the original `Blocked by`/`Blocks` graph:** #166 was originally listed as blocked by this task; that was wrong — Windows OS-hook Rust code (#166) has no technical dependency on code signing (signing only affects whether the built artifact avoids a SmartScreen warning, not whether the feature code compiles or works), so #166 proceeded independently and is already done (see below).
 
 ---
 
@@ -7530,9 +7532,10 @@ Dependency: Batch 14 complete (OS events architecture in place). Theme: Port OS 
 **File:** `src-tauri/src/os_events.rs`, `src-tauri/Cargo.toml`
 **Severity:** 6 | **DoD Tier:** 3
 **Complexity:** 🔧 Full — 2 files, platform Rust
-**Blocked by:** #162, #165 | **Blocks:** #167
+**Blocked by:** #162 (corrected 2026-07-31 — was incorrectly also listed as blocked by #165; signing has no technical dependency relationship to this task, see #165's note) | **Blocks:** #167
 **Done when:** `os_events.rs` compiles on Windows (`cargo build --target x86_64-pc-windows-msvc`). Manual test on Windows 11: wake from sleep → interrupt fires; lock screen → unlock → interrupt fires.
 **Owner:** Architecture Agent
+**Status (2026-07-31): code-complete, NOT verified end-to-end — same category of gap Task #162 (macOS) shipped under.** `windows_impl` module added to `os_events.rs` (message-only window + WNDPROC handling `WM_POWERBROADCAST`/`PBT_APMRESUMEAUTOMATIC`, `WM_WTSSESSION_CHANGE`/`WTS_SESSION_UNLOCK` via `WTSRegisterSessionNotification`, and a `WM_TIMER`-driven `GetLastInputInfo` idle poll). `windows-sys 0.61` added as a Windows-only Cargo dependency, constants/APIs verified against current docs.rs/Microsoft Learn documentation (not written from memory). `emit_interrupt` hoisted out of the macOS-only cfg gate to be shared across all three platforms. New unit tests added (`event_wake_*`, `windows_linux_unlock_*`, `windows_linux_idle_*` — 8 new cases) reusing the existing `unlock_fires`/`idle_fires` pure guard helpers directly since the edge-detection shape is identical across platforms. **Verified today:** `cargo check` and `cargo test` both pass clean on the macOS host target (19/19 os_events tests green, confirms the shared refactor didn't break the working macOS implementation) — this does NOT verify the Windows code itself compiles, since `cfg(target_os = "windows")` code isn't type-checked on a non-Windows host. **NOT verified — requires a real Windows machine or CI runner:** `cargo build --target x86_64-pc-windows-msvc` (the file's own header comment flags one specific highest-risk spot: whether `windows-sys` 0.61.2 represents null window handles as bare integers or as newtype structs like `HICON(0)` — a compile-time-checkable detail that couldn't be confirmed without a compiler on hand), and all manual on-device wake/unlock/idle testing.
 
 ---
 
@@ -7545,6 +7548,7 @@ Dependency: Batch 14 complete (OS events architecture in place). Theme: Port OS 
 **Blocked by:** #166 | **Blocks:** Nothing (Batch 15 complete)
 **Done when:** AppImage generated in release pipeline. `cargo build --target x86_64-unknown-linux-gnu` compiles. Manual test on Ubuntu 22.04: suspend → resume → interrupt fires.
 **Owner:** Architecture Agent
+**Status (2026-07-31): code-complete, NOT verified end-to-end — same category of gap as #166.** `linux_impl` module added to `os_events.rs`, using `zbus`/`zbus_systemd` (pregenerated systemd D-Bus bindings, not hand-rolled proxies) for wake (`ManagerProxy::receive_prepare_for_sleep`) and unlock (`SessionProxy::receive_unlock`) as real D-Bus signals, plus `SessionProxy::idle_hint()` (polled every `OS_POLL_SECS`) for idle. **Deliberate deviation from this task's original idle-detection suggestion:** `XScreenSaverQueryInfo` was rejected (X11-only, inert under Wayland) and `/proc/uptime` was rejected (that's system boot time, not user input idle time — it cannot express an idle→active edge at all); logind's `IdleHint` is compositor-agnostic and was already available via the same D-Bus connection needed for wake/unlock. Documented tradeoff: logind's `IdleHint` doesn't accept a caller-supplied threshold, so `idle_threshold_minutes` does not tune Linux idle sensitivity the way it does on macOS/Windows (both poll a raw elapsed-seconds value) — a real platform API gap, not a bug, documented in-code. `zbus`, `zbus_systemd` (with the `login1` feature), `tokio` (a small dedicated single-thread runtime confined to this one background thread), and `futures-util` added as Linux-only Cargo dependencies. `tauri.conf.json`'s `bundle.targets: "all"` already covers AppImage by default (verified against Tauri docs — no config change needed); `.github/workflows/release.yml`'s `ubuntu-22.04` matrix leg passes `--bundles appimage` to scope the CI build to just AppImage (narrower than "all", avoiding an unneeded `rpmbuild` dependency for `.deb`/`.rpm`). **Verified today:** `cargo check`/`cargo test` pass on the macOS host (same caveat as #166 — does not compile-check `cfg(target_os = "linux")` code). **NOT verified — requires a real Linux machine or CI runner:** `cargo build --target x86_64-unknown-linux-gnu`, and all manual on-device suspend/resume/lock/unlock/idle testing.
 
 ---
 

@@ -40,6 +40,9 @@
     ],
     "macOS": {
       "signingIdentity": "Developer ID Application: John Schmidt (RV5FNNH8L4)"
+    },
+    "windows": {
+      "signCommand": "artifact-signing-cli -e %AZURE_SIGNING_ENDPOINT% -a %AZURE_SIGNING_ACCOUNT% -c %AZURE_SIGNING_PROFILE% -d plyglt %1"
     }
   },
   "plugins": {

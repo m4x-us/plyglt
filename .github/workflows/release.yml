@@ -1,14 +1,26 @@
-name: Release (macOS)
+name: Release
 
-# Task #123 — builds, signs, and notarizes a macOS release whenever a version
-# tag is pushed, then publishes it as a GitHub Release with an auto-updater
-# manifest. Uses tauri-apps/tauri-action, which wraps `tauri build` plus
-# codesign + notarization (via xcrun notarytool under the hood) and
-# update-manifest signing, driven entirely by the secrets set on this repo:
-#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
-#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID  (Task #122 — code signing + notarization)
-#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (Task #121 — updater signing)
-# macOS only — Windows/Linux packaging is Batch 15 (no tasks yet).
+# Builds, signs, and publishes a plyglt release for macOS, Windows, and Linux
+# whenever a version tag is pushed. Uses tauri-apps/tauri-action, which wraps
+# `tauri build` plus per-platform signing and produces installers uploaded to
+# one shared draft GitHub Release.
+#
+# macOS (Task #122/#123, live since 2026-07-29): Developer ID Application cert +
+#   notarization via xcrun notarytool. Secrets: APPLE_CERTIFICATE,
+#   APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD,
+#   APPLE_TEAM_ID.
+# Windows (Task #165, 2026-07-31): Azure Trusted/Artifact Signing via
+#   artifact-signing-cli. Secrets: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#   AZURE_TENANT_ID, AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT,
+#   AZURE_SIGNING_PROFILE. See docs/SIGNING.md — this job fails at the signing
+#   step until those 6 secrets exist (owner Azure Portal setup pending).
+# Linux (Task #167, 2026-07-31): AppImage output, unsigned by design — AppImage
+#   has no OS-level reputation gate the way Gatekeeper/SmartScreen do.
+#
+# TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD (Task #121,
+# auto-updater manifest signing) are platform-agnostic and apply to all three.
+#
+# See docs/SIGNING.md for the full human setup walkthrough for each platform.
 
 on:
   push:
@@ -17,13 +29,28 @@ on:
 
 jobs:
   release:
-    runs-on: macos-latest
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
-        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            bundles: ''
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            bundles: ''
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: ''
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            # Task #167 asks for AppImage specifically (no-install-required, works on all major
+            # distros) — scoped to just that target rather than bundle.targets:"all"'s default of
+            # deb+rpm+appimage, which would need `rpmbuild` installed on the runner for no benefit.
+            bundles: '--bundles appimage'
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +63,12 @@ jobs:
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
 
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
       - name: Install frontend dependencies
         run: npm ci --frozen-lockfile
 
@@ -43,6 +76,7 @@ jobs:
         run: npm run build
 
       - name: Import Apple code-signing certificate
+        if: matrix.platform == 'macos-latest'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -60,6 +94,10 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
 
+      - name: Install Azure artifact-signing-cli
+        if: matrix.platform == 'windows-latest'
+        run: cargo install artifact-signing-cli
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -70,10 +108,16 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'plyglt ${{ github.ref_name }}'
           releaseBody: 'See CHANGELOG or commit history for details.'
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.bundles }}

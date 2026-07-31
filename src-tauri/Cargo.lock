@@ -2605,6 +2605,7 @@ dependencies = [
 name = "plyglt"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2614,6 +2615,10 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-store",
  "tauri-plugin-updater",
+ "tokio",
+ "windows-sys 0.61.2",
+ "zbus",
+ "zbus_systemd",
 ]
 
 [[package]]
@@ -5514,6 +5519,16 @@ dependencies = [
  "serde",
  "winnow 1.0.3",
  "zvariant",
+]
+
+[[package]]
+name = "zbus_systemd"
+version = "0.26100.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4508893b3fc7829cbd654a318942b0716fb08da8a272a646a970f382cfb7d27e"
+dependencies = [
+ "serde",
+ "zbus",
 ]
 
 [[package]]
