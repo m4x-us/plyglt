@@ -7510,8 +7510,10 @@ Export `pub fn start_os_listeners(app_handle: tauri::AppHandle)`. Wire call in `
 
 ---
 
-## Batch 15 — Windows + Linux Packaging [CURRENT SPRINT]
+## Batch 15 — Windows + Linux Packaging [PAUSED — blocked on Max, resumes when #165/#166/#167 unblock]
 Dependency: Batch 14 complete (OS events architecture in place) — satisfied 2026-07-31. Theme: Port OS hooks to Windows and Linux, and set up platform packaging and code signing for all three desktop platforms.
+
+**2026-07-31: all 3 tasks are code-complete but blocked on things only Max can do** — #165 needs Azure Portal setup + secrets, #166/#167 need real Windows/Linux hardware to compile and manually test (no cross-toolchain available in this environment). None of that is further coding work an agent can advance, so Max chose to skip ahead to Batch 16's architecture doc (Task #168) in the meantime rather than open terminal windows for work that would hit the same walls. Resume this batch once Max reports back on the Azure setup and/or hardware testing.
 
 ### Task #165 | build | severity 7
 **What:** Windows code signing — choose between EV certificate and Azure Trusted Signing. Configure `src-tauri/tauri.conf.json` for Windows signing. Update `.github/workflows/release.yml` to sign and notarize the Windows installer (NSIS format). Document the signing choice in `docs/SIGNING.md` (new).
@@ -7552,8 +7554,10 @@ Dependency: Batch 14 complete (OS events architecture in place) — satisfied 20
 
 ---
 
-## Batch 16 — Sync Backend
+## Batch 16 — Sync Backend [CURRENT SPRINT]
 Dependency: Batch 15 complete (all desktop platforms shipping). Theme: Add a cloud sync backend and auth layer so user progress persists across devices — prerequisite for Batch 17 (mobile).
+
+**2026-07-31: Dependency technically not yet satisfied (Batch 15 is paused, not complete) — Max explicitly chose to start Task #168 (architecture doc only, no infrastructure provisioned) ahead of Batch 15 fully closing, since the doc itself has no dependency on Windows/Linux shipping. Task #169 (actual sync implementation) should still wait for both Batch 15 to close AND Max's sign-off on #168's recommendation below — provisioning real cloud infrastructure and committing to a vendor is a bigger, harder-to-reverse step than drafting a recommendation doc.**
 
 ### Task #168 | architecture | severity 9
 **What:** Write sync backend architecture decision doc at `docs/SYNC_ARCHITECTURE.md`. Must cover: (1) platform choice (Supabase vs Firebase vs custom server — choose one, justify), (2) what syncs: SRS card state (cardId, stability, difficulty, dueDate, lastReview, reviewCount, lapses), settings (interrupt config), entitlement (licenseKey, licenseType, purchasedAddOns), (3) offline-first model: all writes local-first, sync on open + periodic, (4) conflict resolution strategy for SRS data — last-write-wins is wrong for concurrent reviews on multiple devices; specify merge strategy (e.g., per-card timestamp, version vector), (5) auth providers: Apple Sign In + Google Sign In minimum (Apple Sign In required for App Store), (6) push notification infrastructure: APNs (iOS) + FCM (Android), (7) estimated monthly cost at 1,000 / 10,000 / 100,000 users.
@@ -7564,6 +7568,7 @@ Dependency: Batch 15 complete (all desktop platforms shipping). Theme: Add a clo
 **Blocked by:** Nothing (but requires owner decision on platform and auth) | **Blocks:** #169
 **Done when:** `docs/SYNC_ARCHITECTURE.md` exists. Platform chosen (not TBD). Auth providers listed. Conflict resolution strategy named specifically. Push notification stack defined. Cost estimate table present.
 **Owner:** Architecture Agent
+**Status (2026-07-31): drafted, awaiting Max's sign-off — NOT marked COMPLETE.** `docs/SYNC_ARCHITECTURE.md` written with a concrete recommendation: **Supabase (Postgres) for data + auth, Firebase Cloud Messaging (FCM) for push transport only** — a deliberate hybrid, not indecision (Postgres's relational model fits SRS review data naturally and bills predictably; FCM is free and gives one API for both iOS/Android push via its APNs bridge, so raw APNs integration is avoided entirely). **Deviation from this task's literal spec:** item (6) asked for "APNs (iOS) + FCM (Android)" as two separate services — the doc recommends FCM for both platforms instead, since FCM's APNs bridge (silently exchanging the real APNs device token for an FCM token) gives one send API and one token type, verified via current 2026 documentation before recommending it, not assumed. Conflict resolution (item 4) recommends an append-only `review_events` log rather than per-field merge logic on a mutable current-state row — sidesteps the "last-write-wins is wrong" problem structurally (two devices reviewing before syncing produce two real events, not a conflict to resolve) rather than requiring bespoke merge code. All 7 required items covered with real numbers (2026 Supabase/Firebase pricing researched, not estimated from memory). One question intentionally left open for Max in the doc: whether sync should eventually make entitlement server-authoritative (a real change to CLAUDE.md §5's client-only model) — not needed to unblock Task #169, flagged for before Batch 17 ships. **Task #169 (real infrastructure) does not start until Max reviews and signs off on the platform choice here.**
 
 ---
 
