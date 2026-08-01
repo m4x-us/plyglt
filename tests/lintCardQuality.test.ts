@@ -247,6 +247,45 @@ describe("checkTier1Context", () => {
     };
     expect(checkTier1Context(pack)).toEqual([]);
   });
+
+  it("expands a gender-ending shorthand (preoccupato/a) into both full forms instead of a bare suffix letter", () => {
+    // Real bug found during 2026-08-01 B1 content generation (b1-unit-35-subjunctive-emotion):
+    // "preoccupato/a" split naively on "/" yields ["preoccupato", "a"] — "a" alone is
+    // filtered out as too short, and "preoccupato" never matches a sentence using the
+    // feminine "preoccupata", producing an unfixable false negative even though the word
+    // genuinely appears in context. The fix must generate BOTH "preoccupato" and
+    // "preoccupata" as search terms, not "preoccupato" and a meaningless bare "a".
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "preoccupato/a", accepted: ["worried"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "she is worried about the trip", accepted: ["È preoccupata per il viaggio."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
+
+  it("does not treat a genuinely short second alternative as a suffix when it is not shorter than the first", () => {
+    // Guard against over-matching: "sì / no" are two full standalone words of equal length,
+    // not a stem+suffix shorthand — the suffix-expansion heuristic must not fire here.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "sì / no", accepted: ["yes / no"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "she said yes", accepted: ["Ha detto sì."], tier: 3 }),
+            card({ id: "c3", type: "produce", prompt: "he said no", accepted: ["Ha detto no."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
 });
 
 describe("checkTier4Passage", () => {

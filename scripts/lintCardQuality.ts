@@ -244,12 +244,31 @@ function extractItalianTerms(card: LintCard): string[] {
   // false negative — content agents correctly refused to write "innamorarsi (di)" into a
   // sentence rather than game the checker.
   const withoutParens = raw.replace(/\([^)]*\)/g, " ");
-  return withoutParens
-    .split(/\s*\/\s*/)
-    .map((p) => p.trim().toLowerCase()
+  const rawParts = withoutParens.split(/\s*\/\s*/).map((p) => p.trim().toLowerCase());
+  // Gender/number-ending shorthand (preoccupato/a, stanco/a, sollevato/a) writes a short
+  // suffix after the slash that REPLACES the stem's final letter(s) — it is not a second
+  // standalone word. Splitting naively yields ["preoccupato", "a"]; "a" is filtered out as
+  // too short and "preoccupato" never matches a sentence using the feminine "preoccupata",
+  // producing an unfixable false negative on one of the most common Italian adjective
+  // notations. Detected here: when a later part is short (<=2 chars) and shorter than the
+  // immediately preceding part, treat it as a suffix replacing that many trailing characters
+  // of the preceding part, and search for BOTH the original and the suffixed form.
+  const expanded: string[] = [];
+  for (let i = 0; i < rawParts.length; i++) {
+    const part = rawParts[i];
+    const prev = expanded[expanded.length - 1];
+    if (prev && part.length > 0 && part.length <= 2 && part.length < prev.length) {
+      expanded.push(prev.slice(0, -part.length) + part);
+    } else {
+      expanded.push(part);
+    }
+  }
+  return expanded
+    .map((p) =>
       // Elided articles (l'abbraccio, l'impegno) have NO space after the apostrophe, unlike
       // the other articles below — matched separately since "il|lo|la..." all require \s+.
-      .replace(/^(il|lo|la|i|gli|le|un|uno|una)\s+|^l'/, ""))
+      p.replace(/^(il|lo|la|i|gli|le|un|uno|una)\s+|^l'/, "")
+    )
     // >= 2, not >= 3: found during the 2026-07-30 passage backfill — "il tè" strips to "tè"
     // (2 chars), which a >=3 floor silently excluded from every context search regardless of
     // whether real context existed (it did: "Il tè nella tazza è già freddo." already covered

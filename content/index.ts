@@ -58,7 +58,7 @@ import a2Unit37 from "./cards/a2-unit-37-money-banking";
 import a2Unit38 from "./cards/a2-unit-38-time-expressions";
 import a2Unit39 from "./cards/a2-unit-39-housing-renting";
 
-// B1 — Intermediate (14 units)
+// B1 — Intermediate (22 units)
 import b1Unit19 from "./cards/b1-unit-19-relative-pronouns";
 import b1Unit20 from "./cards/b1-unit-20-congiuntivo";
 import b1Unit21 from "./cards/b1-unit-21-trapassato";
@@ -73,6 +73,14 @@ import b1Unit29 from "./cards/b1-unit-29-sports-hobbies";
 import b1Unit30 from "./cards/b1-unit-30-school-education";
 import b1Unit31 from "./cards/b1-unit-31-materials";
 import b1Unit32 from "./cards/b1-unit-32-social";
+import b1Unit33 from "./cards/b1-unit-33-subjunctive-opinions";
+import b1Unit34 from "./cards/b1-unit-34-subjunctive-impersonal";
+import b1Unit35 from "./cards/b1-unit-35-subjunctive-emotion";
+import b1Unit36 from "./cards/b1-unit-36-hypothetical";
+import b1Unit37 from "./cards/b1-unit-37-concession-contrast";
+import b1Unit38 from "./cards/b1-unit-38-cause-effect";
+import b1Unit39 from "./cards/b1-unit-39-purpose-result";
+import b1Unit40 from "./cards/b1-unit-40-formal-register";
 
 // B2 — Upper Intermediate (13 units)
 import b2Unit29 from "./cards/b2-unit-29-hypotheticals";
@@ -106,6 +114,7 @@ export const ALL_UNITS: Unit[] = [
   b1Unit19, b1Unit20, b1Unit21, b1Unit22, b1Unit23,
   b1Unit24, b1Unit25, b1Unit26, b1Unit27, b1Unit28,
   b1Unit29, b1Unit30, b1Unit31, b1Unit32,
+  b1Unit33, b1Unit34, b1Unit35, b1Unit36, b1Unit37, b1Unit38, b1Unit39, b1Unit40,
   // B2
   b2Unit29, b2Unit30, b2Unit31, b2Unit32, b2Unit33,
   b2Unit34, b2Unit35, b2Unit36, b2Unit37, b2Unit38,
