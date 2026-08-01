@@ -254,10 +254,9 @@ function extractItalianTerms(card: LintCard): string[] {
   // immediately preceding part, treat it as a suffix replacing that many trailing characters
   // of the preceding part, and search for BOTH the original and the suffixed form.
   const expanded: string[] = [];
-  for (let i = 0; i < rawParts.length; i++) {
-    const part = rawParts[i];
+  for (const part of rawParts) {
     const prev = expanded[expanded.length - 1];
-    if (prev && part.length > 0 && part.length <= 2 && part.length < prev.length) {
+    if (prev !== undefined && part.length > 0 && part.length <= 2 && part.length < prev.length) {
       expanded.push(prev.slice(0, -part.length) + part);
     } else {
       expanded.push(part);

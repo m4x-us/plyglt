@@ -58,7 +58,7 @@ import a2Unit37 from "./cards/a2-unit-37-money-banking";
 import a2Unit38 from "./cards/a2-unit-38-time-expressions";
 import a2Unit39 from "./cards/a2-unit-39-housing-renting";
 
-// B1 — Intermediate (22 units)
+// B1 — Intermediate (35 units)
 import b1Unit19 from "./cards/b1-unit-19-relative-pronouns";
 import b1Unit20 from "./cards/b1-unit-20-congiuntivo";
 import b1Unit21 from "./cards/b1-unit-21-trapassato";
@@ -81,6 +81,19 @@ import b1Unit37 from "./cards/b1-unit-37-concession-contrast";
 import b1Unit38 from "./cards/b1-unit-38-cause-effect";
 import b1Unit39 from "./cards/b1-unit-39-purpose-result";
 import b1Unit40 from "./cards/b1-unit-40-formal-register";
+import b1Unit41 from "./cards/b1-unit-41-society-social-life";
+import b1Unit42 from "./cards/b1-unit-42-politics-civic-basics";
+import b1Unit43 from "./cards/b1-unit-43-economy-everyday";
+import b1Unit44 from "./cards/b1-unit-44-technology-digital-life";
+import b1Unit45 from "./cards/b1-unit-45-environment-nature";
+import b1Unit46 from "./cards/b1-unit-46-art-museums";
+import b1Unit47 from "./cards/b1-unit-47-music-performing-arts";
+import b1Unit48 from "./cards/b1-unit-48-keeping-up-with-news";
+import b1Unit49 from "./cards/b1-unit-49-italian-history-ancient-medieval";
+import b1Unit50 from "./cards/b1-unit-50-italian-history-modern";
+import b1Unit51 from "./cards/b1-unit-51-life-stages-milestones";
+import b1Unit52 from "./cards/b1-unit-52-sleep-stress-wellbeing";
+import b1Unit53 from "./cards/b1-unit-53-subjunctive-connector-mastery";
 
 // B2 — Upper Intermediate (13 units)
 import b2Unit29 from "./cards/b2-unit-29-hypotheticals";
@@ -115,6 +128,8 @@ export const ALL_UNITS: Unit[] = [
   b1Unit24, b1Unit25, b1Unit26, b1Unit27, b1Unit28,
   b1Unit29, b1Unit30, b1Unit31, b1Unit32,
   b1Unit33, b1Unit34, b1Unit35, b1Unit36, b1Unit37, b1Unit38, b1Unit39, b1Unit40,
+  b1Unit41, b1Unit42, b1Unit43, b1Unit44, b1Unit45, b1Unit46, b1Unit47, b1Unit48,
+  b1Unit49, b1Unit50, b1Unit51, b1Unit52, b1Unit53,
   // B2
   b2Unit29, b2Unit30, b2Unit31, b2Unit32, b2Unit33,
   b2Unit34, b2Unit35, b2Unit36, b2Unit37, b2Unit38,
