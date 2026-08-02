@@ -272,7 +272,7 @@ const unit: Unit = {
     {
       id: "b151-t4-006",
       type: "passage_cloze",
-      prompt: "A quarantacinque anni, Roberto ha deciso di licenziarsi dall'azienda dove lavorava da vent'anni.\nVoleva finalmente inseguire il suo vero sogno: aprire una piccola libreria in centro.\nMolti amici la consideravano una scelta rischiosa, troppo tardi per ricominciare da zero.\nLa sua libreria oggi è piena di clienti abituali che si fermano a chiacchierare tra uno scaffale e l'altro.\nRipensandoci ora, Roberto dice che non ha mai avuto un solo ___.",
+      prompt: "A quarantacinque anni, Roberto ha deciso di licenziarsi dall'azienda dove lavorava da vent'anni.\nVoleva finalmente inseguire il suo vero sogno: aprire una piccola libreria in centro.\nMolti amici la consideravano una scelta rischiosa, troppo tardi per ricominciare da zero.\nLa sua libreria oggi è piena di clienti abituali che si fermano a chiacchierare tra uno scaffale e l'altro.\nOgni sera, quando chiude la libreria, Roberto non sente il peso di nessun ___.",
       accepted: ["rimpianto"],
       hint: "the noun for regret, used here in the singular",
       tags: ["passage_cloze", "career", "rimpianto"],
@@ -308,7 +308,7 @@ const unit: Unit = {
     {
       id: "b151-t4-010",
       type: "passage_cloze",
-      prompt: "Da giovane, mio zio Paolo viveva alla giornata, senza troppi progetti per il futuro.\nA trent'anni, però, ha conosciuto sua moglie e tutto è cambiato all'improvviso.\nHanno comprato una casa insieme, hanno avuto due bambini e hanno costruito una vita stabile.\nAncora oggi, a settant'anni, lui e sua moglie vivono nella stessa casa e passano le domeniche a giocare a carte con i nipoti.\nLui dice che quell'incontro è stata la vera ___ della sua esistenza.",
+      prompt: "Da giovane, mio zio Paolo viveva alla giornata, senza troppi progetti per il futuro.\nA trent'anni, però, ha conosciuto sua moglie e tutto è cambiato all'improvviso.\nHanno comprato una casa insieme, hanno avuto due bambini e hanno costruito una vita stabile.\nAncora oggi, a settant'anni, lui e sua moglie vivono nella stessa casa e passano le domeniche a giocare a carte con i nipoti.\nOgni tanto, guardando i nipoti ridere a tavola, Paolo ripensa a quella prima ___.",
       accepted: ["svolta"],
       hint: "the noun for a turning point",
       tags: ["passage_cloze", "milestone", "svolta"],
@@ -317,7 +317,7 @@ const unit: Unit = {
     {
       id: "b151-t4-011",
       type: "passage_cloze",
-      prompt: "Mia sorella e il suo compagno convivono da tre anni in un piccolo appartamento vicino al centro.\nHanno deciso di non sposarsi subito, preferendo prima capire se erano davvero compatibili nella vita di ogni giorno.\nI nostri nonni, di un'altra generazione, non capiscono bene questa scelta e continuano a chiedere quando faranno il grande passo.\nMia sorella risponde sempre con calma che ogni coppia ha il diritto di scegliere il proprio ___.",
+      prompt: "Mia sorella e il suo compagno convivono da tre anni in un piccolo appartamento vicino al centro.\nHanno deciso di non sposarsi subito, preferendo prima capire se erano davvero compatibili nella vita di ogni giorno.\nI nostri nonni, di un'altra generazione, non capiscono bene questa scelta e continuano a chiedere quando faranno il grande passo.\nMia sorella si limita a sorridere e a rispondere: «Vogliamo solo continuare, un passo alla volta, lungo il nostro ___.»",
       accepted: ["percorso"],
       hint: "the noun for path/journey, used figuratively for one's life course",
       tags: ["passage_cloze", "relationships", "convivere"],
@@ -335,7 +335,7 @@ const unit: Unit = {
     {
       id: "b151-t4-013",
       type: "passage_cloze",
-      prompt: "Il signor Bianchi ha novant'anni e vive ormai da cinque anni in una casa di riposo vicino a Bologna.\nOgni domenica i suoi nipotini vengono a trovarlo, portando dolci fatti in casa e disegni colorati.\nLui racconta sempre le stesse storie di guerra e di gioventù, ma nessuno si stanca mai di ascoltarlo.\nDice che la cosa più bella della sua terza età è proprio il tempo che passa con la sua ___.",
+      prompt: "Il signor Bianchi ha novant'anni e vive ormai da cinque anni in una casa di riposo vicino a Bologna.\nOgni domenica i suoi nipotini vengono a trovarlo, portando dolci fatti in casa e disegni colorati.\nLui racconta sempre le stesse storie di guerra e di gioventù, ma nessuno si stanca mai di ascoltarlo.\nQuando li vede arrivare, lascia subito il giornale sul tavolo e apre le braccia alla sua ___.",
       accepted: ["famiglia"],
       hint: "the noun for family",
       tags: ["passage_cloze", "old-age", "family"],
@@ -353,9 +353,9 @@ const unit: Unit = {
     {
       id: "b151-t4-015",
       type: "passage_cloze",
-      prompt: "A cinquant'anni, Giovanna ha iniziato a fare un bilancio della propria vita, come non aveva mai fatto prima.\nSi è resa conto di aver rimandato per troppo tempo il sogno di viaggiare da sola.\nCosì ha prenotato un biglietto per il Portogallo, senza dire niente a nessuno fino all'ultimo momento.\nDice che quella mezza età, spesso vista come un periodo difficile, per lei è stata invece un nuovo ___.",
+      prompt: "A cinquant'anni, Giovanna ha iniziato a fare un bilancio della propria vita, come non aveva mai fatto prima.\nSi è resa conto di aver rimandato per troppo tempo il sogno di viaggiare da sola.\nCosì ha prenotato un biglietto per il Portogallo, senza dire niente a nessuno fino all'ultimo momento.\nQuando l'aereo decolla, Giovanna guarda le nuvole dal finestrino e sorride, pronta per questo nuovo ___.",
       accepted: ["inizio"],
-      hint: "the noun for a beginning/start, contrasting with the idea of decline",
+      hint: "the noun for a beginning/start",
       tags: ["passage_cloze", "middle-age", "reflection"],
       tier: 4,
     },
@@ -371,7 +371,7 @@ const unit: Unit = {
     {
       id: "b151-t4-017",
       type: "passage_cloze",
-      prompt: "Marco ha ventidue anni e condivide un piccolo appartamento con due coinquilini vicino all'università.\nAll'inizio non era facile: doveva imparare a fare la lavatrice, cucinare e dividere le spese con estranei.\nOggi, dopo un anno, considera i suoi coinquilini quasi come una seconda famiglia.\nDice che questa esperienza gli ha insegnato più cose sulla vita di qualsiasi corso ___.",
+      prompt: "Marco ha ventidue anni e condivide un piccolo appartamento con due coinquilini vicino all'università.\nAll'inizio non era facile: doveva imparare a fare la lavatrice, cucinare e dividere le spese con estranei.\nOggi, dopo un anno, considera i suoi coinquilini quasi come una seconda famiglia.\nLa sera, mentre cucinano insieme, si sente più a casa che durante qualsiasi corso ___.",
       accepted: ["universitario"],
       hint: "the adjective for university-related, describing the course",
       tags: ["passage_cloze", "independence", "university"],
@@ -389,7 +389,7 @@ const unit: Unit = {
     {
       id: "b151-t4-019",
       type: "passage_cloze",
-      prompt: "Due amici, Luca e Simone, si sono conosciuti all'asilo e sono cresciuti insieme come fratelli.\nOggi, a quarant'anni, le loro vite sono molto diverse: Luca ha messo su famiglia, Simone è ancora single per scelta.\nNonostante tutto, ogni due settimane si vedono per una birra e parlano come se il tempo non fosse passato.\nDicono che l'amicizia tra coetanei di una vita non si misura con il ___.",
+      prompt: "Due amici, Luca e Simone, si sono conosciuti all'asilo e sono cresciuti insieme come fratelli.\nOggi, a quarant'anni, le loro vite sono molto diverse: Luca ha messo su famiglia, Simone è ancora single per scelta.\nNonostante tutto, ogni due settimane si vedono per una birra e parlano come se il tempo non fosse passato.\nAlzano i bicchieri, ridono delle vecchie battute, e non contano mai il ___.",
       accepted: ["tempo"],
       hint: "the noun for time",
       tags: ["passage_cloze", "friendship", "generation"],

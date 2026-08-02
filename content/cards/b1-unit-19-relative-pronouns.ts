@@ -282,7 +282,7 @@ const unit: Unit = {
     {
       id: "u19-t4-005",
       type: "passage_cloze",
-      prompt: "Marco è uno studente che lavora molto.\nIl motivo per ___ studia così tanto è semplice: vuole diventare medico.\nLa professoressa con cui si prepara è molto severa.\nI risultati che ottiene sono sempre eccellenti.\nChiunque lo conosca sa che non spreca mai un'opportunità.",
+      prompt: "Marco è uno studente che lavora molto.\nIl motivo per ___ studia così tanto è semplice: vuole diventare medico.\nLa professoressa con cui si prepara è molto severa.\nI risultati che ottiene sono sempre eccellenti.\nLa settimana scorsa ha rifiutato un'uscita con gli amici per non perdere un'altra opportunità di studio.",
       accepted: ["cui"],
       hint: "per cui = why (for which)",
       tags: ["passage-cloze", "per-cui", "cui", "motivo", "risultato", "opportunità"],
@@ -1221,7 +1221,7 @@ const unit: Unit = {
     {
       id: "u19-t4-009",
       type: "passage_cloze",
-      prompt: "Mio nonno ripeteva sempre un vecchio proverbio: chi va piano va sano e va lontano.\nDa giovane non capivo bene cosa volesse dire, ma con gli anni ho imparato la lezione.\n___ ha fretta spesso commette errori che poi deve correggere con calma.\nOggi cerco di applicare questo consiglio anche sul lavoro, senza lasciarmi prendere dall'ansia.\nLa pazienza, alla fine, è quasi sempre la scelta migliore.",
+      prompt: "Mio nonno ripeteva sempre un vecchio proverbio: chi va piano va sano e va lontano.\nDa giovane non capivo bene cosa volesse dire, ma con gli anni ho cambiato modo di fare le cose.\n___ ha fretta spesso commette errori che poi deve correggere con calma.\nOggi cerco di applicare questo consiglio anche sul lavoro, senza lasciarmi prendere dall'ansia.\nStamattina, per esempio, ho aspettato cinque minuti prima di rispondere a un'email urgente.",
       accepted: ["Chi"],
       hint: "chi = whoever",
       tags: ["passage-cloze", "chi", "proverb", "consiglio", "scelta", "relative-pronoun"],
@@ -1261,7 +1261,7 @@ const unit: Unit = {
     {
       id: "u19-t4-013",
       type: "passage_cloze",
-      prompt: "Alla fine del corso, la professoressa ha ripetuto una regola semplice ma importante.\n___ studia con costanza, anche solo un'ora al giorno, ottiene risultati migliori di chi studia tutto in una notte.\nMolti studenti non ci credono finché non lo sperimentano da soli.\nIl consiglio grazie a cui ho cambiato il mio metodo veniva proprio da lei.\nDa allora organizzo lo studio in piccole sessioni quotidiane.",
+      prompt: "Alla fine del corso, la professoressa ha ripetuto una regola semplice ma importante.\n___ studia con costanza, anche solo un'ora al giorno, ottiene risultati migliori di chi studia tutto in una notte.\nMolti studenti non ci credono finché non lo sperimentano da soli.\nIl consiglio grazie a cui ho cambiato il mio metodo veniva proprio da lei.\nMartedì scorso, per esempio, ho ripassato i verbi irregolari per soli venti minuti prima di cena.",
       accepted: ["Chi"],
       hint: "chi = those who / whoever",
       tags: ["passage-cloze", "chi", "consiglio", "grazie-a-cui", "relative-pronoun"],
@@ -1281,7 +1281,7 @@ const unit: Unit = {
     {
       id: "u19-t4-015",
       type: "passage_cloze",
-      prompt: "C'è una faccenda di cui la mia famiglia non parla quasi mai apertamente.\nIl motivo per cui restiamo in silenzio è legato a una vecchia discussione tra fratelli.\nLa questione su ___ litigavano riguardava semplicemente un'eredità mai divisa bene.\nL'episodio a causa del quale i rapporti si erano rotti risale a più di vent'anni fa.\nCon gli anni, per fortuna, i rapporti si sono un po' aggiustati.\nCerte ferite, però, guariscono solo lentamente.",
+      prompt: "C'è una faccenda di cui la mia famiglia non parla quasi mai apertamente.\nIl motivo per cui restiamo in silenzio è legato a una vecchia discussione tra fratelli.\nLa questione su ___ litigavano riguardava semplicemente un'eredità mai divisa bene.\nL'episodio a causa del quale i rapporti si erano rotti risale a più di vent'anni fa.\nCon gli anni, per fortuna, i rapporti si sono un po' aggiustati.\nOra, per Natale, ci ritroviamo di nuovo tutti allo stesso tavolo.",
       accepted: ["cui"],
       hint: "su cui = about which",
       tags: ["passage-cloze", "cui", "faccenda", "questione", "per-cui", "relative-pronoun"],
@@ -1291,7 +1291,7 @@ const unit: Unit = {
     {
       id: "u19-t4-016",
       type: "passage_cloze",
-      prompt: "Ho fatto un viaggio in treno con altre otto persone, tra cui due studenti universitari.\nIl vagone in cui viaggiavamo era pieno ma tranquillo per tutto il percorso.\nLe storie che ci siamo raccontati durante il viaggio hanno reso il tempo più breve.\n___ mi ha colpito di più è stata la gentilezza di uno sconosciuto.\nDa quel giorno cerco sempre di fare lo stesso con gli altri.",
+      prompt: "Ho fatto un viaggio in treno con altre otto persone, tra cui due studenti universitari.\nIl vagone in cui viaggiavamo era pieno ma tranquillo per tutto il percorso.\nLe storie che ci siamo raccontati durante il viaggio hanno reso il tempo più breve.\n___ mi ha colpito di più è stata la gentilezza di uno sconosciuto.\nMi ha aiutato a sistemare la valigia sopra la testa senza dire una parola.",
       accepted: ["Quello che", "Ciò che"],
       hint: "quello che/ciò che = what",
       tags: ["passage-cloze", "quello-che", "tra-cui", "in-cui", "relative-pronoun"],
@@ -1311,7 +1311,7 @@ const unit: Unit = {
     {
       id: "u19-t4-018",
       type: "passage_cloze",
-      prompt: "L'osservazione che il mio capo ha fatto durante la riunione mi ha fatto riflettere molto.\nIl punto su cui insisteva riguardava la comunicazione tra i diversi reparti dell'azienda.\nLa spiegazione che ha dato dopo era chiara e priva di giri di parole.\n___ ho capito, alla fine, è che dobbiamo parlarci di più tra colleghi.\nDa lunedì proveremo un nuovo modo di lavorare insieme.",
+      prompt: "L'osservazione che il mio capo ha fatto durante la riunione mi ha fatto riflettere molto.\nIl punto su cui insisteva riguardava la comunicazione tra i diversi reparti dell'azienda.\nLa spiegazione che ha dato dopo era chiara e priva di giri di parole.\n___ mi ha convinto di più, alla fine, è stato l'esempio concreto sul progetto di marketing che ha citato.\nDa lunedì proveremo un nuovo modo di lavorare insieme.",
       accepted: ["Quello che", "Ciò che"],
       hint: "quello che/ciò che = what",
       tags: ["passage-cloze", "quello-che", "osservazione", "spiegazione", "punto", "relative-pronoun"],
@@ -1321,7 +1321,7 @@ const unit: Unit = {
     {
       id: "u19-t4-019",
       type: "passage_cloze",
-      prompt: "Mia madre mi ha sempre detto di restituire quanto ricevo, senza aspettarmi nulla in cambio.\nPer anni ho seguito questo principio, anche quando non era facile.\nLa certezza di aver fatto la cosa giusta vale più di qualsiasi guadagno immediato.\n___ ho imparato da lei, oggi, cerco di insegnarlo anche ai miei figli.\nAlcune lezioni, semplicemente, non si dimenticano mai.",
+      prompt: "Mia madre mi ha sempre detto di restituire quanto ricevo, senza aspettarmi nulla in cambio.\nPer anni ho seguito questo principio, anche quando non era facile.\nLa certezza di aver fatto la cosa giusta vale più di qualsiasi guadagno immediato.\n___ ho imparato da lei, oggi, cerco di insegnarlo anche ai miei figli.\nLa settimana scorsa, mio figlio ha restituito la bicicletta al vicino senza che nessuno glielo chiedesse.",
       accepted: ["Quanto"],
       hint: "quanto = everything that",
       tags: ["passage-cloze", "quanto", "certezza", "relative-pronoun"],
@@ -1341,7 +1341,7 @@ const unit: Unit = {
     {
       id: "u19-t4-021",
       type: "passage_cloze",
-      prompt: "C'è un vecchio detto che ripeto spesso a me stesso nei momenti difficili: chi cerca trova.\nNon sempre la ricerca è semplice, e a volte servono mesi prima di ottenere un risultato.\nLa pazienza con cui ho affrontato l'ultimo anno mi ha sorpreso persino me stesso.\n___ ho capito, comunque, è che ogni sforzo lascia sempre qualcosa di utile.\nPer questo continuo a provarci, un passo alla volta.",
+      prompt: "C'è un vecchio detto che ripeto spesso a me stesso nei momenti difficili: chi cerca trova.\nNon sempre la ricerca è semplice, e a volte servono mesi prima di ottenere un risultato.\nLa pazienza con cui ho affrontato l'ultimo anno mi ha sorpreso persino me stesso.\n___ mi ha aiutato di più, alla fine, è stato il messaggio di un'amica che mi ha spinto a non mollare.\nPer questo continuo a provarci, un passo alla volta.",
       accepted: ["Quello che", "Ciò che"],
       hint: "quello che/ciò che = what",
       tags: ["passage-cloze", "quello-che", "chi", "proverb", "con-cui", "relative-pronoun"],

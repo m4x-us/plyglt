@@ -1940,9 +1940,9 @@ const unit: Unit = {
     {
       id: "b148-t4-019",
       type: "passage_cloze",
-      prompt: "Tornata dalle vacanze dopo due settimane senza internet, mi sono resa conto di essere completamente indietro con le notizie. Ho passato la prima serata a mettermi in pari: ho letto tre quotidiani diversi e ho guardato due notiziari di seguito. Alla fine ho capito che, in fondo, non ___ successo niente di così importante mentre ero via.",
+      prompt: "Tornata dalle vacanze dopo due settimane senza internet, mi sono resa conto di essere completamente indietro con le notizie. Ho passato la prima serata a mettermi in pari: ho letto tre quotidiani diversi e ho guardato due notiziari di seguito. Scorrendo i titoli delle ultime due settimane, in fondo, non ___ successo niente di così importante mentre ero via.",
       accepted: ["era"],
-      hint: "Imperfetto of essere in the impersonal construction with 'niente', describing a background realization.",
+      hint: "Imperfetto of essere in the impersonal construction with 'niente', describing a state true at that point in the story.",
       tags: ["passage_cloze", "news"],
       tier: 4,
     },

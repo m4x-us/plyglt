@@ -365,7 +365,7 @@ const unit: Unit = {
     {
       id: "b142-t4-017",
       type: "passage_cloze",
-      prompt: "Due vicini di casa, il signor Rossi e la signora Bianchi, discutono spesso davanti al portone del palazzo. Il signor Rossi sostiene che il sindaco attuale ha mantenuto quasi tutte le promesse della campagna elettorale, mentre la signora Bianchi ricorda che le strade del quartiere sono ancora rotte da anni. Alla fine, i due si trovano d'accordo su una cosa: alle prossime elezioni comunali, bisognerà ___ (informarsi) meglio prima di scegliere.",
+      prompt: "Due vicini di casa, il signor Rossi e la signora Bianchi, discutono spesso davanti al portone del palazzo. Il signor Rossi sostiene che il sindaco attuale ha mantenuto quasi tutte le promesse della campagna elettorale, mentre la signora Bianchi ricorda che le strade del quartiere sono ancora rotte da anni. Il portinaio, che li ascolta ogni sera, scuote la testa e dice che bisognerà ___ (informarsi) meglio sui programmi dei candidati, ma i due continuano a discutere come sempre.",
       accepted: ["informarsi"],
       hint: "infinitive after bisognerà (future of bisognare, 'it will be necessary') — impersonal verb, no subject pronoun",
       tags: ["politics", "passage_cloze", "tier4"],

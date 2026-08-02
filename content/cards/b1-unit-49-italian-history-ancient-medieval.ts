@@ -350,7 +350,7 @@ const unit: Unit = {
     {
       id: "b149-t4-013",
       type: "passage_cloze",
-      prompt: "Nel Medioevo, il papa non era solo il capo della chiesa, ma anche una figura politica potente. La sera di Natale dell'ottocento, il papa ___ (incoronare) Carlo Magno come nuovo imperatore, davanti a una folla emozionata nella basilica di San Pietro. Quell'incoronazione segnò la nascita di un nuovo impero in Occidente. Da quel momento, i rapporti tra il potere religioso e quello politico rimasero intrecciati per secoli, influenzando ogni futuro sovrano europeo.",
+      prompt: "Nel Medioevo, il papa non era solo il capo della chiesa, ma anche una figura politica potente. La sera di Natale dell'ottocento, il papa ___ (incoronare) Carlo Magno come nuovo imperatore, davanti a una folla emozionata nella basilica di San Pietro. Quell'incoronazione segnò la nascita di un nuovo impero in Occidente. Carlo Magno lasciò la basilica quella sera con un titolo nuovo e una corona che nessun re dei Franchi aveva mai indossato prima.",
       accepted: ["incoronò"],
       hint: "passato remoto, lui/lei, incoronare",
       tags: ["passage_cloze", "history", "church"],
@@ -395,7 +395,7 @@ const unit: Unit = {
     {
       id: "b149-t4-018",
       type: "passage_cloze",
-      prompt: "Attila, il temuto capo degli Unni, guidò il suo popolo attraverso l'Europa in cerca di ricchezze e territori. Il suo esercito ___ (arrivare) fino alle porte di Roma, seminando paura in tutto l'impero. Solo un incontro diplomatico con il papa convinse Attila a ritirarsi senza attaccare la città. Quell'incontro divenne leggendario, ricordato per secoli come un esempio raro in cui le parole fermarono un esercito invece delle armi.",
+      prompt: "Attila, il temuto capo degli Unni, guidò il suo popolo attraverso l'Europa in cerca di ricchezze e territori. Il suo esercito ___ (arrivare) fino alle porte di Roma, seminando paura in tutto l'impero. Solo un incontro diplomatico con il papa convinse Attila a ritirarsi senza attaccare la città. Attila si ritirò verso nord con il suo esercito, e le porte di Roma rimasero chiuse ma intatte.",
       accepted: ["arrivò"],
       hint: "passato remoto, lui/lei, arrivare",
       tags: ["passage_cloze", "history", "decline"],

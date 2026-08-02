@@ -212,7 +212,7 @@ const unit: Unit = {
     {
       id: "b141-t4-001",
       type: "passage_cloze",
-      prompt: "Da quando è rimasta sola, la signora Elvira esce sempre meno di casa e passa le giornate davanti alla finestra.\nIl suo vicino, Marco, si è accorto del suo isolamento e ha deciso di andare a trovarla ogni martedì pomeriggio.\nAll'inizio lei rispondeva a monosillabi, ma piano piano ha ricominciato a sorridere e a raccontare storie della sua giovinezza.\nOra Marco dice che essere un buon vicino significa anche combattere la ___ degli anziani soli.",
+      prompt: "Da quando è rimasta sola, la signora Elvira esce sempre meno di casa e passa le giornate davanti alla finestra.\nIl suo vicino, Marco, si è accorto del suo isolamento e ha deciso di andare a trovarla ogni martedì pomeriggio.\nAll'inizio lei rispondeva a monosillabi, ma piano piano ha ricominciato a sorridere e a raccontare storie della sua giovinezza.\nOra, ogni martedì, la signora Elvira prepara il tè prima ancora che Marco suoni il campanello: della sua vecchia ___ non è rimasta quasi più traccia.",
       accepted: ["solitudine"],
       hint: "the loneliness this whole passage is about — feminine noun",
       tags: ["passage_cloze", "isolation", "elderly", "neighbor"],
@@ -252,9 +252,9 @@ const unit: Unit = {
     {
       id: "b141-t4-005",
       type: "passage_cloze",
-      prompt: "Quando la famiglia Conti si è trasferita nel nostro palazzo, nessuno sapeva molto di loro.\nIl giorno del trasloco, la signora del secondo piano ha bussato alla porta per dare il benvenuto ai nuovi vicini con una torta fatta in casa.\nIl dirimpettaio, di solito piuttosto riservato, si è presentato subito dopo, offrendo il suo numero di telefono in caso di emergenza.\nDopo un mese, la famiglia Conti dice di essersi già sentita parte della ___ del palazzo.",
+      prompt: "Quando la famiglia Conti si è trasferita nel nostro palazzo, nessuno sapeva molto di loro.\nIl giorno del trasloco, la signora del secondo piano ha bussato alla porta per dare il benvenuto ai nuovi vicini con una torta fatta in casa.\nIl dirimpettaio, di solito piuttosto riservato, si è presentato subito dopo, offrendo il suo numero di telefono in caso di emergenza.\nDopo un mese, i vicini hanno invitato la famiglia Conti alla festa che la ___ del palazzo organizza ogni anno in cortile.",
       accepted: ["comunità"],
-      hint: "feminine noun for the community",
+      hint: "feminine noun for the community organizing the courtyard party",
       tags: ["passage_cloze", "neighbor", "community"],
       tier: 4,
       prerequisites: ["b141-t1-007", "b141-t1-043", "b141-t3-017", "b141-t3-019"],
@@ -262,7 +262,7 @@ const unit: Unit = {
     {
       id: "b141-t4-006",
       type: "passage_cloze",
-      prompt: "Ogni settembre, il paese di mia nonna organizza la sagra della castagna, una festa che dura tre giorni interi.\nLe famiglie del posto allestiscono le bancarelle già dal venerdì mattina, vendendo dolci, vino e prodotti locali.\nQuest'anno l'associazione del paese ha anche organizzato giochi per i bambini e musica dal vivo la sera.\nMia nonna dice che, da quando era bambina, la ___ riunisce sempre tutta la comunità, generazione dopo generazione.",
+      prompt: "Ogni settembre, il paese di mia nonna organizza la sagra della castagna, una festa che dura tre giorni interi.\nLe famiglie del posto allestiscono le bancarelle già dal venerdì mattina, vendendo dolci, vino e prodotti locali.\nQuest'anno l'associazione del paese ha anche organizzato giochi per i bambini e musica dal vivo la sera.\nMia nonna, che da bambina ballava già in quella stessa piazza, quest'anno è rimasta fino all'ultimo fuoco d'artificio: la ___ finisce sempre troppo tardi per tornare a casa a piedi.",
       accepted: ["sagra"],
       hint: "the local festival this whole passage describes",
       tags: ["passage_cloze", "event", "sagra"],
@@ -282,7 +282,7 @@ const unit: Unit = {
     {
       id: "b141-t4-008",
       type: "passage_cloze",
-      prompt: "All'inizio, io e il mio dirimpettaio ci scambiavamo solo un saluto veloce sul pianerottolo.\nPoi, una sera, si è rotto l'ascensore e siamo rimasti a chiacchierare per venti minuti aspettando il tecnico.\nDa quella sera abbiamo cominciato a bere un caffè insieme ogni tanto, e lui mi presta sempre gli attrezzi quando ne ho bisogno.\nAlla fine, quel semplice ___ di pianerottolo è diventato una persona importante per me.",
+      prompt: "All'inizio, io e il mio dirimpettaio ci scambiavamo solo un saluto veloce sul pianerottolo.\nPoi, una sera, si è rotto l'ascensore e siamo rimasti a chiacchierare per venti minuti aspettando il tecnico.\nDa quella sera abbiamo cominciato a bere un caffè insieme ogni tanto, e lui mi presta sempre gli attrezzi quando ne ho bisogno.\nLa settimana scorsa, prima di partire per due giorni, ho lasciato le chiavi di casa proprio a quel semplice ___ di pianerottolo.",
       accepted: ["conoscente"],
       hint: "the word for someone you know only a little — before he became closer",
       tags: ["passage_cloze", "neighbor", "conoscente"],
@@ -302,9 +302,9 @@ const unit: Unit = {
     {
       id: "b141-t4-010",
       type: "passage_cloze",
-      prompt: "Durante l'inverno, il signor Bianchi esce raramente dal suo appartamento al piano terra.\nSua nipote, che studia in un'altra città, gli telefona ogni sera per sapere come sta.\nMa è soprattutto la vicina del piano di sopra a passare a trovarlo, portandogli sempre un piatto caldo.\nGrazie a questa piccola abitudine, il signor Bianchi dice di non essersi mai sentito davvero ___ quest'anno.",
+      prompt: "Durante l'inverno, il signor Bianchi esce raramente dal suo appartamento al piano terra.\nSua nipote, che studia in un'altra città, gli telefona ogni sera per sapere come sta.\nMa è soprattutto la vicina del piano di sopra a passare a trovarlo, portandogli sempre un piatto caldo.\nQuest'inverno, grazie a quella visita quotidiana, il signor Bianchi non ha pranzato nemmeno una volta da ___.",
       accepted: ["solo"],
-      hint: "adjective meaning 'alone/lonely', masculine to agree with 'il signor Bianchi'",
+      hint: "adjective meaning 'alone', in the idiom 'mangiare/pranzare da solo' (to eat alone)",
       tags: ["passage_cloze", "isolation", "elderly"],
       tier: 4,
       prerequisites: ["b141-t1-001", "b141-t1-027", "b141-t3-058"],
@@ -312,7 +312,7 @@ const unit: Unit = {
     {
       id: "b141-t4-011",
       type: "passage_cloze",
-      prompt: "Ho ritrovato per caso Giulia, la mia coetanea di scuola elementare, dopo più di vent'anni.\nCi siamo riconosciute subito, anche se i nostri percorsi di vita sono stati molto diversi.\nAbbiamo scoperto di avere ancora molto in comune: entrambe siamo tornate a vivere nello stesso quartiere dell'infanzia.\nOra ci vediamo ogni settimana, e Giulia dice che ritrovare una vecchia ___ è stato come ritrovare un pezzo di casa.",
+      prompt: "Ho ritrovato per caso Giulia, la mia coetanea di scuola elementare, dopo più di vent'anni.\nCi siamo riconosciute subito, anche se i nostri percorsi di vita sono stati molto diversi.\nAbbiamo scoperto di avere ancora molto in comune: entrambe siamo tornate a vivere nello stesso quartiere dell'infanzia.\nOra ci vediamo ogni settimana, e sabato prossimo la mia vecchia ___ mi porta a rivedere il cortile della nostra scuola elementare.",
       accepted: ["coetanea"],
       hint: "feminine noun for someone the same age as you, agreeing with 'vecchia'",
       tags: ["passage_cloze", "generations", "coetaneo"],
@@ -332,9 +332,9 @@ const unit: Unit = {
     {
       id: "b141-t4-013",
       type: "passage_cloze",
-      prompt: "Quando mi sono trasferito in questa città tre anni fa, non conoscevo nessuno e mi sentivo completamente estraneo.\nPiano piano ho cominciato a fare volontariato in una piccola associazione del quartiere, aiutando a organizzare eventi per gli anziani.\nLì ho conosciuto persone di ogni età, dai coetanei ai pensionati, e ho imparato molto dalle loro storie.\nOggi, camminando per queste strade, provo finalmente un vero senso di ___.",
+      prompt: "Quando mi sono trasferito in questa città tre anni fa, non conoscevo nessuno e mi sentivo completamente estraneo.\nPiano piano ho cominciato a fare volontariato in una piccola associazione del quartiere, aiutando a organizzare eventi per gli anziani.\nLì ho conosciuto persone di ogni età, dai coetanei ai pensionati, e ho imparato molto dalle loro storie.\nLa settimana scorsa, l'associazione mi ha chiesto di organizzare la prossima festa del quartiere insieme al gruppo di ___ che frequento ormai da mesi.",
       accepted: ["appartenenza"],
-      hint: "feminine noun for the feeling of belonging",
+      hint: "feminine noun in the phrase 'gruppo di appartenenza' (the group you belong to)",
       tags: ["passage_cloze", "community", "appartenenza"],
       tier: 4,
       prerequisites: ["b141-t1-005", "b141-t1-013", "b141-t1-021", "b141-t1-041", "b141-t3-045"],
@@ -362,7 +362,7 @@ const unit: Unit = {
     {
       id: "b141-t4-016",
       type: "passage_cloze",
-      prompt: "Nel nostro palazzo, i ragazzi passano il tempo libero online, mentre gli anziani preferiscono incontrarsi in cortile.\nPer colmare questa distanza, l'associazione ha organizzato un pomeriggio di scambio: i giovani insegnano informatica, gli anziani raccontano storie del quartiere.\nAll'inizio sembrava un esperimento strano, ma dopo poche settimane sia i giovani che gli anziani aspettavano con piacere l'incontro settimanale.\nIl progetto ha dimostrato che il ___ generazionale si può ridurre con un po' di pazienza da entrambe le parti.",
+      prompt: "Nel nostro palazzo, i ragazzi passano il tempo libero online, mentre gli anziani preferiscono incontrarsi in cortile.\nPer colmare questa distanza, l'associazione ha organizzato un pomeriggio di scambio: i giovani insegnano informatica, gli anziani raccontano storie del quartiere.\nAll'inizio sembrava un esperimento strano, ma dopo poche settimane sia i giovani che gli anziani aspettavano con piacere l'incontro settimanale.\nMercoledì scorso, un sedicenne del terzo piano ha persino chiesto alla vicina di ottant'anni di insegnargli a giocare a briscola, colmando per un pomeriggio il ___ generazionale tra i due.",
       accepted: ["divario"],
       hint: "masculine noun for 'gap', paired with 'generazionale'",
       tags: ["passage_cloze", "generations"],
@@ -372,7 +372,7 @@ const unit: Unit = {
     {
       id: "b141-t4-017",
       type: "passage_cloze",
-      prompt: "Da quando è andato in pensione, il signor Ferri si sentiva spesso inutile e passava le giornate da solo davanti alla televisione.\nUn giorno, sua figlia lo ha convinto a iscriversi come volontario in un'associazione che aiuta le famiglie del quartiere in difficoltà.\nAll'inizio era scettico, ma ben presto ha scoperto di avere ancora molto da offrire agli altri.\nOggi il signor Ferri dice che il volontariato lo ha aiutato a uscire dalla ___ in cui si era chiuso dopo la pensione.",
+      prompt: "Da quando è andato in pensione, il signor Ferri si sentiva spesso inutile e passava le giornate da solo davanti alla televisione.\nUn giorno, sua figlia lo ha convinto a iscriversi come volontario in un'associazione che aiuta le famiglie del quartiere in difficoltà.\nAll'inizio era scettico, ma ben presto ha scoperto di avere ancora molto da offrire agli altri.\nOggi il signor Ferri passa il martedì mattina a consegnare la spesa a domicilio per l'associazione, lontano ormai dalla sua vecchia ___.",
       accepted: ["solitudine"],
       hint: "feminine noun for loneliness",
       tags: ["passage_cloze", "volunteering", "solitudine"],
@@ -402,7 +402,7 @@ const unit: Unit = {
     {
       id: "b141-t4-020",
       type: "passage_cloze",
-      prompt: "Da un anno, Sara, una studentessa universitaria, fa volontariato accompagnando una signora anziana del suo palazzo a fare la spesa.\nAll'inizio si vedevano solo una volta alla settimana, ma ora Sara passa a trovarla quasi ogni giorno dopo le lezioni.\nLa signora le racconta storie di quando il quartiere era ancora tutto campagna, e Sara le insegna a usare le videochiamate per parlare con il nipote all'estero.\nEntrambe dicono che questo scambio tra ___ è diventato molto più di un semplice favore.",
+      prompt: "Da un anno, Sara, una studentessa universitaria, fa volontariato accompagnando una signora anziana del suo palazzo a fare la spesa.\nAll'inizio si vedevano solo una volta alla settimana, ma ora Sara passa a trovarla quasi ogni giorno dopo le lezioni.\nLa signora le racconta storie di quando il quartiere era ancora tutto campagna, e Sara le insegna a usare le videochiamate per parlare con il nipote all'estero.\nLa settimana scorsa la signora le ha detto: «Resta a cena, così la prossima volta mi spieghi anche le fotografie sul telefono» — ora si vedono anche il mercoledì, senza più bisogno di un pretesto per lo scambio tra ___.",
       accepted: ["generazioni"],
       hint: "plural noun for the two age groups Sara and the elderly woman represent",
       tags: ["passage_cloze", "generations", "volunteering"],
@@ -412,7 +412,7 @@ const unit: Unit = {
     {
       id: "b141-t4-021",
       type: "passage_cloze",
-      prompt: "Mio padre racconta spesso che, quando lui era giovane in questo stesso quartiere, i vicini si aiutavano senza nemmeno doverlo chiedere.\nOggi, dice, la gente si conosce meno e passa più tempo davanti agli schermi che in cortile.\nEppure, quando c'è stata l'alluvione l'anno scorso, tutto il vicinato si è organizzato in poche ore per aiutare le famiglie colpite.\nForse, conclude mio padre, il vero senso di comunità non è mai davvero sparito: torna fuori nei momenti di ___.",
+      prompt: "Mio padre racconta spesso che, quando lui era giovane in questo stesso quartiere, i vicini si aiutavano senza nemmeno doverlo chiedere.\nOggi, dice, la gente si conosce meno e passa più tempo davanti agli schermi che in cortile.\nEppure, quando c'è stata l'alluvione l'anno scorso, tutto il vicinato si è organizzato in poche ore per aiutare le famiglie colpite.\nMio padre, per esempio, ha passato due notti a spalare il fango dal garage di vicini che prima conosceva solo di vista, gente che si è fatta avanti proprio nel momento di ___.",
       accepted: ["bisogno"],
       hint: "masculine noun for 'need'",
       tags: ["passage_cloze", "community", "vicinato"],
@@ -422,7 +422,7 @@ const unit: Unit = {
     {
       id: "b141-t4-022",
       type: "passage_cloze",
-      prompt: "Un anno dopo la sua fondazione, l'associazione di quartiere ha già una raccolta fondi per il parco, un mercatino mensile e un progetto che unisce anziani e giovani.\nMolti inquilini che prima si conoscevano appena ora si salutano per nome ogni giorno.\nAnche il portinaio ammette che il palazzo sembra un posto diverso da un anno fa.\nCome dice la presidente durante l'ultima riunione, l'obiettivo non era solo organizzare eventi, ma costruire un senso di ___ duraturo.",
+      prompt: "Un anno dopo la sua fondazione, l'associazione di quartiere ha già una raccolta fondi per il parco, un mercatino mensile e un progetto che unisce anziani e giovani.\nMolti inquilini che prima si conoscevano appena ora si salutano per nome ogni giorno.\nAnche il portinaio ammette che il palazzo ha finalmente un vero senso di ___, diverso da un anno fa.\nAlla fine dell'ultima riunione, invece di andarsene subito come si faceva prima, quasi tutti gli inquilini sono rimasti a bere un caffè insieme nel cortile, chiacchierando fino a tardi.",
       accepted: ["appartenenza"],
       hint: "feminine noun for the sense of belonging this whole unit has been building toward",
       tags: ["passage_cloze", "community", "appartenenza"],

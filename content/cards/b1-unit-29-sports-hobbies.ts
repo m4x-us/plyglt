@@ -2054,7 +2054,7 @@ const unit: Unit = {
     {
       id: "b129-t4-010",
       type: "passage_cloze",
-      prompt: "Ho iniziato a fare boxe per perdere qualche chilo, ma è diventata molto più di uno sport.\nOgni allenamento inizia con la corda, poi i sacchi e infine gli sparring leggeri con un compagno.\nHo imparato a controllare la respirazione e a restare calmo anche sotto pressione.\nDopo un anno di ___, mi sento più disciplinato non solo sul ring, ma anche al lavoro.",
+      prompt: "Ho iniziato a fare boxe per perdere qualche chilo, ma è diventata molto più di uno sport.\nOgni allenamento inizia con la corda, poi i sacchi e infine gli sparring leggeri con un compagno.\nHo imparato a controllare la respirazione e a restare calmo anche sotto pressione.\nDopo un anno di ___, salgo sul ring ogni sabato mattina, pronto per il prossimo incontro amichevole.",
       accepted: ["boxe"],
       hint: "the combat sport that changed his discipline, not just his weight",
       tags: ["passage_cloze", "sport", "boxe"],
@@ -2094,9 +2094,9 @@ const unit: Unit = {
     {
       id: "b129-t4-014",
       type: "passage_cloze",
-      prompt: "Mi sono iscritta a un corso di ballo latino-americano sei mesi fa, un po' per curiosità.\nAll'inizio non riuscivo a seguire il ritmo e confondevo sempre destra e sinistra.\nOra, dopo tante lezioni, aspetto il martedì sera con vera impazienza.\nIl mio insegnante dice che il ___ mi ha cambiato anche il modo di camminare per strada.",
+      prompt: "Mi sono iscritta a un corso di ballo latino-americano sei mesi fa, un po' per curiosità.\nAll'inizio non riuscivo a seguire il ritmo e confondevo sempre destra e sinistra.\nOra, dopo tante lezioni, aspetto il martedì sera con vera impazienza.\nSabato prossimo faccio la mia prima esibizione di ___ davanti a un pubblico vero, al saggio della scuola.",
       accepted: ["ballo"],
-      hint: "the activity that has changed even the way she walks",
+      hint: "the activity she started out of curiosity and is about to perform on stage for the first time",
       tags: ["passage_cloze", "hobby", "ballo"],
       tier: 4,
       prerequisites: ["b129-t1-060"],
@@ -2104,7 +2104,7 @@ const unit: Unit = {
     {
       id: "b129-t4-015",
       type: "passage_cloze",
-      prompt: "Da due anni frequento un corso serale di scrittura creativa in una piccola libreria del quartiere.\nOgni settimana l'insegnante ci dà una parola o un'immagine e dobbiamo scrivere un breve racconto entro dieci minuti.\nAll'inizio mi vergognavo di leggere ad alta voce i miei testi davanti agli altri.\nOra considero la ___ il momento della settimana in cui mi sento più libero di essere me stesso.",
+      prompt: "Da due anni frequento un corso serale di scrittura creativa in una piccola libreria del quartiere.\nOgni settimana l'insegnante ci dà una parola o un'immagine e dobbiamo scrivere un breve racconto entro dieci minuti.\nAll'inizio mi vergognavo di leggere ad alta voce i miei testi davanti agli altri.\nOra dedico un'ora ogni settimana alla ___ e ho già riempito due quaderni di racconti brevi.",
       accepted: ["scrittura creativa"],
       hint: "the writing hobby practiced weekly in the small bookshop",
       tags: ["passage_cloze", "hobby", "scrittura-creativa"],
@@ -2144,7 +2144,7 @@ const unit: Unit = {
     {
       id: "b129-t4-019",
       type: "passage_cloze",
-      prompt: "Gioco a ping-pong ogni venerdì sera con lo stesso gruppo di amici da cinque anni.\nUno di loro, Luca, è anche il mio ___ nella squadra della città, con cui gioco nei tornei ufficiali.\nFuori dai tornei, però, tra noi due la rivalità è feroce: nessuno vuole perdere nemmeno una partita amichevole.\nAlla fine vinciamo o perdiamo sempre con il sorriso, perché per noi conta soprattutto stare insieme.",
+      prompt: "Gioco a ping-pong ogni venerdì sera con lo stesso gruppo di amici da cinque anni.\nUno di loro, Luca, è anche il mio ___ nella squadra della città, con cui gioco nei tornei ufficiali.\nFuori dai tornei, però, tra noi due la rivalità è feroce: nessuno vuole perdere nemmeno una partita amichevole.\nL'ultima partita è finita undici a nove, e Luca mi ha già sfidato per la rivincita di venerdì prossimo.",
       accepted: ["compagno di squadra"],
       hint: "his relationship with Luca in the city team's official tournaments",
       tags: ["passage_cloze", "sport", "ping-pong", "compagno-di-squadra"],
@@ -2154,7 +2154,7 @@ const unit: Unit = {
     {
       id: "b129-t4-020",
       type: "passage_cloze",
-      prompt: "Ho iniziato l'equitazione un anno fa, dopo aver visto una gara in televisione con mia figlia.\nLe prime lezioni sono state soprattutto teoria: come avvicinarsi al cavallo, come tenere le redini, come respirare per restare calmi.\nSolo al terzo mese ho iniziato a fare piccoli trotti da sola nel maneggio.\nOra capisco perché tanti dicono che l'___ insegna pazienza tanto quanto tecnica.",
+      prompt: "Ho iniziato l'equitazione un anno fa, dopo aver visto una gara in televisione con mia figlia.\nLe prime lezioni sono state soprattutto teoria: come avvicinarsi al cavallo, come tenere le redini, come respirare per restare calmi.\nSolo al terzo mese ho iniziato a fare piccoli trotti da sola nel maneggio.\nQuesto mese ho provato il primo piccolo galoppo nel campo grande, con il cuore che batteva forte durante la lezione di ___.",
       accepted: ["equitazione"],
       hint: "the sport that teaches patience as much as technique",
       tags: ["passage_cloze", "sport", "equitazione"],
@@ -2164,7 +2164,7 @@ const unit: Unit = {
     {
       id: "b129-t4-021",
       type: "passage_cloze",
-      prompt: "Mia nonna colleziona francobolli da quando aveva quindici anni, e il suo album ne conta più di duemila.\nOgni pezzo ha una storia: un francobollo comprato in un mercatino, un altro ricevuto da una lettera di un'amica lontana.\nDa piccola passavo i pomeriggi a guardarli insieme a lei, cercando i paesi più strani sulla mappa.\nOggi capisco che il ___ non riguarda solo gli oggetti, ma i ricordi che portano con sé.",
+      prompt: "Mia nonna colleziona francobolli da quando aveva quindici anni, e il suo album ne conta più di duemila.\nOgni pezzo ha una storia: un francobollo comprato in un mercatino, un altro ricevuto da una lettera di un'amica lontana.\nDa piccola passavo i pomeriggi a guardarli insieme a lei, cercando i paesi più strani sulla mappa.\nIl mese scorso mia nonna mi ha regalato il suo francobollo preferito, così anche io posso portare avanti il suo ___.",
       accepted: ["collezionismo"],
       hint: "the hobby that, for her, is really about the memories objects carry",
       tags: ["passage_cloze", "hobby", "collezionismo"],

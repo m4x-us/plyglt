@@ -1134,7 +1134,7 @@ const unit: Unit = {
       id: "b147-t4-005",
       type: "passage_cloze",
       prompt:
-        "Da bambini, io e mia sorella studiavamo pianoforte con la stessa insegnante, ma lei era molto più brava di me.\nOgni volta che io sbagliavo un accordo, lei rideva e ripeteva il pezzo perfettamente.\nPer anni ho pensato che non ___ (avere) alcun talento per la musica.\nSolo da adulto ho capito che mi piaceva suonare per me stesso, non per competere con lei.\nOggi suono ancora ogni sera, e finalmente mi diverto senza confrontarmi con nessuno.",
+        "Da bambini, io e mia sorella studiavamo pianoforte con la stessa insegnante, ma lei era molto più brava di me.\nOgni volta che io sbagliavo un accordo, lei rideva e ripeteva il pezzo perfettamente.\nPer anni ho pensato che non ___ (avere) alcun talento per la musica.\nSolo da adulto ho capito che mi piaceva suonare per me stesso, non per competere con lei.\nOggi suono ancora ogni sera, con la porta della mia stanza chiusa e nessuno ad ascoltare tranne me.",
       accepted: ["avessi"],
       hint: "congiuntivo imperfetto after 'ho pensato che', a past-tense opinion.",
       tags: ["music", "passage_cloze", "congiuntivo", "tier4"],
@@ -1204,7 +1204,7 @@ const unit: Unit = {
       id: "b147-t4-012",
       type: "passage_cloze",
       prompt:
-        "Dopo sei mesi di tournée in giro per il mondo, l'orchestra della nostra città è finalmente tornata a casa.\nPer l'occasione, hanno organizzato un concerto gratuito nella piazza principale, aperto a tutti.\nMigliaia di persone ___ (arrivare) già due ore prima dell'inizio per trovare un buon posto.\nQuando l'orchestra ha iniziato a suonare, tutta la piazza è rimasta in silenzio ad ascoltare.\nÈ stata una delle serate di musica più belle che la città ricordi da anni.",
+        "Dopo sei mesi di tournée in giro per il mondo, l'orchestra della nostra città è finalmente tornata a casa.\nPer l'occasione, hanno organizzato un concerto gratuito nella piazza principale, aperto a tutti.\nMigliaia di persone ___ (arrivare) già due ore prima dell'inizio per trovare un buon posto.\nQuando l'orchestra ha iniziato a suonare, tutta la piazza è rimasta in silenzio ad ascoltare.\nMolti musicisti dell'orchestra sono rimasti in piazza a parlare con la gente fino a tardi.",
       accepted: ["erano arrivate"],
       hint: "trapassato prossimo — an action that happened before another past moment.",
       tags: ["music", "passage_cloze", "trapassato-prossimo", "tier4"],
@@ -1234,7 +1234,7 @@ const unit: Unit = {
       id: "b147-t4-015",
       type: "passage_cloze",
       prompt:
-        "L'anno scorso ho partecipato a un concorso di pianoforte importante, ma non sono arrivata nemmeno in finale.\nPer settimane ero convinta che non ___ (valere) la pena continuare a studiare musica.\nPoi il mio insegnante mi ha ricordato che anche i grandi pianisti hanno perso molti concorsi prima di avere successo.\nQuest'anno mi sono iscritta di nuovo, con meno paura e più voglia di divertirmi sul palco.\nQualunque sia il risultato, ho già deciso che continuerò a suonare per il resto della vita.",
+        "L'anno scorso ho partecipato a un concorso di pianoforte importante, ma non sono arrivata nemmeno in finale.\nPer settimane ero convinta che non ___ (valere) la pena continuare a studiare musica.\nPoi il mio insegnante mi ha ricordato che anche i grandi pianisti hanno perso molti concorsi prima di avere successo.\nQuest'anno mi sono iscritta di nuovo, con meno paura e più voglia di divertirmi sul palco.\nLe audizioni sono la settimana prossima, e ho già scelto il vestito che indosserò sul palco.",
       accepted: ["valesse"],
       hint: "congiuntivo imperfetto after 'ero convinta che', a past-tense opinion.",
       tags: ["music", "passage_cloze", "congiuntivo", "tier4"],
@@ -1244,7 +1244,7 @@ const unit: Unit = {
       id: "b147-t4-016",
       type: "passage_cloze",
       prompt:
-        "Il signor Rossi ha suonato il violino in un'orchestra importante per quarant'anni, prima di andare in pensione.\nOra passa le sue giornate insegnando musica gratuitamente ai bambini del quartiere.\nDice che, se ___ (potere) tornare indietro, sceglierebbe di nuovo la stessa carriera senza pensarci due volte.\nI suoi allievi lo adorano, perché racconta sempre aneddoti divertenti sui concerti del passato.\nGrazie a lui, molti bambini del quartiere hanno scoperto una vera passione per la musica.",
+        "Il signor Rossi ha suonato il violino in un'orchestra importante per quarant'anni, prima di andare in pensione.\nOra passa le sue giornate insegnando musica gratuitamente ai bambini del quartiere.\nDice che, se ___ (potere) tornare indietro, sceglierebbe di nuovo la stessa carriera senza pensarci due volte.\nI suoi allievi lo adorano, perché racconta sempre aneddoti divertenti sui concerti del passato.\nOgni sabato mattina, una decina di bambini si presenta puntuale a casa sua con il proprio violino.",
       accepted: ["potesse"],
       hint: "congiuntivo imperfetto after 'se' in a hypothetical clause paired with the conditional.",
       tags: ["music", "passage_cloze", "congiuntivo", "periodo-ipotetico", "tier4"],
@@ -1254,7 +1254,7 @@ const unit: Unit = {
       id: "b147-t4-017",
       type: "passage_cloze",
       prompt:
-        "Ogni estate, nella mia città, si organizza un festival musicale gratuito che dura tre giorni interi.\nQuest'anno erano previsti gruppi rock, cantautori e persino un'orchestra giovanile.\nIl primo giorno pioveva così forte che molti temevano che il festival ___ (essere) annullato.\nInvece gli organizzatori hanno spostato tutto sotto un grande tendone e i concerti sono continuati regolarmente.\nAlla fine, quell'edizione è stata ricordata come una delle più belle degli ultimi anni.",
+        "Ogni estate, nella mia città, si organizza un festival musicale gratuito che dura tre giorni interi.\nQuest'anno erano previsti gruppi rock, cantautori e persino un'orchestra giovanile.\nIl primo giorno pioveva così forte che molti temevano che il festival ___ (essere) annullato.\nInvece gli organizzatori hanno spostato tutto sotto un grande tendone e i concerti sono continuati regolarmente.\nGli organizzatori hanno già annunciato le date del festival per l'anno prossimo.",
       accepted: ["fosse"],
       hint: "congiuntivo imperfetto after 'temevano che', a past-tense fear.",
       tags: ["music", "passage_cloze", "congiuntivo", "tier4"],
@@ -1274,7 +1274,7 @@ const unit: Unit = {
       id: "b147-t4-019",
       type: "passage_cloze",
       prompt:
-        "Dopo il concerto, molti fan sono rimasti fuori dal teatro sperando di vedere il cantante da vicino.\nIo e la mia amica abbiamo aspettato quasi un'ora sotto la pioggia, ma ne valeva la pena.\nQuando finalmente è uscito, gli ho chiesto un autografo e lui ___ (fermarsi) a parlare con noi per cinque minuti.\nCi ha anche ringraziato per essere rimaste fino alla fine, nonostante il freddo.\nQuella sera è diventata uno dei ricordi più belli della mia adolescenza.",
+        "Dopo il concerto, molti fan sono rimasti fuori dal teatro sperando di vedere il cantante da vicino.\nIo e la mia amica abbiamo aspettato quasi un'ora sotto la pioggia, ma ne valeva la pena.\nQuando finalmente è uscito, gli ho chiesto un autografo e lui ___ (fermarsi) a parlare con noi per cinque minuti.\nCi ha anche ringraziato per essere rimaste fino alla fine, nonostante il freddo.\nConservo ancora il biglietto di quel concerto in un cassetto della mia scrivania.",
       accepted: ["si è fermato"],
       hint: "passato prossimo — reflexive verb with essere, lui form.",
       tags: ["music", "passage_cloze", "passato-prossimo", "tier4"],
@@ -1294,7 +1294,7 @@ const unit: Unit = {
       id: "b147-t4-021",
       type: "passage_cloze",
       prompt:
-        "Da quando mi sono trasferita in questa città, non conoscevo quasi nessuno, così mi sono iscritta a un coro locale.\nAll'inizio andavo solo per imparare qualche canzone, ma col tempo ho fatto delle amicizie vere.\nIl direttore ci ripete sempre che, se ___ (ascoltarsi) davvero a vicenda, il coro suona molto meglio.\nOgni prova finisce con tutti che restano a chiacchierare davanti a un caffè.\nGrazie a quel coro, questa città ha finalmente iniziato a sembrarmi casa.",
+        "Da quando mi sono trasferita in questa città, non conoscevo quasi nessuno, così mi sono iscritta a un coro locale.\nAll'inizio andavo solo per imparare qualche canzone, ma col tempo ho fatto delle amicizie vere.\nIl direttore ci ripete sempre che, se ___ (ascoltarsi) davvero a vicenda, il coro suona molto meglio.\nOgni prova finisce con tutti che restano a chiacchierare davanti a un caffè.\nLa settimana prossima festeggiamo il compleanno del soprano più anziano del gruppo, con una torta enorme.",
       accepted: ["ci ascoltiamo"],
       hint: "indicativo presente — a real-condition hypothetical stating a general truth.",
       tags: ["music", "passage_cloze", "periodo-ipotetico", "tier4"],
@@ -1304,7 +1304,7 @@ const unit: Unit = {
       id: "b147-t4-022",
       type: "passage_cloze",
       prompt:
-        "Il nuovo direttore d'orchestra ha fama di essere estremamente esigente durante le prove.\nAlla prima prova, ha fermato i musicisti più di venti volte per correggere piccoli errori.\nMolti temevano che le prove ___ (durare) fino a notte fonda, come si diceva in giro.\nAlla fine, però, il concerto è andato benissimo, e tutti hanno capito il motivo di tanta precisione.\nOra l'orchestra suona con una disciplina che prima non aveva mai avuto.",
+        "Il nuovo direttore d'orchestra ha fama di essere estremamente esigente durante le prove.\nAlla prima prova, ha fermato i musicisti più di venti volte per correggere piccoli errori.\nMolti temevano che le prove ___ (durare) fino a notte fonda, come si diceva in giro.\nAlla fine, però, il concerto è andato benissimo, e tutti hanno capito il motivo di tanta precisione.\nDopo la prova, il direttore ha offerto un caffè a tutta l'orchestra prima di andare a casa.",
       accepted: ["durassero"],
       hint: "congiuntivo imperfetto after 'temevano che', a past-tense fear.",
       tags: ["music", "passage_cloze", "congiuntivo", "tier4"],
@@ -1314,7 +1314,7 @@ const unit: Unit = {
       id: "b147-t4-023",
       type: "passage_cloze",
       prompt:
-        "La settimana prossima, il mio nipote farà il suo debutto al pianoforte davanti a un vero pubblico.\nHa solo dieci anni, ma si esercita ogni giorno con una serietà incredibile per la sua età.\nSua madre spera che lui non ___ (dimenticare) le note durante l'esibizione, come gli è già successo una volta a casa.\nTutta la famiglia ha già comprato i biglietti per andare a sostenerlo quella sera.\nQualunque cosa succeda, per noi sarà comunque un giorno da ricordare.",
+        "La settimana prossima, il mio nipote farà il suo debutto al pianoforte davanti a un vero pubblico.\nHa solo dieci anni, ma si esercita ogni giorno con una serietà incredibile per la sua età.\nSua madre spera che lui non ___ (dimenticare) le note durante l'esibizione, come gli è già successo una volta a casa.\nTutta la famiglia ha già comprato i biglietti per andare a sostenerlo quella sera.\nPrima di salire sul palco, gli daremo il portafortuna che porta sempre ai suoi esami di pianoforte.",
       accepted: ["dimentichi"],
       hint: "congiuntivo presente after 'spera che'.",
       tags: ["music", "passage_cloze", "congiuntivo", "tier4"],

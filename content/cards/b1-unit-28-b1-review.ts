@@ -1307,7 +1307,7 @@ const unit: Unit = {
     {
       id: "u28-t4-006",
       type: "passage_cloze",
-      prompt: "La crisi economica aveva già colpito duramente il piccolo comune di Vallelunga quando il nuovo sindaco è entrato in carica. Nei primi mesi, ha promesso una riforma completa dei servizi pubblici, cercando di ridare fiducia ai cittadini più scettici. Molti residenti, però, dubitano che una singola persona ___ (potere) risolvere problemi accumulati in anni di cattiva gestione. Nonostante lo scetticismo, il sindaco continua a lavorare, convinto che il cambiamento richieda tempo e pazienza.",
+      prompt: "La crisi economica aveva già colpito duramente il piccolo comune di Vallelunga quando il nuovo sindaco è entrato in carica. Nei primi mesi, ha promesso una riforma completa dei servizi pubblici, cercando di ridare fiducia ai cittadini più scettici. Molti residenti, però, dubitano che una singola persona ___ (potere) risolvere problemi accumulati in anni di cattiva gestione. Nonostante lo scetticismo, il sindaco ha già avviato i primi lavori di ristrutturazione della scuola comunale.",
       accepted: ["possa"],
       hint: "Present subjunctive of potere (possa), after 'dubitare che' (to doubt that).",
       tags: ["passage_cloze", "b1", "congiuntivo", "trapassato", "review"],
@@ -1327,7 +1327,7 @@ const unit: Unit = {
     {
       id: "u28-t4-008",
       type: "passage_cloze",
-      prompt: "Ogni sabato, un gruppo di volontari organizza corsi di italiano gratuiti per gli immigrati del quartiere, aiutandoli a integrarsi più in fretta nella comunità. Insegnando pazientemente, i volontari sperano che questi corsi ___ (ridurre) davvero le distanze tra le culture. Molti studenti, arrivati da poco in Italia, raccontano storie difficili ma piene di speranza per il futuro. La responsabile del progetto crede che l'immigrazione, se accompagnata da un vero sostegno, arricchisca l'intera società.",
+      prompt: "Ogni sabato, un gruppo di volontari organizza corsi di italiano gratuiti per gli immigrati del quartiere, aiutandoli a integrarsi più in fretta nella comunità. Insegnando pazientemente, i volontari sperano che questi corsi ___ (ridurre) davvero le distanze tra le culture. Molti studenti, arrivati da poco in Italia, raccontano storie difficili ma piene di speranza per il futuro. La responsabile del progetto sta già organizzando un secondo corso serale per l'autunno, vista la lunga lista d'attesa.",
       accepted: ["riducano"],
       hint: "Present subjunctive of ridurre (riducano), plural, after 'sperare che' (to hope that) — subject is i corsi (the courses).",
       tags: ["passage_cloze", "b1", "congiuntivo", "gerundio", "review"],
@@ -1347,7 +1347,7 @@ const unit: Unit = {
     {
       id: "u28-t4-010",
       type: "passage_cloze",
-      prompt: "Il processo per corruzione era già stato rinviato tre volte quando finalmente, la settimana scorsa, è arrivata la sentenza definitiva. I due imputati erano stati accusati di aver accettato tangenti per anni, danneggiando la fiducia dei cittadini nella giustizia. La sentenza ___ (essere) accolta con sollievo da gran parte della popolazione, stanca di aspettare. Il giudice ha ricordato che la giustizia, anche se lenta, arriva sempre.",
+      prompt: "Il processo per corruzione era già stato rinviato tre volte quando finalmente, la settimana scorsa, è arrivata la sentenza definitiva. I due imputati erano stati accusati di aver accettato tangenti per anni, danneggiando la fiducia dei cittadini nella giustizia. La sentenza ___ (essere) accolta con sollievo da gran parte della popolazione, stanca di aspettare. Il giudice ha fissato per lunedì la lettura ufficiale della sentenza davanti alla stampa.",
       accepted: ["è stata"],
       hint: "Present perfect passive: è stata + past participle (accolta).",
       tags: ["passage_cloze", "b1", "trapassato", "passivo", "review"],
@@ -1357,7 +1357,7 @@ const unit: Unit = {
     {
       id: "u28-t4-011",
       type: "passage_cloze",
-      prompt: "La scuola di cui parlava il preside si trova in uno dei quartieri più poveri della città, dove la disuguaglianza si vede fin dai primi anni di vita dei bambini. Alcuni insegnanti pensano che il ministero ___ (dovere) investire più fondi proprio in questi istituti. Altri, invece, credono che il problema sia più profondo e riguardi l'intera società. Il preside continua a cercare soluzioni, convinto che ogni bambino meriti le stesse opportunità.",
+      prompt: "La scuola di cui parlava il preside si trova in uno dei quartieri più poveri della città, dove la disuguaglianza si vede fin dai primi anni di vita dei bambini. Alcuni insegnanti pensano che il ministero ___ (dovere) investire più fondi proprio in questi istituti. Altri, invece, credono che il problema sia più profondo e riguardi l'intera società. Il preside ha già chiesto un incontro urgente con l'assessore all'istruzione per la prossima settimana.",
       accepted: ["debba"],
       hint: "Present subjunctive of dovere (debba), after 'pensare che' (to think that).",
       tags: ["passage_cloze", "b1", "congiuntivo", "relative-pronouns", "review"],
@@ -1377,7 +1377,7 @@ const unit: Unit = {
     {
       id: "u28-t4-013",
       type: "passage_cloze",
-      prompt: "Investendo in nuove tecnologie, la piccola azienda di famiglia è riuscita a sopravvivere alla crisi che ha colpito il settore negli ultimi anni. Nel loro piccolo laboratorio si progettano ormai prodotti che vengono venduti in tutta Europa, grazie soprattutto all'innovazione nei materiali. Il titolare racconta che, innovando costantemente, ___ (riuscire) a competere anche con le grandi multinazionali. Per lui, il segreto è non fermarsi mai davanti alle difficoltà.",
+      prompt: "Investendo in nuove tecnologie, la piccola azienda di famiglia è riuscita a sopravvivere alla crisi che ha colpito il settore negli ultimi anni. Nel loro piccolo laboratorio si progettano ormai prodotti che vengono venduti in tutta Europa, grazie soprattutto all'innovazione nei materiali. Il titolare racconta che, innovando costantemente, ___ (riuscire) a competere anche con le grandi multinazionali. Il mese prossimo, l'azienda aprirà un secondo laboratorio a pochi chilometri dal primo.",
       accepted: ["riesce"],
       hint: "Present indicative of riuscire (riesce), 3rd person singular, referring to il titolare (the owner).",
       tags: ["passage_cloze", "b1", "gerundio", "si-impersonale", "review"],
@@ -1537,7 +1537,7 @@ const unit: Unit = {
     {
       id: "u28-t4-029",
       type: "passage_cloze",
-      prompt: "Durante la crisi economica più dura degli ultimi decenni, molte famiglie del quartiere sono state aiutate da una rete spontanea di solidarietà tra vicini. Chi aveva perso il lavoro riceveva pacchi alimentari, mentre altri offrivano piccoli lavori temporanei. Gli organizzatori sperano che questa rete di aiuto ___ (continuare) a esistere anche dopo la fine della crisi. Molti residenti dicono di aver riscoperto il vero significato di comunità.",
+      prompt: "Durante la crisi economica più dura degli ultimi decenni, molte famiglie del quartiere sono state aiutate da una rete spontanea di solidarietà tra vicini. Chi aveva perso il lavoro riceveva pacchi alimentari, mentre altri offrivano piccoli lavori temporanei. Gli organizzatori sperano che questa rete di aiuto ___ (continuare) a esistere anche dopo la fine della crisi. Ogni sabato mattina, i volontari si ritrovano ancora davanti al mercato per la distribuzione settimanale.",
       accepted: ["continui"],
       hint: "Present subjunctive of continuare (continui), after 'sperare che' (to hope that).",
       tags: ["passage_cloze", "b1", "congiuntivo", "passivo", "review"],

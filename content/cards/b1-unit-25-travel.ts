@@ -1951,7 +1951,7 @@ const unit: Unit = {
     {
       id: "u25-t4-009",
       type: "passage_cloze",
-      prompt: "Il volo per Londra è decollato in orario, ma dopo un'ora il pilota ha annunciato un problema.\nA causa del maltempo sulla costa inglese, l'aereo doveva atterrare altrove per motivi di sicurezza.\nL'equipaggio ha spiegato che la ___ ci avrebbe portati a Manchester invece che a Londra.\nDa lì un pullman gratuito ci avrebbe portati alla destinazione originale in circa tre ore.\nNessuno era contento, ma tutti hanno capito che la sicurezza veniva prima della puntualità.",
+      prompt: "Il volo per Londra è decollato in orario, ma dopo un'ora il pilota ha annunciato un problema.\nA causa del maltempo sulla costa inglese, l'aereo doveva atterrare altrove per motivi di sicurezza.\nL'equipaggio ha spiegato che la ___ ci avrebbe portati a Manchester invece che a Londra.\nDa lì un pullman gratuito ci avrebbe portati alla destinazione originale in circa tre ore.\nNessuno era contento, ma tutti sono saliti in silenzio sul pullman diretto verso Londra.",
       accepted: ["deviazione"],
       hint: "the noun form of 'deviare' — the flight's reroute to a different airport",
       tags: ["passage_cloze", "airport", "delay"],
@@ -2011,7 +2011,7 @@ const unit: Unit = {
     {
       id: "u25-t4-015",
       type: "passage_cloze",
-      prompt: "Sul treno regionale delle sette non avevo convalidato il biglietto, pensando bastasse averlo comprato.\nIl capotreno è passato a controllare e mi ha chiesto perché non l'avessi timbrato all'obliteratrice.\nGli ho spiegato che ero di fretta e non avevo visto la macchinetta in stazione.\nLui ha capito la situazione, ma mi ha comunque dovuto fare una ___ di dieci euro.\nDa quel giorno controllo sempre due volte prima di salire su un regionale.",
+      prompt: "Sul treno regionale delle sette non avevo convalidato il biglietto, pensando bastasse averlo comprato.\nIl capotreno è passato a controllare e mi ha chiesto perché non l'avessi timbrato all'obliteratrice.\nGli ho spiegato che ero di fretta e non avevo visto la macchinetta in stazione.\nLui ha capito la situazione, ma mi ha comunque dovuto fare una ___ di dieci euro.\nHo pagato subito, in contanti, e sono sceso alla fermata successiva sotto lo sguardo degli altri passeggeri.",
       accepted: ["multa"],
       hint: "the fine the train manager had to issue despite understanding the situation",
       tags: ["passage_cloze", "train", "problem"],

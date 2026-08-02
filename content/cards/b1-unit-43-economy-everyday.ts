@@ -309,7 +309,7 @@ const unit: Unit = {
     {
       id: "b143-t4-013",
       type: "passage_cloze",
-      prompt: "Quando Sofia aveva otto anni, sua madre le regalava ogni settimana un piccolo importo di paghetta. Invece di spenderlo subito in dolci, sua madre le insegnò a metterne da parte una parte in un salvadanaio. Con il tempo, Sofia capì che risparmiare un po' ogni settimana permette di comprare cose più importanti in futuro. Oggi, da adulta, continua a gestire il proprio ___ con la stessa attenzione.",
+      prompt: "Quando Sofia aveva otto anni, sua madre le regalava ogni settimana un piccolo importo di paghetta. Invece di spenderlo subito in dolci, sua madre le insegnò a metterne da parte una parte in un salvadanaio. Settimana dopo settimana, il salvadanaio si riempì, finché un giorno Sofia riuscì a comprarsi la bicicletta che desiderava da mesi. Oggi, da adulta, continua a gestire il proprio ___ con la stessa attenzione.",
       accepted: ["risparmio"],
       hint: "the savings (habit/amount)",
       tags: ["passage", "economy", "saving"],
@@ -319,7 +319,7 @@ const unit: Unit = {
     {
       id: "b143-t4-014",
       type: "passage_cloze",
-      prompt: "Un piccolo laboratorio artigianale in Toscana produce scarpe di pelle interamente a mano, seguendo tecniche tramandate da generazioni. Anche se costano più delle scarpe prodotte in serie dalle grandi multinazionali, sempre più clienti scelgono questi prodotti per la qualità e per sostenere l'artigianato locale. Il proprietario spiega che il marchio ___ rappresenta ancora una garanzia di qualità nel mondo.",
+      prompt: "Un piccolo laboratorio artigianale in Toscana produce scarpe di pelle interamente a mano, seguendo tecniche tramandate da generazioni. Anche se costano più delle scarpe prodotte in serie dalle grandi multinazionali, sempre più clienti scelgono questi prodotti per la qualità e per sostenere l'artigianato locale. Il proprietario cuce a mano il marchio ___ su ogni paio di scarpe prima della spedizione ai clienti all'estero.",
       accepted: ["Made in Italy"],
       hint: "the label signalling Italian craftsmanship",
       tags: ["passage", "economy", "business"],
@@ -329,7 +329,7 @@ const unit: Unit = {
     {
       id: "b143-t4-015",
       type: "passage_cloze",
-      prompt: "Ogni anno, a giugno, Roberto deve preparare tutti i documenti per pagare le tasse della sua piccola impresa. Quest'anno il commercialista gli ha spiegato che, oltre alle imposte sul reddito, deve versare anche l'___ sulle vendite dell'ultimo trimestre. Per questo motivo, Roberto controlla ogni fattura con attenzione prima della scadenza, per evitare errori costosi. Trova questo periodo sempre stressante, ma sa che è fondamentale per evitare problemi con il fisco.",
+      prompt: "Ogni anno, a giugno, Roberto deve preparare tutti i documenti per pagare le tasse della sua piccola impresa. Quest'anno il commercialista gli ha spiegato che, oltre alle imposte sul reddito, deve versare anche l'___ sulle vendite dell'ultimo trimestre. Per questo motivo, Roberto controlla ogni fattura con attenzione prima della scadenza, per evitare errori costosi. Trova questo periodo sempre stressante, ma alla fine consegna tutti i documenti al commercialista un giorno prima della scadenza.",
       accepted: ["IVA"],
       hint: "value-added tax on sales",
       tags: ["passage", "economy", "tax"],
@@ -339,7 +339,7 @@ const unit: Unit = {
     {
       id: "b143-t4-016",
       type: "passage_cloze",
-      prompt: "Da quando ha aperto un negozio online, Chiara vende i suoi gioielli artigianali in tutta Italia, non solo nella sua città. Alcuni clienti però preferiscono ancora venire di persona nel suo piccolo negozio, per toccare con mano i prodotti e parlare direttamente con lei. Chiara pensa che questo rapporto diretto con il ___ sia il vero valore aggiunto rispetto ai grandi siti di e-commerce.",
+      prompt: "Da quando ha aperto un negozio online, Chiara vende i suoi gioielli artigianali in tutta Italia, non solo nella sua città. Alcuni clienti però preferiscono ancora venire di persona nel suo piccolo negozio, per toccare con mano i prodotti e parlare direttamente con lei. Ogni sabato mattina, apre le porte del piccolo negozio, prepara il caffè per i clienti abituali e saluta per nome ogni ___ che entra.",
       accepted: ["cliente"],
       hint: "the customer",
       tags: ["passage", "economy", "business"],
@@ -359,7 +359,7 @@ const unit: Unit = {
     {
       id: "b143-t4-018",
       type: "passage_cloze",
-      prompt: "Per anni, Davide ha vissuto al di sopra delle proprie possibilità: usava sempre la carta di credito e non controllava mai il conto in banca. Quando si è reso conto che non riusciva più ad arrivare a fine mese, ha deciso di cambiare vita. Ora tiene un foglio con tutte le spese, paga quasi sempre in contanti e ha imparato finalmente a ___ ogni mese.",
+      prompt: "Per anni, Davide ha vissuto al di sopra delle proprie possibilità: usava sempre la carta di credito e non controllava mai il conto in banca. Quando si è reso conto che non riusciva più ad arrivare a fine mese, ha deciso di cambiare vita. Ora tiene un foglio con tutte le spese, paga quasi sempre in contanti e riesce finalmente a ___ ogni mese.",
       accepted: ["risparmiare"],
       hint: "to save (money)",
       tags: ["passage", "economy", "saving"],
@@ -379,7 +379,7 @@ const unit: Unit = {
     {
       id: "b143-t4-020",
       type: "passage_cloze",
-      prompt: "Mio nonno racconta spesso che, quando era giovane, con il guadagno di un mese si poteva pagare l'affitto e fare la spesa per l'intera famiglia. Oggi il costo della vita è molto più alto, e anche se i redditi sono aumentati, molte famiglie faticano ad arrivare a fine mese. Mio nonno pensa che in futuro i prezzi ___ ancora, e che risparmiare sarà sempre più difficile.",
+      prompt: "Mio nonno racconta spesso che, quando era giovane, con il guadagno di un mese si poteva pagare l'affitto e fare la spesa per l'intera famiglia. Oggi il costo della vita è molto più alto, e anche se i redditi sono aumentati, molte famiglie faticano ad arrivare a fine mese. Mio nonno pensa che in futuro i prezzi ___ ancora, così ogni settimana confronta i prezzi al supermercato prima di riempire il carrello.",
       accepted: ["aumenteranno"],
       hint: "future tense of aumentare, terza persona plurale",
       tags: ["passage", "economy", "budget"],

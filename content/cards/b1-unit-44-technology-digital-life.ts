@@ -223,7 +223,7 @@ const unit: Unit = {
     {
       id: "b144-t4-004",
       type: "passage_cloze",
-      prompt: "Durante la festa, un amico ha scattato molte foto e le ha pubblicate subito online.\nIn una foto, Giulia appariva in un momento imbarazzante e non voleva che tutti la vedessero.\nHa chiesto all'amico di togliere il ___ con il suo nome dalla foto.\nL'amico ha capito e ha rimosso subito il tag, lasciando solo la foto senza indicare chi fosse.\nDa allora Giulia chiede sempre il permesso prima di taggare qualcuno nelle sue foto.",
+      prompt: "Durante la festa, un amico ha scattato molte foto e le ha pubblicate subito online.\nIn una foto, Giulia appariva in un momento imbarazzante e non voleva che tutti la vedessero.\nHa chiesto all'amico di togliere il ___ con il suo nome dalla foto.\nL'amico ha capito e ha rimosso subito il tag, lasciando solo la foto senza indicare chi fosse.\nGiulia ha ripubblicato la foto senza il tag e ha ringraziato l'amico per la comprensione.",
       accepted: ["tag"],
       hint: "the noun for the label linking a photo to a person's profile",
       tags: ["passage_cloze", "social-media"],
@@ -243,7 +243,7 @@ const unit: Unit = {
     {
       id: "b144-t4-006",
       type: "passage_cloze",
-      prompt: "Una sera, Anna ha ricevuto un messaggio da uno sconosciuto che si presentava come un vecchio compagno di scuola.\nLe chiedeva subito soldi per un'emergenza, dicendo di aver perso il telefono.\nIl messaggio le è sembrato subito sospetto, così ha deciso di non rispondere.\nHa cercato il vero compagno di scuola su un'altra piattaforma e ha scoperto che il suo account era stato copiato.\nDa quel giorno, Anna ha imparato a ___ di chiunque le chieda soldi online.",
+      prompt: "Una sera, Anna ha ricevuto un messaggio da uno sconosciuto che si presentava come un vecchio compagno di scuola.\nLe chiedeva subito soldi per un'emergenza, dicendo di aver perso il telefono.\nIl tono insistente del messaggio l'ha spinta a ___ di quella richiesta improvvisa e a non rispondere.\nHa cercato il vero compagno di scuola su un'altra piattaforma e ha scoperto che il suo account era stato copiato.\nAnna ha bloccato subito il profilo falso e ha avvisato l'amico vero del furto d'identità.",
       accepted: ["diffidare"],
       hint: "the verb meaning to be wary of someone, opposite of 'fidarsi'",
       tags: ["passage_cloze", "security"],
@@ -263,7 +263,7 @@ const unit: Unit = {
     {
       id: "b144-t4-008",
       type: "passage_cloze",
-      prompt: "Durante le elezioni, molte persone hanno condiviso una notizia riguardo a un candidato senza controllarla.\nLa notizia si è diffusa rapidamente su ogni piattaforma, ma nessuno ne conosceva la vera fonte.\nUn giornalista ha verificato i fatti e ha scoperto che si trattava di una ___.\nMolti utenti, imbarazzati, hanno cancellato subito il post che avevano condiviso senza pensarci.\nDa allora, quel giornale ricorda sempre ai lettori di verificare prima di condividere qualsiasi contenuto.",
+      prompt: "Durante le elezioni, molte persone hanno condiviso una notizia riguardo a un candidato senza controllarla.\nLa notizia si è diffusa rapidamente su ogni piattaforma, ma nessuno ne conosceva la vera fonte.\nUn giornalista ha verificato i fatti e ha scoperto che si trattava di una ___.\nMolti utenti, imbarazzati, hanno cancellato subito il post che avevano condiviso senza pensarci.\nIl giorno dopo, il giornale ha pubblicato una correzione con i fatti reali.",
       accepted: ["notizia falsa"],
       hint: "the two-word term for a fabricated news story",
       tags: ["passage_cloze", "security"],
@@ -273,7 +273,7 @@ const unit: Unit = {
     {
       id: "b144-t4-009",
       type: "passage_cloze",
-      prompt: "Chiara doveva finire una relazione importante entro sera, ma il telefono continuava a squillare di notifiche.\nOgni messaggio la faceva perdere il filo dei pensieri e distrarre dal lavoro.\nAlla fine ha deciso di ___ tutte le notifiche delle app di messaggistica per due ore.\nSenza interruzioni, è riuscita a concentrarsi e a finire la relazione in tempo.\nDa quel giorno, ripete lo stesso trucco ogni volta che deve lavorare senza distrazioni.",
+      prompt: "Chiara doveva finire una relazione importante entro sera, ma il telefono continuava a squillare di notifiche.\nOgni messaggio la faceva perdere il filo dei pensieri e distrarre dal lavoro.\nAlla fine ha deciso di ___ tutte le notifiche delle app di messaggistica per due ore.\nSenza interruzioni, è riuscita a concentrarsi e a finire la relazione in tempo.\nIl giorno dopo ha ripetuto lo stesso trucco per finire un altro rapporto in tempo.",
       accepted: ["silenziare"],
       hint: "the verb meaning to mute notifications",
       tags: ["passage_cloze", "habits"],
@@ -283,7 +283,7 @@ const unit: Unit = {
     {
       id: "b144-t4-010",
       type: "passage_cloze",
-      prompt: "Roberto ha conosciuto una ragazza in un gruppo online dedicato ai viaggi.\nChattavano ogni giorno, ma lui non l'aveva mai vista di persona né sentita al telefono.\nUn amico gli ha detto di stare attento, perché è difficile ___ di chi si conosce solo online.\nRoberto ha deciso comunque di fare una videochiamata prima di organizzare un incontro reale.\nDopo la chiamata, si è sentito più tranquillo e ha capito che la ragazza era davvero chi diceva di essere.",
+      prompt: "Roberto ha conosciuto una ragazza in un gruppo online dedicato ai viaggi.\nChattavano ogni giorno, ma lui non l'aveva mai vista di persona né sentita al telefono.\nUn amico gli ha detto di stare attento, perché è difficile ___ di chi si conosce solo online.\nRoberto ha deciso comunque di fare una videochiamata prima di organizzare un incontro reale.\nDopo la chiamata, si è sentito più tranquillo e ha fissato un caffè con lei per il weekend successivo.",
       accepted: ["fidarsi"],
       hint: "the reflexive verb meaning to trust",
       tags: ["passage_cloze", "security"],
@@ -293,7 +293,7 @@ const unit: Unit = {
     {
       id: "b144-t4-011",
       type: "passage_cloze",
-      prompt: "Da mesi, Luca si accorgeva di controllare il telefono ogni pochi minuti, anche di notte.\nSi rendeva conto di essere diventato dipendente dal telefono, ma non sapeva come cambiare abitudine.\nUn'amica gli ha suggerito di fare una piccola disintossicazione digitale durante il weekend.\nLuca ha lasciato il telefono spento per due giorni e si è accorto di riuscire finalmente a ___ su un libro senza interruzioni.\nDa allora, ogni weekend prova a ripetere lo stesso esperimento.",
+      prompt: "Da mesi, Luca si accorgeva di controllare il telefono ogni pochi minuti, anche di notte.\nSi rendeva conto di essere diventato dipendente dal telefono, ma non sapeva come cambiare abitudine.\nUn'amica gli ha suggerito di fare una piccola disintossicazione digitale durante il weekend.\nLuca ha lasciato il telefono spento per due giorni e si è accorto di riuscire finalmente a ___ su un libro senza interruzioni.\nIl weekend seguente ha proposto lo stesso esperimento anche ai suoi genitori.",
       accepted: ["concentrarsi"],
       hint: "the reflexive verb meaning to concentrate",
       tags: ["passage_cloze", "habits"],
@@ -313,7 +313,7 @@ const unit: Unit = {
     {
       id: "b144-t4-013",
       type: "passage_cloze",
-      prompt: "Mentre controllava la posta, Davide ha trovato un'email che sembrava della sua banca.\nChiedeva di cliccare su un link per confermare i dati del conto, ma qualcosa non tornava.\nDavide ha notato errori di ortografia strani e ha capito che si trattava di un tentativo di ___.\nHa cancellato subito l'email senza cliccare su nulla e ha avvisato la banca.\nDa quel giorno controlla sempre con attenzione ogni messaggio che chiede dati personali.",
+      prompt: "Mentre controllava la posta, Davide ha trovato un'email che sembrava della sua banca.\nChiedeva di cliccare su un link per confermare i dati del conto, ma qualcosa non tornava.\nDavide ha notato errori di ortografia strani e ha capito che si trattava di un tentativo di ___.\nHa cancellato subito l'email senza cliccare su nulla e ha avvisato la banca.\nLa banca lo ha ringraziato per la segnalazione e ha bloccato subito il mittente del messaggio.",
       accepted: ["phishing"],
       hint: "the borrowed noun for a scam message trying to steal personal data",
       tags: ["passage_cloze", "security"],
@@ -323,7 +323,7 @@ const unit: Unit = {
     {
       id: "b144-t4-014",
       type: "passage_cloze",
-      prompt: "Tra amiche, ormai si scambiano più messaggi vocali che testi scritti, soprattutto dopo una giornata intensa.\nMarta preferisce ascoltare la voce di un'amica piuttosto che leggere un lungo testo pieno di dettagli.\nUn giorno, però, ha ricevuto cinque messaggi vocali di fila e non aveva tempo per ascoltarli tutti.\nLe ha scritto: la prossima volta mandami un solo ___, non cinque messaggi di seguito.\nDa allora le sue amiche cercano di riassumere tutto in un unico messaggio vocale.",
+      prompt: "Tra amiche, ormai si scambiano più messaggi vocali che testi scritti, soprattutto dopo una giornata intensa.\nMarta preferisce ascoltare la voce di un'amica piuttosto che leggere un lungo testo pieno di dettagli.\nUn giorno, però, ha ricevuto cinque messaggi vocali di fila e non aveva tempo per ascoltarli tutti.\nLe ha scritto: la prossima volta mandami un solo ___, non cinque messaggi di seguito.\nLa sera dopo, un'amica le ha mandato un solo messaggio vocale di due minuti, riassumendo tutto.",
       accepted: ["messaggio vocale"],
       hint: "the noun phrase for an audio message sent through a messaging app",
       tags: ["passage_cloze", "communication"],
@@ -333,7 +333,7 @@ const unit: Unit = {
     {
       id: "b144-t4-015",
       type: "passage_cloze",
-      prompt: "Ogni estate, la famiglia di Paolo trascorre un weekend in montagna senza connessione internet.\nIl primo giorno tutti si sentono un po' persi senza telefono, ma poi si abituano in fretta.\nQuest'anno Paolo ha proposto di ___ completamente dai social per l'intero weekend, non solo di ridurre il tempo.\nAll'inizio è stato difficile, ma alla fine tutti hanno ammesso di essersi sentiti più presenti insieme.\nOra ripetono questa disintossicazione digitale ogni anno, senza eccezioni.",
+      prompt: "Ogni estate, la famiglia di Paolo trascorre un weekend in montagna senza connessione internet.\nIl primo giorno tutti si sentono un po' persi senza telefono, ma poi si abituano in fretta.\nQuest'anno Paolo ha proposto di ___ completamente dai social per l'intero weekend, non solo di ridurre il tempo.\nAll'inizio è stato difficile, ma alla fine tutti hanno ammesso di essersi sentiti più presenti insieme.\nL'anno seguente hanno organizzato lo stesso weekend, questa volta invitando anche i nonni.",
       accepted: ["disintossicarsi"],
       hint: "the reflexive verb meaning to detox from social media",
       tags: ["passage_cloze", "habits"],
@@ -353,7 +353,7 @@ const unit: Unit = {
     {
       id: "b144-t4-017",
       type: "passage_cloze",
-      prompt: "Dopo aver ricevuto minacce da un profilo sconosciuto, Elisa ha deciso di raccogliere le prove prima di reagire.\nHa fatto uno screenshot di ogni messaggio ricevuto, salvando data e ora di ciascuno.\nQuando ha mostrato gli ___ alla polizia postale, hanno subito aperto un'indagine sul profilo.\nGrazie a quelle immagini, la persona responsabile è stata identificata in pochi giorni.\nElisa consiglia sempre di conservare le prove prima di bloccare chi minaccia online.",
+      prompt: "Dopo aver ricevuto minacce da un profilo sconosciuto, Elisa ha deciso di raccogliere le prove prima di reagire.\nHa fatto uno screenshot di ogni messaggio ricevuto, salvando data e ora di ciascuno.\nQuando ha mostrato gli ___ alla polizia postale, hanno subito aperto un'indagine sul profilo.\nGrazie a quelle immagini, la persona responsabile è stata identificata in pochi giorni.\nLa polizia ha rintracciato l'indirizzo IP del profilo e ha chiuso il caso in una settimana.",
       accepted: ["screenshot"],
       hint: "plural usage of the borrowed noun for screen captures (invariable in Italian)",
       tags: ["passage_cloze", "security"],
@@ -363,7 +363,7 @@ const unit: Unit = {
     {
       id: "b144-t4-018",
       type: "passage_cloze",
-      prompt: "Ogni volta che qualcuno pubblica una foto di gruppo, si scatena una piccola discussione sui tag.\nAlcuni vogliono essere taggati subito, altri preferiscono restare fuori dalla foto completamente.\nDurante l'ultima festa, un amico ha taggato tutti senza chiedere il permesso a nessuno.\nDopo qualche lamentela, ha imparato che è meglio ___ il permesso prima di taggare qualcuno in una foto di gruppo.\nOra manda sempre un messaggio per avvisare prima di pubblicare qualsiasi foto con altre persone.",
+      prompt: "Ogni volta che qualcuno pubblica una foto di gruppo, si scatena una piccola discussione sui tag.\nAlcuni vogliono essere taggati subito, altri preferiscono restare fuori dalla foto completamente.\nDurante l'ultima festa, un amico ha taggato tutti senza chiedere il permesso a nessuno.\nDopo qualche lamentela, ha imparato che è meglio ___ il permesso prima di taggare qualcuno in una foto di gruppo.\nLa settimana dopo, prima di pubblicare una foto di gruppo, ha scritto un messaggio a tutti per chiedere il permesso.",
       accepted: ["chiedere"],
       hint: "infinitive meaning to ask (for permission)",
       tags: ["passage_cloze", "social-media"],

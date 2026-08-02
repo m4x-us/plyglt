@@ -328,7 +328,7 @@ const unit: Unit = {
     {
       id: "b132-t4-001",
       type: "passage_cloze",
-      prompt: "Luca e Matteo erano amici da vent'anni.\nQualche mese fa hanno avuto un litigio serio: Matteo aveva rivelato un segreto di Luca a tutta la comitiva, e Luca si era sentito tradito.\nPer settimane non si sono parlati, e Luca ha pensato che il ___ fosse finito per sempre.\nPoi, un giorno, Matteo è andato a casa sua e ha chiesto perdono con sincerità.\nLuca ha capito che l'amicizia vera vale più dell'orgoglio e ha deciso di perdonarlo.\nOggi i due hanno un rapporto ancora più solido di prima, costruito su una nuova fiducia reciproca.",
+      prompt: "Luca e Matteo erano amici da vent'anni.\nQualche mese fa hanno avuto un litigio serio: Matteo aveva rivelato un segreto di Luca a tutta la comitiva, e Luca si era sentito tradito.\nPer settimane non si sono parlati, e Luca pensava che tra loro fosse tutto finito.\nPoi, un giorno, Matteo è andato a casa sua e ha chiesto scusa con sincerità.\nLuca lo ha guardato in silenzio per un lungo momento, poi lo ha abbracciato.\nOra si vedono ogni sabato per un caffè, come facevano da ragazzi, e quel ___ sembra più solido di prima.",
       accepted: ["rapporto", "legame"],
       hint: "the word refers to their long-standing connection or tie — it felt as though it had ended forever",
       tags: ["passage_cloze", "friendship", "conflict", "reconciliation"],
@@ -1699,7 +1699,7 @@ const unit: Unit = {
     {
       id: "b132-t4-002",
       type: "passage_cloze",
-      prompt: "Quando Sara si è trasferita in Canada per lavoro, io e lei ci siamo promesse di restare vicine nonostante la lontananza.\nAll'inizio ci scrivevamo ogni giorno, poi i messaggi sono diventati più rari per via del fuso orario.\nNonostante tutto, ogni domenica troviamo un'ora per una videochiamata, senza mai saltarla nemmeno una volta.\nSara dice sempre che la vera amicizia non si misura in chilometri, ma nella ___ costruita negli anni.",
+      prompt: "Quando Sara si è trasferita in Canada per lavoro, io e lei ci siamo promesse di restare vicine nonostante la lontananza.\nAll'inizio ci scrivevamo ogni giorno, poi i messaggi sono diventati più rari per via del fuso orario.\nNonostante tutto, ogni domenica troviamo un'ora per una videochiamata, senza mai saltarla nemmeno una volta.\nIeri, durante la videochiamata, abbiamo riso per venti minuti su una battuta che solo noi due potevamo capire, frutto della ___ costruita negli anni.",
       accepted: ["complicità"],
       hint: "the easy, unspoken understanding between them, built over years — feminine noun",
       tags: ["passage_cloze", "friendship", "long-distance", "complicita"],
@@ -1709,7 +1709,7 @@ const unit: Unit = {
     {
       id: "b132-t4-003",
       type: "passage_cloze",
-      prompt: "Dopo che Luca ha scoperto il tradimento del suo migliore amico, per mesi ha diffidato di chiunque gli si avvicinasse.\nPiano piano, però, ha imparato a distinguere le persone davvero affidabili da quelle che dicono solo belle parole.\nOggi si fida di nuovo, ma con più cautela di prima, e sceglie con cura a chi confidare i suoi segreti.\nLa vera lezione, dice, è che la ___ va guadagnata un giorno alla volta, non regalata subito.",
+      prompt: "Dopo che Luca ha scoperto il tradimento del suo migliore amico, per mesi ha diffidato di chiunque gli si avvicinasse.\nPiano piano, però, ha imparato a distinguere le persone davvero affidabili da quelle che dicono solo belle parole.\nOggi si fida di nuovo, ma con più cautela di prima, e sceglie con cura a chi confidare i suoi segreti.\nLa settimana scorsa ha lasciato per la prima volta le chiavi di casa a un collega appena conosciuto, un piccolo passo della ___ che sta ricostruendo un giorno alla volta.",
       accepted: ["fiducia"],
       hint: "the thing rebuilt slowly, one day at a time — the central word of this whole unit",
       tags: ["passage_cloze", "trust", "betrayal"],
@@ -1729,7 +1729,7 @@ const unit: Unit = {
     {
       id: "b132-t4-005",
       type: "passage_cloze",
-      prompt: "Io e Giulia abbiamo litigato per una sciocchezza e per una settimana non ci siamo parlate.\nOgni giorno che passava, il malinteso sembrava crescere invece di risolversi da solo.\nAlla fine ho deciso di scriverle un messaggio sincero, spiegando cosa provavo davvero senza orgoglio.\nLei mi ha risposto subito, e insieme abbiamo capito che nessuna delle due voleva davvero rompere quel ___.",
+      prompt: "Io e Giulia abbiamo litigato per una sciocchezza e per una settimana non ci siamo parlate.\nOgni giorno che passava, il malinteso sembrava crescere invece di risolversi da solo.\nAlla fine ho deciso di scriverle un messaggio sincero, spiegando cosa provavo davvero senza orgoglio.\nLei mi ha risposto subito, e la sera stessa siamo uscite a cena per festeggiare quel ___ ritrovato.",
       accepted: ["legame"],
       hint: "the bond between them, almost broken by pride — masculine noun",
       tags: ["passage_cloze", "conflict", "reconciliation"],
@@ -1739,7 +1739,7 @@ const unit: Unit = {
     {
       id: "b132-t4-006",
       type: "passage_cloze",
-      prompt: "Quando ho perso il lavoro, non mi aspettavo quanto appoggio avrei ricevuto dai miei amici.\nUno mi ha aiutato a rifare il curriculum, un'altra mi ha offerto ospitalità mentre cercavo un nuovo appartamento.\nOgni volta che mi sentivo scoraggiato, sapevo di poter contare su di loro senza nemmeno chiedere.\nHo capito allora che un vero amico è qualcuno su cui puoi sempre ___, anche nei momenti più bui.",
+      prompt: "Quando ho perso il lavoro, non mi aspettavo quanto appoggio avrei ricevuto dai miei amici.\nUno mi ha aiutato a rifare il curriculum, un'altra mi ha offerto ospitalità mentre cercavo un nuovo appartamento.\nOgni volta che mi sentivo scoraggiato, sapevo di poter contare su di loro senza nemmeno chiedere.\nQuando ho trovato un nuovo lavoro, li ho chiamati subito, prima ancora della mia famiglia, perché so che posso sempre ___ su di loro.",
       accepted: ["contare"],
       hint: "the verb for relying on someone — infinitive",
       tags: ["passage_cloze", "support", "friendship"],
@@ -1749,7 +1749,7 @@ const unit: Unit = {
     {
       id: "b132-t4-007",
       type: "passage_cloze",
-      prompt: "Da bambina, mia madre mi ripeteva sempre che l'onestà vale più di qualsiasi bugia detta per convenienza.\nCrescendo, ho capito quanto fosse difficile essere sincera anche quando la verità poteva ferire qualcuno che amavo.\nUna volta ho detto una bugia a una mia amica per non deluderla, e mi sono sentita in colpa per settimane.\nDa allora ho deciso di essere sempre ___, anche quando è scomodo.",
+      prompt: "Da bambina, mia madre mi ripeteva sempre che l'onestà vale più di qualsiasi bugia detta per convenienza.\nCrescendo, ho capito quanto fosse difficile essere sincera anche quando la verità poteva ferire qualcuno che amavo.\nUna volta ho detto una bugia a una mia amica per non deluderla, e mi sono sentita in colpa per settimane.\nIeri ho detto a quella stessa amica una verità scomoda, e per la prima volta non mi sono sentita in colpa per essere stata così ___.",
       accepted: ["sincera"],
       hint: "adjective agreeing with the female narrator — sincere",
       tags: ["passage_cloze", "honesty", "sincerity"],
@@ -1759,7 +1759,7 @@ const unit: Unit = {
     {
       id: "b132-t4-008",
       type: "passage_cloze",
-      prompt: "Marco aveva promesso di aiutarmi con il trasloco, ma all'ultimo momento non si è più fatto vedere.\nNon era la prima volta: cancellava sempre gli appuntamenti all'ultimo minuto, senza mai una vera spiegazione.\nI miei altri amici mi avevano avvertito che non potevo fidarmi troppo di lui.\nCon il tempo ho imparato che un amico ___ finisce sempre per deludere, prima o poi.",
+      prompt: "Marco aveva promesso di aiutarmi con il trasloco, ma all'ultimo momento non si è più fatto vedere.\nNon era la prima volta: cancellava sempre gli appuntamenti all'ultimo minuto, senza mai una vera spiegazione.\nI miei altri amici mi avevano avvertito che non potevo fidarmi troppo di lui.\nAl trasloco successivo, ho chiesto aiuto a qualcun altro, perché non volevo lasciarmi deludere di nuovo da un amico così ___.",
       accepted: ["inaffidabile"],
       hint: "adjective for someone you cannot rely on",
       tags: ["passage_cloze", "reliability", "disappointment"],
@@ -1769,7 +1769,7 @@ const unit: Unit = {
     {
       id: "b132-t4-009",
       type: "passage_cloze",
-      prompt: "Durante la festa, ho notato che Elena parlava benissimo di tutti in faccia, ma dietro le spalle diceva tutt'altro.\nQuando l'ho affrontata, ha negato tutto, ma un'altra amica aveva sentito la stessa conversazione.\nMi sono resa conto che la sua gentilezza era solo una maschera, e questo mi ha ferito più di un vero litigio.\nOra so che non c'è niente di peggio dell'___ in un'amicizia.",
+      prompt: "Durante la festa, ho notato che Elena parlava benissimo di tutti in faccia, ma dietro le spalle diceva tutt'altro.\nQuando l'ho affrontata, ha negato tutto, ma un'altra amica aveva sentito la stessa conversazione.\nMi sono resa conto che la sua gentilezza era solo una maschera, e questo mi ha ferito più di un vero litigio.\nDa quella sera, ho smesso di condividere con lei qualsiasi cosa personale, stanca della sua ___.",
       accepted: ["ipocrisia"],
       hint: "the noun for saying one thing and doing another — feminine",
       tags: ["passage_cloze", "hypocrisy", "betrayal"],
@@ -1779,7 +1779,7 @@ const unit: Unit = {
     {
       id: "b132-t4-010",
       type: "passage_cloze",
-      prompt: "Anni fa, mio fratello mi ha deluso profondamente, dimenticando la promessa più importante della mia vita.\nPer molto tempo ho portato rancore, rifiutando persino di parlargli alle feste di famiglia.\nUn giorno, però, ho capito che il rancore faceva più male a me che a lui.\nHo deciso di dargli un'altra possibilità, perché il ___ è più forte di qualsiasi errore.",
+      prompt: "Anni fa, mio fratello mi ha deluso profondamente, dimenticando la promessa più importante della mia vita.\nPer molto tempo ho portato rancore, rifiutando persino di parlargli alle feste di famiglia.\nUn giorno, però, ho smesso quasi senza accorgermi di portare rancore.\nLo scorso Natale gli ho scritto per primo, offrendogli finalmente il mio ___.",
       accepted: ["perdono"],
       hint: "the noun already taught in this unit — forgiveness",
       tags: ["passage_cloze", "forgiveness", "reconciliation"],
@@ -1789,7 +1789,7 @@ const unit: Unit = {
     {
       id: "b132-t4-011",
       type: "passage_cloze",
-      prompt: "Dopo l'incidente d'auto, Marta ha passato settimane in ospedale, e i suoi amici si sono alternati ogni giorno per starle vicino.\nQuella crisi, invece di allontanarli, ha rafforzato il gruppo in un modo che nessuno si aspettava.\nOggi si vedono ancora più spesso di prima, e Marta dice che quella brutta esperienza le ha insegnato chi erano i suoi veri amici.\nA volte, dice, un momento difficile può ___ un'amicizia più di dieci anni di normalità.",
+      prompt: "Dopo l'incidente d'auto, Marta ha passato settimane in ospedale, e i suoi amici si sono alternati ogni giorno per starle vicino.\nQuella crisi, invece di allontanarli, ha rafforzato il gruppo in un modo che nessuno si aspettava.\nOggi si vedono ancora più spesso di prima, e nessuno di quegli amici ha mai smesso di passare a trovarla.\nDa allora hanno iniziato a vedersi ogni settimana, apposta per ___ ancora di più quel legame.",
       accepted: ["rafforzare"],
       hint: "the verb for making a bond stronger — infinitive",
       tags: ["passage_cloze", "support", "friendship"],
@@ -1819,7 +1819,7 @@ const unit: Unit = {
     {
       id: "b132-t4-014",
       type: "passage_cloze",
-      prompt: "Per settimane, Paolo pensava che il suo amico Davide lo stesse evitando apposta senza motivo.\nIn realtà, Davide stava solo attraversando un periodo difficile e non aveva energie per vedere nessuno.\nQuando finalmente si sono parlati con calma, tutto si è chiarito in pochi minuti.\nPaolo ha capito che spesso basta una conversazione sincera per risolvere un ___ che sembrava insormontabile.",
+      prompt: "Per settimane, Paolo pensava che il suo amico Davide lo stesse evitando apposta senza motivo.\nIn realtà, Davide stava solo attraversando un periodo difficile e non aveva energie per vedere nessuno.\nQuando finalmente si sono parlati con calma, tutto si è chiarito in pochi minuti.\nQuella sera stessa sono usciti a cena insieme, e nessuno dei due ha più nominato quel ___.",
       accepted: ["malinteso"],
       hint: "the noun for a misunderstanding between friends",
       tags: ["passage_cloze", "misunderstanding", "conflict"],
@@ -1829,7 +1829,7 @@ const unit: Unit = {
     {
       id: "b132-t4-015",
       type: "passage_cloze",
-      prompt: "Quando tutti gli altri hanno smesso di credere nel progetto di Anna, il suo amico Filippo è rimasto al suo fianco fino alla fine.\nNon l'ha mai giudicata, nemmeno quando le cose sembravano andare male.\nAnna dice che quella lealtà silenziosa vale più di mille parole di incoraggiamento.\nOggi capisce che un amico davvero ___ non se ne va mai nei momenti difficili.",
+      prompt: "Quando tutti gli altri hanno smesso di credere nel progetto di Anna, il suo amico Filippo è rimasto al suo fianco fino alla fine.\nNon l'ha mai giudicata, nemmeno quando le cose sembravano andare male.\nAnna dice che quella lealtà silenziosa vale più di mille parole di incoraggiamento.\nQuando il progetto è stato finalmente approvato, Anna ha alzato il primo brindisi per lui, l'amico più ___ che abbia mai avuto.",
       accepted: ["fedele"],
       hint: "adjective agreeing with 'amico' (masculine) — faithful",
       tags: ["passage_cloze", "loyalty", "friendship"],
