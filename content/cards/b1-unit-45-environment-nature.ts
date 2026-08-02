@@ -6,7 +6,7 @@ const unit: Unit = {
   level: "B1",
   theme: "Environment & Nature Awareness",
   emoji: "🌱",
-  prerequisiteUnits: [],
+  prerequisiteUnits: ["b1-unit-54-imperativo-informale"],
   cards: [
     // ── Tier 1 – Vocabulary ──────────────────────────────────────────────────
     { id: "b145-t1-001", type: "recognize", prompt: "riciclare", accepted: ["to recycle"], hint: "regular -are verb", tags: ["environment", "verb", "vocab", "B1"], tier: 1 },
@@ -62,7 +62,9 @@ const unit: Unit = {
     { id: "b145-t1-051", type: "recognize", prompt: "compostare", accepted: ["to compost"], hint: "regular -are verb, from 'il compost'", tags: ["environment", "verb", "vocab", "B1"], tier: 1 },
     { id: "b145-t1-052", type: "produce", prompt: "to compost", accepted: ["compostare"], hint: "regular -are verb, from 'il compost': compostare", tags: ["environment", "verb", "vocab", "B1"], tier: 1 },
 
-    // ── Tier 2 – Grammar: imperativo informale (eco-tips) ─────────────────────
+    // ── Tier 2 – Grammar: imperativo informale reinforcement (eco-tips) — the
+    // informal imperative is taught comprehensively in b1-unit-54-imperativo-informale
+    // (this unit's prerequisite); these cards apply it in an environmental context. ──
     { id: "b145-t2-001", type: "fill_blank", prompt: "___ (riciclare, tu) la carta invece di buttarla nel secco!", accepted: ["Ricicla"], hint: "Informal tu command form: riciclare → ricicla.", tags: ["environment", "grammar", "imperativo", "B1"], tier: 2, prerequisites: ["b145-t1-001", "b145-t1-013"] },
     { id: "b145-t2-002", type: "fill_blank", prompt: "Non ___ (sprecare, tu) l'acqua mentre ti lavi i denti.", accepted: ["sprecare"], hint: "Negative tu commands use non + the infinitive rather than a conjugated imperative: non sprecare.", tags: ["environment", "grammar", "imperativo", "B1"], tier: 2, prerequisites: ["b145-t1-019"] },
     { id: "b145-t2-003", type: "fill_blank", prompt: "___ (spegnere, voi) le luci quando uscite dall'aula!", accepted: ["Spegnete"], hint: "Informal voi command form: spegnere → spegnete.", tags: ["environment", "grammar", "imperativo", "B1"], tier: 2 },

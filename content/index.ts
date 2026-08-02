@@ -58,7 +58,7 @@ import a2Unit37 from "./cards/a2-unit-37-money-banking";
 import a2Unit38 from "./cards/a2-unit-38-time-expressions";
 import a2Unit39 from "./cards/a2-unit-39-housing-renting";
 
-// B1 — Intermediate (35 units)
+// B1 — Intermediate (36 units)
 import b1Unit19 from "./cards/b1-unit-19-relative-pronouns";
 import b1Unit20 from "./cards/b1-unit-20-congiuntivo";
 import b1Unit21 from "./cards/b1-unit-21-trapassato";
@@ -94,6 +94,7 @@ import b1Unit50 from "./cards/b1-unit-50-italian-history-modern";
 import b1Unit51 from "./cards/b1-unit-51-life-stages-milestones";
 import b1Unit52 from "./cards/b1-unit-52-sleep-stress-wellbeing";
 import b1Unit53 from "./cards/b1-unit-53-subjunctive-connector-mastery";
+import b1Unit54 from "./cards/b1-unit-54-imperativo-informale";
 
 // B2 — Upper Intermediate (13 units)
 import b2Unit29 from "./cards/b2-unit-29-hypotheticals";
@@ -129,7 +130,7 @@ export const ALL_UNITS: Unit[] = [
   b1Unit29, b1Unit30, b1Unit31, b1Unit32,
   b1Unit33, b1Unit34, b1Unit35, b1Unit36, b1Unit37, b1Unit38, b1Unit39, b1Unit40,
   b1Unit41, b1Unit42, b1Unit43, b1Unit44, b1Unit45, b1Unit46, b1Unit47, b1Unit48,
-  b1Unit49, b1Unit50, b1Unit51, b1Unit52, b1Unit53,
+  b1Unit49, b1Unit50, b1Unit51, b1Unit52, b1Unit53, b1Unit54,
   // B2
   b2Unit29, b2Unit30, b2Unit31, b2Unit32, b2Unit33,
   b2Unit34, b2Unit35, b2Unit36, b2Unit37, b2Unit38,

@@ -5,7 +5,7 @@ const unit: Unit = {
   level: "B1",
   theme: "Health & Medicine",
   emoji: "🏥",
-  prerequisiteUnits: ["b1-unit-26-work"],
+  prerequisiteUnits: ["b1-unit-26-work", "b1-unit-40-formal-register"],
   cards: [
     // ── Tier 1 – Vocabulary ──────────────────────────────────────────────────
     {
