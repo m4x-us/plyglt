@@ -1829,7 +1829,7 @@ const unit: Unit = {
     {
       id: "b132-t4-015",
       type: "passage_cloze",
-      prompt: "Quando tutti gli altri hanno smesso di credere nel progetto di Anna, il suo amico Filippo è rimasto al suo fianco fino alla fine.\nNon l'ha mai giudicata, nemmeno quando le cose sembravano andare male.\nAnna dice che quella lealtà silenziosa vale più di mille parole di incoraggiamento.\nQuando il progetto è stato finalmente approvato, Anna ha alzato il primo brindisi per lui, l'amico più ___ che abbia mai avuto.",
+      prompt: "Quando tutti gli altri hanno smesso di credere nel progetto di Anna, il suo amico Filippo è rimasto al suo fianco fino alla fine.\nNon l'ha mai giudicata, nemmeno quando le cose sembravano andare male.\nOgni sera, dopo il lavoro, la chiamava solo per chiederle come procedevano le cose.\nQuando il progetto è stato finalmente approvato, Anna ha alzato il primo brindisi per lui, l'amico più ___ che abbia mai avuto.",
       accepted: ["fedele"],
       hint: "adjective agreeing with 'amico' (masculine) — faithful",
       tags: ["passage_cloze", "loyalty", "friendship"],

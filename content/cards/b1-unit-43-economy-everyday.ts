@@ -119,7 +119,7 @@ const unit: Unit = {
     { id: "b143-t3-014", type: "produce", prompt: "get a good deal / bargain", accepted: ["Fare un affare"], hint: "fare un affare = get a bargain", tags: ["chunk", "economy", "shopping"], tier: 3 },
     { id: "b143-t3-015", type: "produce", prompt: "cost an arm and a leg (idiom)", accepted: ["Costare un occhio della testa"], hint: "literally 'cost an eye of the head'", tags: ["chunk", "economy", "idiom"], tier: 3 },
     { id: "b143-t3-016", type: "produce", prompt: "raise prices", accepted: ["Alzare i prezzi"], hint: "alzare = to raise", tags: ["chunk", "economy", "pricing"], tier: 3 },
-    { id: "b143-t3-017", type: "produce", prompt: "cut prices", accepted: ["Tagliare i prezzi"], hint: "tagliare = to cut", tags: ["chunk", "economy", "pricing"], tier: 3 },
+    { id: "b143-t3-017", type: "produce", prompt: "cut prices", accepted: ["Tagliare i prezzi"], hint: "Tagliare i prezzi is the standard business collocation; tagliare also works for costs (tagliare i costi) and jobs (tagliare posti di lavoro) — the same verb across contexts.", tags: ["chunk", "economy", "pricing"], tier: 3 },
     { id: "b143-t3-018", type: "produce", prompt: "prices are sky-high (idiom)", accepted: ["I prezzi sono alle stelle"], hint: "alle stelle = through the roof", tags: ["chunk", "economy", "idiom"], tier: 3 },
     { id: "b143-t3-019", type: "produce", prompt: "rising cost of living (idiom)", accepted: ["Il caro vita"], hint: "caro used as a noun meaning 'high cost'", tags: ["chunk", "economy", "idiom"], tier: 3 },
     { id: "b143-t3-020", type: "produce", prompt: "rising utility bills (idiom)", accepted: ["Il caro bollette"], hint: "same 'caro' construction, applied to bills", tags: ["chunk", "economy", "idiom"], tier: 3 },

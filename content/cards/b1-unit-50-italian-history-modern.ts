@@ -149,7 +149,7 @@ const unit: Unit = {
     { id: "b150-t3-025", type: "produce", prompt: "the war broke out", accepted: ["la guerra scoppiò"], hint: "scoppiare = to break out, erupt", tags: ["chunk", "history", "collocation"], tier: 3 },
     { id: "b150-t3-026", type: "produce", prompt: "to win the battle", accepted: ["vincere la battaglia"], hint: "vincere + object", tags: ["chunk", "history", "military", "collocation"], tier: 3 },
     { id: "b150-t3-027", type: "produce", prompt: "to lose the war", accepted: ["perdere la guerra"], hint: "perdere + object", tags: ["chunk", "history", "military", "collocation"], tier: 3 },
-    { id: "b150-t3-028", type: "produce", prompt: "to sign a peace treaty", accepted: ["firmare un trattato di pace"], hint: "firmare = to sign", tags: ["chunk", "history", "collocation"], tier: 3 },
+    { id: "b150-t3-028", type: "produce", prompt: "to sign a peace treaty", accepted: ["firmare un trattato di pace"], hint: "Firmare un trattato/un accordo/un contratto is the standard collocation for signing any formal agreement — firmare, not segnare, which means to mark or score.", tags: ["chunk", "history", "collocation"], tier: 3 },
     { id: "b150-t3-029", type: "produce", prompt: "to sign the armistice", accepted: ["firmare l'armistizio"], hint: "firmare + object", tags: ["chunk", "history", "collocation"], tier: 3 },
     { id: "b150-t3-030", type: "produce", prompt: "to enter the war", accepted: ["entrare in guerra"], hint: "entrare in + noun, no article", tags: ["chunk", "history", "collocation"], tier: 3 },
     { id: "b150-t3-031", type: "produce", prompt: "to gain independence", accepted: ["conquistare l'indipendenza"], hint: "conquistare + object", tags: ["chunk", "history", "collocation"], tier: 3 },

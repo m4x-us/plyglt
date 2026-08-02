@@ -1194,7 +1194,7 @@ const unit: Unit = {
       type: "produce",
       prompt: "What's going on in the world?",
       accepted: ["Cosa succede nel mondo?"],
-      hint: "succedere = to happen.",
+      hint: "Succedere takes essere in compound tenses (è successo, not ha successo) and conjugates like an -ere verb; cosa succede is the standard everyday way to ask 'what's going on'.",
       tags: ["chunk", "news", "conversation"],
       tier: 3,
     },

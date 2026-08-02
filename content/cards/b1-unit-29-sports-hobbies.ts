@@ -1668,7 +1668,7 @@ const unit: Unit = {
       type: "produce",
       prompt: "We celebrated the victory with a pizza.",
       accepted: ["Abbiamo festeggiato la vittoria con una pizza."],
-      hint: "'festeggiare' = to celebrate",
+      hint: "Festeggiare is the everyday verb for celebrating an occasion (festeggiare un compleanno, una vittoria); celebrare is reserved for more formal/ceremonial contexts, like celebrare una messa.",
       tags: ["chunk", "sport", "vittoria"],
       tier: 3,
     },

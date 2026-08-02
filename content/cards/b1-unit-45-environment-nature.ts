@@ -144,7 +144,7 @@ const unit: Unit = {
     { id: "b145-t3-017", type: "produce", prompt: "responsible consumption", accepted: ["il consumo responsabile"], hint: "'responsabile' = responsible", tags: ["environment", "phrase", "consumption", "B1"], tier: 3, prerequisites: ["b145-t1-021"] },
     { id: "b145-t3-018", type: "produce", prompt: "to bring your own bags to the supermarket", accepted: ["portare le proprie borse al supermercato"], hint: "'le proprie borse' = one's own bags", tags: ["environment", "phrase", "consumption", "B1"], tier: 3 },
     { id: "b145-t3-019", type: "produce", prompt: "to say no to single-use plastic", accepted: ["dire no alla plastica monouso"], hint: "'dire no a' = to say no to", tags: ["environment", "phrase", "consumption", "B1"], tier: 3, prerequisites: ["b145-t1-043"] },
-    { id: "b145-t3-020", type: "produce", prompt: "to avoid disposable items", accepted: ["evitare gli oggetti monouso"], hint: "'evitare' = to avoid", tags: ["environment", "phrase", "consumption", "B1"], tier: 3, prerequisites: ["b145-t1-043"] },
+    { id: "b145-t3-020", type: "produce", prompt: "to avoid disposable items", accepted: ["evitare gli oggetti monouso"], hint: "Monouso (single-use) is invariable — same form for singular/plural, masculine/feminine; gli oggetti monouso, la plastica monouso.", tags: ["environment", "phrase", "consumption", "B1"], tier: 3, prerequisites: ["b145-t1-043"] },
 
     // ── Tier 3 – Chunks & Phrases: water & energy at home ──────────────────────
     { id: "b145-t3-021", type: "produce", prompt: "to save water", accepted: ["risparmiare acqua"], hint: "'risparmiare' = to save (resources), different from 'salvare' (to rescue)", tags: ["environment", "phrase", "home", "B1"], tier: 3 },
