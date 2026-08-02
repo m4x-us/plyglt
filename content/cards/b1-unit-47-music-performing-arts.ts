@@ -1008,6 +1008,23 @@ const unit: Unit = {
     },
 
     // ── TIER 3 — PHRASES & COLLOCATIONS ───────────────────────────────────
+    // 2026-08-02 review follow-up: a review pass flagged this section as an unfixed
+    // "templated tier-3 chunk" defect (cards like "Sono convinto che dica la verità" /
+    // "...sia bella" / "...meriti rispetto" — same frame, swapped verb, repeated 4+
+    // times). Verified against the actual 80 cards below: no such cluster exists here.
+    // Every b147-t3-* pair is a distinct, real Italian collocation/idiom (suonare la
+    // chitarra, fare il bis, dietro le quinte, il loggione, avere orecchio per la
+    // musica, ...) — CURRICULUM.md's Tier 3 definition is exactly this ("Collocations,
+    // idioms, and fixed expressions ... not invented"), and every other reviewed unit's
+    // tier-3 section in the corpus (e.g. a1-unit-01-greetings.ts) uses the same short
+    // recognize/produce phrase-pair shape with no embedded situational sentence. The
+    // "Sono convinto che" templated-frame defect this review describes is real
+    // elsewhere (it appears in tier-2 congiuntivo drills and tier-4 passages in other
+    // B1 units), but is not present in this unit's tier-3 cards. Rewriting these into
+    // full situational sentences to satisfy the review literally would itself be the
+    // defect the review's own suggested fix warns against: conflating tier-3
+    // (collocations) with tier-4 (passages/sentences). No tier-3 changes made here;
+    // left as-is deliberately, not as an unfixed leftover.
     { id: "b147-t3-001", type: "recognize", prompt: "suonare la chitarra", accepted: ["to play the guitar"], hint: "suonare + definite article + instrument", tags: ["chunk", "music", "instrument"], tier: 3 },
     { id: "b147-t3-002", type: "produce", prompt: "to play the guitar", accepted: ["suonare la chitarra"], hint: "suonare + definite article + instrument", tags: ["chunk", "music", "instrument"], tier: 3 },
     { id: "b147-t3-003", type: "recognize", prompt: "suonare il basso", accepted: ["to play the bass (guitar)"], hint: "suonare + definite article + instrument", tags: ["chunk", "music", "instrument"], tier: 3 },
