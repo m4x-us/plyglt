@@ -913,7 +913,7 @@ const unit: Unit = {
     {
       id: "u42-t2-001",
       type: "fill_blank",
-      prompt: "Qualora Lei ___ (avere) bisogno di assistenza, contatti il servizio clienti.",
+      prompt: "Contatti pure il servizio clienti qualora Lei ___ (avere) bisogno di assistenza durante l'installazione del software.",
       accepted: ["abbia"],
       hint: "qualora + congiuntivo presente of avere",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -922,7 +922,7 @@ const unit: Unit = {
     {
       id: "u42-t2-002",
       type: "fill_blank",
-      prompt: "Qualora il pagamento non ___ (essere) ricevuto entro la scadenza, si applicheranno gli interessi di mora.",
+      prompt: "Gli interessi di mora si applicheranno automaticamente qualora il pagamento non ___ (essere) ricevuto entro la scadenza indicata in fattura.",
       accepted: ["sia"],
       hint: "qualora + congiuntivo presente of essere (passive construction)",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -931,7 +931,7 @@ const unit: Unit = {
     {
       id: "u42-t2-003",
       type: "fill_blank",
-      prompt: "Qualora si ___ (rendere) necessaria una proroga, il richiedente deve presentare domanda scritta.",
+      prompt: "Qualora si ___ (rendere) necessaria una proroga per il completamento della ricerca, il richiedente deve presentare domanda scritta al comitato scientifico entro il 30 giugno.",
       accepted: ["renda"],
       hint: "qualora + congiuntivo presente of rendersi",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -940,7 +940,7 @@ const unit: Unit = {
     {
       id: "u42-t2-004",
       type: "fill_blank",
-      prompt: "Qualora l'inquilino ___ (volere) disdire il contratto, deve darne preavviso di tre mesi.",
+      prompt: "Deve darne preavviso di tre mesi, qualora l'inquilino ___ (volere) disdire il contratto prima della scadenza naturale.",
       accepted: ["voglia"],
       hint: "qualora + congiuntivo presente of volere (irregular)",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -949,7 +949,7 @@ const unit: Unit = {
     {
       id: "u42-t2-005",
       type: "fill_blank",
-      prompt: "Qualora ___ (sorgere) una controversia tra le parti, sarà competente il foro di Milano.",
+      prompt: "Qualora ___ (sorgere) una controversia tra i soci in merito alla gestione dell'azienda, sarà competente in via esclusiva il foro di Milano.",
       accepted: ["sorga"],
       hint: "qualora + congiuntivo presente of sorgere",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -958,7 +958,7 @@ const unit: Unit = {
     {
       id: "u42-t2-006",
       type: "fill_blank",
-      prompt: "Qualora i soci non ___ (raggiungere) un accordo, si ricorrerà a un arbitro esterno.",
+      prompt: "Si ricorrerà a un arbitro esterno indipendente, qualora i soci non ___ (raggiungere) un accordo sulla ripartizione degli utili.",
       accepted: ["raggiungano"],
       hint: "qualora + congiuntivo presente, terza plurale",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -967,7 +967,7 @@ const unit: Unit = {
     {
       id: "u42-t2-007",
       type: "fill_blank",
-      prompt: "Qualora l'azienda ___ (dovere) ridurre il personale, seguirà la procedura prevista dal contratto collettivo.",
+      prompt: "La procedura prevista dal contratto collettivo verrà seguita passo dopo passo, qualora l'azienda ___ (dovere) ridurre il personale nei prossimi mesi.",
       accepted: ["debba"],
       hint: "qualora + congiuntivo presente of dovere (irregular)",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -976,7 +976,7 @@ const unit: Unit = {
     {
       id: "u42-t2-008",
       type: "fill_blank",
-      prompt: "Qualora uno dei firmatari ___ (venire) meno ai propri obblighi, l'altra parte potrà recedere dal contratto.",
+      prompt: "Qualora uno dei firmatari ___ (venire) meno ai propri obblighi in modo grave e reiterato, l'altra parte potrà recedere dal contratto senza ulteriore preavviso.",
       accepted: ["venga"],
       hint: "qualora + congiuntivo presente of venire — 'venire meno a' = to fail to meet",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -985,7 +985,7 @@ const unit: Unit = {
     {
       id: "u42-t2-009",
       type: "fill_blank",
-      prompt: "Qualora le condizioni meteorologiche non ___ (permettere) lo svolgimento dell'evento, la data sarà rinviata.",
+      prompt: "La data verrà rinviata alla prima occasione utile, qualora le condizioni meteorologiche non ___ (permettere) lo svolgimento dell'evento all'aperto.",
       accepted: ["permettano"],
       hint: "qualora + congiuntivo presente, terza plurale",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -994,7 +994,7 @@ const unit: Unit = {
     {
       id: "u42-t2-010",
       type: "fill_blank",
-      prompt: "Qualora il candidato non ___ (presentarsi) al colloquio, perderà il diritto alla convocazione successiva.",
+      prompt: "Qualora il candidato non ___ (presentarsi) al colloquio nella data comunicata dall'ufficio risorse umane, perderà automaticamente il diritto alla convocazione successiva.",
       accepted: ["si presenti"],
       hint: "qualora + congiuntivo presente of presentarsi",
       tags: ["grammar", "qualora", "congiuntivo-presente"],
@@ -1003,7 +1003,7 @@ const unit: Unit = {
     {
       id: "u42-t2-011",
       type: "fill_blank",
-      prompt: "Nel caso in cui tu ___ (avere) dubbi sulla procedura, puoi consultare il manuale.",
+      prompt: "Puoi sempre consultare il manuale operativo, nel caso in cui tu ___ (avere) dubbi sulla procedura da seguire.",
       accepted: ["abbia"],
       hint: "nel caso in cui + congiuntivo presente of avere",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1012,7 +1012,7 @@ const unit: Unit = {
     {
       id: "u42-t2-012",
       type: "fill_blank",
-      prompt: "Nel caso in cui il volo ___ (essere) cancellato, i passeggeri hanno diritto al rimborso.",
+      prompt: "Nel caso in cui il volo ___ (essere) cancellato per cause imputabili alla compagnia aerea, i passeggeri hanno diritto al rimborso integrale del biglietto.",
       accepted: ["sia"],
       hint: "nel caso in cui + congiuntivo presente of essere",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1021,7 +1021,7 @@ const unit: Unit = {
     {
       id: "u42-t2-013",
       type: "fill_blank",
-      prompt: "Nel caso in cui non ci ___ (essere) posti disponibili, sarai messo in lista d'attesa.",
+      prompt: "Sarai automaticamente inserito in lista d'attesa, nel caso in cui non ci ___ (essere) posti disponibili per la data richiesta.",
       accepted: ["sia"],
       hint: "'esserci' + congiuntivo presente: ci sia",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1030,7 +1030,7 @@ const unit: Unit = {
     {
       id: "u42-t2-014",
       type: "fill_blank",
-      prompt: "Nel caso in cui il prodotto ___ (risultare) difettoso, potrà essere restituito entro 30 giorni.",
+      prompt: "Il cliente potrà restituire l'articolo acquistato entro trenta giorni dalla consegna, nel caso in cui il prodotto ___ (risultare) difettoso o non conforme all'ordine.",
       accepted: ["risulti"],
       hint: "nel caso in cui + congiuntivo presente of risultare",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1039,7 +1039,7 @@ const unit: Unit = {
     {
       id: "u42-t2-015",
       type: "fill_blank",
-      prompt: "Nel caso in cui i genitori non ___ (potere) partecipare alla riunione, riceveranno un resoconto scritto.",
+      prompt: "Nel caso in cui i genitori non ___ (potere) partecipare alla riunione di classe organizzata per venerdì, riceveranno comunque un resoconto scritto dettagliato.",
       accepted: ["possano"],
       hint: "nel caso in cui + congiuntivo presente of potere (irregular)",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1048,7 +1048,7 @@ const unit: Unit = {
     {
       id: "u42-t2-016",
       type: "fill_blank",
-      prompt: "Nel caso in cui la squadra ___ (perdere) la partita, la finale si giocherà comunque a Torino.",
+      prompt: "La finale si giocherà comunque a Torino, nel caso in cui la squadra ___ (perdere) la semifinale di ritorno.",
       accepted: ["perda"],
       hint: "nel caso in cui + congiuntivo presente of perdere",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1057,7 +1057,7 @@ const unit: Unit = {
     {
       id: "u42-t2-017",
       type: "fill_blank",
-      prompt: "Nel caso in cui tu ___ (cambiare) idea, avvisaci almeno 48 ore prima.",
+      prompt: "Avvisaci con almeno 48 ore di anticipo, nel caso in cui tu ___ (cambiare) idea sulla partecipazione al viaggio.",
       accepted: ["cambi"],
       hint: "nel caso in cui + congiuntivo presente of cambiare",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1066,7 +1066,7 @@ const unit: Unit = {
     {
       id: "u42-t2-018",
       type: "fill_blank",
-      prompt: "Nel caso in cui l'ufficio non ___ (rispondere) entro cinque giorni lavorativi, si può inoltrare un sollecito.",
+      prompt: "Si può inoltrare un sollecito formale via email, nel caso in cui l'ufficio competente non ___ (rispondere) entro cinque giorni lavorativi dalla richiesta.",
       accepted: ["risponda"],
       hint: "nel caso in cui + congiuntivo presente of rispondere",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1075,7 +1075,7 @@ const unit: Unit = {
     {
       id: "u42-t2-019",
       type: "fill_blank",
-      prompt: "Nel caso in cui il documento ___ (contenere) errori, va corretto prima dell'invio.",
+      prompt: "Nel caso in cui il documento ___ (contenere) errori di battitura o dati incompleti, va corretto e rivisto prima dell'invio al cliente.",
       accepted: ["contenga"],
       hint: "nel caso in cui + congiuntivo presente of contenere",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1084,7 +1084,7 @@ const unit: Unit = {
     {
       id: "u42-t2-020",
       type: "fill_blank",
-      prompt: "Nel caso in cui gli ospiti ___ (arrivare) in ritardo, la cena inizierà comunque alle otto.",
+      prompt: "La cena inizierà comunque alle otto in punto, nel caso in cui gli ospiti ___ (arrivare) in ritardo per il traffico.",
       accepted: ["arrivino"],
       hint: "nel caso in cui + congiuntivo presente, terza plurale",
       tags: ["grammar", "nel-caso-in-cui", "congiuntivo-presente"],
@@ -1093,7 +1093,7 @@ const unit: Unit = {
     {
       id: "u42-t2-021",
       type: "fill_blank",
-      prompt: "Ove il richiedente non ___ (essere) in regola con i documenti, la domanda sarà respinta.",
+      prompt: "Ove il richiedente non ___ (essere) in regola con la documentazione anagrafica richiesta, la domanda sarà respinta senza ulteriore comunicazione.",
       accepted: ["sia"],
       hint: "ove + congiuntivo presente — literary register",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1102,7 +1102,7 @@ const unit: Unit = {
     {
       id: "u42-t2-022",
       type: "fill_blank",
-      prompt: "Ove si ___ (accertare) la falsità della dichiarazione, si procederà per vie legali.",
+      prompt: "Si procederà per vie legali nei confronti del dichiarante, ove si ___ (accertare) la falsità della dichiarazione resa sotto giuramento.",
       accepted: ["accerti"],
       hint: "ove + congiuntivo presente of accertarsi",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1111,7 +1111,7 @@ const unit: Unit = {
     {
       id: "u42-t2-023",
       type: "fill_blank",
-      prompt: "Ove necessario, il regolamento ___ (potere) essere modificato dal consiglio direttivo.",
+      prompt: "Il consiglio direttivo si riserva la facoltà di intervenire sul testo, ove necessario, e il regolamento ___ (potere) essere modificato con voto a maggioranza semplice.",
       accepted: ["possa"],
       hint: "ove + congiuntivo presente of potere (irregular)",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1120,7 +1120,7 @@ const unit: Unit = {
     {
       id: "u42-t2-024",
       type: "fill_blank",
-      prompt: "Ove le parti non ___ (raggiungere) un'intesa, si applicherà la normativa vigente.",
+      prompt: "Si applicherà la normativa vigente in materia, ove le parti non ___ (raggiungere) un'intesa entro il termine concordato.",
       accepted: ["raggiungano"],
       hint: "ove + congiuntivo presente, terza plurale",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1129,7 +1129,7 @@ const unit: Unit = {
     {
       id: "u42-t2-025",
       type: "fill_blank",
-      prompt: "Ove il termine ___ (scadere) in un giorno festivo, esso è prorogato al primo giorno lavorativo successivo.",
+      prompt: "Ove il termine di consegna ___ (scadere) in un giorno festivo o di sabato, esso è automaticamente prorogato al primo giorno lavorativo utile.",
       accepted: ["scada"],
       hint: "ove + congiuntivo presente of scadere",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1138,7 +1138,7 @@ const unit: Unit = {
     {
       id: "u42-t2-026",
       type: "fill_blank",
-      prompt: "Ove ___ (sussistere) dubbi interpretativi, prevale la formulazione più restrittiva.",
+      prompt: "Prevale sempre la formulazione contrattuale più restrittiva, ove ___ (sussistere) dubbi interpretativi tra le due versioni linguistiche del testo.",
       accepted: ["sussistano"],
       hint: "ove + congiuntivo presente of sussistere",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1147,7 +1147,7 @@ const unit: Unit = {
     {
       id: "u42-t2-027",
       type: "fill_blank",
-      prompt: "Ove il socio ___ (recedere) dalla società, ha diritto alla liquidazione della propria quota.",
+      prompt: "Ha diritto alla liquidazione della propria quota entro sei mesi, ove il socio ___ (recedere) dalla società con le modalità previste dallo statuto.",
       accepted: ["receda"],
       hint: "ove + congiuntivo presente of recedere",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1156,7 +1156,7 @@ const unit: Unit = {
     {
       id: "u42-t2-028",
       type: "fill_blank",
-      prompt: "Ove il danno ___ (rivelarsi) superiore alla stima iniziale, sarà redatta una nuova perizia.",
+      prompt: "Ove il danno ___ (rivelarsi) superiore alla stima iniziale effettuata dal perito, sarà obbligatoriamente redatta una nuova perizia tecnica.",
       accepted: ["si riveli"],
       hint: "ove + congiuntivo presente of rivelarsi",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1165,7 +1165,7 @@ const unit: Unit = {
     {
       id: "u42-t2-029",
       type: "fill_blank",
-      prompt: "Ove il consulente ___ (ritenere) opportuno un chiarimento, ne farà richiesta per iscritto.",
+      prompt: "Ne farà richiesta per iscritto entro pochi giorni, ove il consulente fiscale ___ (ritenere) opportuno un chiarimento sulla pratica.",
       accepted: ["ritenga"],
       hint: "ove + congiuntivo presente of ritenere (irregular)",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1174,7 +1174,7 @@ const unit: Unit = {
     {
       id: "u42-t2-030",
       type: "fill_blank",
-      prompt: "Ove ___ (insorgere) nuove circostanze, l'accordo potrà essere rinegoziato.",
+      prompt: "L'accordo commerciale potrà essere rinegoziato in ogni momento, ove ___ (insorgere) nuove circostanze di mercato non previste al momento della firma.",
       accepted: ["insorgano"],
       hint: "ove + congiuntivo presente of insorgere",
       tags: ["grammar", "ove", "congiuntivo-presente"],
@@ -1183,7 +1183,7 @@ const unit: Unit = {
     {
       id: "u42-t2-031",
       type: "fill_blank",
-      prompt: "Laddove ___ (mancare) il consenso di entrambe le parti, il contratto non è valido.",
+      prompt: "Il contratto non produce alcun effetto giuridico, laddove ___ (mancare) il consenso esplicito di entrambe le parti coinvolte.",
       accepted: ["manchi"],
       hint: "laddove + congiuntivo presente of mancare",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1192,7 +1192,7 @@ const unit: Unit = {
     {
       id: "u42-t2-032",
       type: "fill_blank",
-      prompt: "Laddove il progetto non ___ (rispettare) i tempi previsti, sarà applicata una penale.",
+      prompt: "Laddove il progetto edilizio non ___ (rispettare) i tempi previsti dal cronoprogramma, sarà applicata una penale giornaliera a carico dell'impresa appaltatrice.",
       accepted: ["rispetti"],
       hint: "laddove + congiuntivo presente of rispettare",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1201,7 +1201,7 @@ const unit: Unit = {
     {
       id: "u42-t2-033",
       type: "fill_blank",
-      prompt: "Laddove si ___ (verificare) un guasto, contattare immediatamente l'assistenza tecnica.",
+      prompt: "Contattare immediatamente il numero verde dell'assistenza tecnica, laddove si ___ (verificare) un guasto durante il normale funzionamento dell'apparecchio.",
       accepted: ["verifichi"],
       hint: "laddove + congiuntivo presente of verificarsi",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1210,7 +1210,7 @@ const unit: Unit = {
     {
       id: "u42-t2-034",
       type: "fill_blank",
-      prompt: "Laddove l'imputato ___ (essere) ritenuto colpevole, la pena sarà stabilita dal giudice.",
+      prompt: "La pena verrà stabilita dal giudice sulla base delle circostanze aggravanti e attenuanti, laddove l'imputato ___ (essere) ritenuto colpevole al termine del processo.",
       accepted: ["sia"],
       hint: "laddove + congiuntivo presente of essere",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1219,7 +1219,7 @@ const unit: Unit = {
     {
       id: "u42-t2-035",
       type: "fill_blank",
-      prompt: "Laddove il fornitore non ___ (adempiere) ai propri obblighi, il cliente ha diritto al recesso.",
+      prompt: "Laddove il fornitore non ___ (adempiere) ai propri obblighi contrattuali entro i termini pattuiti, il cliente ha pieno diritto al recesso immediato.",
       accepted: ["adempia"],
       hint: "laddove + congiuntivo presente of adempiere",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1228,7 +1228,7 @@ const unit: Unit = {
     {
       id: "u42-t2-036",
       type: "fill_blank",
-      prompt: "Laddove ___ (sussistere) un conflitto di interessi, il funzionario deve astenersi dalla decisione.",
+      prompt: "Il funzionario pubblico deve astenersi da qualunque decisione, laddove ___ (sussistere) anche solo un potenziale conflitto di interessi.",
       accepted: ["sussista"],
       hint: "laddove + congiuntivo presente of sussistere",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1237,7 +1237,7 @@ const unit: Unit = {
     {
       id: "u42-t2-037",
       type: "fill_blank",
-      prompt: "Laddove i fondi non ___ (essere) sufficienti, il progetto sarà ridimensionato.",
+      prompt: "Il progetto verrà inevitabilmente ridimensionato nella sua fase esecutiva, laddove i fondi stanziati non ___ (essere) sufficienti a coprire i costi previsti.",
       accepted: ["siano"],
       hint: "laddove + congiuntivo presente, terza plurale",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1246,7 +1246,7 @@ const unit: Unit = {
     {
       id: "u42-t2-038",
       type: "fill_blank",
-      prompt: "Laddove, invece, il richiedente ___ (avere) già ricevuto un contributo analogo, la domanda sarà automaticamente esclusa.",
+      prompt: "Laddove, invece, il richiedente ___ (avere) già ricevuto un contributo pubblico analogo nei due anni precedenti, la domanda sarà automaticamente esclusa dalla graduatoria.",
       accepted: ["abbia"],
       hint: "laddove + congiuntivo passato (abbia + participio) — note the contrastive 'invece'",
       tags: ["grammar", "laddove", "congiuntivo-passato"],
@@ -1255,7 +1255,7 @@ const unit: Unit = {
     {
       id: "u42-t2-039",
       type: "fill_blank",
-      prompt: "Laddove ___ (emergere) nuove prove, il caso potrà essere riaperto.",
+      prompt: "Il caso giudiziario potrà essere riaperto in qualunque momento, laddove ___ (emergere) nuove prove ritenute decisive dagli inquirenti.",
       accepted: ["emergano"],
       hint: "laddove + congiuntivo presente of emergere",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1264,7 +1264,7 @@ const unit: Unit = {
     {
       id: "u42-t2-040",
       type: "fill_blank",
-      prompt: "Laddove il testo originale e la traduzione ___ (discordare), prevale la versione italiana.",
+      prompt: "Laddove il testo originale in lingua straniera e la relativa traduzione ufficiale ___ (discordare) su un punto rilevante, prevale in ogni caso la versione italiana.",
       accepted: ["discordino"],
       hint: "laddove + congiuntivo presente, terza plurale",
       tags: ["grammar", "laddove", "congiuntivo-presente"],
@@ -1273,7 +1273,7 @@ const unit: Unit = {
     {
       id: "u42-t2-041",
       type: "fill_blank",
-      prompt: "Ti presto la macchina a condizione che tu ___ (fare) attenzione.",
+      prompt: "Ti presto volentieri la macchina per il weekend, a condizione che tu ___ (fare) molta attenzione sulle strade di montagna.",
       accepted: ["faccia"],
       hint: "a condizione che + congiuntivo presente of fare (irregular)",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1282,7 +1282,7 @@ const unit: Unit = {
     {
       id: "u42-t2-042",
       type: "fill_blank",
-      prompt: "Il prestito sarà concesso a condizione che il richiedente ___ (dimostrare) un reddito stabile.",
+      prompt: "A condizione che il richiedente ___ (dimostrare) un reddito stabile negli ultimi tre anni, la banca concederà il prestito richiesto senza garante.",
       accepted: ["dimostri"],
       hint: "a condizione che + congiuntivo presente of dimostrare",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1291,7 +1291,7 @@ const unit: Unit = {
     {
       id: "u42-t2-043",
       type: "fill_blank",
-      prompt: "Accetto l'incarico a condizione che l'azienda ___ (rispettare) i tempi di pagamento concordati.",
+      prompt: "Accetto volentieri l'incarico come consulente esterno, a condizione che l'azienda ___ (rispettare) rigorosamente i tempi di pagamento concordati nel contratto.",
       accepted: ["rispetti"],
       hint: "a condizione che + congiuntivo presente of rispettare",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1300,7 +1300,7 @@ const unit: Unit = {
     {
       id: "u42-t2-044",
       type: "fill_blank",
-      prompt: "Il permesso viene rilasciato a condizione che i lavori ___ (concludersi) entro dicembre.",
+      prompt: "A condizione che i lavori di ristrutturazione ___ (concludersi) entro il mese di dicembre, il Comune rilascerà il relativo permesso di agibilità.",
       accepted: ["si concludano"],
       hint: "a condizione che + congiuntivo presente of concludersi",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1309,7 +1309,7 @@ const unit: Unit = {
     {
       id: "u42-t2-045",
       type: "fill_blank",
-      prompt: "Puoi restare a condizione che tu ___ (essere) disposto a collaborare.",
+      prompt: "Puoi restare nel team fino alla fine del progetto, a condizione che tu ___ (essere) davvero disposto a collaborare con gli altri colleghi.",
       accepted: ["sia"],
       hint: "a condizione che + congiuntivo presente of essere",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1318,7 +1318,7 @@ const unit: Unit = {
     {
       id: "u42-t2-046",
       type: "fill_blank",
-      prompt: "L'accordo resterà valido a condizione che nessuna delle parti ___ (recedere) unilateralmente.",
+      prompt: "A condizione che nessuna delle due parti ___ (recedere) unilateralmente prima della scadenza naturale, l'accordo commerciale resterà pienamente valido.",
       accepted: ["receda"],
       hint: "a condizione che + congiuntivo presente of recedere",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1327,7 +1327,7 @@ const unit: Unit = {
     {
       id: "u42-t2-047",
       type: "fill_blank",
-      prompt: "Il contratto si rinnova automaticamente a condizione che nessuno ___ (dare) disdetta entro 60 giorni.",
+      prompt: "A condizione che nessuna delle parti ___ (dare) disdetta scritta entro sessanta giorni dalla scadenza, il contratto si rinnova automaticamente per un altro anno.",
       accepted: ["dia"],
       hint: "a condizione che + congiuntivo presente of dare (irregular)",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1336,7 +1336,7 @@ const unit: Unit = {
     {
       id: "u42-t2-048",
       type: "fill_blank",
-      prompt: "Ti do la password del wifi a condizione che tu non la ___ (condividere) con altri.",
+      prompt: "Ti do volentieri la password del wifi di casa, a condizione che tu non la ___ (condividere) con i vicini di stanza.",
       accepted: ["condivida"],
       hint: "a condizione che + congiuntivo presente of condividere",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1345,7 +1345,7 @@ const unit: Unit = {
     {
       id: "u42-t2-049",
       type: "fill_blank",
-      prompt: "Il rimborso è previsto a condizione che il cliente ___ (conservare) lo scontrino originale.",
+      prompt: "A condizione che il cliente ___ (conservare) lo scontrino originale d'acquisto, il negozio garantisce il rimborso completo entro trenta giorni.",
       accepted: ["conservi"],
       hint: "a condizione che + congiuntivo presente of conservare",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1354,7 +1354,7 @@ const unit: Unit = {
     {
       id: "u42-t2-050",
       type: "fill_blank",
-      prompt: "Accettiamo la proposta a condizione che i costi non ___ (superare) il budget stabilito.",
+      prompt: "A condizione che i costi complessivi non ___ (superare) il budget già stabilito dal cliente, il nostro studio accetta senza riserve la proposta.",
       accepted: ["superino"],
       hint: "a condizione che + congiuntivo presente, terza plurale",
       tags: ["grammar", "a-condizione-che", "congiuntivo-presente"],
@@ -1363,7 +1363,7 @@ const unit: Unit = {
     {
       id: "u42-t2-051",
       type: "fill_blank",
-      prompt: "Vengo alla festa, purché tu mi ___ (dare) un passaggio.",
+      prompt: "Vengo volentieri alla festa di compleanno stasera, purché tu mi ___ (dare) un passaggio in macchina fino a casa.",
       accepted: ["dia"],
       hint: "purché + congiuntivo presente of dare (irregular)",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1372,7 +1372,7 @@ const unit: Unit = {
     {
       id: "u42-t2-052",
       type: "fill_blank",
-      prompt: "Il capo approva le ferie, purché il lavoro ___ (essere) consegnato in tempo.",
+      prompt: "Il capo approva senza problemi le due settimane di ferie, purché tutto il lavoro assegnato ___ (essere) consegnato in tempo prima della partenza.",
       accepted: ["sia"],
       hint: "purché + congiuntivo presente of essere",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1381,7 +1381,7 @@ const unit: Unit = {
     {
       id: "u42-t2-053",
       type: "fill_blank",
-      prompt: "Puoi usare il mio ufficio, purché tu ___ (rimettere) tutto in ordine dopo.",
+      prompt: "Puoi usare tranquillamente il mio ufficio per la videochiamata, purché tu ___ (rimettere) tutto in ordine subito dopo.",
       accepted: ["rimetta"],
       hint: "purché + congiuntivo presente of rimettere",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1390,7 +1390,7 @@ const unit: Unit = {
     {
       id: "u42-t2-054",
       type: "fill_blank",
-      prompt: "Il contratto continua a essere valido, purché entrambe le parti ne ___ (rispettare) i termini.",
+      prompt: "Purché entrambe le parti ne ___ (rispettare) scrupolosamente i termini, il contratto di fornitura continua a essere pienamente valido.",
       accepted: ["rispettino"],
       hint: "purché + congiuntivo presente, terza plurale",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1399,7 +1399,7 @@ const unit: Unit = {
     {
       id: "u42-t2-055",
       type: "fill_blank",
-      prompt: "Ti aiuto volentieri, purché tu non mi ___ (chiedere) di mentire.",
+      prompt: "Ti aiuto sempre volentieri con i tuoi problemi, purché tu non mi ___ (chiedere) mai di mentire per te.",
       accepted: ["chieda"],
       hint: "purché + congiuntivo presente of chiedere",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1408,7 +1408,7 @@ const unit: Unit = {
     {
       id: "u42-t2-056",
       type: "fill_blank",
-      prompt: "L'accordo commerciale prosegue, purché la qualità del prodotto non ___ (calare).",
+      prompt: "Purché la qualità del prodotto fornito non ___ (calare) rispetto agli standard concordati, l'accordo commerciale tra le due aziende prosegue senza modifiche.",
       accepted: ["cali"],
       hint: "purché + congiuntivo presente of calare",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1417,7 +1417,7 @@ const unit: Unit = {
     {
       id: "u42-t2-057",
       type: "fill_blank",
-      prompt: "Firmo il documento, purché il notaio ___ (essere) presente.",
+      prompt: "Firmo subito il documento di compravendita, purché il notaio incaricato ___ (essere) fisicamente presente in studio.",
       accepted: ["sia"],
       hint: "purché + congiuntivo presente of essere",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1426,7 +1426,7 @@ const unit: Unit = {
     {
       id: "u42-t2-058",
       type: "fill_blank",
-      prompt: "Il progetto può partire, purché il finanziamento ___ (arrivare) entro marzo.",
+      prompt: "Purché il finanziamento pubblico ___ (arrivare) entro la fine di marzo, il progetto di ricerca potrà finalmente partire come previsto.",
       accepted: ["arrivi"],
       hint: "purché + congiuntivo presente of arrivare",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1435,7 +1435,7 @@ const unit: Unit = {
     {
       id: "u42-t2-059",
       type: "fill_blank",
-      prompt: "Ti presto i soldi, purché me li ___ (restituire) entro un mese.",
+      prompt: "Ti presto senza problemi i cinquecento euro che ti servono, purché me li ___ (restituire) entro la fine del mese.",
       accepted: ["restituisca"],
       hint: "purché + congiuntivo presente of restituire (isc-verb)",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1444,7 +1444,7 @@ const unit: Unit = {
     {
       id: "u42-t2-060",
       type: "fill_blank",
-      prompt: "La riunione si terrà come previsto, purché tutti i partecipanti ___ (confermare) la propria presenza.",
+      prompt: "Purché tutti i partecipanti ___ (confermare) per iscritto la propria presenza entro venerdì, la riunione si terrà regolarmente come previsto.",
       accepted: ["confermino"],
       hint: "purché + congiuntivo presente, terza plurale",
       tags: ["grammar", "purché", "congiuntivo-presente"],
@@ -1453,7 +1453,7 @@ const unit: Unit = {
     {
       id: "u42-t2-061",
       type: "fill_blank",
-      prompt: "Ti perdono, a patto che tu non lo ___ (rifare) mai più.",
+      prompt: "Ti perdono questa volta, a patto che tu non lo ___ (rifare) mai più davanti a tua sorella.",
       accepted: ["rifaccia"],
       hint: "a patto che + congiuntivo presente of rifare (irregular)",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1462,7 +1462,7 @@ const unit: Unit = {
     {
       id: "u42-t2-062",
       type: "fill_blank",
-      prompt: "Firmiamo l'accordo, a patto che le clausole ___ (essere) riviste da un legale.",
+      prompt: "A patto che tutte le clausole contrattuali ___ (essere) riviste preventivamente da un legale di fiducia, firmiamo senza esitazione l'accordo.",
       accepted: ["siano"],
       hint: "a patto che + congiuntivo presente, terza plurale",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1471,7 +1471,7 @@ const unit: Unit = {
     {
       id: "u42-t2-063",
       type: "fill_blank",
-      prompt: "Ti do le chiavi di casa, a patto che tu ___ (avere) cura del gatto.",
+      prompt: "Ti do volentieri le chiavi di casa per il weekend, a patto che tu ___ (avere) cura del gatto come se fosse tuo.",
       accepted: ["abbia"],
       hint: "a patto che + congiuntivo presente of avere",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1480,7 +1480,7 @@ const unit: Unit = {
     {
       id: "u42-t2-064",
       type: "fill_blank",
-      prompt: "Il capoprogetto accetta la modifica, a patto che non ___ (comportare) costi aggiuntivi.",
+      prompt: "A patto che la modifica richiesta non ___ (comportare) alcun costo aggiuntivo per il cliente, il capoprogetto la approva senza convocare una nuova riunione.",
       accepted: ["comporti"],
       hint: "a patto che + congiuntivo presente of comportare",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1489,7 +1489,7 @@ const unit: Unit = {
     {
       id: "u42-t2-065",
       type: "fill_blank",
-      prompt: "Restiamo soci, a patto che tu ___ (mettere) più impegno nel lavoro quotidiano.",
+      prompt: "Restiamo soci in questa attività, a patto che tu ___ (mettere) davvero più impegno nella gestione quotidiana del negozio.",
       accepted: ["metta"],
       hint: "a patto che + congiuntivo presente of mettere",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1498,7 +1498,7 @@ const unit: Unit = {
     {
       id: "u42-t2-066",
       type: "fill_blank",
-      prompt: "Il proprietario rinnova il contratto di affitto, a patto che l'inquilino ___ (pagare) puntualmente.",
+      prompt: "A patto che l'inquilino ___ (pagare) puntualmente il canone ogni mese, il proprietario è disposto a rinnovare il contratto di affitto per altri quattro anni.",
       accepted: ["paghi"],
       hint: "a patto che + congiuntivo presente of pagare",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1507,7 +1507,7 @@ const unit: Unit = {
     {
       id: "u42-t2-067",
       type: "fill_blank",
-      prompt: "Accetto le tue condizioni, a patto che tu ___ (mantenere) la parola data.",
+      prompt: "Accetto le tue condizioni per questa collaborazione, a patto che tu ___ (mantenere) davvero la parola data stavolta.",
       accepted: ["mantenga"],
       hint: "a patto che + congiuntivo presente of mantenere (irregular)",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1516,7 +1516,7 @@ const unit: Unit = {
     {
       id: "u42-t2-068",
       type: "fill_blank",
-      prompt: "Possiamo posticipare la consegna, a patto che il cliente ne ___ (essere) informato per iscritto.",
+      prompt: "A patto che il cliente ne ___ (essere) informato per iscritto con debito anticipo, possiamo tranquillamente posticipare la data di consegna.",
       accepted: ["sia"],
       hint: "a patto che + congiuntivo presente of essere",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1525,7 +1525,7 @@ const unit: Unit = {
     {
       id: "u42-t2-069",
       type: "fill_blank",
-      prompt: "Il consiglio approva il bilancio, a patto che le spese straordinarie ___ (essere) giustificate singolarmente.",
+      prompt: "A patto che tutte le spese straordinarie ___ (essere) giustificate singolarmente con fattura, il consiglio di amministrazione approva il bilancio così come presentato.",
       accepted: ["siano"],
       hint: "a patto che + congiuntivo presente, terza plurale",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -1534,7 +1534,7 @@ const unit: Unit = {
     {
       id: "u42-t2-070",
       type: "fill_blank",
-      prompt: "Ti lascio guidare, a patto che tu ___ (rispettare) i limiti di velocità.",
+      prompt: "Ti lascio guidare la mia auto stasera, a patto che tu ___ (rispettare) sempre i limiti di velocità in autostrada.",
       accepted: ["rispetti"],
       hint: "a patto che + congiuntivo presente of rispettare",
       tags: ["grammar", "a-patto-che", "congiuntivo-presente"],
@@ -3106,11 +3106,11 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u42-t1-013", "u42-t1-014", "u42-t1-097", "u42-t1-098"],
     },
-    // Termini di servizio online (terms of service) — 5 sequential sections
+    // Termini di servizio online (terms of service) — register variety: internal workplace email thread (legal/product team)
     {
       id: "u42-t4-011",
       type: "passage_cloze",
-      prompt: "L'utilizzo della presente piattaforma è subordinato all'accettazione integrale dei termini di servizio qui descritti.\nOve l'utente non ___ (accettare) tali condizioni, non potrà procedere alla creazione dell'account.\nLa società si riserva il diritto di modificare i presenti termini in qualsiasi momento, dandone comunicazione agli utenti registrati.\nLe modifiche sostanziali entrano in vigore trenta giorni dopo la relativa pubblicazione sul sito, salvo che l'utente non le rifiuti espressamente.",
+      prompt: "Oggetto: Flusso di registrazione — nuova versione dei termini\n\nCiao Marco,\n\ncome discusso in riunione, dobbiamo bloccare la creazione dell'account finché l'utente non conferma di aver letto l'informativa.\nOve l'utente non ___ (accettare) esplicitamente i nuovi termini al primo accesso, il sistema deve impedirgli di procedere oltre la schermata di benvenuto.\nTi chiedo di verificare che il team di sviluppo implementi questo blocco entro venerdì.\n\nGrazie in anticipo,\nGiulia",
       accepted: ["accetti"],
       hint: "ove + congiuntivo presente of accettare",
       tags: ["passage-cloze", "ove", "terms-of-service"],
@@ -3120,7 +3120,7 @@ const unit: Unit = {
     {
       id: "u42-t4-012",
       type: "passage_cloze",
-      prompt: "È vietato utilizzare la piattaforma per scopi illeciti o per diffondere contenuti diffamatori.\nQualora un utente ___ (violare) queste regole, l'account potrà essere sospeso senza preavviso e senza obbligo di rimborso.\nIn casi di particolare gravità, la sospensione potrà diventare definitiva.\nLa società non si assume alcuna responsabilità per i contenuti pubblicati dagli utenti.\nL'utente resta comunque l'unico responsabile di quanto pubblica sotto il proprio profilo.",
+      prompt: "Oggetto: Segnalazioni di abuso sulla piattaforma\n\nCiao team,\n\nabbiamo ricevuto diverse segnalazioni relative a contenuti diffamatori pubblicati da alcuni account.\nQualora un utente ___ (violare) le nostre linee guida sulla community, propongo di sospendere l'account senza preavviso, come previsto dalla policy attuale.\nNei casi più gravi, valuterei anche la sospensione definitiva.\nFatemi sapere se siete d'accordo prima che aggiorni la documentazione interna.\n\nA presto,\nGiulia",
       accepted: ["violi"],
       hint: "qualora + congiuntivo presente of violare",
       tags: ["passage-cloze", "qualora", "terms-of-service"],
@@ -3130,7 +3130,7 @@ const unit: Unit = {
     {
       id: "u42-t4-013",
       type: "passage_cloze",
-      prompt: "I dati personali raccolti vengono trattati nel rispetto della normativa vigente sulla protezione dei dati.\nNel caso in cui l'utente ___ (richiedere) la cancellazione del proprio account, i dati saranno eliminati entro trenta giorni, salvo obblighi di conservazione previsti dalla legge.\nL'utente può in ogni momento esercitare il diritto di accesso ai propri dati.\nPer esercitare tali diritti è sufficiente inviare una richiesta scritta all'indirizzo indicato nell'informativa.",
+      prompt: "Oggetto: Richieste di cancellazione account — procedura\n\nCiao Marco,\n\nvolevo chiarire la procedura da seguire con il team assistenza.\nNel caso in cui l'utente ___ (richiedere) la cancellazione definitiva del proprio account, i suoi dati vanno eliminati entro trenta giorni, salvo obblighi legali di conservazione.\nChiedo al team di supporto di confermare via email l'avvenuta cancellazione, per avere traccia della richiesta.\n\nRestiamo in contatto per eventuali dubbi,\nGiulia",
       accepted: ["richieda"],
       hint: "nel caso in cui + congiuntivo presente of richiedere",
       tags: ["passage-cloze", "nel-caso-in-cui", "terms-of-service"],
@@ -3140,7 +3140,7 @@ const unit: Unit = {
     {
       id: "u42-t4-014",
       type: "passage_cloze",
-      prompt: "Il servizio è offerto 'così com'è', senza garanzie di continuità assoluta.\nLaddove si ___ (verificare) un'interruzione prolungata del servizio per cause tecniche, la società si impegna a informare tempestivamente gli utenti attraverso il proprio sito.\nNon è previsto alcun indennizzo per i disagi derivanti da tali interruzioni, salvo diversa indicazione contrattuale.\nGli aggiornamenti di manutenzione programmata vengono invece comunicati con almeno ventiquattro ore di anticipo.",
+      prompt: "Oggetto: Gestione dei disservizi — comunicazione agli utenti\n\nCiao a tutti,\n\ndopo l'incidente della scorsa settimana, propongo una linea guida più chiara.\nLaddove si ___ (verificare) un'interruzione prolungata del servizio per cause tecniche, il team di comunicazione deve informare gli utenti entro un'ora tramite il banner in homepage.\nNon prevediamo indennizzi per i disagi causati da queste interruzioni, ma la trasparenza resta fondamentale per la fiducia degli utenti.\n\nFatemi avere un riscontro entro domani,\nGiulia",
       accepted: ["verifichi"],
       hint: "laddove + congiuntivo presente of verificarsi",
       tags: ["passage-cloze", "laddove", "terms-of-service"],
@@ -3150,7 +3150,7 @@ const unit: Unit = {
     {
       id: "u42-t4-015",
       type: "passage_cloze",
-      prompt: "L'account può essere disattivato dall'utente in qualunque momento, a condizione che non ___ (sussistere) pagamenti pendenti o controversie in corso.\nLa disattivazione comporta la perdita di tutti i contenuti associati all'account, salvo quelli soggetti a obblighi legali di conservazione.\nPer ulteriori informazioni, l'utente può consultare la sezione dedicata all'assistenza.\nUna volta completata la procedura, la riattivazione dell'account non è più possibile in alcun caso.",
+      prompt: "Oggetto: Chiusura account — condizioni da verificare\n\nCiao Marco,\n\nrispondo alla tua domanda di ieri sulla disattivazione degli account.\nL'utente può disattivare il proprio account in qualunque momento, a condizione che non ___ (sussistere) pagamenti pendenti o controversie aperte con l'assistenza.\nSe il sistema rileva una di queste situazioni, dovremmo bloccare temporaneamente la richiesta e avvisare l'utente via email.\n\nTi giro anche il link alla nuova pagina di supporto, appena pronta.\nA presto,\nGiulia",
       accepted: ["sussistano"],
       hint: "a condizione che + congiuntivo presente of sussistere",
       tags: ["passage-cloze", "a-condizione-che", "terms-of-service"],
@@ -3259,11 +3259,11 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u42-t1-007", "u42-t1-008", "u42-t1-099", "u42-t1-100"],
     },
-    // Garanzia di un prodotto (product warranty) — 5 sequential articles
+    // Garanzia di un prodotto (product warranty) — register variety: personal letter recounting a consumer's warranty experience
     {
       id: "u42-t4-026",
       type: "passage_cloze",
-      prompt: "Il presente certificato di garanzia copre difetti di fabbricazione del prodotto per un periodo di ventiquattro mesi dalla data di acquisto.\nPurché il cliente ___ (conservare) lo scontrino o la fattura originale, potrà richiedere la riparazione o la sostituzione gratuita del prodotto difettoso.\nLa garanzia non copre danni derivanti da uso improprio.\nIl produttore si riserva comunque il diritto di verificare la causa del difetto prima di procedere.",
+      prompt: "Cara Elena,\n\nti scrivo per raccontarti come è andata con la lavatrice che si è rotta dopo un anno.\nAlla fine ho chiamato l'assistenza e mi hanno spiegato che, purché io ___ (conservare) lo scontrino o la fattura originale, potevo chiedere la riparazione gratuita.\nPer fortuna avevo tenuto tutto in un cassetto, quindi va bene così.\nTi scrivo ancora appena sento altre novità.\n\nUn abbraccio,\nSara",
       accepted: ["conservi"],
       hint: "purché + congiuntivo presente of conservare",
       tags: ["passage-cloze", "purché", "warranty"],
@@ -3273,7 +3273,7 @@ const unit: Unit = {
     {
       id: "u42-t4-027",
       type: "passage_cloze",
-      prompt: "Sono esclusi dalla garanzia i componenti soggetti a normale usura, come batterie e guarnizioni.\nQualora il difetto ___ (dipendere) da un intervento tecnico non autorizzato, la garanzia decade automaticamente.\nIl produttore consiglia di rivolgersi esclusivamente ai centri di assistenza autorizzati elencati sul proprio sito.\nL'elenco di tali centri viene aggiornato periodicamente e reso disponibile anche telefonicamente.\nOgni intervento non autorizzato deve essere documentato dal cliente per eventuali contestazioni.",
+      prompt: "Cara Elena,\n\nnovità sulla lavatrice: il tecnico è venuto ieri e ha controllato tutto con calma.\nMi ha detto che, qualora il difetto ___ (dipendere) da un intervento tecnico non autorizzato, la garanzia decade automaticamente, ma nel mio caso non è successo niente del genere.\nMeno male, perché l'anno scorso avevo fatto controllare la macchina da un tecnico non ufficiale per un altro problema.\nTi aggiorno appena arriva il verdetto definitivo.\n\nA presto,\nSara",
       accepted: ["dipenda"],
       hint: "qualora + congiuntivo presente of dipendere",
       tags: ["passage-cloze", "qualora", "warranty"],
@@ -3283,7 +3283,7 @@ const unit: Unit = {
     {
       id: "u42-t4-028",
       type: "passage_cloze",
-      prompt: "Per attivare la garanzia, il cliente deve contattare il servizio assistenza entro dieci giorni dalla scoperta del difetto.\nNel caso in cui l'assistenza ___ (ritenere) necessario un controllo tecnico, il prodotto dovrà essere spedito al centro riparazioni a spese del produttore.\nI tempi di riparazione non supereranno, salvo imprevisti, i trenta giorni lavorativi.\nIl cliente riceve un aggiornamento periodico sullo stato della riparazione via email.",
+      prompt: "Cara Elena,\n\nallora, il tecnico ha deciso di portarsi via la lavatrice per controllarla meglio in officina.\nMi ha spiegato che, nel caso in cui l'assistenza ___ (ritenere) necessario un controllo più approfondito, il prodotto viene spedito a spese loro, quindi almeno non ci rimetto nulla.\nSpero solo che non ci mettano tanto, perché lavare a mano è un incubo.\nTi scrivo appena me la riportano.\n\nUn bacio,\nSara",
       accepted: ["ritenga"],
       hint: "nel caso in cui + congiuntivo presente of ritenere",
       tags: ["passage-cloze", "nel-caso-in-cui", "warranty"],
@@ -3293,7 +3293,7 @@ const unit: Unit = {
     {
       id: "u42-t4-029",
       type: "passage_cloze",
-      prompt: "La sostituzione del prodotto avviene con un esemplare identico o, in mancanza, con un modello di caratteristiche equivalenti.\nOve il modello originale ___ (essere) fuori produzione, il cliente potrà scegliere tra le opzioni disponibili in quel momento.\nLa differenza di valore, se presente, non sarà addebitata al cliente.\nLa scelta definitiva spetta comunque al cliente, previa consultazione con il servizio assistenza competente in materia.",
+      prompt: "Cara Elena,\n\nbrutta notizia: pare che il modello della mia lavatrice non si trovi più in commercio.\nMi hanno rassicurato che, ove il modello originale ___ (essere) fuori produzione, posso scegliere tra le opzioni attualmente disponibili, senza pagare nulla in più.\nInsomma, alla fine potrei ritrovarmi con una lavatrice persino migliore di quella vecchia.\nVediamo cosa mi propongono la settimana prossima.\n\nA presto,\nSara",
       accepted: ["sia"],
       hint: "ove + congiuntivo presente of essere",
       tags: ["passage-cloze", "ove", "warranty"],
@@ -3303,7 +3303,7 @@ const unit: Unit = {
     {
       id: "u42-t4-030",
       type: "passage_cloze",
-      prompt: "La presente garanzia si aggiunge, senza sostituirli, ai diritti previsti dal codice del consumo per la garanzia legale di conformità.\nA patto che il difetto ___ (manifestarsi) entro i termini di legge, il cliente potrà comunque far valere tali diritti indipendentemente dalla garanzia commerciale.\nPer ogni controversia è competente il foro del luogo di residenza del consumatore.\nTale garanzia legale ha una durata minima di ventiquattro mesi dalla consegna del bene.",
+      prompt: "Cara Elena,\n\nultimo aggiornamento, prometto che poi la finisco con questa storia della lavatrice.\nHo scoperto che, a patto che il difetto ___ (manifestarsi) entro i termini di legge, posso comunque far valere la garanzia legale, anche indipendentemente da quella del negozio.\nMeno male che esistono queste tutele, altrimenti mi sarei già arresa.\nAppena tutto si risolve, ti invito a cena per festeggiare.\n\nCon affetto,\nSara",
       accepted: ["si manifesti"],
       hint: "a patto che + congiuntivo presente of manifestarsi",
       tags: ["passage-cloze", "a-patto-che", "warranty"],
@@ -3361,11 +3361,11 @@ const unit: Unit = {
       tier: 4,
       prerequisites: ["u42-t1-009", "u42-t1-010", "u42-t1-051", "u42-t1-052", "u42-t1-017", "u42-t1-018"],
     },
-    // Regolamento universitario (university regulations) — 5 sequential articles, mixed connectives + trapassato
+    // Regolamento universitario (university regulations) — register variety: academic argumentative essay on exam policy, mixed connectives + trapassato
     {
       id: "u42-t4-036",
       type: "passage_cloze",
-      prompt: "Lo studente è tenuto a iscriversi agli esami entro i termini stabiliti dalla segreteria didattica.\nQualora lo studente non ___ (rispettare) tale termine, non potrà sostenere la prova nella sessione prevista e dovrà attendere l'appello successivo.\nSono ammesse eccezioni solo in casi di comprovata forza maggiore documentata.\nLa richiesta di deroga va presentata per iscritto alla segreteria entro cinque giorni dalla scadenza del termine.",
+      prompt: "Le politiche di iscrizione agli esami meritano una riflessione più ampia sul senso di responsabilità che si chiede allo studente universitario.\nQualora lo studente non ___ (rispettare) i termini di iscrizione fissati dalla segreteria, la conseguenza naturale è il rinvio all'appello successivo, non una punizione arbitraria.\nQuesta regola, per quanto rigida, insegna una gestione del tempo che tornerà utile ben oltre l'università.\nRestano ovviamente ammesse le eccezioni per casi di comprovata forza maggiore, purché adeguatamente documentati.",
       accepted: ["rispetti"],
       hint: "qualora + congiuntivo presente of rispettare",
       tags: ["passage-cloze", "qualora", "university"],
@@ -3375,7 +3375,7 @@ const unit: Unit = {
     {
       id: "u42-t4-037",
       type: "passage_cloze",
-      prompt: "La commissione d'esame valuta la sussistenza dei requisiti di ammissione prima di procedere alla verifica.\nOve un candidato ___ (presentarsi) senza i documenti richiesti, la commissione potrà rinviare l'esame a data da destinarsi.\nLo studente riceverà comunque una comunicazione scritta con la nuova data fissata.\nLa decisione della commissione in merito è insindacabile.\nIl candidato deve comunque presentarsi con un documento di identità valido a ogni appello.",
+      prompt: "Un secondo aspetto controverso riguarda la richiesta di documenti il giorno dell'esame.\nOve un candidato ___ (presentarsi) privo dei documenti richiesti, molti sostengono che la commissione dovrebbe mostrare una certa flessibilità, specie in un contesto affollato come una sessione d'esame.\nEppure il rigore procedurale tutela proprio gli studenti che rispettano le regole, evitando trattamenti diseguali.\nUn compromesso ragionevole resta comunque il rinvio a data da destinarsi, piuttosto che l'esclusione definitiva.",
       accepted: ["si presenti"],
       hint: "ove + congiuntivo presente of presentarsi",
       tags: ["passage-cloze", "ove", "university"],
@@ -3385,7 +3385,7 @@ const unit: Unit = {
     {
       id: "u42-t4-038",
       type: "passage_cloze",
-      prompt: "Nel caso in cui lo studente ___ (avere) già sostenuto l'esame in un appello precedente con esito negativo, potrà ripresentarsi solo dopo un periodo minimo di trenta giorni.\nQuesta disposizione mira a garantire un tempo adeguato di preparazione.\nLe eccezioni sono valutate individualmente dal presidente della commissione.\nLo studente può comunque richiedere un colloquio informativo con il docente prima di ripresentarsi nuovamente all'esame.",
+      prompt: "Va inoltre discussa la disposizione sul tempo minimo tra due tentativi dello stesso esame.\nNel caso in cui lo studente ___ (avere) già sostenuto l'esame in un appello precedente con esito negativo, la regola attuale impone un'attesa minima di trenta giorni prima di ripresentarsi.\nChi scrive ritiene che questa pausa serva davvero alla preparazione, e non sia solo un ostacolo burocratico.\nResta comunque auspicabile che i docenti offrano un colloquio informativo prima del secondo tentativo, come già accade in alcuni dipartimenti.",
       accepted: ["abbia"],
       hint: "nel caso in cui + congiuntivo passato (abbia + participio)",
       tags: ["passage-cloze", "nel-caso-in-cui", "university", "congiuntivo-passato"],
@@ -3395,7 +3395,7 @@ const unit: Unit = {
     {
       id: "u42-t4-039",
       type: "passage_cloze",
-      prompt: "Laddove lo studente ___ (risultare) assente ingiustificato a tre appelli consecutivi, la segreteria potrà richiedere un colloquio con il tutor accademico.\nTale colloquio serve a individuare eventuali difficoltà nel percorso di studi.\nLa partecipazione al colloquio non è obbligatoria ma fortemente consigliata.\nIl tutor accademico valuta insieme allo studente le possibili cause delle assenze ripetute e propone, se necessario, un piano di recupero personalizzato per il resto del semestre.",
+      prompt: "Infine, occorre interrogarsi sul ruolo del tutor accademico nei casi di assenza ripetuta.\nLaddove lo studente ___ (risultare) assente ingiustificato a più appelli consecutivi, un semplice colloquio informativo appare una misura più efficace di qualunque sanzione automatica.\nQuesto approccio, difeso da diversi pedagogisti, riconosce che dietro un'assenza ripetuta si nascondono spesso difficoltà personali più profonde.\nSarebbe opportuno, a mio avviso, estendere questa pratica a tutti i corsi di laurea, non solo a quelli sperimentali.",
       accepted: ["risulti"],
       hint: "laddove + congiuntivo presente of risultare",
       tags: ["passage-cloze", "laddove", "university"],
@@ -3405,18 +3405,18 @@ const unit: Unit = {
     {
       id: "u42-t4-040",
       type: "passage_cloze",
-      prompt: "Qualora lo studente ___ (presentare) la domanda di laurea entro la scadenza di marzo, avrebbe potuto discutere la tesi nella sessione estiva anziché in quella autunnale.\nIl ritardo nella presentazione ha comportato lo slittamento della discussione di sei mesi.\nLa segreteria consiglia sempre di anticipare la procedura per evitare simili disagi.\nUn semplice promemoria automatico via email avrebbe forse evitato l'intero disguido burocratico.",
+      prompt: "Un ultimo caso, realmente accaduto, illustra bene il costo di una scadenza mancata.\nQualora lo studente ___ (presentare) la domanda di laurea entro la scadenza di marzo, avrebbe potuto discutere la tesi nella sessione estiva anziché attendere sei mesi in più.\nQuesto episodio, citato spesso nei seminari di orientamento, mostra quanto un promemoria automatico avrebbe potuto evitare un disagio interamente burocratico.\nÈ un argomento che, a mio parere, giustifica pienamente l'introduzione di notifiche automatiche in tutti gli atenei.",
       accepted: ["avesse presentato"],
       hint: "qualora + congiuntivo trapassato — periodo ipotetico dell'irrealtà passato in registro accademico",
       tags: ["passage-cloze", "qualora", "university", "congiuntivo-trapassato", "irreale-passato"],
       tier: 4,
       prerequisites: ["u42-t1-001", "u42-t1-002"],
     },
-    // Contratto di prestito (loan agreement) — 5 sequential articles
+    // Contratto di prestito (loan agreement) — register variety: financial news articles
     {
       id: "u42-t4-041",
       type: "passage_cloze",
-      prompt: "La banca eroga al richiedente un prestito di ventimila euro, da restituire in sessanta rate mensili comprensive di interessi.\nA condizione che il richiedente ___ (dimostrare) un reddito adeguato, la pratica sarà approvata entro cinque giorni lavorativi.\nIn caso contrario, la banca potrà richiedere un garante.\nIl tasso di interesse applicato resta fisso per l'intera durata del finanziamento, indipendentemente dalle oscillazioni di mercato.",
+      prompt: "Prestiti personali, cresce la richiesta di finanziamenti rapidi\n\nSecondo i dati diffusi ieri dall'Associazione bancaria italiana, le richieste di piccoli prestiti personali sono aumentate del quindici per cento nell'ultimo anno.\nLe banche restano comunque caute: a condizione che il richiedente ___ (dimostrare) un reddito adeguato, l'istituto può approvare la pratica in pochi giorni lavorativi.\nIn caso contrario, viene quasi sempre richiesta la presenza di un garante.\nGli analisti sottolineano come i tassi di interesse restino fissi per l'intera durata del prestito, a tutela di chi si indebita in un periodo di forte instabilità economica.",
       accepted: ["dimostri"],
       hint: "a condizione che + congiuntivo presente of dimostrare",
       tags: ["passage-cloze", "a-condizione-che", "loan"],
@@ -3426,7 +3426,7 @@ const unit: Unit = {
     {
       id: "u42-t4-042",
       type: "passage_cloze",
-      prompt: "Il mancato pagamento di tre rate consecutive costituisce inadempimento e comporta la decadenza dal beneficio del termine.\nQualora si ___ (verificare) tale inadempimento, la banca potrà esigere il pagamento immediato dell'intero debito residuo.\nSaranno inoltre applicati gli interessi di mora previsti dal contratto.\nIl cliente riceverà comunque una comunicazione formale prima dell'attivazione di tale procedura.\nIl cliente può comunque richiedere una rateizzazione del debito residuo entro trenta giorni.",
+      prompt: "Aumentano le insolvenze sui piccoli prestiti\n\nUn'indagine condotta dalla Banca d'Italia segnala un incremento dei casi di mancato pagamento tra i richiedenti di prestiti al consumo.\nSecondo la normativa vigente, qualora si ___ (verificare) l'inadempimento di tre rate consecutive, l'istituto di credito può esigere il pagamento immediato dell'intero debito residuo.\nGli interessi di mora previsti dal contratto si aggiungono automaticamente alla cifra dovuta.\nI consumatori, avvertono gli esperti, possono comunque negoziare una rateizzazione prima che la situazione precipiti.",
       accepted: ["verifichi"],
       hint: "qualora + congiuntivo presente of verificarsi",
       tags: ["passage-cloze", "qualora", "loan"],
@@ -3436,7 +3436,7 @@ const unit: Unit = {
     {
       id: "u42-t4-043",
       type: "passage_cloze",
-      prompt: "Il cliente ha diritto di recedere dal contratto entro quattordici giorni dalla firma, senza dover fornire alcuna motivazione.\nOve il cliente ___ (esercitare) tale diritto, dovrà restituire l'intera somma ricevuta entro trenta giorni dalla comunicazione del recesso.\nNessuna penale è prevista per l'esercizio di questo diritto.\nGli eventuali interessi già maturati sulla somma restano comunque dovuti alla banca fino alla data di restituzione.",
+      prompt: "Diritto di recesso, pochi italiani lo conoscono\n\nUna recente indagine di un'associazione di consumatori rivela che meno di un cliente su tre conosce il proprio diritto di recesso su un prestito appena firmato.\nLa legge è chiara: ove il cliente ___ (esercitare) tale diritto entro quattordici giorni dalla firma, dovrà restituire soltanto la somma ricevuta, senza alcuna motivazione né penale.\nGli interessi già maturati, tuttavia, restano dovuti alla banca fino alla data di restituzione effettiva.\nGli esperti consigliano di leggere sempre con attenzione questa clausola prima di firmare qualsiasi contratto di finanziamento.",
       accepted: ["eserciti"],
       hint: "ove + congiuntivo presente of esercitare",
       tags: ["passage-cloze", "ove", "loan"],
@@ -3446,7 +3446,7 @@ const unit: Unit = {
     {
       id: "u42-t4-044",
       type: "passage_cloze",
-      prompt: "È possibile richiedere l'estinzione anticipata del prestito, versando il capitale residuo maggiorato di eventuali costi previsti dal contratto.\nNel caso in cui l'estinzione ___ (avvenire) prima della metà del piano di ammortamento, potrebbe essere applicata una piccola commissione, come previsto dalla normativa vigente.\nTale commissione non può comunque superare l'uno per cento del capitale residuo.\nLa banca fornisce sempre un conteggio estintivo aggiornato prima della richiesta definitiva.",
+      prompt: "Estinzione anticipata dei prestiti, cosa cambia nel 2026\n\nSempre più italiani scelgono di estinguere in anticipo il proprio finanziamento, approfittando di tassi più bassi rispetto a qualche anno fa.\nLa normativa vigente prevede però una tutela per le banche: nel caso in cui l'estinzione ___ (avvenire) prima della metà del piano di ammortamento, l'istituto può applicare una piccola commissione, comunque limitata all'uno per cento del capitale residuo.\nLe associazioni dei consumatori chiedono da anni l'abolizione totale di questa commissione.\nNel frattempo, gli esperti raccomandano di richiedere sempre un conteggio estintivo aggiornato prima di procedere.",
       accepted: ["avvenga"],
       hint: "nel caso in cui + congiuntivo presente of avvenire",
       tags: ["passage-cloze", "nel-caso-in-cui", "loan"],
@@ -3456,18 +3456,18 @@ const unit: Unit = {
     {
       id: "u42-t4-045",
       type: "passage_cloze",
-      prompt: "Il presente contratto potrà essere modificato solo con il consenso scritto di entrambe le parti.\nLaddove le parti ___ (concordare) una modifica delle condizioni economiche, essa dovrà essere formalizzata tramite un'appendice contrattuale firmata da entrambi.\nIn assenza di tale formalizzazione, restano vincolanti le condizioni originarie.\nOgni appendice contrattuale va allegata all'originale e conservata insieme a tutta la documentazione relativa al prestito in corso.",
+      prompt: "Rinegoziare un prestito, si può fare?\n\nSecondo gli operatori del settore, sempre più clienti chiedono di modificare le condizioni economiche di un prestito già in corso, complice il calo dei tassi di interesse.\nLa procedura, tuttavia, richiede l'accordo di entrambe le parti: laddove le parti ___ (concordare) una modifica delle condizioni, questa dovrà essere formalizzata tramite un'apposita appendice contrattuale firmata da entrambi.\nSenza questo passaggio formale, restano valide le condizioni originarie del contratto.\nGli esperti del settore consigliano comunque di rivolgersi a un consulente indipendente prima di firmare qualsiasi modifica.",
       accepted: ["concordino"],
       hint: "laddove + congiuntivo presente of concordare",
       tags: ["passage-cloze", "laddove", "loan"],
       tier: 4,
       prerequisites: ["u42-t1-007", "u42-t1-008", "u42-t1-025", "u42-t1-026"],
     },
-    // Politica di cancellazione eventi (event cancellation policy) — 5 sequential sections
+    // Politica di cancellazione eventi (event cancellation policy) — register variety: casual conversation transcript between two friends
     {
       id: "u42-t4-046",
       type: "passage_cloze",
-      prompt: "L'organizzatore si riserva il diritto di annullare l'evento in caso di condizioni meteorologiche avverse o di altre cause di forza maggiore.\nQualora l'evento ___ (essere) annullato per tali motivi, i biglietti saranno rimborsati integralmente entro trenta giorni.\nNon sono previsti rimborsi per la semplice indisponibilità del partecipante.\nLa decisione di annullamento viene comunicata a tutti i partecipanti con il maggior anticipo possibile, tramite email o SMS.",
+      prompt: "— Senti, ho letto il regolamento del festival, ma non capisco bene una clausola.\n— Quale?\n— Quella sull'annullamento. Dice che qualora l'evento ___ (essere) annullato per maltempo o altre cause di forza maggiore, ti rimborsano tutto entro un mese.\n— Ah, meno male. Pensavo restassi senza soldi e senza concerto.\n— Esatto, e ti avvisano sempre via email o SMS, quindi niente sorprese dell'ultimo minuto.",
       accepted: ["sia"],
       hint: "qualora + congiuntivo presente of essere",
       tags: ["passage-cloze", "qualora", "events"],
@@ -3477,7 +3477,7 @@ const unit: Unit = {
     {
       id: "u42-t4-047",
       type: "passage_cloze",
-      prompt: "In caso di imprevisti organizzativi, l'evento potrà essere differito a una data successiva, con adeguato preavviso ai partecipanti.\nNel caso in cui la nuova data non ___ (andare) bene al partecipante, quest'ultimo potrà richiedere il rimborso totale della quota versata entro sette giorni dalla comunicazione.\nIl differimento non comporta alcun costo aggiuntivo per i partecipanti.\nGli organizzatori comunicano la nuova data con almeno due settimane di anticipo.",
+      prompt: "— Comunque mi hanno scritto che potrebbero spostare la data del concerto.\n— E se a te la nuova data non va bene?\n— Aspetta, l'ho appena riletto: nel caso in cui la nuova data non ___ (andare) bene al partecipante, puoi chiedere il rimborso totale entro una settimana dalla comunicazione.\n— Ok, allora tranquillo, nel peggiore dei casi riprendi i soldi.\n— Sì, e per fortuna il differimento non ha nessun costo aggiuntivo per noi.",
       accepted: ["vada"],
       hint: "nel caso in cui + congiuntivo presente of andare",
       tags: ["passage-cloze", "nel-caso-in-cui", "events"],
@@ -3487,7 +3487,7 @@ const unit: Unit = {
     {
       id: "u42-t4-048",
       type: "passage_cloze",
-      prompt: "A salvaguardia dei partecipanti, l'organizzatore adotta un piano B in caso di maltempo, con trasferimento in un luogo al coperto.\nOve tale trasferimento non ___ (essere) possibile per motivi logistici, l'evento sarà rinviato alla prima data utile disponibile.\nI partecipanti saranno informati tempestivamente tramite email e SMS.\nIl luogo al coperto viene scelto tra le strutture più vicine al sito originale dell'evento, quando disponibili.",
+      prompt: "— E se piove proprio quel giorno? Hanno un piano B?\n— Sì, mi ha detto l'organizzatore che c'è un capannone qui vicino, per sicurezza.\n— E se anche quello non fosse disponibile?\n— Be', ove tale trasferimento non ___ (essere) possibile per motivi logistici, rimandano tutto alla prima data utile.\n— Speriamo bene allora, non vorrei un altro rinvio.",
       accepted: ["sia"],
       hint: "ove + congiuntivo presente of essere",
       tags: ["passage-cloze", "ove", "events"],
@@ -3497,7 +3497,7 @@ const unit: Unit = {
     {
       id: "u42-t4-049",
       type: "passage_cloze",
-      prompt: "I partecipanti che desiderano cancellare la propria partecipazione possono farlo entro quindici giorni dall'evento, ottenendo un rimborso parziale.\nA patto che la cancellazione ___ (avvenire) entro tale termine, il rimborso sarà pari all'ottanta per cento della quota versata.\nOltre tale termine, non sarà possibile ottenere alcun rimborso, salvo casi eccezionali valutati singolarmente.\nLe richieste di cancellazione vanno inviate per iscritto all'indirizzo email indicato nella conferma d'acquisto.",
+      prompt: "— Ma se poi non ci posso più venire, riesco almeno a farmi rimborsare qualcosa?\n— Guarda, ho controllato proprio ieri: a patto che la cancellazione ___ (avvenire) entro quindici giorni dall'evento, ti rimborsano l'ottanta per cento.\n— Solo l'ottanta? Meglio di niente comunque.\n— Eh sì, oltre quel termine niente, salvo casi eccezionali valutati uno per uno.",
       accepted: ["avvenga"],
       hint: "a patto che + congiuntivo presente of avvenire",
       tags: ["passage-cloze", "a-patto-che", "events"],
@@ -3507,7 +3507,7 @@ const unit: Unit = {
     {
       id: "u42-t4-050",
       type: "passage_cloze",
-      prompt: "L'organizzatore comunicherà eventuali variazioni di programma con il maggior anticipo possibile, compatibilmente con le circostanze contingenti.\nLaddove ___ (sopravvenire) una circostanza imprevedibile e contingente che renda impossibile lo svolgimento dell'evento, esso sarà annullato definitivamente e i biglietti rimborsati per intero.\nIn nessun caso l'organizzatore risponderà per spese accessorie sostenute dai partecipanti, come viaggio o alloggio.\nUn rimborso di questo tipo viene comunque elaborato entro trenta giorni dalla comunicazione ufficiale.",
+      prompt: "— Ma dai, con tutto quello che è successo quest'anno, non hanno paura di dover cancellare tutto all'ultimo?\n— In teoria sì, ma dicono che comunicano ogni variazione il prima possibile.\n— E se succede proprio qualcosa di assurdo, tipo un terremoto?\n— Be', laddove ___ (sopravvenire) una circostanza imprevedibile e contingente che renda impossibile lo svolgimento dell'evento, lo annullano definitivamente e rimborsano tutti i biglietti.\n— Meno male che l'hanno messo nero su bianco.",
       accepted: ["sopravvenga"],
       hint: "laddove + congiuntivo presente of sopravvenire",
       tags: ["passage-cloze", "laddove", "events"],
