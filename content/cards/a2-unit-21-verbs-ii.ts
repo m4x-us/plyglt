@@ -1668,14 +1668,14 @@ const unit: Unit = {
     {
       id: "a221-t3-026",
       type: "produce",
-      prompt: "The shop owner decided to open at nine, close at eight in the evening, and sell everything by December.",
+      prompt: "The shop owner decided to open the store an hour earlier during the summer season.",
       accepted: [
-        "Il negoziante ha deciso di aprire alle nove, chiudere alle venti e vendere tutto entro dicembre.",
+        "Il negoziante ha deciso di aprire il negozio un'ora prima durante la stagione estiva.",
       ],
-      hint: "three coordinated infinitives after 'ha deciso di': aprire, chiudere, vendere",
+      hint: "decidere di + infinitive: aprire",
       tags: ["verb", "collocation", "A2"],
       tier: 3,
-      prerequisites: ["a221-t1-002", "a221-t1-003", "a221-t1-004"],
+      prerequisites: ["a221-t1-003"],
     },
     {
       id: "a221-t3-027",
@@ -1731,8 +1731,11 @@ const unit: Unit = {
       id: "a221-t3-032",
       type: "produce",
       prompt: "My sister always wants to help me pack the suitcase before the trip.",
-      accepted: ["Mia sorella mi vuole aiutare a preparare la valigia prima del viaggio."],
-      hint: "aiutare a + infinitive: aiutare a preparare",
+      accepted: [
+        "Mia sorella vuole sempre aiutarmi a preparare la valigia prima del viaggio.",
+        "Mia sorella mi vuole sempre aiutare a preparare la valigia prima del viaggio.",
+      ],
+      hint: "aiutare a + infinitive: aiutare a preparare; 'sempre' follows the conjugated verb (vuole sempre)",
       tags: ["verb", "collocation", "A2"],
       tier: 3,
       prerequisites: ["a221-t1-019", "a221-t1-028"],
@@ -1846,6 +1849,18 @@ const unit: Unit = {
       tags: ["verb", "collocation", "A2"],
       tier: 3,
       prerequisites: ["a221-t1-090"],
+    },
+    {
+      id: "a221-t3-044",
+      type: "produce",
+      prompt: "The store decided to close and sell everything at discounted prices by the end of the month.",
+      accepted: [
+        "Il negozio ha deciso di chiudere e vendere tutto a prezzi scontati entro la fine del mese.",
+      ],
+      hint: "decidere di + two coordinated infinitives: chiudere, vendere",
+      tags: ["verb", "collocation", "A2"],
+      tier: 3,
+      prerequisites: ["a221-t1-002", "a221-t1-004"],
     },
   ],
 };

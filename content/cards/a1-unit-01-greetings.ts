@@ -945,6 +945,8 @@ const unit: Unit = {
       tags: ["chunks", "identity"],
       tier: 3,
       prerequisites: ["u01-t2-008"],
+      // 2026-08-03 card-quality audit: byte-identical duplicate of u01-t2-008 — see u01-t3-001.
+      deprecated: true,
     },
     {
       id: "u01-t3-004",
@@ -1174,10 +1176,18 @@ const unit: Unit = {
     {
       id: "u01-t3-116",
       type: "produce",
-      prompt: "The Italian woman and the American man are students.",
-      prompts: { "es": "La italiana y el americano son estudiantes." },
-      accepted: ["L'italiana e l'americano sono studenti.", "L'italiana e l'americano sono studenti"],
-      hint: "l'italiana and l'americano combined as a plural subject; sono studenti = are students",
+      prompt: "The Italian woman and the American man are students in the same Italian course.",
+      prompts: { "es": "La italiana y el americano son estudiantes del mismo curso de italiano." },
+      accepted: [
+        "L'italiana e l'americano sono studenti dello stesso corso d'italiano.",
+        "L'italiana e l'americano sono studenti dello stesso corso d'italiano",
+      ],
+      // 2026-08-03 card-quality audit: rewritten — the original ("...sono studenti.") arbitrarily
+      // paired two previously-isolated nouns with no reason to appear in the same sentence.
+      // This version keeps the same three target words (l'italiana, l'americano, lo studente)
+      // but gives them a real, natural reason to be mentioned together: classmates in the same
+      // language course, a plausible scenario for this unit's identity/greetings theme.
+      hint: "dello stesso corso d'italiano = of the same Italian course — a real reason they're grouped",
       tags: ["chunks", "identity", "A1"],
       tier: 3,
       prerequisites: ["u01-t1-012", "u01-t1-013", "u01-t1-172"],
@@ -1205,6 +1215,22 @@ const unit: Unit = {
       tags: ["chunks", "identity", "A1"],
       tier: 3,
       prerequisites: ["u01-t1-162", "u01-t1-016"],
+    },
+    {
+      id: "u01-t3-119",
+      type: "produce",
+      prompt: "The Italian man is my neighbor.",
+      prompts: { "es": "El italiano es mi vecino." },
+      accepted: ["L'italiano è il mio vicino di casa.", "L'italiano è il mio vicino di casa"],
+      // 2026-08-03 card-quality audit: u01-t1-011 ("l'italiano", masculine) was the one
+      // nationality word in this unit's gender-pair set never given its own dedicated context
+      // card — every sibling (l'italiana t3-109, l'americano t3-110, lo spagnolo t3-111, la
+      // tedesca t3-112, l'americana/la spagnola/lo studente/il tedesco via the t4-1xx passages)
+      // has a card written specifically around it. Added for parity.
+      hint: "l'italiano = the Italian man; vicino di casa = neighbor",
+      tags: ["chunks", "identity", "A1"],
+      tier: 3,
+      prerequisites: ["u01-t1-011"],
     },
 
     // ─── Tier 4 – Sentences ────────────────────────────────────────────────
