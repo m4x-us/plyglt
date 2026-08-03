@@ -96,7 +96,7 @@ import b1Unit52 from "./cards/b1-unit-52-sleep-stress-wellbeing";
 import b1Unit53 from "./cards/b1-unit-53-subjunctive-connector-mastery";
 import b1Unit54 from "./cards/b1-unit-54-imperativo-informale";
 
-// B2 — Upper Intermediate (13 units)
+// B2 — Upper Intermediate (22 units)
 import b2Unit29 from "./cards/b2-unit-29-hypotheticals";
 import b2Unit30 from "./cards/b2-unit-30-reported-speech";
 import b2Unit31 from "./cards/b2-unit-31-nuanced-opinions";
@@ -110,6 +110,15 @@ import b2Unit38 from "./cards/b2-unit-38-b2-review";
 import b2Unit39 from "./cards/b2-unit-39-science-tech";
 import b2Unit40 from "./cards/b2-unit-40-law-society";
 import b2Unit41 from "./cards/b2-unit-41-psychology";
+import b2Unit42 from "./cards/b2-unit-42-advanced-conditionals";
+import b2Unit43 from "./cards/b2-unit-43-emphasis-focus";
+import b2Unit44 from "./cards/b2-unit-44-temporal-clauses";
+import b2Unit45 from "./cards/b2-unit-45-relative-pronouns-advanced";
+import b2Unit46 from "./cards/b2-unit-46-passive-nominalization";
+import b2Unit47 from "./cards/b2-unit-47-discourse-connectors";
+import b2Unit48 from "./cards/b2-unit-48-business-operations";
+import b2Unit49 from "./cards/b2-unit-49-finance-investment";
+import b2Unit50 from "./cards/b2-unit-50-legal-procedure";
 
 export const ALL_UNITS: Unit[] = [
   // A1
@@ -134,7 +143,9 @@ export const ALL_UNITS: Unit[] = [
   // B2
   b2Unit29, b2Unit30, b2Unit31, b2Unit32, b2Unit33,
   b2Unit34, b2Unit35, b2Unit36, b2Unit37, b2Unit38,
-  b2Unit39, b2Unit40, b2Unit41,
+  b2Unit39, b2Unit40, b2Unit41, b2Unit42, b2Unit43,
+  b2Unit44, b2Unit45, b2Unit46, b2Unit47, b2Unit48,
+  b2Unit49, b2Unit50,
 ];
 
 export const UNIT_MAP: Record<string, Unit> = Object.fromEntries(
