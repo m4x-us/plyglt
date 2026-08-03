@@ -403,7 +403,7 @@ const unit: Unit = {
       id: "u24-t1-023",
       type: "recognize",
       prompt: "il resto",
-      accepted: ["the change (money)"],
+      accepted: ["the change","the change (money)"],
       hint: "what the cashier gives back",
       tags: ["noun", "money", "shopping"],
       tier: 1,

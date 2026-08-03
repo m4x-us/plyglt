@@ -192,7 +192,7 @@ const unit: Unit = {
       id: "a224-t1-021",
       type: "recognize",
       prompt: "corto",
-      accepted: ["short (in length)"],
+      accepted: ["short","short (in length)"],
       hint: "opposite of lungo; not used for height",
       tags: ["adjective", "length"],
       tier: 1,

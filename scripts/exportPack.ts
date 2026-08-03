@@ -14,7 +14,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, existsSync, renameSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 // ── Resolve project root ─────────────────────────────────────────────────────
@@ -24,6 +24,20 @@ const ROOT = resolve(__dirname, "..");
 
 // Path alias: @/ -> ROOT/
 // tsx resolves this via tsconfig.json "paths", so direct imports work below.
+
+// writeFileSync is not atomic — a concurrent reader (e.g. another exportPack.ts
+// invocation for a different langCode, running in parallel) can observe a
+// truncated/partial file mid-write. Writing to a temp file in the same directory
+// then renaming over the target makes the write atomic from every other
+// process's point of view: readers only ever see the old complete file or the
+// new complete file, never a partial one. Found via a real multi-agent session
+// where concurrent exportPack.ts runs caused manifest.json's JSON.parse to
+// intermittently fail and silently drop an unrelated language's entry.
+function writeFileAtomic(path: string, data: string): void {
+  const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tmpPath, data, "utf8");
+  renameSync(tmpPath, path);
+}
 
 // ── Import content ───────────────────────────────────────────────────────────
 
@@ -120,7 +134,7 @@ const outDir = join(ROOT, "public", "packs");
 mkdirSync(outDir, { recursive: true });
 
 const packPath = join(outDir, `${langCode}.json`);
-writeFileSync(packPath, packJson, "utf8");
+writeFileAtomic(packPath, packJson);
 console.log(`✓ Wrote ${packPath} (${(size / 1024).toFixed(0)} KB, ${units.length} units, ${cardCount} cards)`);
 
 // ── Update manifest ───────────────────────────────────────────────────────────
@@ -133,11 +147,11 @@ let manifest: Manifest = {
 };
 
 if (existsSync(manifestPath)) {
-  try {
-    manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
-  } catch {
-    console.warn("Could not parse existing manifest.json — overwriting.");
-  }
+  // A parse failure here is never silently swallowed: manifest.json holds every
+  // language's entry, and continuing past a genuine parse error would silently
+  // reset and overwrite every OTHER language's entry along with this one. Fail
+  // loudly instead — the caller can inspect/fix manifest.json and re-run.
+  manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
 }
 
 manifest.generatedAt = new Date().toISOString();
@@ -150,5 +164,5 @@ manifest.packs[langCode] = {
   sha256,
 };
 
-writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+writeFileAtomic(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`✓ Updated manifest: ${langCode} @ 1.0.0  sha256=${sha256.slice(0, 16)}…`);

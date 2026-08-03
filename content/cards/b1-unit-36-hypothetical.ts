@@ -32,7 +32,7 @@ const unit: Unit = {
     { id: "b136-t1-022", type: "produce", prompt: "to avoid", accepted: ["evitare"], hint: "regular -are verb", tags: ["verb", "hypothetical", "vocab"], tier: 1 },
     { id: "b136-t1-023", type: "recognize", prompt: "l'errore", accepted: ["the mistake", "the error"], hint: "collocation: commettere un errore (to make a mistake)", tags: ["noun", "hypothetical", "vocab"], tier: 1 },
     { id: "b136-t1-024", type: "produce", prompt: "to commit (a mistake)", accepted: ["commettere"], hint: "irregular participio passato: commesso", tags: ["verb", "hypothetical", "vocab", "irregular"], tier: 1 },
-    { id: "b136-t1-025", type: "recognize", prompt: "risparmiare", accepted: ["to save (money or time)"], hint: "regular -are verb", tags: ["verb", "hypothetical", "vocab"], tier: 1 },
+    { id: "b136-t1-025", type: "recognize", prompt: "risparmiare", accepted: ["to save","to save (money or time)"], hint: "regular -are verb", tags: ["verb", "hypothetical", "vocab"], tier: 1 },
     { id: "b136-t1-026", type: "produce", prompt: "the savings", accepted: ["i risparmi"], hint: "plural noun from risparmiare", tags: ["noun", "hypothetical", "vocab"], tier: 1 },
     { id: "b136-t1-027", type: "recognize", prompt: "la fortuna", accepted: ["the luck"], hint: "collocation: avere fortuna (to be lucky)", tags: ["noun", "hypothetical", "vocab"], tier: 1 },
     { id: "b136-t1-028", type: "produce", prompt: "lucky", accepted: ["fortunato"], hint: "from la fortuna", tags: ["adjective", "hypothetical", "vocab"], tier: 1 },

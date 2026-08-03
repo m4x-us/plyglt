@@ -38,7 +38,7 @@ const unit: Unit = {
     { id: "b151-t1-027", type: "produce", prompt: "nostalgia", accepted: ["la nostalgia"], hint: "takes 'di': avere nostalgia di qualcosa", tags: ["noun", "reflection"], tier: 1 },
     { id: "b151-t1-028", type: "recognize", prompt: "il rimpianto", accepted: ["regret"], hint: "a lingering regret about a choice, not embarrassment (l'imbarazzo)", tags: ["noun", "reflection"], tier: 1 },
     { id: "b151-t1-029", type: "produce", prompt: "balance / stock-taking (of one's life)", accepted: ["il bilancio"], hint: "used figuratively in 'fare un bilancio della propria vita'", tags: ["noun", "reflection"], tier: 1 },
-    { id: "b151-t1-030", type: "recognize", prompt: "voltare pagina", accepted: ["to turn the page (start fresh)"], hint: "idiom for leaving something behind and moving on", tags: ["idiom", "reflection"], tier: 1 },
+    { id: "b151-t1-030", type: "recognize", prompt: "voltare pagina", accepted: ["to turn the page","to turn the page (start fresh)"], hint: "idiom for leaving something behind and moving on", tags: ["idiom", "reflection"], tier: 1 },
     { id: "b151-t1-031", type: "produce", prompt: "experience", accepted: ["l'esperienza"], hint: "feminine noun; 'fare esperienza' (to gain experience) drops the article", tags: ["noun", "reflection"], tier: 1 },
     { id: "b151-t1-032", type: "recognize", prompt: "la responsabilità", accepted: ["responsibility"], hint: "feminine noun; collocates with 'prendersi la responsabilità di' — to take responsibility for", tags: ["noun", "adulthood"], tier: 1 },
     { id: "b151-t1-033", type: "produce", prompt: "development / growth", accepted: ["lo sviluppo"], hint: "used for a child's development or personal growth", tags: ["noun", "childhood"], tier: 1 },
@@ -48,7 +48,7 @@ const unit: Unit = {
     { id: "b151-t1-037", type: "produce", prompt: "retirement home / nursing home", accepted: ["la casa di riposo"], hint: "literally 'house of rest'", tags: ["noun", "old-age"], tier: 1 },
     { id: "b151-t1-038", type: "recognize", prompt: "convivere", accepted: ["to live together (as a couple)", "to cohabit"], hint: "used before marriage, or as an alternative to it", tags: ["verb", "milestone", "relationships"], tier: 1 },
     { id: "b151-t1-039", type: "produce", prompt: "roommate", accepted: ["il coinquilino", "la coinquilina"], hint: "someone you share a rented home with, not a family member", tags: ["noun", "independence"], tier: 1 },
-    { id: "b151-t1-040", type: "recognize", prompt: "un coetaneo / una coetanea", accepted: ["a peer (person of the same age)"], hint: "from 'la stessa età'", tags: ["noun", "generation"], tier: 1 },
+    { id: "b151-t1-040", type: "recognize", prompt: "un coetaneo / una coetanea", accepted: ["a peer","a peer (person of the same age)"], hint: "from 'la stessa età'", tags: ["noun", "generation"], tier: 1 },
     { id: "b151-t1-041", type: "produce", prompt: "milestone (figurative)", accepted: ["la pietra miliare"], hint: "literally 'milestone marker'; used for a defining moment", tags: ["noun", "milestone"], tier: 1 },
     { id: "b151-t1-042", type: "recognize", prompt: "la spensieratezza", accepted: ["carefreeness"], hint: "the light, worry-free feeling associated with childhood", tags: ["noun", "childhood"], tier: 1 },
 

@@ -1026,7 +1026,7 @@ const unit: Unit = {
       id: "u23-t1-093",
       type: "recognize",
       prompt: "l'opera",
-      accepted: ["the work (of art)"],
+      accepted: ["the work","the work (of art)"],
       hint: "Feminine noun; elided article l'",
       tags: ["noun", "arts", "formal"],
       tier: 1,

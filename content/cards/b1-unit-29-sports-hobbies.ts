@@ -1231,7 +1231,7 @@ const unit: Unit = {
       id: "b129-t1-124",
       type: "recognize",
       prompt: "slogarsi",
-      accepted: ["to sprain (a joint)"],
+      accepted: ["to sprain","to sprain (a joint)"],
       hint: "reflexive verb, usually followed by the body part, e.g. 'slogarsi la caviglia'",
       tags: ["sport", "injury", "verb"],
       tier: 1,

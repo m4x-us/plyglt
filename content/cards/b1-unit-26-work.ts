@@ -934,7 +934,7 @@ const unit: Unit = {
       id: "u26-t1-082",
       type: "recognize",
       prompt: "il congedo",
-      accepted: ["the leave (from work)"],
+      accepted: ["the leave","the leave (from work)"],
       hint: "authorized absence, e.g. congedo parentale (parental leave)",
       tags: ["work", "time-off", "noun"],
       tier: 1,
