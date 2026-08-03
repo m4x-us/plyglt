@@ -160,7 +160,7 @@ const unit: Unit = {
     {
       id: "u36-t2-006",
       type: "fill_blank",
-      prompt: "La cucina regionale, ___ ingredienti locali di qualità, riflette l'identità di ogni territorio. (participio presente of 'valorizzare')",
+      prompt: "La cucina regionale, ___ ingredienti locali di qualità, riflette l'identità di ogni territorio. (gerundio of 'valorizzare')",
       accepted: ["valorizzando"],
       hint: "use gerundio here: valorizzando",
       tags: ["grammar", "participio-presente", "cuisine"],
@@ -672,7 +672,7 @@ const unit: Unit = {
       prompt: "il patrimonio artistico",
       accepted: ["the artistic heritage"],
       hint: "a nation's inherited body of art and monuments",
-      tags: ["culture", "art", "culture"],
+      tags: ["culture", "art"],
       tier: 1,
     },
     {
@@ -681,7 +681,7 @@ const unit: Unit = {
       prompt: "the artistic heritage",
       accepted: ["il patrimonio artistico"],
       hint: "a nation's inherited body of art and monuments",
-      tags: ["culture", "art", "culture"],
+      tags: ["culture", "art"],
       tier: 1,
     },
     {
@@ -1554,7 +1554,7 @@ const unit: Unit = {
       prompt: "la tradizione popolare",
       accepted: ["folk tradition", "popular tradition"],
       hint: "customs passed down through generations",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
@@ -1563,7 +1563,7 @@ const unit: Unit = {
       prompt: "folk tradition",
       accepted: ["la tradizione popolare"],
       hint: "customs passed down through generations",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
@@ -1572,7 +1572,7 @@ const unit: Unit = {
       prompt: "il folklore",
       accepted: ["folklore"],
       hint: "traditional customs and stories of a culture",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
@@ -1581,7 +1581,7 @@ const unit: Unit = {
       prompt: "folklore",
       accepted: ["il folklore"],
       hint: "traditional customs and stories of a culture",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
@@ -1788,7 +1788,7 @@ const unit: Unit = {
       prompt: "il borgo",
       accepted: ["the (small historic) village", "the hamlet"],
       hint: "a small, often medieval, settlement",
-      tags: ["culture", "culture", "history"],
+      tags: ["culture", "history"],
       tier: 1,
     },
     {
@@ -1797,7 +1797,7 @@ const unit: Unit = {
       prompt: "the (small historic) village",
       accepted: ["il borgo"],
       hint: "a small, often medieval, settlement",
-      tags: ["culture", "culture", "history"],
+      tags: ["culture", "history"],
       tier: 1,
     },
     {
@@ -1824,7 +1824,7 @@ const unit: Unit = {
       prompt: "l'artigianato",
       accepted: ["craftsmanship", "the handicraft tradition"],
       hint: "traditional skilled handmade production",
-      tags: ["culture", "culture", "craft"],
+      tags: ["culture", "craft"],
       tier: 1,
     },
     {
@@ -1833,7 +1833,7 @@ const unit: Unit = {
       prompt: "craftsmanship",
       accepted: ["l'artigianato"],
       hint: "traditional skilled handmade production",
-      tags: ["culture", "culture", "craft"],
+      tags: ["culture", "craft"],
       tier: 1,
     },
     {
@@ -3190,7 +3190,7 @@ const unit: Unit = {
       prompt: "il design italiano",
       accepted: ["Italian design", "the Italian design"],
       hint: "the postwar tradition of Italian industrial and furniture design, prized worldwide",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
@@ -3199,7 +3199,7 @@ const unit: Unit = {
       prompt: "Italian design",
       accepted: ["il design italiano"],
       hint: "the postwar tradition of Italian industrial and furniture design, prized worldwide",
-      tags: ["culture", "culture"],
+      tags: ["culture"],
       tier: 1,
     },
     {
