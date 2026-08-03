@@ -1128,7 +1128,7 @@ const unit: Unit = {
       id: "u33-t1-106",
       type: "recognize",
       prompt: "il troll",
-      accepted: ["the (internet) troll"],
+      accepted: ["the troll", "the (internet) troll"],
       hint: "someone who posts deliberately provocative comments online",
       tags: ["media", "digital", "vocab"],
       tier: 1,

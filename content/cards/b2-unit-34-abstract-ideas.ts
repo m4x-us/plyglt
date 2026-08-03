@@ -142,7 +142,7 @@ const unit: Unit = {
     { id: "u34-t1-044", type: "produce", prompt: "the community", accepted: ["la comunità"], hint: "feminine noun", tags: ["philosophy", "abstract", "noun"], tier: 1 },
     { id: "u34-t1-045", type: "recognize", prompt: "l'individuo", accepted: ["the individual"], hint: "masculine noun, referring to a single person", tags: ["philosophy", "abstract", "noun"], tier: 1 },
     { id: "u34-t1-046", type: "produce", prompt: "the individual (noun)", accepted: ["l'individuo"], hint: "masculine noun", tags: ["philosophy", "abstract", "noun"], tier: 1 },
-    { id: "u34-t1-047", type: "recognize", prompt: "individuale", accepted: ["individual (adjective)"], hint: "invariable -e ending", tags: ["philosophy", "abstract", "adjective"], tier: 1 },
+    { id: "u34-t1-047", type: "recognize", prompt: "individuale", accepted: ["individual", "individual (adjective)"], hint: "invariable -e ending", tags: ["philosophy", "abstract", "adjective"], tier: 1 },
     { id: "u34-t1-048", type: "produce", prompt: "individual (adjective)", accepted: ["individuale"], hint: "plural: individuali", tags: ["philosophy", "abstract", "adjective"], tier: 1 },
     { id: "u34-t1-049", type: "recognize", prompt: "l'individualismo", accepted: ["individualism"], hint: "masculine noun", tags: ["philosophy", "abstract", "noun"], tier: 1 },
     { id: "u34-t1-050", type: "produce", prompt: "the individualism", accepted: ["l'individualismo"], hint: "masculine noun", tags: ["philosophy", "abstract", "noun"], tier: 1 },

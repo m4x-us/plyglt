@@ -63,7 +63,7 @@ const unit: Unit = {
     { id: "u63-t1-046", type: "produce", prompt: "to mitigate", accepted: ["mitigare"], hint: "regular -are verb: (io) mitigo, (tu) mitighi", tags: ["climate-policy", "verb", "science"], tier: 1 },
     { id: "u63-t1-047", type: "recognize", prompt: "la mitigazione", accepted: ["mitigation", "the mitigation"], hint: "feminine noun, from 'mitigare'", tags: ["climate-policy", "noun", "science"], tier: 1 },
     { id: "u63-t1-048", type: "produce", prompt: "mitigation", accepted: ["la mitigazione"], hint: "feminine noun: la mitigazione", tags: ["climate-policy", "noun", "science"], tier: 1 },
-    { id: "u63-t1-049", type: "recognize", prompt: "adattarsi", accepted: ["to adapt (oneself)"], hint: "reflexive verb: (io) mi adatto", tags: ["climate-policy", "verb", "science"], tier: 1 },
+    { id: "u63-t1-049", type: "recognize", prompt: "adattarsi", accepted: ["to adapt", "to adapt (oneself)"], hint: "reflexive verb: (io) mi adatto", tags: ["climate-policy", "verb", "science"], tier: 1 },
     { id: "u63-t1-050", type: "produce", prompt: "to adapt (oneself)", accepted: ["adattarsi"], hint: "reflexive verb: adattarsi, (io) mi adatto", tags: ["climate-policy", "verb", "science"], tier: 1 },
     { id: "u63-t1-051", type: "recognize", prompt: "la desertificazione", accepted: ["desertification", "the desertification"], hint: "feminine noun; land turning into desert due to drought or poor land use", tags: ["climate-policy", "noun", "impact"], tier: 1 },
     { id: "u63-t1-052", type: "produce", prompt: "desertification", accepted: ["la desertificazione"], hint: "feminine noun: la desertificazione", tags: ["climate-policy", "noun", "impact"], tier: 1 },

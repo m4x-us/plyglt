@@ -186,7 +186,7 @@ const unit: Unit = {
     {
       id: "u36-t2-009",
       type: "fill_blank",
-      prompt: "L'olio d'oliva ___ (DOP) viene prodotto seguendo disciplinari severi. (participio presente / aggettivo from 'certificare')",
+      prompt: "L'olio d'oliva ___ (DOP) viene prodotto seguendo disciplinari severi. (participio passato / aggettivo from 'certificare')",
       accepted: ["certificato"],
       hint: "past participle used as adjective: certified",
       tags: ["grammar", "participio-passato", "cuisine"],
@@ -2005,7 +2005,7 @@ const unit: Unit = {
     {
       id: "u36-t2-011",
       type: "fill_blank",
-      prompt: "Il Palio di Siena è una gara ___ da secoli. (participio presente of 'disputare' as adjective, meaning 'contested/fought')",
+      prompt: "Il Palio di Siena è una gara ___ da secoli. (participio passato of 'disputare' as adjective, meaning 'contested/fought')",
       accepted: ["disputata"],
       hint: "past participle used as adjective — the race has been contested for centuries",
       tags: ["grammar", "participio-passato"],
@@ -2140,7 +2140,7 @@ const unit: Unit = {
     {
       id: "u36-t2-026",
       type: "fill_blank",
-      prompt: "Le repubbliche marinare, ___ dal commercio marittimo, dominarono il Mediterraneo. (participio presente of 'arricchire')",
+      prompt: "Le repubbliche marinare, ___ dal commercio marittimo, dominarono il Mediterraneo. (participio passato of 'arricchire')",
       accepted: ["arricchite"],
       hint: "past participle as adjective, enriched — agrees with feminine plural",
       tags: ["grammar", "participio-passato"],
@@ -2149,7 +2149,7 @@ const unit: Unit = {
     {
       id: "u36-t2-027",
       type: "fill_blank",
-      prompt: "La sagra, ___ ogni anno in agosto, richiama migliaia di visitatori. (participio presente of 'tenere' — held)",
+      prompt: "La sagra, ___ ogni anno in agosto, richiama migliaia di visitatori. (participio passato of 'tenere' — held)",
       accepted: ["tenuta"],
       hint: "held — past participle as adjective, feminine agreement",
       tags: ["grammar", "participio-passato"],
@@ -2167,7 +2167,7 @@ const unit: Unit = {
     {
       id: "u36-t2-029",
       type: "fill_blank",
-      prompt: "Il regista, ___ dal successo del film, ha subito iniziato un nuovo progetto. (participio presente of 'incoraggiare')",
+      prompt: "Il regista, ___ dal successo del film, ha subito iniziato un nuovo progetto. (participio passato of 'incoraggiare')",
       accepted: ["incoraggiato"],
       hint: "encouraged by the success",
       tags: ["grammar", "participio-passato"],
@@ -2212,7 +2212,7 @@ const unit: Unit = {
     {
       id: "u36-t2-034",
       type: "fill_blank",
-      prompt: "I salumi, ___ per mesi in cantina, acquisiscono un sapore più intenso. (participio presente of 'stagionare')",
+      prompt: "I salumi, ___ per mesi in cantina, acquisiscono un sapore più intenso. (participio passato of 'stagionare')",
       accepted: ["stagionati"],
       hint: "aged/cured — masculine plural agreement",
       tags: ["grammar", "participio-passato"],

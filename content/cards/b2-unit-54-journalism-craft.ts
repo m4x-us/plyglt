@@ -392,7 +392,7 @@ const unit: Unit = {
       id: "u54-t1-043",
       type: "recognize",
       prompt: "l'embargo",
-      accepted: ["the (information) embargo"],
+      accepted: ["the embargo", "the (information) embargo"],
       hint: "an agreed time before which a story cannot be published",
       tags: ["media", "journalism", "press-events"],
       tier: 1,

@@ -894,7 +894,7 @@ const unit: Unit = {
       id: "u42-t1-099",
       type: "recognize",
       prompt: "recedere",
-      accepted: ["to withdraw (from a contract)"],
+      accepted: ["to withdraw", "to withdraw (from a contract)"],
       hint: "takes essere; conjugates like 'cedere'",
       tags: ["verb", "formal-register", "contract"],
       tier: 1,

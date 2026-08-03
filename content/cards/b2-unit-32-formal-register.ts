@@ -1179,7 +1179,7 @@ const unit: Unit = {
       id: "u32-t1-109",
       type: "recognize",
       prompt: "divenire",
-      accepted: ["to become (formal)"],
+      accepted: ["to become", "to become (formal)"],
       hint: "Formal alternative to 'diventare'",
       tags: ["formal","register-swap","vocabulary"],
       tier: 1,

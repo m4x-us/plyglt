@@ -643,7 +643,7 @@ const unit: Unit = {
       id: "b240-t1-057",
       type: "recognize",
       prompt: "il convenuto",
-      accepted: ["the defendant (civil case)"],
+      accepted: ["the defendant", "the defendant (civil case)"],
       hint: "the civil-law counterpart to 'imputato', used only in criminal trials",
       tags: ["law", "civic"],
       tier: 1,
