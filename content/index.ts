@@ -96,7 +96,7 @@ import b1Unit52 from "./cards/b1-unit-52-sleep-stress-wellbeing";
 import b1Unit53 from "./cards/b1-unit-53-subjunctive-connector-mastery";
 import b1Unit54 from "./cards/b1-unit-54-imperativo-informale";
 
-// B2 — Upper Intermediate (22 units)
+// B2 — Upper Intermediate (40 units)
 import b2Unit29 from "./cards/b2-unit-29-hypotheticals";
 import b2Unit30 from "./cards/b2-unit-30-reported-speech";
 import b2Unit31 from "./cards/b2-unit-31-nuanced-opinions";
@@ -119,6 +119,24 @@ import b2Unit47 from "./cards/b2-unit-47-discourse-connectors";
 import b2Unit48 from "./cards/b2-unit-48-business-operations";
 import b2Unit49 from "./cards/b2-unit-49-finance-investment";
 import b2Unit50 from "./cards/b2-unit-50-legal-procedure";
+import b2Unit51 from "./cards/b2-unit-51-academic-writing";
+import b2Unit52 from "./cards/b2-unit-52-negotiation-persuasion";
+import b2Unit53 from "./cards/b2-unit-53-research-analysis";
+import b2Unit54 from "./cards/b2-unit-54-journalism-craft";
+import b2Unit55 from "./cards/b2-unit-55-formal-correspondence";
+import b2Unit56 from "./cards/b2-unit-56-idiomatic-expressions-ii";
+import b2Unit57 from "./cards/b2-unit-57-literary-italian";
+import b2Unit58 from "./cards/b2-unit-58-untranslatable-terms";
+import b2Unit59 from "./cards/b2-unit-59-advanced-abstract-concepts";
+import b2Unit60 from "./cards/b2-unit-60-political-social-discourse";
+import b2Unit61 from "./cards/b2-unit-61-philosophy-ethics";
+import b2Unit62 from "./cards/b2-unit-62-history-memory";
+import b2Unit63 from "./cards/b2-unit-63-environmental-policy";
+import b2Unit64 from "./cards/b2-unit-64-technology-society";
+import b2Unit65 from "./cards/b2-unit-65-art-criticism";
+import b2Unit66 from "./cards/b2-unit-66-literary-analysis";
+import b2Unit67 from "./cards/b2-unit-67-regional-italian";
+import b2Unit68 from "./cards/b2-unit-68-reading-passages-mixed";
 
 export const ALL_UNITS: Unit[] = [
   // A1
@@ -145,7 +163,10 @@ export const ALL_UNITS: Unit[] = [
   b2Unit34, b2Unit35, b2Unit36, b2Unit37, b2Unit38,
   b2Unit39, b2Unit40, b2Unit41, b2Unit42, b2Unit43,
   b2Unit44, b2Unit45, b2Unit46, b2Unit47, b2Unit48,
-  b2Unit49, b2Unit50,
+  b2Unit49, b2Unit50, b2Unit51, b2Unit52, b2Unit53, b2Unit54, b2Unit55,
+  b2Unit56, b2Unit57, b2Unit58, b2Unit59,
+  b2Unit60, b2Unit61, b2Unit62, b2Unit63, b2Unit64,
+  b2Unit65, b2Unit66, b2Unit67, b2Unit68,
 ];
 
 export const UNIT_MAP: Record<string, Unit> = Object.fromEntries(
