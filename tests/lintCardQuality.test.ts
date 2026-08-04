@@ -286,6 +286,69 @@ describe("checkTier1Context", () => {
     };
     expect(checkTier1Context(pack)).toEqual([]);
   });
+
+  it("does not silently drop a tier-1 term that is itself an article homograph (Italian 'uno')", () => {
+    // Real corpus regression caught while generalizing this check for multi-language use
+    // (a1-unit-15-numbers): ITALIAN_ARTICLES matches a bare "uno" with nothing after it —
+    // correct for lib/answerCheck.ts's checkAnswer, which OR's the stripped comparison
+    // against an unstripped one so this never loses a real answer match. This function has
+    // no such second comparison, so without a fallback, stripping "uno" (the number) down
+    // to "" would make it vanish from the search entirely — a false tier1-no-context flag
+    // on a real, correctly-contextualized card.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "produce", prompt: "one (the number)", accepted: ["uno"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "I have one euro", accepted: ["Ho un euro, cioè uno."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
+
+  it("strips Spanish-only articles (los/las) when pack.lang is 'es', proving article-stripping is driven by pack.lang and not hardcoded to Italian", () => {
+    // B7 target: "los"/"las" are genuinely Spanish-only — they do NOT appear in
+    // ITALIAN_ARTICLES's alternation at all (unlike "la", which both languages share and
+    // so can't distinguish the two regexes). If checkTier1Context fell back to Italian's
+    // article list, or to no stripping at all, "los libros" would never strip down to
+    // "libros" and would never match "libros" inside the tier-3 sentence below — this test
+    // fails under either regression, verified directly (see B7 note in the deletion-test
+    // check for this task).
+    const pack: LintPack = {
+      lang: "es",
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "los libros", accepted: ["the books"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "she reads many books", accepted: ["Ella lee muchos libros."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
+
+  it("defaults to Italian article-stripping when pack.lang is absent (backward compatibility)", () => {
+    // Every pack produced before the `lang` field existed, and any test fixture omitting
+    // it, must keep behaving exactly as before — pack.lang undefined must not throw or
+    // silently skip article-stripping.
+    const pack: LintPack = {
+      units: [
+        {
+          id: "unit-a",
+          cards: [
+            card({ id: "c1", type: "recognize", prompt: "l'abbraccio", accepted: ["the hug"], tier: 1 }),
+            card({ id: "c2", type: "produce", prompt: "a warm hug", accepted: ["Un caldo abbraccio."], tier: 3 }),
+          ],
+        },
+      ],
+    };
+    expect(checkTier1Context(pack)).toEqual([]);
+  });
 });
 
 describe("checkTier4Passage", () => {

@@ -6,19 +6,21 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useEntitlementStore } from "@/store/entitlementStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { openExternalUrl } from "@/lib/tauri";
 import { hasStoredLangPair, setTargetLangCode } from "@/lib/constants";
+import { SOURCE_LANGUAGES } from "@/lib/language";
 import { BuyModal } from "@/components/BuyModal";
 import { LanguageGrid } from "@/components/LanguageGrid";
 
-const SOURCE_LANGUAGES = [
-  { code: "en", name: "English", flag: "🇬🇧" },
-];
-
 export default function LanguagePicker() {
   const router = useRouter();
-  const [sourceLang, setSourceLang] = useState("en");
+  // Persisted in settingsStore (Task: multi-language architecture prep) — this is the
+  // learner's interface language, independent of which target language they're learning.
+  // See lib/language.ts's SOURCE_LANGUAGES doc comment for why the two are kept separate.
+  const sourceLang = useSettingsStore((s) => s.sourceLang);
+  const setSourceLang = useSettingsStore((s) => s.setSourceLang);
   // useSyncExternalStore: React 18 idiomatic way to detect client-side mount without
   // triggering a cascading setState-in-effect. Server snapshot = false; client snapshot = true.
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { LANG_PAIR_KEY } from "@/lib/constants";
 import { useEntitlementStore } from "@/store/entitlementStore";
+import { useSettingsStore } from "@/store/settingsStore";
 
 // ── vi.hoisted: values closed over by vi.mock factories ───────────────────────
 
@@ -106,6 +107,7 @@ function resetStores() {
     lastValidated: 0,
     validUntil:    null,
   });
+  useSettingsStore.setState({ sourceLang: "en" });
 }
 
 beforeEach(() => {
@@ -181,5 +183,36 @@ describe("LanguagePicker — app/page.tsx", () => {
 
     // setTargetLangCode("it") writes "en-it" to localStorage under LANG_PAIR_KEY
     expect(localStorage.getItem("srs-lang-pair")).toBe("en-it");
+  });
+
+  // Test 4: "I speak" picker writes through to the real settingsStore (Task: multi-language
+  // architecture prep). Rule 20 (spec-to-runtime-traceability): exercises the real write
+  // path — the actual button click handler and the actual store, not injected state — and
+  // is independent of the language-PAIR test above (Test 3), proving source-language
+  // selection and target-language selection are genuinely two separate systems, not the
+  // same storage mechanism wearing two UIs.
+  it("clicking a source-language option persists it to the real settingsStore, not just local UI state", () => {
+    render(<LanguagePicker />);
+
+    expect(useSettingsStore.getState().sourceLang).toBe("en");
+
+    fireEvent.click(screen.getByText("Español"));
+
+    expect(useSettingsStore.getState().sourceLang).toBe("es");
+  });
+
+  it("defaults to English selected, and switching source language does not touch the target-language pair storage", () => {
+    render(<LanguagePicker />);
+
+    fireEvent.click(screen.getByText("Español"));
+    // Selecting a source language must never write LANG_PAIR_KEY — that's target-language
+    // storage, a completely separate system (see lib/language.ts's SOURCE_LANGUAGES doc
+    // comment for why conflating them would silently fork a user's SRS progress).
+    expect(localStorage.getItem("srs-lang-pair")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("select-it"));
+    expect(localStorage.getItem("srs-lang-pair")).toBe("en-it");
+    // The source-language choice must survive a target-language selection alongside it.
+    expect(useSettingsStore.getState().sourceLang).toBe("es");
   });
 });

@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
 import { SETTINGS_VERSION, migrateSettingsStore, IDLE_THRESHOLD_DEFAULT_MINUTES } from "@/store/migrations";
+import { DEFAULT_SOURCE_LANG_CODE, isKnownSourceLangCode } from "@/lib/language";
 
 export const INTERVAL_OPTIONS = [2, 3, 4, 6] as const;
 export const SNOOZE_OPTIONS = [15, 30, 60] as const;
@@ -26,6 +27,11 @@ interface SettingsState {
   unlockEnabled: boolean;
   idleEnabled: boolean;
   idleThresholdMinutes: number;
+  // The learner's interface language for produce/recognize card prompts — deliberately
+  // independent of target-language selection. See lib/language.ts's SOURCE_LANGUAGES doc
+  // comment for why this must never be folded into lib/constants.ts's LANG_PAIR_KEY /
+  // target-language storage partitioning.
+  sourceLang: string;
 
   setLaunchAtLogin: (v: boolean) => void;
   setInterruptEnabled: (v: boolean) => void;
@@ -38,6 +44,7 @@ interface SettingsState {
   setUnlockEnabled: (v: boolean) => void;
   setIdleEnabled: (v: boolean) => void;
   setIdleThresholdMinutes: (v: number) => void;
+  setSourceLang: (v: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -54,6 +61,7 @@ export const useSettingsStore = create<SettingsState>()(
       unlockEnabled: true,
       idleEnabled: true,
       idleThresholdMinutes: IDLE_THRESHOLD_DEFAULT_MINUTES,
+      sourceLang: DEFAULT_SOURCE_LANG_CODE,
 
       setLaunchAtLogin: (v) => set({ launchAtLogin: v }),
       setInterruptEnabled: (v) => set({ interruptEnabled: v }),
@@ -66,6 +74,11 @@ export const useSettingsStore = create<SettingsState>()(
       setUnlockEnabled: (v) => set({ unlockEnabled: v }),
       setIdleEnabled: (v) => set({ idleEnabled: v }),
       setIdleThresholdMinutes: (v) => set({ idleThresholdMinutes: Math.min(IDLE_THRESHOLD_MAX, Math.max(IDLE_THRESHOLD_MIN, v)) }),
+      // Same defensive validation as the v2->v3 migration (store/migrations.ts) — a caller
+      // passing an unrecognized code (a stale UI, a future build's code not yet supported
+      // here) falls back to the default rather than reaching getPrompt/getAccepted with a
+      // code that has no real content behind it.
+      setSourceLang: (v) => set({ sourceLang: isKnownSourceLangCode(v) ? v : DEFAULT_SOURCE_LANG_CODE }),
     }),
     {
       name: "settings-v1",

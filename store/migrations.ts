@@ -13,7 +13,8 @@
 // DEPENDS ON: @/lib/langRegistry (FREE_PACK_CODES, SPECIALTY_PACKS),
 //             @/lib/licenseTypes (LICENSE_TYPES, LicenseType),
 //             @/lib/utils (localDateStr, isCalendarValidDate),
-//             @/lib/introduction (MAX_PHASE_DAY), @/content/types (CardType)
+//             @/lib/introduction (MAX_PHASE_DAY), @/content/types (CardType),
+//             @/lib/language (isKnownSourceLangCode, DEFAULT_SOURCE_LANG_CODE)
 // USED BY: store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts
 // EXPORTS: IDLE_THRESHOLD_DEFAULT_MINUTES — single source of truth for the idle default;
 //          imported by store/settingsStore.ts and mirrored (as seconds) in interrupt.rs.
@@ -24,6 +25,7 @@ import { LICENSE_TYPES, type LicenseType } from "@/lib/licenseTypes";
 import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 import { MAX_PHASE_DAY } from "@/lib/introduction";
 import type { CardType } from "@/content/types";
+import { isKnownSourceLangCode, DEFAULT_SOURCE_LANG_CODE } from "@/lib/language";
 
 // Shared by all three migrate*Store functions below (Task #494 fix — see debt.md's
 // Task #494 entry and store/entitlementCrossTabSync.ts's corrected doc comment).
@@ -305,7 +307,7 @@ export function migrateEntitlementStore(persisted: unknown, storedVersion: numbe
 
 // ── Settings store ────────────────────────────────────────────────────────────
 
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 /** Single source of truth for the idle-threshold default (minutes).
  *  Mirrored as IDLE_THRESHOLD_DEFAULT_SECS = 900 in src-tauri/src/interrupt.rs. */
 export const IDLE_THRESHOLD_DEFAULT_MINUTES = 15;
@@ -336,6 +338,24 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       unlockEnabled:        typeof d.unlockEnabled === "boolean" ? d.unlockEnabled : true,
       idleEnabled:          typeof d.idleEnabled === "boolean" ? d.idleEnabled : true,
       idleThresholdMinutes: Math.min(120, Math.max(5, rawThreshold)),
+    };
+  },
+  // v2 → v3: adds sourceLang — the learner's interface language for produce/recognize
+  // card prompts (lib/language.ts's getPrompt/getAccepted), deliberately independent of
+  // target-language selection (lib/constants.ts's LANG_PAIR_KEY) — see lib/language.ts's
+  // SOURCE_LANGUAGES doc comment for why the two must never be conflated. Validated against
+  // the current known-good list rather than trusted as an arbitrary string, same defensive
+  // pattern as v1's licenseType/unlockedPacks validation elsewhere in this file — a stored
+  // value from a future build listing a source language this build doesn't recognize (or
+  // simple corruption) falls back to the default rather than reaching getPrompt/getAccepted
+  // with a code neither has real content for.
+  3: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    return {
+      ...d,
+      sourceLang: typeof d.sourceLang === "string" && isKnownSourceLangCode(d.sourceLang)
+        ? d.sourceLang
+        : DEFAULT_SOURCE_LANG_CODE,
     };
   },
 };

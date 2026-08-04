@@ -153,4 +153,30 @@ export function getLanguageConfig(code: string): LanguageConfig {
 // ── Active language (static export — used for metadata only) ──────────────────
 // Components should call getLanguageConfig(targetLang) at runtime instead.
 export const ACTIVE_LANGUAGE: LanguageConfig = ITALIAN;
-export const SOURCE_LANG_CODE = "en";
+
+// ── Source languages (the learner's own interface/native language) ────────────
+// A DIFFERENT axis from target-language selection above: this is which language a
+// "produce"/"recognize" card's prompt/accepted text is shown in via getPrompt/getAccepted's
+// card.prompts/card.translations lookup (content/types.ts), not which language is being
+// learned. Deliberately NOT part of lib/constants.ts's LANG_PAIR_KEY ("en-{target}") or its
+// derived storage keys (store/srsStore.ts partitions SRS data by TARGET language only) —
+// conflating the two would mean a user switching their interface language mid-course
+// appears to lose all SRS progress for the language they're actively learning, since it
+// would compute a different storage key. Persisted independently in settingsStore
+// (SETTINGS_VERSION 3, store/migrations.ts) as a pure UI preference.
+//
+// Every entry here must have real content behind it — content/cards/*.ts's `prompts`/
+// `translations` maps are keyed by these same codes (e.g. "es", from Batch 11's Spanish
+// source-language translation work). Adding a code here with no real translated content
+// is not harmful (getPrompt/getAccepted fall back to the canonical English text per-card),
+// but defeats the point of listing it as a selectable option.
+export const SOURCE_LANGUAGES: readonly { code: string; name: string; flag: string }[] = [
+  { code: "en", name: "English", flag: "🇬🇧" },
+  { code: "es", name: "Español", flag: "🇪🇸" },
+];
+
+export const DEFAULT_SOURCE_LANG_CODE = "en";
+
+export function isKnownSourceLangCode(code: string): boolean {
+  return SOURCE_LANGUAGES.some((s) => s.code === code);
+}

@@ -7,10 +7,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { Card } from "@/content/types";
 import { checkAnswer } from "@/lib/answerCheck";
 import { autoRate, type Grade } from "@/lib/srs";
-import { ACTIVE_LANGUAGE, SOURCE_LANG_CODE, getPrompt, getAccepted } from "@/lib/language";
+import { getPrompt, getAccepted, type LanguageConfig } from "@/lib/language";
+import { useSettingsStore } from "@/store/settingsStore";
 
 interface StudyCardProps {
   card: Card;
+  lang: LanguageConfig;
   cardNumber: number;
   totalCards: number;
   onRate: (grade: Grade) => void;
@@ -20,10 +22,15 @@ type Phase = "input" | "result" | "wrong";
 
 const FLASH_MS = 1400;
 
-export default function StudyCard({ card, cardNumber, totalCards, onRate }: StudyCardProps) {
-  const lang = ACTIVE_LANGUAGE;
-  const accepted = getAccepted(card, SOURCE_LANG_CODE);
-  const prompt = getPrompt(card, SOURCE_LANG_CODE);
+export default function StudyCard({ card, lang, cardNumber, totalCards, onRate }: StudyCardProps) {
+  // Read directly from settingsStore rather than threading through every caller — this is
+  // genuinely global app state (like snoozeMinutes elsewhere in this app), not per-route
+  // data. See lib/language.ts's SOURCE_LANGUAGES doc comment for why this is independent
+  // of `lang` (the prop above) — sourceLang is the learner's interface language, `lang` is
+  // what they're learning.
+  const sourceLang = useSettingsStore((s) => s.sourceLang);
+  const accepted = getAccepted(card, sourceLang);
+  const prompt = getPrompt(card, sourceLang);
 
   const [phase, setPhase] = useState<Phase>("input");
   const [typed, setTyped] = useState("");

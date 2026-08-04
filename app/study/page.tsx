@@ -29,7 +29,7 @@ function StudyInner() {
 
   const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
-  const { units: ALL_UNITS, unitMap: UNIT_MAP, loading: packLoading } = useLangPack();
+  const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
   const allCards = useMemo(
     () => (isGlobal || isInterrupt ? ALL_UNITS.flatMap((u) => u.cards) : UNIT_MAP[unitId]?.cards ?? []),
@@ -144,7 +144,7 @@ function StudyInner() {
         </div>
       </div>
       <div className="flex-1 flex items-center justify-center">
-        <StudyCard key={`${currentCard.id}-${pos}`} card={currentCard} cardNumber={pos + 1} totalCards={queue.length} onRate={(g) => { handleRate(g); const r = introductions[currentCard.id]; if (r && !r.graduated) recordIntroductionResult(currentCard.id, g !== "again", localDateStr()); }} />
+        <StudyCard key={`${currentCard.id}-${pos}`} card={currentCard} lang={lang} cardNumber={pos + 1} totalCards={queue.length} onRate={(g) => { handleRate(g); const r = introductions[currentCard.id]; if (r && !r.graduated) recordIntroductionResult(currentCard.id, g !== "again", localDateStr()); }} />
       </div>
     </div>
   );

@@ -19,12 +19,20 @@
  *   BASELINE (ratchet) gates — the corpus has real, large existing debt for these rules
  *   (e.g. 42% of tier-1 cards lack sentence context; 2,276 cards have no hint). Blocking on
  *   ALL of it today would halt the pipeline over a backlog, not a regression. Instead: every
- *   violation present at scripts/cardQualityBaseline.json's capture time is grandfathered;
- *   any violation NOT in the baseline (i.e. introduced by a card added or edited since) fails
- *   the gate. The baseline must only ever shrink — same ratchet convention as this project's
- *   coverage thresholds (AGENTS.md: "thresholds only ever increase — ratchet up, never down").
+ *   violation present at the baseline's capture time is grandfathered; any violation NOT in
+ *   the baseline (i.e. introduced by a card added or edited since) fails the gate. The
+ *   baseline must only ever shrink — same ratchet convention as this project's coverage
+ *   thresholds (AGENTS.md: "thresholds only ever increase — ratchet up, never down").
  *   Run `npx tsx scripts/lintCardQuality.ts <pack> <baseline> --update-baseline` after a
  *   content pass that fixes baselined debt to shrink the baseline file to match reality.
+ *
+ *   Baselines are per-language, not global (multi-language architecture prep) — each pack's
+ *   own `lang` field also drives which language's article-stripping rule `tier1-no-context`
+ *   uses (see checkTier1Context / lib/language.ts's LanguageConfig.articles), so pointing
+ *   this script at a pack always needs that SAME language's baseline file:
+ *   scripts/cardQualityBaseline.it.json for public/packs/it.json, .es.json for es.json, etc.
+ *   Running a pack against the wrong language's baseline (or Italian's, by habit) will read
+ *   every one of that language's own grandfathered violations as brand-new.
  *
  * Deliberately NOT a rule: "no exclamation marks" (BRAND.md's UI-copy voice rule). Checked
  * during design (2026-07-30): of 58 corpus-wide hits, the overwhelming majority are correct
@@ -36,6 +44,7 @@
  *
  * Usage:
  *   npx tsx scripts/lintCardQuality.ts <pack.json> <baseline.json> [--update-baseline]
+ *   (npm run pack:lint-quality / pack:lint-quality:es wrap the it/es cases)
  *
  * Exit codes:
  *   0 — all hard gates clean, no new baseline violations
@@ -45,6 +54,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { getLanguageConfig } from "@/lib/language";
+import { stripArticle } from "@/lib/answerCheck";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +86,11 @@ function liveCards(unit: LintUnit): LintCard[] {
 }
 
 export interface LintPack {
+  // Drives which LanguageConfig.articles regex checkTier1Context strips before searching
+  // for a tier-1 word in its unit's context corpus (Task: multi-language architecture
+  // prep). Optional, defaults to "it" — every pack produced by exportPack.ts before this
+  // field existed (and any hand-built test fixture that omits it) is Italian.
+  lang?: string;
   units: LintUnit[];
 }
 
@@ -235,7 +251,19 @@ export function checkEmptyHints(pack: LintPack): string[] {
 // articles, split on "/" for gender/number variants) will have some false positives/negatives
 // on unusual phrasing — acceptable for a debt-tracking heuristic, not for a hard gate.
 
-function extractItalianTerms(card: LintCard): string[] {
+// Task (multi-language architecture prep): was extractItalianTerms with a hardcoded Italian
+// article regex duplicating lib/language.ts's LanguageConfig.articles. Now takes the target
+// pack's own articles regex (or null — some languages have no articles at all, e.g. Polish,
+// Greek, per LanguageConfig's own doc comment) and reuses lib/answerCheck.ts's stripArticle,
+// the SAME helper the real runtime answer-checker uses — one regex, one stripping
+// implementation, not a second hand-rolled copy that can silently drift from it. Bonus
+// correctness fix that fell out of the dedup: ITALIAN_ARTICLES already handles the feminine
+// elision "un'" (e.g. "un'amica"), which this script's old standalone regex did not.
+//
+// The parenthetical-annotation stripping and gender-shorthand-suffix expansion below remain
+// Italian-tuned heuristics (see their own comments) — re-validate them against real content
+// before trusting them on a new target language; they are not parameterized by this change.
+function extractTermsForContextSearch(card: LintCard, articles: RegExp | null): string[] {
   const raw = card.type === "recognize" ? card.prompt : card.accepted.join(" / ");
   // Strip parenthetical annotations (e.g. "innamorarsi (di)", "trovarsi (bene/male)") BEFORE
   // splitting on "/" — the parenthetical documents a grammatical detail (governing
@@ -263,19 +291,24 @@ function extractItalianTerms(card: LintCard): string[] {
     }
   }
   return expanded
-    .map((p) =>
-      // Elided articles (l'abbraccio, l'impegno) have NO space after the apostrophe, unlike
-      // the other articles below — matched separately since "il|lo|la..." all require \s+.
-      p.replace(/^(il|lo|la|i|gli|le|un|uno|una)\s+|^l'/, "")
-    )
+    // ITALIAN_ARTICLES/SPANISH_ARTICLES intentionally match a bare article with nothing
+    // after it (e.g. stripping typed answer "uno" down to "") — correct for their real
+    // job in lib/answerCheck.ts's checkAnswer, which OR's the stripped comparison against
+    // an unstripped one so this never loses a match. This function has no such second
+    // comparison, so a tier-1 term that IS an article homograph (the number "uno" is
+    // spelled identically to the masculine indefinite article "uno") would otherwise be
+    // stripped to nothing and silently vanish from the search entirely. Fall back to the
+    // unstripped word whenever stripping would leave nothing to search for.
+    .map((p) => stripArticle(p, articles) || p)
     // >= 2, not >= 3: found during the 2026-07-30 passage backfill — "il tè" strips to "tè"
     // (2 chars), which a >=3 floor silently excluded from every context search regardless of
     // whether real context existed (it did: "Il tè nella tazza è già freddo." already covered
-    // it). A short real Italian word must still be searched for, just like a long one.
+    // it). A short real word must still be searched for, just like a long one.
     .filter((p) => p.length >= 2);
 }
 
 export function checkTier1Context(pack: LintPack): string[] {
+  const articles = getLanguageConfig(pack.lang ?? "it").articles;
   const ids: string[] = [];
   for (const unit of pack.units) {
     const contextCorpus = liveCards(unit)
@@ -284,7 +317,7 @@ export function checkTier1Context(pack: LintPack): string[] {
       .join(" ");
     for (const card of liveCards(unit)) {
       if (card.tier !== 1) continue;
-      const terms = extractItalianTerms(card);
+      const terms = extractTermsForContextSearch(card, articles);
       const found = terms.some((t) => contextCorpus.includes(t));
       if (!found) ids.push(card.id);
     }

@@ -49,8 +49,8 @@ describe("version constants", () => {
   it("ENTITLEMENT_VERSION is 3", () => {
     expect(ENTITLEMENT_VERSION).toBe(3);
   });
-  it("SETTINGS_VERSION is 2", () => {
-    expect(SETTINGS_VERSION).toBe(2);
+  it("SETTINGS_VERSION is 3", () => {
+    expect(SETTINGS_VERSION).toBe(3);
   });
 });
 
@@ -88,7 +88,7 @@ describe("future-version guard — storedVersion > CURRENT_VERSION throws instea
   it("migrateSettingsStore throws when storedVersion is newer than SETTINGS_VERSION", () => {
     const futureData = { intervalHours: "not-a-number-anymore" };
     expect(() => migrateSettingsStore(futureData, SETTINGS_VERSION + 1)).toThrow(
-      /Settings store version 3 is newer than this app build understands/
+      /Settings store version 4 is newer than this app build understands/
     );
   });
 
@@ -893,5 +893,42 @@ describe("migrateSettingsStore()", () => {
         SETTINGS_VERSION - 1
       )
     ).not.toThrow();
+  });
+
+  it("v2 → v3: adds sourceLang defaulting to \"en\" when absent", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15 },
+      2
+    ) as Record<string, unknown>;
+    expect(result.sourceLang).toBe("en");
+  });
+
+  it("v2 → v3: preserves an existing known sourceLang value (\"es\")", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "es" },
+      2
+    ) as Record<string, unknown>;
+    expect(result.sourceLang).toBe("es");
+  });
+
+  it("v2 → v3: falls back to \"en\" for an unrecognized sourceLang value (corrupt/future-build data)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "xx-not-a-real-code" },
+      2
+    ) as Record<string, unknown>;
+    expect(result.sourceLang).toBe("en");
+  });
+
+  it("v2 → v3: falls back to \"en\" when sourceLang is a non-string (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: 42 },
+      2
+    ) as Record<string, unknown>;
+    expect(result.sourceLang).toBe("en");
+  });
+
+  it("v0 → v3 (full chain): sourceLang present with correct default", () => {
+    const result = migrateSettingsStore({}, 0) as Record<string, unknown>;
+    expect(result.sourceLang).toBe("en");
   });
 });

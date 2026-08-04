@@ -44,8 +44,35 @@ vi.mock("next/navigation", () => ({
 }));
 
 // ── @/hooks/useLangPack — return empty (initialQueue controlled via buildQueue) ─
+// `lang` is a distinct-from-default fixture (not lib/language's ITALIAN) specifically so
+// Test 4 below can prove the real useLangPack() lang value reaches StudyCard, rather than
+// StudyCard happening to render correctly via some hardcoded fallback that would mask a
+// regression in the app/study/page.tsx -> StudyCard prop-threading (Task: multi-language
+// architecture prep).
+const mockLangConfig = vi.hoisted(() => ({
+  code: "xx-test",
+  name: "Test Language",
+  nativeName: "Test Language",
+  flag: "🧪",
+  articles: null,
+  diacriticTolerant: false,
+  uiStrings: {
+    appTitle: "plyglt",
+    appSubtitle: "test",
+    correctFeedback: "Correct.",
+    closeFeedback: "Close.",
+    cardLabels: {
+      produce: "Type",
+      recognize: "Translate",
+      conjugate: "Conjugate",
+      fill_blank: "Fill in",
+      passage_cloze: "Read",
+    },
+    curriculumCredit: "Test",
+  },
+}));
 vi.mock("@/hooks/useLangPack", () => ({
-  useLangPack: () => ({ units: [], unitMap: {}, loading: false }),
+  useLangPack: () => ({ units: [], unitMap: {}, lang: mockLangConfig, loading: false }),
 }));
 
 // ── @/lib/queue — buildQueue returns builtQueue.cards ────────────────────────
@@ -103,7 +130,9 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 // ── @/components/StudyCard — test double ─────────────────────────────────────
 vi.mock("@/components/StudyCard", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  default: ({ card }: any) => <div data-testid="study-card">StudyCard:{card.id}</div>,
+  default: ({ card, lang }: any) => (
+    <div data-testid="study-card" data-lang-code={lang?.code}>StudyCard:{card.id}</div>
+  ),
 }));
 
 // ── @/components/StudyDoneScreen — test double ───────────────────────────────
@@ -170,6 +199,20 @@ describe("StudyPage — app/study/page.tsx", () => {
     const studyCard = screen.getByTestId("study-card");
     expect(studyCard).toBeInTheDocument();
     expect(studyCard).toHaveTextContent("StudyCard:test-card-001");
+  });
+
+  // Test 1b: useLangPack()'s `lang` reaches StudyCard as a prop — not a hardcoded
+  // default. B7 target: deleting the `lang={lang}` prop (or the `lang` destructure) on
+  // the <StudyCard> render call in app/study/page.tsx makes this fail, since the mocked
+  // useLangPack() above returns a distinct fixture (code "xx-test") that no real
+  // LanguageConfig constant shares.
+  it("passes useLangPack()'s lang value through to StudyCard, not a hardcoded default", () => {
+    setCards([FAKE_CARD]);
+    sessionCfg.pos = 0;
+
+    render(<StudyPage />);
+
+    expect(screen.getByTestId("study-card")).toHaveAttribute("data-lang-code", "xx-test");
   });
 
   // Test 2: StudyDoneScreen appears when pos >= queue.length (done state)
