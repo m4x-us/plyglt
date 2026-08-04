@@ -18,13 +18,18 @@ jobs:
       - name: Install dependencies
         run: npm ci --frozen-lockfile
 
-      # Task #507 (ESLint 9->10 upgrade, deferred): npm audit --audit-level=high alone would permanently red this gate —
-      # postcss/sharp ship *inside* Next.js's own dependency tree even at its latest version
-      # (unfixable from our side, see STATUS.md Known Issues), and the eslint/minimatch/
-      # brace-expansion cluster needs a major ESLint 9->10 migration, deferred as its own task.
-      # This step allows ONLY the exact documented baseline through — any NEW high-severity
-      # advisory outside this list still fails the build. Keep this list in sync with
-      # STATUS.md's Known Issues section; if one changes, update the other in the same commit.
+      # npm audit --audit-level=high alone would permanently red this gate — postcss/sharp
+      # ship *inside* Next.js's own dependency tree even at its latest version (unfixable
+      # from our side, see STATUS.md Known Issues). This step allows ONLY the exact
+      # documented baseline through — any NEW high-severity advisory outside this list still
+      # fails the build. Keep this list in sync with STATUS.md's Known Issues section; if one
+      # changes, update the other in the same commit.
+      #
+      # 2026-08-04: shrunk from a wider eslint/minimatch/brace-expansion/eslint-config-next
+      # cluster — those are no longer flagged (eslint's own dependency chain resolved
+      # naturally over time; the one still-live brace-expansion finding was fixed with a
+      # narrow package.json `overrides` pin instead of the ESLint 9->10 major upgrade that
+      # was originally thought to be the only fix — see STATUS.md and Task #507).
       - name: Audit
         run: |
           npm audit --audit-level=high --json > audit.json || true
@@ -32,11 +37,7 @@ jobs:
             const fs = require("fs");
             const data = JSON.parse(fs.readFileSync("audit.json", "utf8"));
             const acceptedBaseline = new Set([
-              "next", "postcss", "sharp",
-              "eslint", "eslint-config-next", "eslint-plugin-import",
-              "eslint-plugin-jsx-a11y", "eslint-plugin-react",
-              "@eslint/config-array", "@eslint/eslintrc",
-              "minimatch", "brace-expansion"
+              "next", "postcss", "sharp"
             ]);
             const vulns = data.vulnerabilities || {};
             // npm audit nests EVERY package touching a vulnerable chain into this object,
