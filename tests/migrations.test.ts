@@ -54,6 +54,63 @@ describe("version constants", () => {
   });
 });
 
+// ── Future-version guard (Task #494) ───────────────────────────────────────────
+// Root-cause regression tests for debt.md's Task #494: each migrate*Store's
+// `while (v < CURRENT_VERSION)` loop only walks storedVersion UP, so a storedVersion
+// already >= CURRENT_VERSION previously skipped the loop entirely and returned
+// materially newer/incompatible-shaped persisted data completely unmigrated and
+// unvalidated. This block proves that a genuinely NEWER-than-understood version now
+// throws (refusing to apply it) rather than silently passing it through — and that
+// the ALREADY-current case (storedVersion === CURRENT_VERSION, the normal steady
+// state after every app boot) is untouched and still a true no-op.
+describe("future-version guard — storedVersion > CURRENT_VERSION throws instead of silently passing through", () => {
+  it("migrateSrsStore throws when storedVersion is newer than SRS_VERSION", () => {
+    // B7 target: deleting the assertNotFutureVersion() call at the top of
+    // migrateSrsStore makes this test fail — the function would instead return the
+    // future-shaped garbage object completely unmigrated.
+    const futureData = { cards: {}, someUnknownFutureField: "garbage-from-a-newer-build" };
+    expect(() => migrateSrsStore(futureData, SRS_VERSION + 1)).toThrow(
+      /SRS store version 4 is newer than this app build understands/
+    );
+  });
+
+  it("migrateEntitlementStore throws when storedVersion is newer than ENTITLEMENT_VERSION", () => {
+    // Empirically confirmed live before this fix: migrateEntitlementStore(data, 4) with
+    // ENTITLEMENT_VERSION=3 returned `data` completely unchanged (result === data,
+    // no validation at all) — the exact "silently accepts unmigrated data with no
+    // throw" gap named in debt.md's Task #494.
+    const futureData = { licenseType: "subscription", purchasedAddOns: "not-an-array-anymore" };
+    expect(() => migrateEntitlementStore(futureData, ENTITLEMENT_VERSION + 1)).toThrow(
+      /Entitlement store version 4 is newer than this app build understands/
+    );
+  });
+
+  it("migrateSettingsStore throws when storedVersion is newer than SETTINGS_VERSION", () => {
+    const futureData = { intervalHours: "not-a-number-anymore" };
+    expect(() => migrateSettingsStore(futureData, SETTINGS_VERSION + 1)).toThrow(
+      /Settings store version 3 is newer than this app build understands/
+    );
+  });
+
+  it("migrateSrsStore does NOT throw and remains a true no-op when storedVersion === SRS_VERSION", () => {
+    const state = { cards: { "a1-01": { reps: 7 } }, streak: 2 };
+    expect(() => migrateSrsStore(state, SRS_VERSION)).not.toThrow();
+    expect(migrateSrsStore(state, SRS_VERSION)).toBe(state);
+  });
+
+  it("migrateEntitlementStore does NOT throw and remains a true no-op when storedVersion === ENTITLEMENT_VERSION", () => {
+    const state = { licenseType: "subscription", purchasedAddOns: ["it-medical"] };
+    expect(() => migrateEntitlementStore(state, ENTITLEMENT_VERSION)).not.toThrow();
+    expect(migrateEntitlementStore(state, ENTITLEMENT_VERSION)).toBe(state);
+  });
+
+  it("migrateSettingsStore does NOT throw and remains a true no-op when storedVersion === SETTINGS_VERSION", () => {
+    const state = { intervalHours: 3 };
+    expect(() => migrateSettingsStore(state, SETTINGS_VERSION)).not.toThrow();
+    expect(migrateSettingsStore(state, SETTINGS_VERSION)).toBe(state);
+  });
+});
+
 // ── migrateSrsStore ───────────────────────────────────────────────────────────
 
 describe("migrateSrsStore()", () => {

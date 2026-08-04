@@ -327,21 +327,39 @@ export function loadSpecialtyPack(
   // other's units when it calls memCache.merge() with a stale base. (Task #264)
   const prior: Promise<unknown> = inFlight.get(spec.baseLang) ?? Promise.resolve();
 
-  const promise: Promise<LoadPackResult> = prior.then(async () => {
-    // Re-check after the prior load completes: it may have already merged this code.
+  // Task #494 audit fix: `prior` is an unrelated load's promise (possibly a different
+  // specialty code sharing this base lang) — its own success or failure carries no
+  // information about THIS attempt. A single-argument .then(onFulfilled) propagates a
+  // rejected `prior` straight through, silently aborting this attempt without even
+  // calling _doLoad — the exact class of bug lib/packLoader.ts:164-167 already fixed for
+  // base-pack in-flight cleanup (see that file's own comment on why single-arg .then/
+  // .finally is unsafe here). attemptLoad is reused for BOTH the fulfilled and rejected
+  // branches of `prior` since only prior's SETTLEMENT (not its outcome) is needed for
+  // the cross-code serialization Task #264 introduced this chain for.
+  const attemptLoad = async (): Promise<LoadPackResult> => {
+    // Re-check after the prior load settles: it may have already merged this code.
     if (isAddOnLoaded(lang)) {
       return { ok: true, pack: memCache.get(spec.baseLang)! } as LoadPackResult;
     }
     return _doLoad(lang, spec.baseLang, memCache, manifest, entryGeneration);
-  });
+  };
+  const promise: Promise<LoadPackResult> = prior.then(attemptLoad, attemptLoad);
 
   inFlight.set(lang, promise);
   inFlight.set(spec.baseLang, promise);
 
-  void promise.finally(() => {
+  // Task #494 audit fix: was `void promise.finally(() => {...})`. lib/packLoader.ts:159-163's
+  // own comment already names exactly why that's unsafe here — `.finally()`'s returned
+  // promise inherits `promise`'s rejection and re-throws it; void-ing that new promise
+  // (rather than the original) still leaves an unhandled rejection with no catch anywhere.
+  // Confirmed empirically: this test file's own #494 regression test threw a real
+  // "Unhandled Rejection" (surfaced by Vitest) before this fix, using the exact same
+  // `.then(cleanup, cleanup)` pattern packLoader.ts already uses for the identical reason.
+  const cleanup = () => {
     if (inFlight.get(lang) === promise) inFlight.delete(lang);
     if (inFlight.get(spec.baseLang) === promise) inFlight.delete(spec.baseLang);
-  });
+  };
+  void promise.then(cleanup, cleanup);
 
   return promise;
 }

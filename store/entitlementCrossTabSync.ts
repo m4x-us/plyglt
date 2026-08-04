@@ -110,18 +110,38 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * fields, not to advertise an active multi-caller plan — if a second caller is ever added,
  * update the header's USED BY line first, and this justification can then cite it honestly.
  *
- * Accepted trade-off (Task #488): unlike the initial-mount hydration path, which has an
- * explicit failsafe (lib/storage.ts's useIsHydrated, HYDRATION_FAILSAFE_MS timeout, Tasks
- * #406/#435), this direct 'storage'-event path has no equivalent timeout or surfaced log —
- * a cross-tab rehydrate that silently fails via a migrate() throw (e.g. triggered by
- * stale/corrupted data written by another tab) leaves this tab's in-memory state stale with
- * no signal anywhere in the app. Fixing this at the root (making migrate*Store itself
- * catch-and-log before rethrowing, in store/migrations.ts) is out of this module's scope —
- * tracked as debt in .autocode/debt.md (Task #488) rather than left as an undocumented gap.
+ * Accepted trade-off (Task #488, corrected by Task #494): unlike the initial-mount
+ * hydration path, which has an explicit failsafe (lib/storage.ts's useIsHydrated,
+ * HYDRATION_FAILSAFE_MS timeout, Tasks #406/#435), this direct 'storage'-event path has no
+ * equivalent timeout or surfaced log — a cross-tab rehydrate that silently fails via a
+ * migrate() throw (e.g. triggered by stale/corrupted data written by another tab) leaves
+ * this tab's in-memory state stale with no signal anywhere in the app. Fixing the
+ * OBSERVABILITY of that throw (making migrate*Store itself catch-and-log before
+ * rethrowing, in store/migrations.ts) is out of this module's scope — tracked as debt in
+ * .autocode/debt.md (Task #488) rather than left as an undocumented gap.
+ *
+ * This paragraph previously claimed a migrate() throw here "requires either a corrupted
+ * stored version or a newer app version writing from another tab, both rare" — that claim
+ * was FALSE for the second case until Task #494's fix (verified false via live script
+ * execution: `migrateEntitlementStore(futureShapedData, ENTITLEMENT_VERSION + 1)` returned
+ * the future-shaped data completely unchanged, `result === futureShapedData`, no throw, no
+ * validation at all). The root cause: every migrate*Store's `while (v < CURRENT_VERSION)`
+ * loop only walks storedVersion UP, so storedVersion already >= CURRENT_VERSION skipped the
+ * loop body entirely and returned unknown-shaped newer data as if it were trusted current-
+ * shape data — silently corrupting persisted state via cross-tab merge, not just failing to
+ * update it. store/migrations.ts now has an explicit `assertNotFutureVersion()` guard (all
+ * three stores, not just entitlement — the identical loop shape existed in migrateSrsStore
+ * and migrateSettingsStore too) that throws before the loop runs when storedVersion is
+ * genuinely newer than this build understands. The claim in this paragraph is accurate now.
+ *
  * Given the client-only, honour-system entitlement model (decision 2026-06-24) and that a
  * migrate() throw here requires either a corrupted stored version or a newer app version
- * writing from another tab, both rare, this is accepted with the same rigor as the
- * getItem-throw case above, not silently assumed away.
+ * writing from another tab, both rare, the remaining OBSERVABILITY gap (the throw is real
+ * now, but zustand's own internal .catch swallows it with no callback registered — see the
+ * "never actually return a rejected Promise" note above) is accepted with the same rigor as
+ * the getItem-throw case, not silently assumed away. What changed with Task #494 is that the
+ * corrupted/incompatible data can no longer reach `set()` and poison this tab's live state —
+ * only the surfaced-log half of the original gap remains open.
  *
  * tests/entitlementCrossTabSync.test.ts's async-reject tests (the Task #304/#347/#474 describe
  * blocks) exercise this module's OWN contract (correct behavior given any Promise-returning

@@ -11,6 +11,7 @@ import type { Manifest, Pack } from "@/lib/packLoader";
 import { loadPack, getLoadedAddOns, evictPack, clearCacheForTesting, fetchManifest, seedMemCache } from "@/lib/packLoader";
 import type { SpecialtyPack } from "@/lib/langRegistry";
 import * as packTypesLib from "@/lib/packTypes";
+import * as specialtyPackMergeLib from "@/lib/specialtyPackMerge";
 import { memCache } from "@/lib/packCache";
 import { loadBasePackFromStorageOrNetwork, bumpEvictionGeneration } from "@/lib/basePackLoader";
 
@@ -1725,6 +1726,46 @@ describe("specialty pack — cross-code concurrent load safety (#264)", () => {
       const expected = fakePack().cardCount + fakeAddOnPack().cardCount + fakeAddOnBusinessPack().cardCount;
       expect(merged.pack.cardCount).toBe(expected);
     }
+  });
+
+  it("Task #494 audit fix: a rejected first-code merge does not abort a second, unrelated code's independent attempt", async () => {
+    // B7 target: reverting lib/specialtyPackLoader.ts's `prior.then(attemptLoad, attemptLoad)`
+    // back to the original single-argument `prior.then(async () => {...})` makes this test
+    // fail — a rejected `prior` (it-medical's own promise, which cross-code serialization
+    // registers under the shared baseLang "it" key) would propagate straight through
+    // it-business's chained promise instead of it-business getting its own independent
+    // attempt via _doLoad. mergeSpecialtyPackFromJson is mocked to reject ONCE (simulating
+    // any unexpected internal failure — everything else in this module's own call chain is
+    // already guarded against throwing) so the test forces a REAL promise rejection for
+    // it-medical without depending on a specific, hard-to-trigger production failure mode.
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string) => {
+      if ((url as string).includes("it-medical")) return { ok: true, text: async () => ADD_ON_PACK_JSON };
+      if ((url as string).includes("it-business")) return { ok: true, text: async () => ADD_ON_BUSINESS_PACK_JSON };
+      return { ok: true, text: async () => PACK_JSON };
+    }));
+
+    await loadPack("it", fakeTwoAddOnManifest());
+
+    const mergeSpy = vi.spyOn(specialtyPackMergeLib, "mergeSpecialtyPackFromJson")
+      .mockRejectedValueOnce(new Error("simulated internal failure for it-medical"));
+
+    const [medicalResult, businessResult] = await Promise.allSettled([
+      loadPack("it-medical", fakeTwoAddOnManifest(), { purchasedAddOns: ["it-medical", "it-business"] }),
+      loadPack("it-business", fakeTwoAddOnManifest(), { purchasedAddOns: ["it-medical", "it-business"] }),
+    ]);
+
+    // Confirms the mock actually fired — it-medical's own attempt genuinely failed.
+    expect(medicalResult.status).toBe("rejected");
+
+    // it-business must still have gotten its own independent attempt via _doLoad, not been
+    // silently aborted because it happened to be chained behind a failed sibling.
+    expect(businessResult.status).toBe("fulfilled");
+    if (businessResult.status === "fulfilled") {
+      expect(businessResult.value.ok).toBe(true);
+    }
+    expect(getLoadedAddOns()).toContain("it-business");
+    expect(getLoadedAddOns()).not.toContain("it-medical");
+    mergeSpy.mockRestore();
   });
 });
 

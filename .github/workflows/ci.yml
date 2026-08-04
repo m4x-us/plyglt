@@ -70,6 +70,18 @@ jobs:
       - name: Tests
         run: npm test -- --coverage --reporter=verbose
 
+      # Task #494 audit (Batch 13 close-out): Task #153 built this E2E suite specifically so
+      # a component-to-hook-to-store-to-renderer regression is caught in CI instead of staying
+      # invisible until a user reports it — but nothing ever invoked it here, so that goal was
+      # unmet for over a month. Chromium-only (this suite is a single smoke test proving the
+      # real user path works at all, not a cross-browser compatibility suite — keep it that way
+      # unless a real cross-browser bug motivates adding more).
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E smoke test
+        run: npm run test:e2e
+
       # Task #466: mechanical enforcement of AGENTS.md's Verification Gate banned-assertion
       # grep — root-cause fix for Task #455 (the gate had gone red with nothing checking it,
       # relying on a human/agent to run it by hand). Keep this command byte-for-byte

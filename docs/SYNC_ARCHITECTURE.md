@@ -1,8 +1,9 @@
 # Sync Backend Architecture — plyglt (Task #168)
 
-Status: **draft recommendation for Max's review** — not yet approved. Nothing in
-Batch 16 (Task #169+) starts until this is signed off, per the task's own
-`**Blocked by:** Nothing (but requires owner decision on platform and auth)`.
+Status: **APPROVED by Max, 2026-08-03** — Supabase (Postgres) + FCM-for-push-only,
+signed off as recommended with no changes. Task #169 (real implementation) is
+unblocked on the decision side; see the batch note in `.autocode/tasks.md`
+Batch 16 for when to actually start provisioning infrastructure.
 
 This document exists because the platform choice constrains everything else in
 Batches 16–17, and a wrong choice is expensive to reverse once real user data
@@ -204,5 +205,7 @@ authoritative for license state (a real shift from today's "client-only,
 honor-system" design, CLAUDE.md §5). Not needed for Batch 16 to start; worth
 an explicit decision before Batch 17 ships if it comes up.
 
-**Sign-off needed on:** Supabase (Postgres) + FCM-for-push-only as the
-platform choice, before Task #169 (sync implementation) begins.
+**Sign-off status:** Approved by Max 2026-08-03 — Supabase (Postgres) +
+FCM-for-push-only, as recommended, no changes requested. The entitlement
+server-authority question above remains open and deferred, not decided by
+this sign-off.

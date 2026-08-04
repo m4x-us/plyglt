@@ -25,6 +25,24 @@ import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 import { MAX_PHASE_DAY } from "@/lib/introduction";
 import type { CardType } from "@/content/types";
 
+// Shared by all three migrate*Store functions below (Task #494 fix — see debt.md's
+// Task #494 entry and store/entitlementCrossTabSync.ts's corrected doc comment).
+// Each function's `while (v < CURRENT_VERSION)` loop only walks storedVersion UP —
+// when storedVersion is already >= CURRENT_VERSION the loop body never runs, so
+// storedVersion > CURRENT_VERSION (data written by a build newer than this one, e.g.
+// a stale/downgraded app instance, or a newer tab during a rollout) previously fell
+// through and returned that data completely unmigrated and unvalidated, straight into
+// the live store. This is exactly the "silent fallback corrupts user data" failure
+// this file's own header rule already forbids for the missing-migration-step case
+// (line 11) — it applies equally to a version that's too NEW, not just too old.
+function assertNotFutureVersion(storeName: string, storedVersion: number, currentVersion: number): void {
+  if (storedVersion > currentVersion) {
+    throw new Error(
+      `${storeName} store version ${storedVersion} is newer than this app build understands (current ${currentVersion}) — refusing to apply unmigrated data`
+    );
+  }
+}
+
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
 export const SRS_VERSION = 3;
@@ -183,6 +201,7 @@ const SRS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
 };
 
 export function migrateSrsStore(persisted: unknown, storedVersion: number): unknown {
+  assertNotFutureVersion("SRS", storedVersion, SRS_VERSION);
   let v = storedVersion;
   let data = persisted;
   while (v < SRS_VERSION) {
@@ -272,6 +291,7 @@ const ENTITLEMENT_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
 };
 
 export function migrateEntitlementStore(persisted: unknown, storedVersion: number): unknown {
+  assertNotFutureVersion("Entitlement", storedVersion, ENTITLEMENT_VERSION);
   let v = storedVersion;
   let data = persisted;
   while (v < ENTITLEMENT_VERSION) {
@@ -321,6 +341,7 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
 };
 
 export function migrateSettingsStore(persisted: unknown, storedVersion: number): unknown {
+  assertNotFutureVersion("Settings", storedVersion, SETTINGS_VERSION);
   let v = storedVersion;
   let data = persisted;
   while (v < SETTINGS_VERSION) {
