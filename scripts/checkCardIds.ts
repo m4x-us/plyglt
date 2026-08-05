@@ -25,7 +25,8 @@ interface CardLike { id: string }
 interface UnitLike { id: string; cards: CardLike[] }
 interface PackLike { lang?: string; units: UnitLike[] }
 
-// content/index.ts:3-5 documents the convention every language after Italian must use:
+// content/index.ts's top-of-file NOTE comment documents the convention every language after
+// Italian must use:
 // "{lang}-{level}u{unit}-t{tier}-{seq}" (e.g. "es-a1u01-t1-001"). Italian's own IDs are the
 // legacy unnamespaced format ("u01-t1-001") and are explicitly frozen — migrating them
 // would require a store migration risking corruption of live user progress, so Italian is
@@ -112,7 +113,7 @@ if (isMainModule) {
 
   const prefixViolations = findPrefixViolations(currentLang, added);
   if (prefixViolations.length > 0) {
-    console.error(`❌ ${prefixViolations.length} newly-added card ID(s) don't follow the "${currentLang}-..." namespaced convention (content/index.ts:3-5):`);
+    console.error(`❌ ${prefixViolations.length} newly-added card ID(s) don't follow the "${currentLang}-..." namespaced convention (see content/index.ts's top-of-file NOTE comment):`);
     for (const id of prefixViolations) {
       console.error(`   - ${id}  (expected to start with "${currentLang}-")`);
     }

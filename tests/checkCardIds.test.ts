@@ -25,7 +25,7 @@ describe("findPrefixViolations", () => {
 
   it("exempts Italian entirely, even for a legacy-format ID", () => {
     // Italian's IDs are deliberately frozen in the legacy unnamespaced format
-    // (content/index.ts:3-5) — migrating them risks corrupting live user FSRS progress.
+    // (content/index.ts's top-of-file NOTE comment) — migrating them risks corrupting live user FSRS progress.
     expect(findPrefixViolations("it", ["u01-t1-001"])).toEqual([]);
   });
 

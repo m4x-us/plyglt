@@ -9,6 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 (full history) is required by the "Check card ID stability" step
+          # below, which diffs the current pack against its state on main via `git show` —
+          # the default shallow (depth-1) checkout would not have that commit available.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -100,3 +105,32 @@ jobs:
 
       - name: Validate all packs
         run: npm run pack:validate:all
+
+      # Task (audit fix, F7): scripts/checkCardIds.ts and scripts/lintCardQuality.ts both
+      # self-describe as "CI guard" in their own header comments, but neither was actually
+      # invoked here — the enforcement existed in code but not in the pipeline it claimed to
+      # be part of. Card IDs are permanent once published (user FSRS progress is keyed by
+      # ID) — compares each committed pack against its state on main to catch a removed or
+      # non-namespaced ID before it merges, not just when a human remembers to run it by hand.
+      - name: Check card ID stability (no removed/non-namespaced IDs vs main)
+        run: |
+          # actions/checkout's fetch-depth: 0 (above) already fetched full history including
+          # origin/main — no additional fetch needed here.
+          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          if [ -z "$BASE" ] || [ "$BASE" = "$(git rev-parse HEAD)" ]; then
+            echo "No prior main commit to compare against (first commit on main, or nothing changed) — skipping."
+          else
+            for lang in it es; do
+              if git show "$BASE:public/packs/$lang.json" > "/tmp/baseline-$lang.json" 2>/dev/null; then
+                npm run pack:check-ids -- "/tmp/baseline-$lang.json" "public/packs/$lang.json"
+              else
+                echo "public/packs/$lang.json did not exist at $BASE — nothing to compare (new file), skipping."
+              fi
+            done
+          fi
+
+      - name: Card quality gate (Italian)
+        run: npm run pack:lint-quality
+
+      - name: Card quality gate (Spanish)
+        run: npm run pack:lint-quality:es

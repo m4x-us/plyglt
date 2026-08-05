@@ -152,3 +152,63 @@ describe("useSettingsStore — setters are independent", () => {
     expect(s.intervalHours).toBe(3);
   });
 });
+
+// Task (audit fix, F8): setSourceLang had no direct test — only indirect coverage via
+// app/page.test.tsx's UI click test, which only ever passes valid codes from
+// SOURCE_LANGUAGES. The reject/fallback branch was completely unexercised.
+describe("useSettingsStore — setSourceLang", () => {
+  it("accepts a known source language code", () => {
+    useSettingsStore.getState().setSourceLang("es");
+    expect(useSettingsStore.getState().sourceLang).toBe("es");
+  });
+
+  it("falls back to the default for an unrecognized code", () => {
+    useSettingsStore.getState().setSourceLang("xx-not-a-real-code");
+    expect(useSettingsStore.getState().sourceLang).toBe("en");
+  });
+
+  it("falls back to the default for a corrupted/hostile string ('__proto__')", () => {
+    // B7 target: removing isKnownSourceLangCode's guard (accepting any string) makes this
+    // fail — sourceLang would become "__proto__" instead of falling back to "en".
+    useSettingsStore.getState().setSourceLang("__proto__");
+    expect(useSettingsStore.getState().sourceLang).toBe("en");
+  });
+});
+
+// Task (audit fix, F3): zustand's persist middleware only calls `migrate` when the
+// persisted version differs from the current one — a same-version hydration bypasses
+// migration entirely, so `merge` is the only chokepoint that can catch a corrupted
+// sourceLang on every load, not just the first one after a version bump.
+describe("useSettingsStore — persist merge revalidates sourceLang on every hydration", () => {
+  const merge = () => {
+    const fn = useSettingsStore.persist.getOptions().merge;
+    if (!fn) throw new Error("settingsStore's persist config has no merge function configured");
+    return fn;
+  };
+
+  it("preserves a valid persisted sourceLang", () => {
+    const result = merge()({ sourceLang: "es" }, useSettingsStore.getState()) as { sourceLang: string };
+    expect(result.sourceLang).toBe("es");
+  });
+
+  it("falls back to the default for a corrupted persisted sourceLang, even at the current storage version (same-version hydration, no migrate() call)", () => {
+    // B7 target: removing the merge function's own validation (reverting to zustand's
+    // default shallow merge) makes this fail — result.sourceLang would be "__proto__".
+    const result = merge()({ sourceLang: "__proto__" }, useSettingsStore.getState()) as { sourceLang: string };
+    expect(result.sourceLang).toBe("en");
+  });
+
+  it("falls back to the default for a non-string persisted sourceLang", () => {
+    const result = merge()({ sourceLang: 42 }, useSettingsStore.getState()) as { sourceLang: string };
+    expect(result.sourceLang).toBe("en");
+  });
+
+  it("does not disturb other persisted fields", () => {
+    const result = merge()(
+      { sourceLang: "es", dndStart: "23:00", idleThresholdMinutes: 45 },
+      useSettingsStore.getState()
+    ) as { sourceLang: string; dndStart: string; idleThresholdMinutes: number };
+    expect(result.dndStart).toBe("23:00");
+    expect(result.idleThresholdMinutes).toBe(45);
+  });
+});

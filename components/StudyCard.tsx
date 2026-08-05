@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { Card } from "@/content/types";
 import { checkAnswer } from "@/lib/answerCheck";
 import { autoRate, type Grade } from "@/lib/srs";
-import { getPrompt, getAccepted, type LanguageConfig } from "@/lib/language";
+import { getPrompt, getAccepted, getSourceLanguageArticles, getRecognizeLabel, type LanguageConfig } from "@/lib/language";
 import { useSettingsStore } from "@/store/settingsStore";
 
 interface StudyCardProps {
@@ -31,6 +31,10 @@ export default function StudyCard({ card, lang, cardNumber, totalCards, onRate }
   const sourceLang = useSettingsStore((s) => s.sourceLang);
   const accepted = getAccepted(card, sourceLang);
   const prompt = getPrompt(card, sourceLang);
+  // "recognize" cards grade against source-language text (see getAccepted above) — article
+  // stripping must use the SOURCE language's rules, not the target language's. Every other
+  // card type grades target-language text and keeps using `lang.articles` as before.
+  const answerArticles = card.type === "recognize" ? getSourceLanguageArticles(sourceLang) : lang.articles;
 
   const [phase, setPhase] = useState<Phase>("input");
   const [typed, setTyped] = useState("");
@@ -72,7 +76,7 @@ export default function StudyCard({ card, lang, cardNumber, totalCards, onRate }
     const matchResult = checkAnswer(
       typed,
       accepted,
-      { articles: lang.articles, diacriticTolerant: lang.diacriticTolerant }
+      { articles: answerArticles, diacriticTolerant: lang.diacriticTolerant }
     );
 
     if (matchResult === "wrong") {
@@ -131,7 +135,7 @@ export default function StudyCard({ card, lang, cardNumber, totalCards, onRate }
       >
         {/* Card type label */}
         <div className="text-xs text-gray-500 uppercase tracking-widest mb-4">
-          {lang.uiStrings.cardLabels[card.type]}
+          {card.type === "recognize" ? getRecognizeLabel(sourceLang) : lang.uiStrings.cardLabels[card.type]}
           {card.type === "conjugate" && (
             <span className="ml-2 text-yellow-600 normal-case tracking-normal">
               — present tense

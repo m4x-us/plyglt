@@ -84,6 +84,23 @@ export const useSettingsStore = create<SettingsState>()(
       name: "settings-v1",
       version: SETTINGS_VERSION,
       migrate: migrateSettingsStore,
+      // Task (audit fix, F3): zustand's persist middleware only calls `migrate` when the
+      // persisted `_version` differs from `version` above — once storage is already at
+      // SETTINGS_VERSION 3 (the common case for every hydration after the first one), the
+      // v2->v3 migration's isKnownSourceLangCode validation never runs again, and the
+      // default `merge` (shallow {...currentState, ...persistedState}) would pass a
+      // corrupted/hand-edited sourceLang value (e.g. "__proto__") straight through to
+      // getPrompt/getAccepted's dynamic property lookup. Re-validate on every hydration,
+      // migrated or not — cheap, and closes the gap the migration alone cannot.
+      merge: (persistedState, currentState) => {
+        const merged = { ...currentState, ...(persistedState as Partial<SettingsState>) };
+        return {
+          ...merged,
+          sourceLang: typeof merged.sourceLang === "string" && isKnownSourceLangCode(merged.sourceLang)
+            ? merged.sourceLang
+            : DEFAULT_SOURCE_LANG_CODE,
+        };
+      },
       storage: createJSONStorage(() => createPlatformStorage("settings-v1")),
     }
   )

@@ -10,7 +10,7 @@ import a1Unit01Scaffold from "./cards/a1-unit-01-scaffold";
 // Spanish A1-B2 curriculum is a separate, future content-authoring project following
 // CURRICULUM.md's process, not part of this architecture-prep work.
 //
-// Card ID convention (content/index.ts:3-5): "{lang}-{level}u{unit}-t{tier}-{seq}",
+// Card ID convention (content/index.ts's top-of-file NOTE comment): "{lang}-{level}u{unit}-t{tier}-{seq}",
 // e.g. "es-a1u01-t1-001" — every language after Italian uses this namespaced format.
 export const ALL_UNITS: Unit[] = [
   a1Unit01Scaffold,

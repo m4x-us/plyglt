@@ -14,8 +14,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { writeFileSync, readFileSync, mkdirSync, rmdirSync, existsSync, renameSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, existsSync, renameSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { withManifestLock } from "./manifestLock";
 
 // ── Resolve project root ─────────────────────────────────────────────────────
 
@@ -39,52 +40,12 @@ function writeFileAtomic(path: string, data: string): void {
   renameSync(tmpPath, path);
 }
 
-// writeFileAtomic (above) fixes torn/partial reads — it does NOT fix the separate
-// read-modify-write race: manifest.json holds every language's entry, so two
-// exportPack.ts processes running concurrently for DIFFERENT langCodes (the exact
-// "multi-agent session" scenario the comment above already names) can both read the
-// manifest, both compute an update, and both write — whichever finishes writing last wins,
-// silently discarding the other's update. Both individual reads and writes succeed and are
-// individually well-formed, so there is no parse error to catch this time. This script has
-// no other async work in its read-modify-write path (no await anywhere in this file — see
-// its own JS single-threaded synchronous execution), so within ONE process there genuinely
-// is no interleaving window at all; the race is purely across separate OS processes, which
-// nothing inside one process's own control flow can close. Closing it needs real
-// cross-process mutual exclusion — a lockfile, not a smaller in-process reordering.
-//
-// mkdirSync throwing EEXIST when the directory already exists is atomic at the OS level
-// (unlike a "check if file exists, then create it" pattern, which has its own race), making
-// a lock directory a standard, dependency-free mutex primitive for exactly this situation.
-function withManifestLock<T>(manifestPath: string, fn: () => T): T {
-  const lockPath = `${manifestPath}.lock`;
-  const maxAttempts = 50; // 50 * 100ms = 5s max wait before giving up
-  let attempt = 0;
-  for (;;) {
-    try {
-      mkdirSync(lockPath);
-      break;
-    } catch (err) {
-      const isBusy = (err as NodeJS.ErrnoException).code === "EEXIST";
-      attempt++;
-      if (!isBusy || attempt >= maxAttempts) {
-        throw new Error(
-          `Could not acquire manifest lock at ${lockPath} after ${attempt} attempt(s) — ` +
-          `if no other exportPack.ts run is actually in progress, delete this directory manually: ${String(err)}`
-        );
-      }
-      // Synchronous sleep — deliberate: this is a CLI build script (not app runtime code),
-      // and the whole point is to block THIS process until the lock is free, not to yield
-      // to other work. Atomics.wait on a throwaway buffer is the standard synchronous-sleep
-      // technique in Node scripts with no async equivalent available in a sync call chain.
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-    }
-  }
-  try {
-    return fn();
-  } finally {
-    rmdirSync(lockPath);
-  }
-}
+// withManifestLock (cross-process mutex guarding the manifest.json read-modify-write below)
+// now lives in scripts/manifestLock.ts — extracted so it's directly importable for tests
+// (this file's own top-level body has real side effects on every import/require: it writes
+// pack files and calls process.exit, so it can't itself be safely required by a test the way
+// checkCardIds.ts/lintCardQuality.ts guard their CLI logic behind isMainModule). See that
+// file's header comment for the full race-condition rationale.
 
 // ── Import content ───────────────────────────────────────────────────────────
 

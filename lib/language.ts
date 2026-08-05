@@ -180,3 +180,32 @@ export const DEFAULT_SOURCE_LANG_CODE = "en";
 export function isKnownSourceLangCode(code: string): boolean {
   return SOURCE_LANGUAGES.some((s) => s.code === code);
 }
+
+// ── Article-stripping regex per SOURCE language (Task: audit fix, multi-language prep) ────
+// "recognize" cards are graded against text in the learner's SOURCE language (see getAccepted
+// above), not the target language — but checkAnswer was being called with the TARGET
+// language's `articles` regex for every card type, including recognize. This meant a Spanish
+// source-language learner typing "libro" for the accepted answer "el libro" was graded
+// against ITALIAN_ARTICLES (which doesn't recognize "el"), producing "wrong" for what should
+// be "correct" — the identical article-omission leniency Italian/Spanish target learners
+// already get was silently denied to the recognize-card half of source-language selection.
+// null = no stripping (English has no equivalent elision pattern this app models yet).
+const SOURCE_LANG_ARTICLES: Record<string, RegExp | null> = {
+  en: null,
+  es: SPANISH_ARTICLES,
+};
+
+export function getSourceLanguageArticles(sourceLangCode: string): RegExp | null {
+  return SOURCE_LANG_ARTICLES[sourceLangCode] ?? null;
+}
+
+// "Translate to {sourceLanguage}" is the correct instruction for a recognize card regardless
+// of target language — unlike the other three card labels (produce/conjugate/fill_blank),
+// which are properties of the TARGET language, this one depends on sourceLang and cannot live
+// in a static per-target LanguageConfig.uiStrings.cardLabels entry the way it did when English
+// was the only possible source. Falls back to "English" for an unrecognized code, matching
+// DEFAULT_SOURCE_LANG_CODE.
+export function getRecognizeLabel(sourceLangCode: string): string {
+  const name = SOURCE_LANGUAGES.find((s) => s.code === sourceLangCode)?.name ?? "English";
+  return `Translate to ${name}`;
+}

@@ -931,4 +931,40 @@ describe("migrateSettingsStore()", () => {
     const result = migrateSettingsStore({}, 0) as Record<string, unknown>;
     expect(result.sourceLang).toBe("en");
   });
+
+  // Task (audit fix, F4/Rule 18): the 5 tests above only assert result.sourceLang — a
+  // deletion test proved that removing the v3 migration's `{...d}` spread (dropping every
+  // OTHER field a real v2 user had set) still passes all 5 of them. This test asserts a
+  // full set of non-sourceLang fields directly, so a regression that drops the spread fails
+  // here specifically, not just accidentally via an unrelated v1->v2 clamp test elsewhere in
+  // this file. B7 target: replacing the v3 migration's `{...d, sourceLang: ...}` with a
+  // bare `{sourceLang: ...}` (discarding every other field) makes this fail.
+  it("v2 → v3: preserves every other SettingsState field a real v2 user had set, not just sourceLang", () => {
+    const v2Data = {
+      launchAtLogin: true,
+      interruptEnabled: true,
+      intervalHours: 6,
+      mandatory: true,
+      dndStart: "23:15",
+      dndEnd: "06:45",
+      snoozeMinutes: 60,
+      wakeEnabled: false,
+      unlockEnabled: false,
+      idleEnabled: false,
+      idleThresholdMinutes: 45,
+    };
+    const result = migrateSettingsStore(v2Data, 2) as Record<string, unknown>;
+    expect(result.launchAtLogin).toBe(true);
+    expect(result.interruptEnabled).toBe(true);
+    expect(result.intervalHours).toBe(6);
+    expect(result.mandatory).toBe(true);
+    expect(result.dndStart).toBe("23:15");
+    expect(result.dndEnd).toBe("06:45");
+    expect(result.snoozeMinutes).toBe(60);
+    expect(result.wakeEnabled).toBe(false);
+    expect(result.unlockEnabled).toBe(false);
+    expect(result.idleEnabled).toBe(false);
+    expect(result.idleThresholdMinutes).toBe(45);
+    expect(result.sourceLang).toBe("en");
+  });
 });
