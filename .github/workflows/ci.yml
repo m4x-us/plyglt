@@ -110,15 +110,30 @@ jobs:
       # self-describe as "CI guard" in their own header comments, but neither was actually
       # invoked here — the enforcement existed in code but not in the pipeline it claimed to
       # be part of. Card IDs are permanent once published (user FSRS progress is keyed by
-      # ID) — compares each committed pack against its state on main to catch a removed or
+      # ID) — compares each committed pack against its prior state to catch a removed or
       # non-namespaced ID before it merges, not just when a human remembers to run it by hand.
-      - name: Check card ID stability (no removed/non-namespaced IDs vs main)
+      - name: Check card ID stability (no removed/non-namespaced IDs)
+        env:
+          # For a direct push to main (this repo's actual workflow — commits land straight
+          # on main, not via PR), origin/main has ALREADY been fast-forwarded to this exact
+          # commit by the time CI runs, since the push already landed before the workflow
+          # started. Diffing against origin/main on a push event is therefore always a
+          # same-commit no-op — it would never actually catch anything. github.event.before
+          # (the ref BEFORE this push) is the only meaningful "prior state" for that trigger.
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
-          # actions/checkout's fetch-depth: 0 (above) already fetched full history including
-          # origin/main — no additional fetch needed here.
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          # actions/checkout's fetch-depth: 0 (above) already fetched full history — no
+          # additional fetch needed for either branch below.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # origin/main genuinely hasn't been updated yet for a PR — safe to diff against.
+            BASE=$(git merge-base "origin/${{ github.base_ref }}" HEAD 2>/dev/null || echo "")
+          else
+            BASE="$PUSH_BEFORE_SHA"
+            # All-zero SHA = first push to an empty branch; nothing to compare against.
+            case "$BASE" in "0000000000000000000000000000000000000000"|"") BASE="" ;; esac
+          fi
           if [ -z "$BASE" ] || [ "$BASE" = "$(git rev-parse HEAD)" ]; then
-            echo "No prior main commit to compare against (first commit on main, or nothing changed) — skipping."
+            echo "No prior commit to compare against (first commit, or nothing changed) — skipping."
           else
             for lang in it es; do
               if git show "$BASE:public/packs/$lang.json" > "/tmp/baseline-$lang.json" 2>/dev/null; then
