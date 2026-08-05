@@ -429,8 +429,8 @@
     <h1 class="title">Roadmap status — engineering &amp; content</h1>
     <p class="masthead-sub">Where the product stands against its full build plan: a complete Italian A1&ndash;B2 curriculum, a five-platform desktop-to-mobile release, and the quality process behind both. Figures below are pulled directly from internal engineering task-tracking, not summarized from memory.</p>
     <div class="masthead-meta">
-      <span><b>Prepared</b> August 3, 2026</span>
-      <span><b>Covers</b> Batches 1–19 · full curriculum build</span>
+      <span><b>Prepared</b> August 4, 2026</span>
+      <span><b>Covers</b> Batches 1–19 · full curriculum build + multi-language architecture prep</span>
       <span><b>Source</b> .autocode/tasks.md, cto.md — internal governance log</span>
     </div>
   </header>
@@ -438,7 +438,7 @@
   <section class="summary">
     <div class="stat-strip">
       <div class="stat-tile">
-        <div class="stat-value num">76<span class="unit">%</span></div>
+        <div class="stat-value num">77<span class="unit">%</span></div>
         <div class="stat-label">of full roadmap complete, weighted across five build phases</div>
       </div>
       <div class="stat-tile">
@@ -450,7 +450,7 @@
         <div class="stat-label">WorldClass confidence score — composite of engineering &amp; content quality</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-value num">1,503</div>
+        <div class="stat-value num">1,529</div>
         <div class="stat-label">automated tests passing · zero unresolved critical findings</div>
       </div></div>
   </section>
@@ -498,12 +498,12 @@
         <div class="phase-n">4</div>
         <div class="phase-main">
           <div class="phase-name">Cloud sync &amp; auth</div>
-          <div class="phase-desc">Architecture decided — Supabase for data/auth, Firebase Cloud Messaging for push — and documented. Implementation awaits sign-off.</div>
+          <div class="phase-desc">Architecture approved as-is — Supabase for data/auth, Firebase Cloud Messaging for push (Task #168 signed off Aug 3). Real implementation deliberately not started — provisioning billed infrastructure awaits an explicit go-ahead once Windows/Linux closes.</div>
         </div>
         <div class="phase-bar-wrap">
-          <div class="bar-track attn"><div class="bar-fill" style="width:15%"></div></div>
+          <div class="bar-track attn"><div class="bar-fill" style="width:20%"></div></div>
         </div>
-        <div class="phase-pct">15%<div class="pill attn" style="margin-top:6px"><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>In progress</div></div>
+        <div class="phase-pct">20%<div class="pill attn" style="margin-top:6px"><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>In progress</div></div>
       </div>
       <div class="phase-row">
         <div class="phase-n">5</div>
@@ -711,7 +711,7 @@
     </div>
 
     <div class="wc-footline">
-      <span><b>22</b> engineering batch-audit cycles run</span>
+      <span><b>23</b> engineering batch-audit cycles run</span>
       <span><b>10</b> content quality audit rounds run</span>
       <span><b>0</b> unresolved critical findings</span>
       <span><b>3</b> findings sets accepted as documented debt, by explicit owner sign-off</span></div>
@@ -743,8 +743,8 @@
       <div class="blocker">
         <div class="blocker-mark"></div>
         <div>
-          <div class="blocker-title">Sync architecture sign-off</div>
-          <div class="blocker-desc">Platform recommendation (Supabase + Firebase Cloud Messaging) is documented with cost projections at 1K / 10K / 100K users. Implementation and infrastructure spend begin once the choice is approved.</div>
+          <div class="blocker-title">Sync implementation go-ahead</div>
+          <div class="blocker-desc">Architecture is approved (Task #168, Aug 3) — this is no longer a decision blocker. What remains is an explicit go-ahead to provision real, billed Supabase infrastructure; the working recommendation is to let Windows/Linux close first rather than spend on two fronts at once.</div>
         </div>
         <div class="blocker-action">Owner action<br>needed</div>
       </div></div>
@@ -756,7 +756,7 @@
     </p>
     <div class="foot-meta">
       <span>plyglt — investor status report</span>
-      <span>Prepared August 3, 2026 — confidential</span>
+      <span>Prepared August 4, 2026 — confidential</span>
     </div>
   </footer>
 

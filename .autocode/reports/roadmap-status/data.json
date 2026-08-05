@@ -1,12 +1,12 @@
 {
-  "preparedDate": "August 3, 2026",
-  "coversLine": "Batches 1–19 · full curriculum build",
+  "preparedDate": "August 4, 2026",
+  "coversLine": "Batches 1–19 · full curriculum build + multi-language architecture prep",
 
   "stats": [
-    { "value": "76", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
+    { "value": "77", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
     { "value": "30,609", "unit": "", "label": "cards shipped across 126 units, all four CEFR levels (A1–B2)" },
     { "value": "85", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
-    { "value": "1,503", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
+    { "value": "1,529", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
   ],
 
   "phases": [
@@ -27,8 +27,8 @@
     },
     {
       "n": 4, "name": "Cloud sync & auth",
-      "desc": "Architecture decided — Supabase for data/auth, Firebase Cloud Messaging for push — and documented. Implementation awaits sign-off.",
-      "pct": 15, "status": "attn", "statusLabel": "In progress"
+      "desc": "Architecture approved as-is — Supabase for data/auth, Firebase Cloud Messaging for push (Task #168 signed off Aug 3). Real implementation deliberately not started — provisioning billed infrastructure awaits an explicit go-ahead once Windows/Linux closes.",
+      "pct": 20, "status": "attn", "statusLabel": "In progress"
     },
     {
       "n": 5, "name": "Mobile — iOS & Android",
@@ -75,7 +75,7 @@
       { "label": "Content pedagogical rigor", "note": "Average across all four CEFR levels' latest audit round", "value": 72 }
     ],
     "footline": [
-      { "value": "22", "label": "engineering batch-audit cycles run" },
+      { "value": "23", "label": "engineering batch-audit cycles run" },
       { "value": "10", "label": "content quality audit rounds run" },
       { "value": "0", "label": "unresolved critical findings" },
       { "value": "3", "label": "findings sets accepted as documented debt, by explicit owner sign-off" }
@@ -92,8 +92,8 @@
       "desc": "OS-level wake, unlock, and idle-detection hooks are written and compile clean, but have only been checked on macOS. Needs real Windows and Linux machines (or CI runners) for final manual verification."
     },
     {
-      "title": "Sync architecture sign-off",
-      "desc": "Platform recommendation (Supabase + Firebase Cloud Messaging) is documented with cost projections at 1K / 10K / 100K users. Implementation and infrastructure spend begin once the choice is approved."
+      "title": "Sync implementation go-ahead",
+      "desc": "Architecture is approved (Task #168, Aug 3) — this is no longer a decision blocker. What remains is an explicit go-ahead to provision real, billed Supabase infrastructure; the working recommendation is to let Windows/Linux close first rather than spend on two fronts at once."
     }
   ]
 }
