@@ -23,6 +23,14 @@ vi.mock("@/lib/langRegistry", async (importOriginal) => {
   };
 });
 
+// Fixed, not Date.now()-derived: validBackup() is called twice independently in several tests
+// (e.g. the #481/#487 numeric-vs-string _version tests) that deep-toEqual the two full parsed
+// results, including this embedded dueDate. A Date.now()-based default made those tests flaky
+// across a millisecond boundary between the two calls — reproduced live (2026-08-06 /meet QA
+// run, Task #512). Tests that specifically need a dynamic Date.now() fallback (e.g. "defaults
+// dueDate to approximately now") construct their own override and never go through this default.
+const FIXED_DUE_DATE = 1893456000000; // 2030-01-01T00:00:00.000Z — arbitrary, stable, future
+
 function validBackup(overrides: Record<string, unknown> = {}) {
   return {
     _version: 1,
@@ -30,7 +38,7 @@ function validBackup(overrides: Record<string, unknown> = {}) {
       cards: {
         "a1-01": {
           cardId: "a1-01", state: "review", stability: 10,
-          difficulty: 5, retrievability: 0.9, dueDate: Date.now() + 86400000, lapses: 0, reps: 3,
+          difficulty: 5, retrievability: 0.9, dueDate: FIXED_DUE_DATE, lapses: 0, reps: 3,
         },
       },
       streak: 7,
