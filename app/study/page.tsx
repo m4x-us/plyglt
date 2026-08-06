@@ -8,10 +8,12 @@ import { Suspense, useMemo } from "react";
 import { useSRSStore, unitMasteryPct, MASTERY_GATE, localDateStr } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useSyncStore } from "@/store/syncStore";
 import { useIsHydrated } from "@/lib/storage";
 import StudyCard from "@/components/StudyCard";
 import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
+import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauriInterrupt";
 import { buildQueue, findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
@@ -28,6 +30,7 @@ function StudyInner() {
   const isInterrupt = mode === "interrupt";
 
   const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
+  const enqueueReviewEvent = useSyncStore((s) => s.enqueueReviewEvent);
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
@@ -59,29 +62,13 @@ function StudyInner() {
   );
 
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions });
+    useStudySession({ initialQueue, allCardMap, isGlobal, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions, enqueueReviewEvent });
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
   if (!isGlobal && !isInterrupt && !unit) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Unit not found.</div>;
 
-  if (initialQueue.length === 0) return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-2xl font-bold text-green-400 mb-2">Nothing ready.</h1>
-      <p className="text-gray-500 mb-8">Check back later.</p>
-      <button
-        onClick={async () => {
-          if (isInterrupt) {
-            try { await exitMandatoryMode(); } catch (err) { console.error(`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:`, err); }
-          }
-          router.push("/learn");
-        }}
-        className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
-      >
-        ← Home
-      </button>
-    </div>
-  );
+  if (initialQueue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
   if (resumeDecision === "pending") {
     const saved = getResumableSession();

@@ -17,11 +17,15 @@ type UseStudySessionParams = {
   unitId: string;
   getResumableSession: () => ActiveSession | null;
   clearActiveSession: () => void;
-  commitSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
+  commitSession: (cardId: string, grade: Grade, session: ActiveSession) => CardProgress;
   canIntroduceNewCard: (today: string) => boolean;
   introduceCard: (cardId: string, today: string) => void;
   cards: Record<string, CardProgress>;
   introductions: Record<string, IntroductionRecord>;
+  // Task #169 — records the review as a local sync event, queued for upload once
+  // a live Supabase client exists. Injected (not a direct useSyncStore import)
+  // for the same testability reason every other store-backed action here is.
+  enqueueReviewEvent: (cardId: string, grade: Grade, resultingProgress: CardProgress) => void;
 };
 
 export function useStudySession({
@@ -36,6 +40,7 @@ export function useStudySession({
   introduceCard,
   cards,
   introductions,
+  enqueueReviewEvent,
 }: UseStudySessionParams) {
   const [resumeDecision, setResumeDecision] = useState<"pending" | "accepted" | "declined" | null>(() => {
     const saved = getResumableSession();
@@ -126,7 +131,7 @@ export function useStudySession({
       setQueue(newQueue);
     }
 
-    commitSession(currentCard.id, grade, {
+    const resultingProgress = commitSession(currentCard.id, grade, {
       unitId: isGlobal ? "global" : unitId,
       queueIds: newQueue.map((c) => c.id),
       position: newPos,
@@ -134,6 +139,7 @@ export function useStudySession({
       sessionTotal: newTotal,
       startedAt: sessionStartedAtRef.current,
     });
+    enqueueReviewEvent(currentCard.id, grade, resultingProgress);
 
     setSessionTotal(newTotal);
     if (wasCorrect) setSessionCorrect(newCorrect);

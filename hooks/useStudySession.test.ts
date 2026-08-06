@@ -27,6 +27,7 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     introduceCard: vi.fn(),
     cards: {},
     introductions: {},
+    enqueueReviewEvent: vi.fn(),
     ...overrides,
   };
 }

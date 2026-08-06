@@ -14,9 +14,11 @@ import {
   migrateSrsStore,
   migrateEntitlementStore,
   migrateSettingsStore,
+  migrateSyncStore,
   SRS_VERSION,
   ENTITLEMENT_VERSION,
   SETTINGS_VERSION,
+  SYNC_VERSION,
 } from "@/store/migrations";
 
 // Mock SPECIALTY_PACKS so the v2→v3 migration filter (#344, #384) is deterministic in tests.
@@ -51,6 +53,9 @@ describe("version constants", () => {
   });
   it("SETTINGS_VERSION is 3", () => {
     expect(SETTINGS_VERSION).toBe(3);
+  });
+  it("SYNC_VERSION is 1", () => {
+    expect(SYNC_VERSION).toBe(1);
   });
 });
 
@@ -108,6 +113,49 @@ describe("future-version guard — storedVersion > CURRENT_VERSION throws instea
     const state = { intervalHours: 3 };
     expect(() => migrateSettingsStore(state, SETTINGS_VERSION)).not.toThrow();
     expect(migrateSettingsStore(state, SETTINGS_VERSION)).toBe(state);
+  });
+
+  it("migrateSyncStore throws when storedVersion is newer than SYNC_VERSION", () => {
+    const futureData = { deviceId: "d1", pendingEvents: [], someUnknownFutureField: "garbage-from-a-newer-build" };
+    expect(() => migrateSyncStore(futureData, SYNC_VERSION + 1)).toThrow(
+      /Sync store version 2 is newer than this app build understands/
+    );
+  });
+
+  it("migrateSyncStore does NOT throw and remains a true no-op when storedVersion === SYNC_VERSION", () => {
+    const state = { deviceId: "d1", pendingEvents: [] };
+    expect(() => migrateSyncStore(state, SYNC_VERSION)).not.toThrow();
+    expect(migrateSyncStore(state, SYNC_VERSION)).toBe(state);
+  });
+});
+
+// ── migrateSyncStore ──────────────────────────────────────────────────────────
+
+describe("migrateSyncStore()", () => {
+  it("v1: defaults deviceId to null and pendingEvents to [] on a completely empty/fresh object", () => {
+    const result = migrateSyncStore({}, 0) as { deviceId: string | null; pendingEvents: unknown[] };
+    expect(result).toEqual({ deviceId: null, pendingEvents: [] });
+  });
+
+  it("v1: preserves a valid non-empty deviceId string", () => {
+    const result = migrateSyncStore({ deviceId: "real-device-id" }, 0) as { deviceId: string | null };
+    expect(result.deviceId).toBe("real-device-id");
+  });
+
+  it("v1: falls back to null for a non-string or empty-string deviceId", () => {
+    expect((migrateSyncStore({ deviceId: 42 }, 0) as { deviceId: string | null }).deviceId).toBe(null);
+    expect((migrateSyncStore({ deviceId: "" }, 0) as { deviceId: string | null }).deviceId).toBe(null);
+  });
+
+  it("v1: preserves a valid pendingEvents array, including its actual contents", () => {
+    const events = [{ id: "e1", cardId: "c1" }];
+    const result = migrateSyncStore({ pendingEvents: events }, 0) as { pendingEvents: unknown[] };
+    expect(result.pendingEvents).toEqual(events);
+  });
+
+  it("v1: falls back to [] for a non-array pendingEvents", () => {
+    const result = migrateSyncStore({ pendingEvents: "not-an-array" }, 0) as { pendingEvents: unknown[] };
+    expect(result.pendingEvents).toEqual([]);
   });
 });
 

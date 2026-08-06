@@ -26,8 +26,7 @@ import { localDateStr, isCalendarValidDate } from "@/lib/utils";
 import { MAX_PHASE_DAY } from "@/lib/introduction";
 import type { CardType } from "@/content/types";
 import { isKnownSourceLangCode, DEFAULT_SOURCE_LANG_CODE } from "@/lib/language";
-
-// Shared by all three migrate*Store functions below (Task #494 fix — see debt.md's
+// Shared by all four migrate*Store functions below (Task #494 fix — see debt.md's
 // Task #494 entry and store/entitlementCrossTabSync.ts's corrected doc comment).
 // Each function's `while (v < CURRENT_VERSION)` loop only walks storedVersion UP —
 // when storedVersion is already >= CURRENT_VERSION the loop body never runs, so
@@ -37,13 +36,9 @@ import { isKnownSourceLangCode, DEFAULT_SOURCE_LANG_CODE } from "@/lib/language"
 // the live store. This is exactly the "silent fallback corrupts user data" failure
 // this file's own header rule already forbids for the missing-migration-step case
 // (line 11) — it applies equally to a version that's too NEW, not just too old.
-function assertNotFutureVersion(storeName: string, storedVersion: number, currentVersion: number): void {
-  if (storedVersion > currentVersion) {
-    throw new Error(
-      `${storeName} store version ${storedVersion} is newer than this app build understands (current ${currentVersion}) — refusing to apply unmigrated data`
-    );
-  }
-}
+// Extracted to lib/storeVersionGuard.ts (Task #169) so store/syncMigrations.ts can
+// share it without a circular import back into this file.
+import { assertNotFutureVersion } from "@/lib/storeVersionGuard";
 
 // ── SRS store ─────────────────────────────────────────────────────────────────
 
@@ -372,3 +367,11 @@ export function migrateSettingsStore(persisted: unknown, storedVersion: number):
   }
   return data;
 }
+
+// ── Sync store (Task #169) ───────────────────────────────────────────────────
+// Extracted to store/syncMigrations.ts under the Rule 1 400-line cap — adding it
+// inline here would have pushed this file to 405 lines. Re-exported so every
+// consumer still imports from this file, preserving the "single source of
+// truth for all Zustand store schema migrations" contract this file's own
+// header states.
+export { SYNC_VERSION, migrateSyncStore } from "@/store/syncMigrations";

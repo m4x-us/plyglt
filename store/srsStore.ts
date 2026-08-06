@@ -68,8 +68,10 @@ interface SRSState {
   rateCardAndSaveSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
   // Atomic alternative to touchStreak() + rateCardAndSaveSession(): all three
   // state mutations happen in a single set() call, eliminating the crash window
-  // between card rating and streak/session persistence.
-  commitSession: (cardId: string, grade: Grade, session: ActiveSession) => void;
+  // between card rating and streak/session persistence. Returns the resulting
+  // CardProgress (Task #169) so callers can build a sync ReviewEvent from it
+  // without recomputing scheduleCard() a second time at the hook layer.
+  commitSession: (cardId: string, grade: Grade, session: ActiveSession) => CardProgress;
   clearActiveSession: () => void;
   getResumableSession: () => ActiveSession | null;
 
@@ -138,6 +140,7 @@ export const useSRSStore = create<SRSState>()(
           activeSession: session,
           ...streakPatch,
         }));
+        return next;
       },
 
       clearActiveSession: () => set({ activeSession: null }),
