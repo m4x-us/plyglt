@@ -94,8 +94,6 @@ Content is never the paywall. Every language, full A1–B2 curriculum, is free f
 | Proactive interruption engine | — | ✓ |
 | Sync across all devices | — | ✓ |
 | iOS, iPadOS, Android apps | — | ✓ |
-| Forecast ("B2 in ~7 months at current pace") | — | ✓ |
-| Vacation mode | — | ✓ |
 | Analytics | — | ✓ |
 | Custom cards | — | ✓ |
 
