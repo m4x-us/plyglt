@@ -1,18 +1,18 @@
 {
-  "preparedDate": "August 4, 2026",
-  "coversLine": "Batches 1–19 · full curriculum build + multi-language architecture prep",
+  "preparedDate": "August 6, 2026",
+  "coversLine": "Batches 1–20 · full curriculum build, public macOS release, and sync backend underway",
 
   "stats": [
-    { "value": "77", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
+    { "value": "79", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
     { "value": "30,609", "unit": "", "label": "cards shipped across 126 units, all four CEFR levels (A1–B2)" },
     { "value": "85", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
-    { "value": "1,529", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
+    { "value": "1,581", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
   ],
 
   "phases": [
     {
       "n": 1, "name": "Core product & macOS",
-      "desc": "SRS engine, entitlement, specialty-pack architecture, macOS app signed, notarized, and shipped (v0.1.0-beta.1).",
+      "desc": "SRS engine, entitlement, specialty-pack architecture complete. The macOS app is signed, notarized, and now publicly released — v0.1.0-beta.2 is a live, downloadable pre-release (macOS + Linux AppImage builds, working auto-update manifest). This closed a real gap found this week: the build had been notarized and ready since July 29 but sitting undistributed.",
       "pct": 100, "status": "done", "statusLabel": "Done"
     },
     {
@@ -27,8 +27,8 @@
     },
     {
       "n": 4, "name": "Cloud sync & auth",
-      "desc": "Architecture approved as-is — Supabase for data/auth, Firebase Cloud Messaging for push (Task #168 signed off Aug 3). Real implementation deliberately not started — provisioning billed infrastructure awaits an explicit go-ahead once Windows/Linux closes.",
-      "pct": 20, "status": "attn", "statusLabel": "In progress"
+      "desc": "Now underway. Database schema, the conflict-resolution engine, and the on-device offline sync queue are built, tested, and wired into the live review-recording path — every review a user completes today is already being queued locally for sync, ahead of the backend existing. What's left needs real infrastructure only the account owner can provision: a live Supabase project and Apple/Google sign-in app registrations. A step-by-step checklist for that has been handed off; once complete, the live client, sign-in screens, and cross-device verification are the remaining work.",
+      "pct": 35, "status": "attn", "statusLabel": "In progress"
     },
     {
       "n": 5, "name": "Mobile — iOS & Android",
@@ -36,14 +36,14 @@
       "pct": 0, "status": "idle", "statusLabel": "Not started"
     }
   ],
-  "phaseMethodology": "the 76% headline weights each phase by its share of remaining engineering scope to a full five-platform, synced release (Core 35% · Content 25% · Windows/Linux 15% · Sync 15% · Mobile 10%), not by how many tickets are closed. A raw ticket count would read 98% complete and materially overstate where things stand — sync and mobile are each represented by only a handful of large, mostly-unstarted tasks.",
+  "phaseMethodology": "the 79% headline weights each phase by its share of remaining engineering scope to a full five-platform, synced release (Core 35% · Content 25% · Windows/Linux 15% · Sync 15% · Mobile 10%), not by how many tickets are closed. A raw ticket count would read materially higher and overstate where things stand — sync and mobile are each represented by only a handful of large tasks, most still ahead.",
 
   "content": {
     "levels": [
       { "code": "A1", "unitsLabel": "20/20 units", "cards": 2810, "target": 2600 },
       { "code": "A2", "unitsLabel": "30/30 units", "cards": 5392, "target": 5700 },
       { "code": "B1", "unitsLabel": "36/35 units", "cards": 7296, "target": 9450 },
-      { "code": "B2", "unitsLabel": "40/40 units", "cards": 14892, "target": 15200 }
+      { "code": "B2", "unitsLabel": "40/40 units", "cards": 15111, "target": 15200 }
     ],
     "total": { "unitsLabel": "126/125 units", "cards": 30609, "target": 32950 },
     "note": "Every level has shipped its full unit plan and cleared this project's mechanical quality gate (no unit missing a tier, no duplicate sentences, hints present). B1 sits furthest from its stretch card-count target — the tradeoff made there was breadth of grammar coverage over raw card volume; it does not affect the level's completeness or its audit status below."
@@ -68,9 +68,9 @@
   "worldclass": {
     "score": 85,
     "bars": [
-      { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine", "value": 97 },
-      { "label": "Test & coverage discipline", "note": "1,503 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
-      { "label": "Audit & governance discipline", "note": "22 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
+      { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine, sync queue", "value": 97 },
+      { "label": "Test & coverage discipline", "note": "1,581 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
+      { "label": "Audit & governance discipline", "note": "23 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
       { "label": "Content brand & voice fidelity", "note": "Average across all four CEFR levels' latest audit round", "value": 79 },
       { "label": "Content pedagogical rigor", "note": "Average across all four CEFR levels' latest audit round", "value": 72 }
     ],
@@ -92,8 +92,8 @@
       "desc": "OS-level wake, unlock, and idle-detection hooks are written and compile clean, but have only been checked on macOS. Needs real Windows and Linux machines (or CI runners) for final manual verification."
     },
     {
-      "title": "Sync implementation go-ahead",
-      "desc": "Architecture is approved (Task #168, Aug 3) — this is no longer a decision blocker. What remains is an explicit go-ahead to provision real, billed Supabase infrastructure; the working recommendation is to let Windows/Linux close first rather than spend on two fronts at once."
+      "title": "Sync backend credentials",
+      "desc": "The go-ahead has been given and real implementation is underway (schema, conflict resolution, and the offline queue are done — see Cloud sync & auth). What remains needs the account owner directly: creating a Supabase project and registering Apple / Google sign-in apps. A written, step-by-step checklist has been handed off; the live client and sign-in screens are next once those credentials exist."
     }
   ]
 }
