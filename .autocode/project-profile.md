@@ -1,6 +1,6 @@
 # Project Profile
-Runtime: Node.js 22 LTS / Rust (Tauri 2)
-Framework: Next.js 16.2.9 App Router + Tauri 2 / Zustand 5
-Deployment: Desktop app (macOS/Windows/Linux via Tauri) + static web build
-Key trust boundaries: Tauri IPC responses (lib/entitlement.ts:activateLicense, validateLicense, deactivateLicense); pack network fetch (lib/packLoader.ts:fetchManifest, loadPack); user backup file JSON parse (hooks/useExportImport.ts:readFile); Zustand persist deserialization (store/srsStore.ts, store/entitlementStore.ts, store/settingsStore.ts via createPlatformStorage); build-time env var inlining (lib/featureFlags.ts:getFeatureFlags)
-Detection date: 2026-07-01
+Runtime: Node.js (TypeScript) + Rust (Tauri backend)
+Framework: Next.js 16 (App Router) + Tauri 2
+Deployment: Desktop app (macOS/Windows/Linux via Tauri) + static web export
+Key trust boundaries: Tauri IPC gateway (lib/tauri.ts), persisted Zustand store hydration (lib/storage.ts), SHA-256-verified network pack fetch (lib/packLoader.ts), third-party licensing API via IPC, CI content-validation pipeline (scripts/*.ts)
+Detection date: 2026-08-06

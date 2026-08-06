@@ -1,7 +1,7 @@
 ---
 agent: cto
-last-updated: 2026-08-05
-meets: 9
+last-updated: 2026-08-06
+meets: 10
 ---
 # CTO Memory — plyglt
 
@@ -49,15 +49,31 @@ meets: 9
 
     **What's next, per Max's own choice at the time (offered but not yet started):** real Spanish A1 curriculum authoring, now unblocked as a content problem rather than an engineering one — `content/es/index.ts` is proven to run end-to-end through the same export/validate/lint-quality pipeline Italian uses. This was explicitly presented as an option alongside "audit first" and Max chose audit-first; Spanish content authoring itself has not been started. See CLAUDE.md's Architecture section (§6, "Content authoring, per language" / "Source language") for the durable technical reference — this cto.md entry is the narrative history, CLAUDE.md is the up-to-date spec.
 
+19. **2026-08-06 — Full `/meet` re-examination (5 parallel agents: Architecture, Security, QA, Docs, Product) plus a 7-question owner Q&A. Two clear outcomes: a new pre-approved Batch 20 (5 quick-win tasks) and a re-prioritization of Batch 16.**
+
+    **Owner answers, verbatim decisions:** (1) 90-day priority: **build sync backend / mobile** — a direct re-prioritization of Batch 16's Task #169, superseding item 17's "wait for Batch 15 to close" recommendation; Task #169 is now the active strategic thread once Batch 20 clears. (2) Customer blocker: **no real customers yet — pre-launch** — reframes several findings (draft releases, thin pricing-table promises) as pre-launch cleanup rather than live customer harm. (3) Publish the two draft GitHub releases now — **yes** (Task #509). (4) Rewrite STATUS.md's stale curriculum/shipped/planned sections now — **yes** (Task #510). (5) BRAND.md's Vacation Mode/Forecast pricing-table rows (both confirmed dead — zero real implementation) — **pull from the pricing table for now**, do not build them yet (Task #511; the `vacationMode` feature flag itself is untouched, this is a doc-only fix). (6) The reproducible flaky test in `tests/importBackup.test.ts` — **fix now** (Task #512). (7) The `next`/`postcss`/`sharp` CVEs, now confirmed fixable via a zero-risk `next@16.3.0` bump — **upgrade now** (Task #513).
+
+    **Highest-convergence finding this run:** three independent agents (Architecture, Docs, Product) each separately found and precisely quantified the same STATUS.md staleness — frozen since commit `fecd86c` (2026-07-01), claiming 57/125 curriculum units when the real state (verified directly against `public/packs/it.json`) is 126/125 units, 30,609 cards, and completely omitting the shipped M3 interruption engine. This is the same "doc edited for one section, other sections silently rot" failure mode this project has hit before (see docs.md's own "process lesson" entry this run).
+
+    **Most consequential product finding:** the macOS/Windows/Linux build pipeline is fully verified working (real signed+notarized `.dmg`s, a Linux `.AppImage`), but both GitHub releases sit as `draft:true` — a real customer visiting the repo today cannot download plyglt through any normal channel, despite BRAND.md promising "Desktop app (Mac, Windows, Linux)" to Free-tier users. Confirmed via `gh release list`. This is purely a "someone needs to click publish" gap, not further engineering — Task #509.
+
+    **New genuinely-live QA finding, not just a static read:** the QA examination agent actually re-ran the test suite multiple times (not just read the test file) and caught a real, reproducible flaky test in `tests/importBackup.test.ts` — two `Date.now()`-embedded values compared via deep equality across two separately-timed calls, failed twice independently this session. Promoted to Task #512.
+
+    **New security finding that reverses a standing doc claim:** STATUS.md's "unfixable without a major Next.js downgrade" framing for 3 high-severity CVEs is now false — `next@16.3.0` (already permitted by the existing `package.json` range) ships patched dependencies, verified empirically via an isolated test install (0 vulnerabilities post-upgrade). A real fix shipped upstream since this was last checked. Promoted to Task #513.
+
+    **Batch 20 created** (`.autocode/tasks.md`, tasks #509-#513) as a new CURRENT SPRINT batch, sequenced to run first (all Direct complexity, no dependencies) before the Batch 16/Task #169 strategic push begins. All 5 tasks are pre-approved by Max, not proposed — see Batch 20's own header note.
+
+    **Audit checklist regenerated** (`.autocode/audit-checklist.md`) — module boundaries had drifted significantly since the prior July version (`lib/packLoader.ts` split into `lib/basePackLoader.ts`/`specialtyPackLoader.ts`/`packManifest.ts`/`packCache.ts`/`generationGuard.ts`/`packResolver.ts` since then), so every citation was re-verified against current file:line locations rather than carried over. 38 structural items across 11 sections; the 9-item TEAM_SPECIFIC layer (populated by `/advance`) was preserved verbatim. Two new real findings surfaced while grounding the checklist: `scripts/lintCardQuality.ts`'s `--update-baseline` flag has no coded enforcement of CURRICULUM.md's "baseline only shrinks" ratchet rule (pure human/process discipline); `app/learn/page.tsx`'s `byLevel` computation runs `ALL_UNITS.filter` on every render with no `useMemo`, unlike its memoized sibling in `app/study/page.tsx`.
+
 ## Team Health
 
 ### Agent Performance
 | Agent | Runs | Audit Reject Rate | Known Blind Spots | Last Updated |
 |-------|------|-------------------|-------------------|--------------|
-| security | 9 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; F7 raw LS errors to UI open run 3 (resolved #089); deactivation Ok(())/null bug missed until run 5; CI audit/lint gaps missed until run 6; run 7: no new blind spots; run 9: confirmed Task #121 RESOLVED (pubkey verified via base64 decode), S1/S2 both dormant — clean pass | 2026-07-01 |
-| architect | 9 | — | Missed importBackup upward import run 1; missed stats/page.tsx Rule 1 run 2; missed app/page.tsx 253-line violation until run 4; missed W-series stale checkboxes run 5; missed featureFlags.ts Rule 2 comment run 6; run 7: duplicate license revalidation + Batch 14 scope corrected; run 8: sha256Hex/packUrl duplication after Task #156 extraction; run 9: circular type dep packLoader↔specialtyPackLoader; stats/page.tsx 158 lines (Rule 1 re-violation) | 2026-07-01 |
-| qa | 10 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid Rule 14 first flagged run 5; projected 908 tests wrong — actual 843 run 6; run 7: 2 minor kaizen items (redundant toBeDefined ×6, untested getSpecialtyPacks filter) — both resolved; run 10: 897 tests all green, 1 open minor (PRICING.annual exact value not pinned by real-constant test) | 2026-07-01 |
-| docs | 9 | — | CONTRIBUTING_LANGUAGE.md stale file refs missed until run 3; introduction engine absent from CLAUDE.md until run 4; lib/utils.ts etc. missing until run 5; lib/checkout.ts etc. missing until run 6; run 7: all 6 Batch 12-13 gaps fixed; run 9: 5 stale entries from Task #120/#121/#156 — all fixed inline | 2026-07-01 |
+| security | 13 | — | CONTRIBUTING_LANGUAGE.md lifetime refs missed in run 1; F7 raw LS errors to UI open run 3 (resolved #089); deactivation Ok(())/null bug missed until run 5; CI audit/lint gaps missed until run 6; run 7: no new blind spots; run 9: confirmed Task #121 RESOLVED; run 13 (2026-08-06): confirmed Batch 10 blockers genuinely closed (real cert, real release.yml, Task #508 fixed); fresh multi-language sourceLang pass found no gap (3-layer validation solid); found next@16.3.0 fixes all 3 "unfixable" CVEs — no new blind spots, only new actionable findings | 2026-08-06 |
+| architect | 10 | — | Missed importBackup upward import run 1; missed stats/page.tsx Rule 1 run 2; missed app/page.tsx 253-line violation until run 4; missed W-series stale checkboxes run 5; missed featureFlags.ts Rule 2 comment run 6; run 7: duplicate license revalidation + Batch 14 scope corrected; run 8: sha256Hex/packUrl duplication after Task #156 extraction; run 9: circular type dep packLoader↔specialtyPackLoader; stats/page.tsx 158 lines (Rule 1 re-violation); run 10 (2026-08-06): confirmed and precisely quantified STATUS.md curriculum staleness (57/125 claimed vs 126/125 real) via direct pack read — 3-way convergence with docs/product agents; new low-severity findings (lintCardQuality.ts 531 lines, components/ bypassing hooks/ to import store/ directly) | 2026-08-06 |
+| qa | 11 | — | Task #056 misattributed run 2; test count jumped 310→515 in Batch 3; useLangPack.ts 0% branch coverage missed until run 4; LanguageGrid Rule 14 first flagged run 5; projected 908 tests wrong — actual 843 run 6; run 7: 2 minor kaizen items — both resolved; run 10: 897 tests all green; run 11 (2026-08-06): 1546 tests/71 files, coverage all above threshold; found and LIVE-REPRODUCED (twice) a genuine flaky test in tests/importBackup.test.ts (Date.now()-embedded deep-equality race) — first run this cycle to catch a flake by actually re-running the suite rather than reading it statically | 2026-08-06 |
+| docs | 10 | — | CONTRIBUTING_LANGUAGE.md stale file refs missed until run 3; introduction engine absent from CLAUDE.md until run 4; lib/utils.ts etc. missing until run 5; lib/checkout.ts etc. missing until run 6; run 7: all 6 Batch 12-13 gaps fixed; run 9: 5 stale entries fixed inline; run 10 (2026-08-06): MAJOR BLIND SPOT — STATUS.md was frozen since commit fecd86c (2026-07-01) and survived TWO subsequent STATUS.md-touching commits undetected (each edited an unrelated section without re-verifying §4's curriculum numbers against live pack state); traced and quantified precisely, all findings promoted to Task #510; process lesson logged to prevent recurrence | 2026-08-06 |
 
 ### Quality Trends
 | Task | WorldClass Score | Tests at Close | Coverage at Close |
@@ -1439,6 +1455,65 @@ Spot check: PASS — independent agent performed the Deletion Test on both new t
 Done-when: PASS (all 5 acceptance criteria met and independently verified)
 Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
 CTO diagnosis run: NO — Direct task, first cycle
+
+### Task #510 | Rewrite STATUS.md to match verified current state | Status: COMPLETE | Cycle 1 | Completed: 2026-08-06
+
+#### Cycle 1 — 2026-08-06 — Direct Task (docs rewrite, sequenced after Task #513 per the documented `Blocked by` relationship — the CVE section's wording depended on that upgrade landing first)
+Build approach: `STATUS.md` — full rewrite of §1 (Shipped: fixed the 57/125 curriculum claim, added the M3 interrupt engine entry that had zero prior mention despite being BRAND.md's headline feature, added the multi-language/sourceLang feature, updated the auto-updater entry to reflect the completed release pipeline), §2 (Planned: replaced stale "M2 desktop shipping" framing with the real frontier — Batch 15 paused, Batch 16 Task #169 active, Spanish content not started), §3 (Known Issues: removed the obsolete "68 units not authored" entry, updated the CVE entry to RESOLVED per Task #513), §4 (Curriculum Status table: real numbers — 126/125 units, 30,609 cards). §5 lightly touched (Spanish namespaced ID format now live, not just planned).
+Verification approach: did NOT trust `CURRICULUM.md`'s own prose for the numbers — read `public/packs/it.json` and `content/index.ts` directly at write time. This caught a real discrepancy: `CURRICULUM.md` itself understates B2 by 219 cards (claims 14,892, live pack has 15,111) — a stale figure from before that level's most recent remediation round (`+219 net new cards`, per `CURRICULUM.md`'s own B2 round-3 note). Used the verified live number, not the doc's, and flagged the doc's own staleness in STATUS.md's table footnote rather than silently propagating it. Spot-verified 3 more specific claims directly against source before writing them: `src-tauri/tauri.conf.json`'s real signing identity string, `store/migrations.ts`'s `SETTINGS_VERSION = 3`, and `lib/language.ts`'s `SOURCE_LANGUAGES` export.
+Scripts: N/A — documentation only, no source files changed.
+Spot check: adapted (docs-only diff) — done-when grep is the mechanical proof; ran it directly rather than a code-review-shaped spot check.
+Done-when: PASS — `grep -c "57 of 125\|68 curriculum units" STATUS.md` returns 0.
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+Committed as `c63ebad`.
+
+### Task #511 | Remove Vacation Mode and Forecast from BRAND.md's pricing table | Status: COMPLETE | Cycle 1 | Completed: 2026-08-06
+
+#### Cycle 1 — 2026-08-06 — Direct Task
+Build approach: `BRAND.md:97-98` — removed the "Forecast" and "Vacation mode" pricing-table rows. Confirmed both are genuinely dead before removing (not just trusting the /meet finding): `grep -rn "flags.vacationMode\|vacationMode"` outside `lib/featureFlags.ts` — zero hits; `grep -rn "at current pace\|B2 in ~"` repo-wide — zero hits. Scoped narrowly per Max's explicit choice ("pull from pricing table for now," not build them, not delete the flag) — `BRAND.md:71`'s Stress-Free Principle vacation-mode concept paragraph left untouched, confirmed still present post-edit.
+Scripts: N/A — documentation only.
+Spot check: adapted (docs-only diff) — done-when grep is the mechanical proof.
+Done-when: PASS — `grep -n "Vacation mode\|Forecast" BRAND.md` shows only the line-71 concept paragraph, no pricing-table row for either.
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+Committed as `786a4ad`.
+
+### Task #512 | Fix reproducible flaky test in tests/importBackup.test.ts | Status: COMPLETE | Cycle 1 | Completed: 2026-08-06
+
+#### Cycle 1 — 2026-08-06 — Direct Task
+Build approach: `tests/importBackup.test.ts:26-34` — `validBackup()`'s default `dueDate` changed from `Date.now() + 86400000` (computed fresh per call) to a fixed module-level constant `FIXED_DUE_DATE = 1893456000000`. Root cause: the `#481/#487` numeric-vs-string `_version` tests call `validBackup()` twice independently then `toEqual`-compare the full parsed results, including the embedded `dueDate` — a millisecond boundary between the two calls made the assertion flaky. Confirmed via grep that no test reads `validBackup()`'s `dueDate` expecting a live `Date.now()` value — the one test that legitimately needs that behavior (`"defaults dueDate to approximately now"`, lines ~259-271) builds its own override with `dueDate: "invalid"` and never touches this default.
+Scripts: PASS — weak-assertion gate clean (no new `.toBeDefined()`/etc. outside existing `existence-check:` tags); `npx tsc --noEmit` clean; full suite `npm test -- --run` 1546/1546, 71 files; `npm run lint` 0 errors (3 pre-existing unrelated warnings).
+Verification beyond the standard gate: ran `tests/importBackup.test.ts` alone 20 times in a loop (68/68 tests passing every single run) — direct proof the flake is gone, not just a single lucky pass.
+Spot check: adapted (single-file, single-constant test fix, no code diff to audit beyond what verification already covers).
+Done-when: PASS — `npx vitest run tests/importBackup.test.ts --repeat=20`-equivalent (20 sequential runs) all green.
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+Committed as `24d9aaf`.
+
+**Batch 20 (5 tasks — #509, #510, #511, #512, #513) is now fully COMPLETE.** All pre-approved by Max during the 2026-08-06 `/meet` Phase 2 owner Q&A, all executed same session, all independently verified (not just self-reported) before closing.
+
+### Task #513 | Upgrade next to 16.3.0, resolving 3 high-severity CVEs | Status: COMPLETE | Cycle 1 | Completed: 2026-08-06
+
+#### Cycle 1 — 2026-08-06 — Direct Task (mechanical dependency bump — ran `npm update next` + verification gate directly rather than invoking the code-authoring Builder, since there is no logic diff to author: package.json:32's `^16.2.12` range already permitted `16.3.0`, only `package-lock.json` changes)
+Build approach: `npm update next` — resolved to `next@16.3.0` (confirmed via `npm list next`); `package.json:32`'s version range unchanged (`^16.2.12` already permitted it, no manifest edit needed); `package-lock.json` refreshed (216 insertions/176 deletions, scoped to the dependency tree, verified via `git diff --stat`).
+Scripts: PASS — `npm audit --json` 0 vulnerabilities (was 3 high: next/postcss/sharp); `npx tsc --noEmit` clean; `npm test -- --run` 1546/1546 passed, 71 files; `npm run lint` 0 errors (3 pre-existing unrelated warnings, matching the documented baseline); a real `npm run build` (Turbopack) compiled successfully and generated all 6 static routes.
+Spot check: adapted (lockfile-only diff, no application logic to review) — confirmed via `git status`/`git diff` that only `package-lock.json` changed, `package.json` has zero diff, no scope drift.
+Done-when: PASS (0 vulnerabilities; full gate — tsc/test/lint/build — all green). The one sub-item explicitly deferred to Task #510 ("STATUS.md's CVE entry is updated") is that task's own scope, not this one's.
+Fixed this cycle: — | Still open: — | New findings: — | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle
+Committed as `bdf742e` (package-lock.json only — `scripts/staged-diff-hash.sh` does not exist in this repo, consistent with other missing gate scripts already documented as deferred elsewhere in this project's history; skipped the FFF gate since this is a non-source-code lockfile change, same exemption the skill's own HASH=NONE branch describes).
+
+### Task #509 | Publish the draft GitHub releases as real public releases | Status: COMPLETE | Cycle 1 | Completed: 2026-08-06
+
+#### Cycle 1 — 2026-08-06 — Direct Task (ops action, not a code change — no /autocode Builder call; ⚡ Direct — 0-1 files, GitHub release-state change, no code)
+Build approach: not a source-code diff — verified via `gh release view`/`gh api` that `v0.1.0-beta.2`'s assets (macOS arm64/x64 `.dmg`, Linux `.AppImage`+`.sig`, `latest.json` updater manifest) were all `state: "uploaded"` and notarization-verified per Task #123's prior closure; asked Max two task-specified decisions before acting (which release to publish, whether to keep the "beta" pre-release flag) — Max chose beta.2 only + mark as pre-release; ran `gh release edit v0.1.0-beta.2 --draft=false --prerelease`.
+Real, load-bearing discovery mid-task: the literal done-when (`isDraft: false`) passed immediately, but a live-verification pass (curling the release page and an asset URL unauthenticated) returned 404 across the board — traced to `m4x-us/plyglt` being a **private** GitHub repo, which hides even published releases from anonymous visitors. This meant the task's actual "Why" (a real customer can download plyglt today) was still unmet after the literal done-when passed — flagged to Max rather than declaring success on the narrower technical criterion alone. Before acting on Max's chosen fix (make the repo public — a largely irreversible visibility change), ran a full-history secret scan (`git log --all -p` grepped for AWS/GitHub/Stripe/Slack token shapes and PEM private-key headers, plus a tracked-file scan for `.env`/`.pem`/`.key`/credential-shaped filenames) — clean, zero hits. Ran `gh repo edit m4x-us/plyglt --visibility public --accept-visibility-change-consequences`.
+Scripts: N/A — no source files changed, nothing to `tsc`/`npm test`/`npm run lint` against.
+Spot check: Adapted for a non-code task — no diff to run the DSC template against. Real-world verification substituted: unauthenticated `curl` to the release tag page (200), the releases list page (200), and a full redirect chain on the aarch64 `.dmg` asset (302→200) — all confirmed AFTER the repo visibility flip, not just the release flip, since the first check (before the visibility fix) had genuinely failed.
+Done-when: PASS — `gh release view v0.1.0-beta.2` shows `isDraft: false`; release page returns 200 to an anonymous request; the `.dmg` asset downloads (302→200) with no auth, confirmed live after the repo went public.
+Fixed this cycle: — | Still open: — | New findings: repo-visibility blocker (not in the original task text — found and resolved same cycle, not carried forward) | Regression signal: NO
+CTO diagnosis run: NO — Direct task, first cycle, but required 2 extra owner check-ins (release/prerelease choice, then the repo-visibility fix) beyond the single approval /meet's Phase 2 already captured — both genuinely needed a human decision, not something to infer.
 
 ### Task #487 | Fix tests: strengthen #481 _version tests to full-shape equality, add F012/F016/F017 debt-bundle coverage | Status: COMPLETE | Cycle 1 | Completed: 2026-07-28
 

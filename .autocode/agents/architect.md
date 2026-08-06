@@ -268,7 +268,22 @@ Batch 14 is now active (Tasks #154–#164 in .autocode/tasks.md). Remaining:
 - **Code Organization** (40 occurrences, 16 cycles, avg severity 3.8) and **Documentation Trust** (17 occurrences, 9 cycles, avg severity 4.1) are also systemic but lower-severity — mostly stale doc comments/CLAUDE.md sections not kept in sync with the code they describe, and duplicated constants/logic across sibling files.
 
 ## Run History
-9 runs total. Blind spots: missed importBackup upward import (run 1); missed stats/page.tsx Rule 1 (run 2); missed app/page.tsx 253-line violation until run 4; missed Task #001 W-series stale checkboxes in tasks.md; missed featureFlags.ts Rule 2 comment until run 6; Batch 9 closed all open arch findings (run 7); run 8 — corrected Batch 14 actual state; new Rule 1 violation (packLoader 426 lines); stop-the-line duplicate revalidation; 3 Rust files missing headers. Run 9 — Task #154/#155/#121/#120 COMPLETE; new Rule 1 violation (stats/page.tsx 158 lines); duplicate sha256Hex/packUrl across packLoader+specialtyPackLoader; type-circular dependency; 2 stale CLAUDE.md entries.
+9 runs total through 2026-07-01, plus a 2026-07-17 stream note (Task #378). Blind spots: missed importBackup upward import (run 1); missed stats/page.tsx Rule 1 (run 2); missed app/page.tsx 253-line violation until run 4; missed Task #001 W-series stale checkboxes in tasks.md; missed featureFlags.ts Rule 2 comment until run 6; Batch 9 closed all open arch findings (run 7); run 8 — corrected Batch 14 actual state; new Rule 1 violation (packLoader 426 lines); stop-the-line duplicate revalidation; 3 Rust files missing headers. Run 9 — Task #154/#155/#121/#120 COMPLETE; new Rule 1 violation (stats/page.tsx 158 lines); duplicate sha256Hex/packUrl across packLoader+specialtyPackLoader; type-circular dependency; 2 stale CLAUDE.md entries.
+
+## Run 10 (2026-08-06 — full /meet re-examination)
+
+Between run 9 and this run, Batches 10-19 all shipped and closed (macOS signed/notarized release live, Spanish source-language translation, specialty pack architecture w/ 12 audit cycles, M3 macOS OS hooks, Windows/Linux packaging code-complete-but-paused, sync architecture doc approved). Most recently (2026-08-04/05, outside the batch system) a multi-language architecture prep landed: `components/StudyCard.tsx` now reads a real per-target `LanguageConfig`; `store/settingsStore.ts` gained a persisted `sourceLang` field (SETTINGS_VERSION 3); `lib/language.ts` grew 6 new exports; `content/es/index.ts` is a labeled scaffold. That work already went through its own 5-agent audit (1 sev-7 grading bug fixed) before this /meet run.
+
+**New findings this run:**
+1. [sev 3] `scripts/lintCardQuality.ts` is 531 lines — over both the Rule 1 util cap (250) and service cap (400). Cleanly separable into `hardGates.ts`/`baselineGates.ts`/`cli.ts` (same extraction pattern already proven on `lib/packLoader.ts`). Build/CI script only — capped severity per Audit Severity Calibration. Not yet a task; logged here as a future Rule 1 cleanup candidate.
+2. [sev 3] `components/StudyCard.tsx:11` imports `store/settingsStore.ts` directly — a 3rd instance (joining `EntitlementValidator.tsx`, `LevelSection.tsx`) of `components/` bypassing `hooks/`, which CLAUDE.md's Layer Map prose describes as disallowed but CLAUDE.md's own enforced `**Rule:**` sentence never actually restricts (`components/` isn't named in it). Documentation/enforcement mismatch — either loosen the prose or thread `sourceLang` through a hook. Not urgent; 3 instances now, worth fixing CLAUDE.md's own wording before a 4th shows up.
+3. `lib/language.ts` blast radius has grown to 12 direct importers across every layer, 6 exported functions beyond `LanguageConfig` — genuinely load-bearing for grading correctness (this is where the sev-7 bug lived). File itself is clean (211/250 lines, no upward imports). Flagging as "handle with extra caution" for future edits, not a defect.
+4. STATUS.md curriculum staleness (see Docs memory for full detail) — independently confirmed by direct measurement against `public/packs/it.json`: real state is 126 units / 30,609 cards, not the 57/125 STATUS.md currently claims. Promoted to Task #510.
+5. No new Rule 3 (layer) violations in the new multi-language plumbing — `lib/language.ts`, `store/settingsStore.ts`, `store/migrations.ts` all verified clean (no upward imports).
+6. `content/es/` scaffold correctly isolated via `ready:false` in `lib/langRegistry.ts` — cannot leak into production pack selection.
+7. Migration convention (SETTINGS_VERSION 3) followed correctly. Module extraction (source-language article-stripping, recognize-label resolution) already correctly placed in `lib/language.ts` as pure functions, not inlined in components.
+
+Findings #1 and #2 are logged here as future cleanup candidates, not yet promoted to tasks (both capped low-severity per Audit Severity Calibration — build-tooling-only and doc-wording respectively). Finding #4 promoted to Task #510 (Batch 20).
 
 ## Past Findings — Resolved (Task #378, 2026-07-17, stream W14A)
 - Specialty base-pack seeding gap (base_pack_not_loaded after full-reload selection) — resolved: lib/packResolver.ts orchestrates seed/load-first; seam test proves the real handoff.
@@ -276,3 +291,11 @@ Batch 14 is now active (Tasks #154–#164 in .autocode/tasks.md). Remaining:
 - Data-then-meta cache-write ordering (sibling of #309) — resolved: meta-first + order test; stale offline serve now re-verifies recorded sha256.
 - packLoader.ts Rule 1 breach (458 lines) — resolved via basePackLoader extraction (304/273); import boundary mechanically tested.
 - NEW OPEN (routed): lib/storage.ts useIsHydrated subscribe race + zustand persist never finishing hydration on failure — carry-forward task written; useLangPack carries a 3s grace fallback.
+
+## Past Findings — Resolved (Batches 10-19, confirmed this run — do not re-report)
+- M2 macOS shipping (Tasks #122/#123/#508) — fully COMPLETE, real signed/notarized release built (still draft on GitHub — see Task #509, not an architecture defect).
+- Specialty Pack Architecture (Batch 12, 164 tasks) — COMPLETE, 12 findings accepted as debt after 11 audit cycles.
+- M3 macOS OS hooks (Batch 14) — COMPLETE.
+- Windows/Linux OS hooks + packaging (Batch 15) — code-complete, PAUSED on Max's own hardware/Azure access (not an architecture gap).
+- Sync architecture decision (Task #168) — COMPLETE, Supabase+FCM approved by Max 2026-08-03.
+- The sev-7 recognize-card grading bug (wrong-language article regex) — fixed in the 2026-08-04/05 multi-language prep, independently re-verified this run.

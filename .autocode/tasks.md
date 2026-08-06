@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-07-01
+Last updated: 2026-08-06 (full /meet re-examination — 5 parallel agents + owner Q&A)
 
 ## Summary
-Batches 1–14, 18, 19 COMPLETE (Batch 10: 2 tasks owner-blocked, #122/#123); Batch 15 CURRENT SPRINT; Batches 16–17 PLANNED (blocked in sequence: 16 needs 15, 17 needs 16). See individual batch headers for exact status and audit history.
-Current Sprint: Batch 15 (Windows + Linux Packaging — Tasks #165–#167)
+Batches 1–14, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 CURRENT SPRINT (Task #168 COMPLETE/signed-off, Task #169 now the active work — Max's stated 90-day priority, 2026-08-06); Batch 17 PLANNED (blocked on Batch 16). See individual batch headers for exact status and audit history.
+Current Sprint: Batch 16 (Sync Backend, Task #169 — the strategic 90-day priority Max named 2026-08-06). Batch 20 (5 quick-win tasks, #509–#513) executed and closed same session — 2026-08-06.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7577,6 +7577,8 @@ Dependency: Batch 15 complete (all desktop platforms shipping). Theme: Add a clo
 
 **2026-08-03: Max signed off on Task #168's platform recommendation (Supabase + FCM, approved as-is) while Batch 15 remains paused on hardware access — a deliberate choice to keep architecture/decision work moving in parallel with an externally-blocked batch, same reasoning as 2026-07-31's note above. Task #169 (real infrastructure — schema, auth flows, offline sync layer) is now unblocked on the decision side, but has NOT been started; still recommended to wait for Batch 15 to close (or for Max to explicitly re-prioritize) before provisioning real, billed cloud infrastructure, since that's a harder-to-reverse step than the doc itself.**
 
+**2026-08-06: Max explicitly re-prioritized — during this session's `/meet` owner-questions pass, Max named "build sync backend / mobile" as the single most important thing for the next 90 days, superseding the 2026-08-03 note's "wait for Batch 15 to close" recommendation. Task #169 is now the active strategic priority, to begin once Batch 20 (this session's 5 quick-win tasks, #509–#513) is cleared. Batch 15 remains paused independently (still blocked on Max's own hardware/Azure access, unrelated to this decision) and is not being waited on.**
+
 ### Task #168 | architecture | severity 9
 **What:** Write sync backend architecture decision doc at `docs/SYNC_ARCHITECTURE.md`. Must cover: (1) platform choice (Supabase vs Firebase vs custom server — choose one, justify), (2) what syncs: SRS card state (cardId, stability, difficulty, dueDate, lastReview, reviewCount, lapses), settings (interrupt config), entitlement (licenseKey, licenseType, purchasedAddOns), (3) offline-first model: all writes local-first, sync on open + periodic, (4) conflict resolution strategy for SRS data — last-write-wins is wrong for concurrent reviews on multiple devices; specify merge strategy (e.g., per-card timestamp, version vector), (5) auth providers: Apple Sign In + Google Sign In minimum (Apple Sign In required for App Store), (6) push notification infrastructure: APNs (iOS) + FCM (Android), (7) estimated monthly cost at 1,000 / 10,000 / 100,000 users.
 **Why:** The platform choice constrains all of Batches 16-17. A wrong choice is expensive to reverse. Apple Sign In is required by App Store guidelines for any app that offers social login. Push notification server design must be decided before mobile starts. Conflict resolution for SRS data is subtle — cannot be deferred.
@@ -10217,6 +10219,80 @@ Reachable today via the ordinary post-session flow (finish a mandatory-mode revi
 - [ ] `npx tsc --noEmit`, `npm test`, `npm run lint` all clean
 
 **Source:** `/audit batch 19` (2026-07-28, first-ever audit of this batch, 8-agent cycle 1) — Finding F1 — severity 7 — error-handling. Full findings list (F1-F18) merged/scored by Agent C; F2-F18 (severity ≤6) logged to `debt.md` per this project's Audit Severity Calibration rule (AGENTS.md) rather than blocking further. F10 bundled into this task's scope per Max's decision at the Debt Review gate, 2026-07-28.
+
+---
+
+## Batch 20 — /meet 2026-08-06 Findings Remediation + Release Publish [COMPLETE — 2026-08-06, all 5 tasks executed same session]
+Dependency: None. Generated from a full `/meet` re-examination (5 parallel agents: Architecture, Security, QA, Docs, Product). Max explicitly greenlit all 5 tasks below during the Phase 2 owner-questions pass (2026-08-06) — this batch is pre-approved, not proposed.
+Theme: Cheap, high-value fixes that surfaced during this /meet run, executed before the strategic Batch 16 (Sync Backend) push begins.
+
+### Task #509 | build | severity 8
+**What:** Publish the two existing GitHub releases (`v0.1.0-beta.1` and `v0.1.0-beta.2`), both currently `draft:true`, as real public releases. Verify the release assets are intact first: real signed+notarized `.dmg` for both `aarch64`/`x86_64` macOS targets, and the Linux `.AppImage` built during Batch 15's code-complete-but-unverified work. Decide with Max whether to publish only the latest (`v0.1.0-beta.2`, which includes the Task #508 auto-updater manifest fix) or both, and whether "beta" naming/pre-release flag should stay set given no real customers exist yet (owner confirmed 2026-08-06: "no real customers yet — pre-launch").
+**Why:** Product agent finding (2026-08-06 /meet): the macOS signing/notarization pipeline is fully verified working end-to-end (Task #122/#123/#508 all COMPLETE), but both releases sit as GitHub drafts — a real customer visiting the repo's release page today cannot download plyglt through any normal channel. BRAND.md's pricing table promises "Desktop app (Mac, Windows, Linux)" to Free-tier users; this is the one remaining step between a working build pipeline and an actual downloadable product.
+**File:** GitHub Releases (no repo file changes expected unless `.github/workflows/release.yml`'s `draft:` setting needs flipping for future releases)
+**Blocks:** Nothing | **Blocked by:** Nothing
+**Risk:** Low — the artifacts are already built and independently verified (notarization confirmed via `xcrun notarytool history` per Task #123's closure). Publishing does not re-run the pipeline.
+**Done when:** `gh release view v0.1.0-beta.2` (or whichever tag is chosen) shows `"isDraft": false`; the release is visible on the repo's public releases page; the `.dmg`/`.AppImage` assets are downloadable via a plain unauthenticated URL.
+**Complexity:** ⚡ Direct — 0-1 files, a GitHub release-state change, no code
+**Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-06 (published `v0.1.0-beta.2` as a pre-release, real customer-verified: unauthenticated release page returns 200, `.dmg` asset downloads 302→200. Mid-task discovery: the repo was PRIVATE, so undrafting the release alone did not achieve the actual goal — flagged to Max, who chose to make `m4x-us/plyglt` public. Ran a full git-history secret scan before that irreversible-in-effect flip — clean. See cto.md Task Cycle Log for full detail.)**
+
+---
+
+### Task #510 | docs | severity 6
+**What:** Rewrite `STATUS.md` end to end to match verified current state, confirmed independently by three separate /meet examination agents (Architecture, Docs, Product — 3-way convergence, the highest-convergence finding this run):
+- §4 Curriculum Status table: A1=20/20 (2,810 cards), A2=30/30 (5,392), B1=36/36 (7,296), B2=40/40 (14,892), **Total 126/125 units, 30,609 cards** (verified directly against `public/packs/it.json`'s `unitCount`/`cardCount` fields and `content/index.ts`'s `ALL_UNITS` length — not just trusting CURRICULUM.md's own claim).
+- §1 Shipped: replace "Italian A1–B1 curriculum — 57 of 125 planned units authored" with the completed-and-audited framing CURRICULUM.md already documents. Add the M3 proactive interruption engine (Batch 14, COMPLETE 2026-07-31 — currently has ZERO mention in STATUS.md despite being BRAND.md's headline differentiator). Add the multi-language / source-language selection feature (2026-08-04/05). Update the auto-updater entry — no longer "pending signed macOS packaging," Task #122/#123/#508 are all COMPLETE with a real published release (see Task #509).
+- §2 Planned: replace the stale "M2 — Desktop shipping" framing with the real current frontier — Batch 15 (Windows/Linux) code-complete but paused on Max's hardware/Azure access; Batch 16 Task #169 (real sync backend) now the active priority per Max's 2026-08-06 90-day-priority answer; real Spanish A1-B2 content authoring not started (content/es/ is a scaffold only).
+- §3 Known Issues: remove the obsolete "68 curriculum units not yet authored" entry entirely. Update the next/postcss/sharp CVE entry — per Task #513 (below), this is no longer "unfixable without a major downgrade" once the `next@16.3.0` upgrade lands.
+**Why:** A fresh Claude Code session, an investor, or a teammate reading only STATUS.md today would materially understate the product's real completeness — frozen since commit `fecd86c` (2026-07-01), unchanged across two later STATUS.md-touching commits that edited unrelated sections and missed the entire B1/B2 curriculum completion and M3 shipment.
+**File:** `STATUS.md`
+**Blocks:** Nothing | **Blocked by:** Task #513 (CVE section wording depends on that upgrade landing first — sequence #513 before finalizing §3)
+**Risk:** Low — documentation only.
+**Done when:** Every number in `STATUS.md §4` is verified against a live `public/packs/it.json`/`content/index.ts` read at write time, not copied from CURRICULUM.md's own prose. `grep -c "57 of 125\|68 curriculum units"  STATUS.md` returns 0.
+**Complexity:** ⚡ Direct — 1 file, doc rewrite
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-08-06 (rewrote §1/§2/§3/§4, light-touch §5. Real numbers verified live against public/packs/it.json + content/index.ts, not copied from CURRICULUM.md — caught and corrected a 219-card B2 discrepancy in CURRICULUM.md's own stale prose along the way. `grep -c "57 of 125\|68 curriculum units" STATUS.md` = 0. Committed as `c63ebad`. See cto.md Task Cycle Log for full detail.)**
+
+---
+
+### Task #511 | docs | severity 4
+**What:** Remove Vacation Mode and Forecast ("B2 in ~7 months at current pace") from BRAND.md's Pro pricing table. Confirmed dead: `lib/featureFlags.ts`'s `vacationMode` flag has zero consumers anywhere outside its own definition and test mocks (`grep -rn "flags.vacationMode\|vacationMode"` outside `lib/featureFlags.ts` returns nothing); Forecast has zero code anywhere in the repo (`grep -rn "at current pace\|B2 in ~"` returns nothing). Do not delete the `vacationMode` flag itself in this task — that's a separate code-cleanup decision; this task is scoped to the pricing table only, per Max's explicit choice (2026-08-06: "pull from pricing table for now," not "build them").
+**Why:** BRAND.md is selling two Pro features that do not exist in any form. Cheapest time to fix this is now, before any real paying customer exists (Max confirmed 2026-08-06: no real customers yet). Leaving false promises in the pricing table past first launch is a much costlier fix (an actual paying customer could notice).
+**File:** `BRAND.md`
+**Blocks:** Nothing | **Blocked by:** Nothing
+**Risk:** Low — documentation only. Re-add both rows the moment either feature actually ships.
+**Done when:** `grep -n "Vacation mode\|Forecast" BRAND.md` shows no pricing-table row for either (mentions elsewhere in BRAND.md discussing the *concept*, e.g. the Stress-Free Principle's vacation-mode paragraph, may stay — only the pricing table row and the feature-comparison table entry are in scope).
+**Complexity:** ⚡ Direct — 1 file, doc edit
+**Owner:** Docs Agent
+**Status: COMPLETE — 2026-08-06 (removed both pricing-table rows; the Stress-Free Principle's vacation-mode concept paragraph at line 71 left untouched. `grep -n "Vacation mode\|Forecast" BRAND.md` shows only that paragraph, no pricing-table row. Committed as `786a4ad`.)**
+
+---
+
+### Task #512 | fix | severity 6
+**What:** Fix a reproducible flaky test in `tests/importBackup.test.ts`. Root cause: `validBackup()` (line 33) computes its default nested card's `dueDate` as `Date.now() + 86400000` fresh on every call. Two tests (`#481/#487`, ~lines 452 and 459-460) each call `validBackup(...)` twice independently — once for a numeric `_version`, once for the string equivalent — then deep-`toEqual` the two full parsed results, including the embedded `dueDate` field. If a millisecond boundary falls between the two `validBackup()` calls, the two `dueDate` values differ by 1-2ms and the assertion fails. **Reproduced live during this /meet run's QA examination**: failed on a full `npm test` run, then failed again independently on a targeted re-run of just this file, before passing clean on two subsequent runs — a genuine, nondeterministic CI hazard, not a one-off. Fix: change `validBackup()`'s default `dueDate` (line 33) to a fixed constant (e.g. a hardcoded epoch literal) instead of a `Date.now()`-derived value. This does not affect the one test that legitimately needs dynamic `Date.now()` behavior (`"defaults dueDate to approximately now when value is not a finite number"`, lines 251-265) — that test constructs its own override with `dueDate: "invalid"` and never goes through `validBackup()`'s default value.
+**Why:** QA finding, 2026-08-06 /meet, severity 6. Max confirmed 2026-08-06: fix now — "small, contained, root-cause pattern already proven elsewhere in the same file."
+**File:** `tests/importBackup.test.ts`
+**Blocks:** Nothing | **Blocked by:** Nothing
+**Risk:** Low — test-only change, no production code touched.
+**Done when:** `npx vitest run tests/importBackup.test.ts --repeat=20` (or equivalent repeated-run flag) passes 20/20 with no flake. `npm test` full suite still green.
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** QA Agent
+**Status: COMPLETE — 2026-08-06 (validBackup()'s dueDate default changed from Date.now()+86400000 to a fixed constant. Verified with 20 sequential runs of the file, 68/68 passing every time — not just one lucky pass. Full suite 1546/1546. Committed as `24d9aaf`.)**
+
+---
+
+### Task #513 | security | severity 4
+**What:** Upgrade `next` from the currently-locked `16.2.12` to `16.3.0` (already permitted by `package.json`'s existing `^16.2.12` range — no `package.json` edit needed, just `npm install`/`npm update next` to refresh `package-lock.json`). This resolves all 3 current high-severity `npm audit` advisories (`next`, `postcss`, `sharp`) — verified empirically during this /meet run's Security examination: a fresh isolated install of `next@16.3.0` bundles patched `postcss@8.5.23` and `sharp@0.35.3`, and `npm audit` on that install reports 0 vulnerabilities.
+**Why:** STATUS.md's Known Issues section currently claims these 3 CVEs are "unfixable without a major Next.js downgrade" — that claim is now stale; a real fix has shipped upstream since it was last checked. Max confirmed 2026-08-06: do it now, given the near-zero risk (patch-level Next.js bump, zero `package.json` range change).
+**File:** `package.json` (lockfile only, no version-range edit expected), `package-lock.json`
+**Blocks:** Task #510 (STATUS.md's CVE wording should reflect this being fixed, not just fixable — sequence this task first)
+**Blocked by:** Nothing
+**Risk:** Low-Medium — a patch-level Next.js bump; run the full verification gate (`npx tsc --noEmit`, `npm test`, `npm run lint`, `npm run build`) before considering this done, since even patch bumps have occasionally shifted Next.js build output in this project's history.
+**Done when:** `npm audit --json` reports 0 vulnerabilities. `npx tsc --noEmit`, `npm test`, `npm run lint`, and a real `npm run build` all pass clean. `STATUS.md`'s CVE entry (Task #510) is updated to reflect the fix, not left describing it as impossible.
+**Complexity:** ⚡ Direct — 2 files (lockfile + manifest, no source code), dependency bump
+**Owner:** Security Agent
+**Status: COMPLETE — 2026-08-06 (npm audit 0 vulnerabilities, was 3 high. Full gate green: tsc, 1546/1546 tests, lint, real `next build`. package.json unchanged, package-lock.json refreshed. Committed as `bdf742e`. See cto.md Task Cycle Log for full detail.)**
 
 ---
 
