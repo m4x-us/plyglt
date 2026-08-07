@@ -13,6 +13,7 @@ import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { Section } from "@/components/settings/Section";
 import { Toggle } from "@/components/settings/Toggle";
 import { NotificationPermissionGate } from "@/components/NotificationPermissionGate";
+import { SyncSignIn } from "@/components/SyncSignIn";
 import { useExportImport } from "@/hooks/useExportImport";
 import { useLicenseActivation } from "@/hooks/useLicenseActivation";
 
@@ -121,6 +122,9 @@ export default function SettingsPage() {
               )}
             </Section>
           )}
+          <Section title="Sync">
+            <SyncSignIn />
+          </Section>
           <Section title="License">
             {licenseKey ? (
               <div className="space-y-3">
