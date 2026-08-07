@@ -7628,6 +7628,7 @@ Verified via Supabase's live Auth settings endpoint: `"apple": true`. **Checklis
 **Blocked by:** Nothing (Task #169's credential prerequisite is complete) | **Blocks:** #515, #517
 **Done when:** `grep -rn "@supabase/supabase-js" --include=*.ts --include=*.tsx . | grep -v node_modules | grep -v lib/supabaseClient.ts | grep -v '\.test\.'` returns nothing (single-gateway rule enforced). A test confirms the client degrades gracefully when env vars are absent. A test confirms `auth.storage` is wired to `createPlatformStorage`, not left at Supabase's default.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-06 (independently audited PASS, 2 non-blocking findings both resolved same-cycle. Single-gateway rule verified via grep by both the builder and the independent auditor. auth.storage wiring verified via identity check, not just presence. 1590/1590 tests, tsc/lint/build/npm-audit all clean. Committed as `9e0cc94`.)**
 
 ---
 
