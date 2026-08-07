@@ -49,8 +49,14 @@ async function getStore(storeName: string): Promise<TauriStore | null> {
  * Returns a Zustand-compatible `StateStorage` that routes to Tauri Store
  * (desktop) or localStorage (web). Pass `storeName` as the logical name
  * (e.g. "srs-en-it") — Tauri appends ".json".
+ *
+ * Return type pins StateStorage's generic to `Promise<void>` (setItem/removeItem's
+ * actual inferred return type below, left as the interface's `unknown` default
+ * previously) so this satisfies Supabase's stricter `SupportedStorage` shape when
+ * used as an `auth.storage` adapter (lib/supabaseClient.ts, Task #514) — zero
+ * behavior change, this only makes the declared type match what was already true.
  */
-export function createPlatformStorage(storeName: string): StateStorage {
+export function createPlatformStorage(storeName: string): StateStorage<Promise<void>> {
   return {
     getItem: async (key: string): Promise<string | null> => {
       const store = await getStore(storeName);
