@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-06 (full /meet re-examination — 5 parallel agents + owner Q&A)
+Last updated: 2026-08-06 (Task #169 credentials complete; decomposed into #514–#518, executing via /task harness one at a time — Max's explicit instruction, no /advance)
 
 ## Summary
-Batches 1–14, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 CURRENT SPRINT (Task #168 COMPLETE/signed-off, Task #169 now the active work — Max's stated 90-day priority, 2026-08-06); Batch 17 PLANNED (blocked on Batch 16). See individual batch headers for exact status and audit history.
-Current Sprint: Batch 16 (Sync Backend, Task #169 — the strategic 90-day priority Max named 2026-08-06). Batch 20 (5 quick-win tasks, #509–#513) executed and closed same session — 2026-08-06.
+Batches 1–14, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 CURRENT SPRINT (Task #168 COMPLETE/signed-off; Task #169's credential prerequisite is now COMPLETE — Supabase + Google + Apple Sign In all live and verified; remaining scope decomposed into Tasks #514–#518, a strict dependency chain executed sequentially via /task); Batch 17 PLANNED (blocked on Batch 16). See individual batch headers for exact status and audit history.
+Current Sprint: Batch 16 — Task #514 (Supabase client gateway) next, then #515 → #516/#517 → #518 in dependency order.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7614,6 +7614,68 @@ Second real gap: Supabase's current Apple provider UI does not accept Team ID / 
 **⚠️ Standing reminder for whoever picks this up next: the Apple secret JWT expires 2027-02-05 (Apple's 6-month max).** After that date, Apple Sign In will silently stop working until a new token is generated and re-pasted into Supabase. Regenerating is trivial (same script, same `.p8` file, ~5 seconds) — the risk is forgetting it's time-limited at all, since nothing will fail until the exact expiry moment. No automated reminder system exists in this project; whoever runs `/meet` or `/resume` after ~2027-01 should flag this proactively.
 
 Verified via Supabase's live Auth settings endpoint: `"apple": true`. **Checklist status: Supabase project ✓, database schema ✓, Google Sign In ✓, Apple Sign In ✓ — all four Stage items from `docs/SYNC_CREDENTIALS_CHECKLIST.md` complete.** Next: build the actual Supabase client wiring, real sign-in screens, and end-to-end sync verification between two devices — the credential-gated work that's been blocked since this task started.
+
+**2026-08-06 — Task #169 decomposed into #514–#518 below.** Now that credentials are live, the remaining scope is a strict dependency chain (client → auth → UI → real sync → verification), not independent parallelizable work — Max explicitly requested this go through the task harness (`/task`) rather than freeform building, one task at a time, no `/advance`. Task #169 itself stays open as the umbrella and closes when #518 verifies its original Done-When.
+
+---
+
+### Task #514 | feature | severity 8
+**What:** Add `@supabase/supabase-js` as a dependency. Create `lib/supabaseClient.ts` — the single gateway for all Supabase access, mirroring `lib/tauri.ts`'s established pattern (CLAUDE.md §2: one gateway file, nothing else imports the SDK directly). Initialize from `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Critically: configure the client's `auth.storage` option to route through `lib/storage.ts`'s `createPlatformStorage`, NOT Supabase's own default (browser `localStorage`) — CLAUDE.md §3 requires all persistence to flow through the platform storage abstraction so desktop (Tauri Store) and web behave consistently and survive browser cache clears on desktop. Must degrade gracefully (return `null`/a clear not-configured signal, never throw) when env vars are absent, matching the Tauri gateway's own graceful-degradation pattern.
+**Why:** Prerequisite for every other piece of real sync/auth work. Establishes the architectural pattern (single gateway + storage-abstraction compliance) the rest of the feature must follow — getting this wrong here means every downstream task inherits the mistake.
+**File:** `lib/supabaseClient.ts` (new), `package.json`, `package-lock.json`
+**Severity:** 8 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — new dependency, new architectural gateway module
+**Blocked by:** Nothing (Task #169's credential prerequisite is complete) | **Blocks:** #515, #517
+**Done when:** `grep -rn "@supabase/supabase-js" --include=*.ts --include=*.tsx . | grep -v node_modules | grep -v lib/supabaseClient.ts | grep -v '\.test\.'` returns nothing (single-gateway rule enforced). A test confirms the client degrades gracefully when env vars are absent. A test confirms `auth.storage` is wired to `createPlatformStorage`, not left at Supabase's default.
+**Owner:** Architecture Agent
+
+---
+
+### Task #515 | feature | severity 8
+**What:** New `store/authStore.ts` (Zustand) tracking the current Supabase auth session (signed-in/out, user id, email). Actions: `signInWithApple()`, `signInWithGoogle()` — both trigger Supabase OAuth via `lib/supabaseClient.ts`; in the Tauri desktop context this needs external-browser + deep-link handling (similar to how `lib/checkout.ts`'s `openExternalUrl` pattern already works) since a desktop app can't do a same-window redirect the way a web page can. `signOut()`. Subscribes to Supabase's `onAuthStateChange` so the store reflects the real session after the OAuth redirect completes.
+**Why:** Nothing can sync until a real user is signed in — the `review_events` RLS policies require an actual `auth.uid()`.
+**File:** `store/authStore.ts` (new)
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — new store, OAuth flow, desktop deep-link handling
+**Blocked by:** #514 | **Blocks:** #516, #517
+**Done when:** A real sign-in with Google (or Apple) completes and `authStore`'s state reflects a signed-in user with a real Supabase-issued user id. Sign-out clears it. Tests cover both provider entry points and the signed-out default state.
+**Owner:** Architecture Agent
+
+---
+
+### Task #516 | feature | severity 6
+**What:** Add a Sign In section to `app/settings/page.tsx` (or a new dedicated component if that file is near its 150-line cap — check first) with "Sign in with Apple" / "Sign in with Google" buttons wired to `authStore`'s actions, and a signed-in state showing the user's email plus a Sign Out button. Match this project's existing Pro-gating UI conventions for visual consistency.
+**Why:** Users need an actual entry point to sign in — the first real user-facing surface for the whole sync feature.
+**File:** `app/settings/page.tsx`, possibly a new `components/SyncSignIn.tsx`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — new UI, likely a new component
+**Blocked by:** #515 | **Blocks:** #518
+**Done when:** A co-located test (Rule 14) confirms both provider buttons render, clicking each calls the correct `authStore` action, and the signed-in state renders the user's email and a working sign-out button.
+**Owner:** Architecture Agent
+
+---
+
+### Task #517 | feature | severity 9
+**What:** Wire real sync when a user is signed in: (a) **upload** — push `store/syncStore.ts`'s `pendingEvents` to the `review_events` table (batch insert; clear the local queue only on confirmed success, never before — no silent data loss on a failed upload); (b) **download** — fetch a user's remote events and merge with local-only events via the already-built, already-tested `lib/conflictResolution.ts:replayLatestEventPerCard`; (c) **replay** the merged result into `store/srsStore.ts`'s `cards` map so the UI reflects true merged state. Sync triggers per `docs/SYNC_ARCHITECTURE.md` §3: on app open (if pending events exist and network is available) plus periodic background sync. A failed sync silently retries — never blocks the user (BRAND.md's "never makes you feel behind," applied to infrastructure).
+**Why:** This is the actual point of the feature — SRS state genuinely syncing across devices. Everything in #514–#516 was prerequisite plumbing.
+**File:** `store/syncStore.ts`, possibly a new `lib/syncClient.ts` for upload/download orchestration (kept separate from the pure `lib/conflictResolution.ts`, matching this project's small-single-purpose-module pattern)
+**Severity:** 9 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — core feature logic, network + offline-first + merge orchestration
+**Blocked by:** #514, #515 | **Blocks:** #518
+**Done when:** A real review recorded while signed in on one client actually appears in Supabase's `review_events` table (verified via direct query, not just trusting the code path). A second client, on sync, receives and correctly merges that event with no data loss. Tests cover the upload path, the download+merge path, and silent-retry-on-failure.
+**Owner:** Architecture Agent
+
+---
+
+### Task #518 | feature | severity 8
+**What:** Verify Task #169's original Done-When directly: SRS state syncs bidirectionally between two separate signed-in sessions with no data loss, and conflict resolution works correctly when the "same card reviewed on both before either syncs" scenario happens live — not just in `lib/conflictResolution.ts`'s unit tests. Confirm the auth flow works end-to-end on macOS.
+**Why:** Closes out Task #169 for real — proves the built pieces work together, not just individually.
+**File:** None (verification task) — possibly a new `tests/e2e/sync.spec.ts` if a reliable automated two-client test can be built
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — cross-session verification
+**Blocked by:** #516, #517 | **Blocks:** Task #169 marked COMPLETE (unblocks #170)
+**Done when:** A documented, reproducible verification (an automated E2E test, or a manually-verified and logged walkthrough) shows two sessions genuinely syncing SRS review data bidirectionally with correct conflict resolution.
+**Owner:** Architecture Agent
 
 ---
 
