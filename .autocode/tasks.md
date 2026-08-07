@@ -7633,13 +7633,26 @@ Verified via Supabase's live Auth settings endpoint: `"apple": true`. **Checklis
 ---
 
 ### Task #515 | feature | severity 8
-**What:** New `store/authStore.ts` (Zustand) tracking the current Supabase auth session (signed-in/out, user id, email). Actions: `signInWithApple()`, `signInWithGoogle()` — both trigger Supabase OAuth via `lib/supabaseClient.ts`; in the Tauri desktop context this needs external-browser + deep-link handling (similar to how `lib/checkout.ts`'s `openExternalUrl` pattern already works) since a desktop app can't do a same-window redirect the way a web page can. `signOut()`. Subscribes to Supabase's `onAuthStateChange` so the store reflects the real session after the OAuth redirect completes.
+**What:** New `store/authStore.ts` (Zustand) tracking the current Supabase auth session (signed-in/out, user id, email). Actions: `signInWithApple()`, `signInWithGoogle()` — both call Supabase's `signInWithOAuth()` via `lib/supabaseClient.ts` and open the resulting authorize URL via the existing `openExternalUrl`/browser-redirect path. `signOut()`. Subscribes to Supabase's `onAuthStateChange` so the store reflects the real session once one exists.
+**Scope correction (2026-08-06, Max's explicit decision):** this task is deliberately scoped to what's verifiable WITHOUT Tauri deep-link plumbing, which doesn't exist anywhere in this app yet (confirmed: no `tauri-plugin-deep-link`, no custom URL scheme registered) and is real Rust/config work, not something that belongs inside a single TS store file. The real end-to-end desktop callback (the OS handing control back to the app after the browser sign-in completes) is split out to the new **Task #519**. This task's own Done-When is scoped to what it can actually prove: the store's state machine, the OAuth call construction, and a web-context sign-in flow (Supabase's standard same-window/tab redirect, which works today with zero additional Tauri plumbing) — not full desktop verification, which is Task #518's job once #519 lands.
 **Why:** Nothing can sync until a real user is signed in — the `review_events` RLS policies require an actual `auth.uid()`.
 **File:** `store/authStore.ts` (new)
 **Severity:** 8 | **DoD Tier:** 3
-**Complexity:** 🔧 Full — new store, OAuth flow, desktop deep-link handling
+**Complexity:** 🔧 Full — new store, OAuth flow
 **Blocked by:** #514 | **Blocks:** #516, #517
-**Done when:** A real sign-in with Google (or Apple) completes and `authStore`'s state reflects a signed-in user with a real Supabase-issued user id. Sign-out clears it. Tests cover both provider entry points and the signed-out default state.
+**Done when:** A real sign-in with Google (or Apple), verified in the web build (not yet the Tauri desktop build — that's #518/#519's job), completes and `authStore`'s state reflects a signed-in user with a real Supabase-issued user id. Sign-out clears it. Tests cover both provider entry points and the signed-out default state.
+**Owner:** Architecture Agent
+
+---
+
+### Task #519 | feature | severity 7
+**What:** Add `tauri-plugin-deep-link` (or equivalent) and register a custom URL scheme (e.g. `plyglt://auth-callback`) so the OS can hand control back to the desktop app after a user completes OAuth sign-in in their system browser. Wire the JS-side listener (in `store/authStore.ts` or a small dedicated handler) to catch the callback URL, extract the auth code/tokens, and complete the session via Supabase's `exchangeCodeForSession()` (PKCE flow, the modern default — do not use the older implicit/hash-fragment flow). Update `store/authStore.ts`'s `signInWithApple()`/`signInWithGoogle()` calls to pass `skipBrowserRedirect: true` and the custom-scheme `redirectTo`, matching the deep-link-based desktop OAuth pattern (Supabase's own docs cover this exact Tauri/desktop scenario).
+**Why:** Task #515 built the store and web-verifiable OAuth logic but deliberately deferred real desktop callback handling, since it's genuine Rust/Tauri configuration work, not a TypeScript-only change. Without this, "Sign in with Apple/Google" on the actual shipped desktop app opens a browser tab that has nowhere to send the user back to.
+**File:** `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs` (plugin registration), `store/authStore.ts` (callback handling)
+**Severity:** 7 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — new Tauri plugin, Rust config, platform-specific URL scheme registration
+**Blocked by:** #514, #515 | **Blocks:** #518 (full desktop verification needs this; #516/#517 do NOT need to wait — they can be built and tested against the web-context flow #515 already delivers)
+**Done when:** A real sign-in with Google (or Apple) completed in the system browser on a real macOS build successfully hands control back to the running desktop app, and `authStore`'s state reflects the signed-in session — verified on an actual built `.app`, not just `next dev`.
 **Owner:** Architecture Agent
 
 ---
@@ -7674,7 +7687,7 @@ Verified via Supabase's live Auth settings endpoint: `"apple": true`. **Checklis
 **File:** None (verification task) — possibly a new `tests/e2e/sync.spec.ts` if a reliable automated two-client test can be built
 **Severity:** 8 | **DoD Tier:** 3
 **Complexity:** 🔧 Full — cross-session verification
-**Blocked by:** #516, #517 | **Blocks:** Task #169 marked COMPLETE (unblocks #170)
+**Blocked by:** #516, #517, #519 (real desktop auth verification needs #519's deep-link callback handler, added 2026-08-06 — see #515's scope note) | **Blocks:** Task #169 marked COMPLETE (unblocks #170)
 **Done when:** A documented, reproducible verification (an automated E2E test, or a manually-verified and logged walkthrough) shows two sessions genuinely syncing SRS review data bidirectionally with correct conflict resolution.
 **Owner:** Architecture Agent
 
