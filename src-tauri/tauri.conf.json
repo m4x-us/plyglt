@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com ipc: http://ipc.localhost; font-src 'self'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.lemonsqueezy.com https://ivtrndmqshlfobonxdmv.supabase.co ipc: http://ipc.localhost; font-src 'self'"
     },
     "trayIcon": {
       "iconPath": "icons/tray.png",
@@ -52,6 +52,11 @@
       "endpoints": [
         "https://github.com/m4x-us/plyglt/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["plyglt"]
+      }
     }
   }
 }

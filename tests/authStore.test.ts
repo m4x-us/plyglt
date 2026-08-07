@@ -1,11 +1,28 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 
+const { tauriState, mockOpenExternalUrl, mockOnDeepLinkUrl, mockGetCurrentDeepLinkUrls } = vi.hoisted(() => ({
+  tauriState: { isTauri: false as boolean },
+  mockOpenExternalUrl: vi.fn().mockResolvedValue(undefined),
+  mockOnDeepLinkUrl: vi.fn().mockResolvedValue(() => {}),
+  mockGetCurrentDeepLinkUrls: vi.fn().mockResolvedValue(null),
+}));
+
+// isTauri is a getter so it reflects tauriState.isTauri at read time, matching the
+// pattern app/settings/page.test.tsx already uses for the same real module.
+vi.mock("@/lib/tauri", () => ({
+  get isTauri() { return tauriState.isTauri; },
+  openExternalUrl: (...args: unknown[]) => mockOpenExternalUrl(...args),
+  onDeepLinkUrl: (...args: unknown[]) => mockOnDeepLinkUrl(...args),
+  getCurrentDeepLinkUrls: (...args: unknown[]) => mockGetCurrentDeepLinkUrls(...args),
+}));
+
 function makeMockClient() {
   const onAuthStateChangeCallbacks: Array<(event: string, session: unknown) => void> = [];
   const mockAuth = {
     signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: null }),
     signOut: vi.fn().mockResolvedValue({ error: null }),
+    exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
     onAuthStateChange: vi.fn((cb: (event: string, session: unknown) => void) => {
       onAuthStateChangeCallbacks.push(cb);
       return { data: { subscription: { unsubscribe: vi.fn() } } };
@@ -17,6 +34,10 @@ function makeMockClient() {
 afterEach(() => {
   vi.resetModules();
   vi.doUnmock("@/lib/supabaseClient");
+  tauriState.isTauri = false;
+  mockOpenExternalUrl.mockClear();
+  mockOnDeepLinkUrl.mockClear().mockResolvedValue(() => {});
+  mockGetCurrentDeepLinkUrls.mockClear().mockResolvedValue(null);
 });
 
 describe("authStore — not configured (getSupabaseClient returns null)", () => {
@@ -187,5 +208,127 @@ describe("authStore — configured", () => {
 
     // signOut() resolving does not itself clear state — only a real SIGNED_OUT event does.
     expect(useAuthStore.getState().status).toBe("signed-in");
+  });
+});
+
+describe("authStore — desktop OAuth path (Task #519, isTauri)", () => {
+  it("signInWithApple calls signInWithOAuth with skipBrowserRedirect + the plyglt:// redirectTo, then opens the returned URL via openExternalUrl", async () => {
+    vi.resetModules();
+    tauriState.isTauri = true;
+    const mock = makeMockClient();
+    mock.auth.signInWithOAuth.mockResolvedValue({ data: { url: "https://appleid.apple.com/authorize?x=1" }, error: null });
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+
+    const result = await useAuthStore.getState().signInWithApple();
+
+    expect(mock.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "apple",
+      options: { skipBrowserRedirect: true, redirectTo: "plyglt://auth-callback" },
+    });
+    expect(mockOpenExternalUrl).toHaveBeenCalledWith("https://appleid.apple.com/authorize?x=1");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("returns ok:false and does not open a browser when signInWithOAuth returns no authorize URL", async () => {
+    vi.resetModules();
+    tauriState.isTauri = true;
+    const mock = makeMockClient();
+    mock.auth.signInWithOAuth.mockResolvedValue({ data: {}, error: null });
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+
+    const result = await useAuthStore.getState().signInWithGoogle();
+
+    expect(result).toEqual({ ok: false, error: "No authorize URL returned." });
+    expect(mockOpenExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the real error and does not open a browser when signInWithOAuth errors", async () => {
+    vi.resetModules();
+    tauriState.isTauri = true;
+    const mock = makeMockClient();
+    mock.auth.signInWithOAuth.mockResolvedValue({ data: {}, error: { message: "provider not enabled" } });
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+
+    const result = await useAuthStore.getState().signInWithApple();
+
+    expect(result).toEqual({ ok: false, error: "provider not enabled" });
+    expect(mockOpenExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("registers a deep-link URL listener and checks for a cold-start URL once at module load", async () => {
+    vi.resetModules();
+    tauriState.isTauri = true;
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    await import("@/store/authStore");
+
+    expect(mockOnDeepLinkUrl).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentDeepLinkUrls).toHaveBeenCalledTimes(1);
+  });
+
+  it("in web mode, never registers a deep-link listener or checks for a cold-start URL", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    await import("@/store/authStore");
+
+    expect(mockOnDeepLinkUrl).not.toHaveBeenCalled();
+    expect(mockGetCurrentDeepLinkUrls).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleDeepLinkCallback", () => {
+  it("ignores a URL that isn't this app's own plyglt:// scheme", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { handleDeepLinkCallback } = await import("@/store/authStore");
+
+    await handleDeepLinkCallback("https://example.com/callback?code=abc");
+
+    expect(mock.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("ignores a plyglt:// URL with no code param", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { handleDeepLinkCallback } = await import("@/store/authStore");
+
+    await handleDeepLinkCallback("plyglt://auth-callback");
+
+    expect(mock.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("extracts the code from a real callback URL and calls exchangeCodeForSession with exactly that value", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { handleDeepLinkCallback } = await import("@/store/authStore");
+
+    await handleDeepLinkCallback("plyglt://auth-callback?code=abc123&state=xyz");
+
+    expect(mock.auth.exchangeCodeForSession).toHaveBeenCalledWith("abc123");
+  });
+
+  it("does not throw when exchangeCodeForSession errors (e.g. a reused/expired code) — logs and resolves", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    mock.auth.exchangeCodeForSession.mockResolvedValueOnce({ error: { message: "invalid grant" } });
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { handleDeepLinkCallback } = await import("@/store/authStore");
+
+    await expect(handleDeepLinkCallback("plyglt://auth-callback?code=abc123")).resolves.toBeUndefined();
+  });
+
+  it("no-ops when Supabase isn't configured", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => null }));
+    const { handleDeepLinkCallback } = await import("@/store/authStore");
+
+    await expect(handleDeepLinkCallback("plyglt://auth-callback?code=abc123")).resolves.toBeUndefined();
   });
 });

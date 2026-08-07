@@ -31,6 +31,7 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);

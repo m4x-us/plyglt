@@ -59,6 +59,66 @@ describe("web-mode no-ops", () => {
     await mod.openExternalUrl("https://example.com");
     expect(openSpy).toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
   });
+
+  it("onDeepLinkUrl returns a no-op unlisten function when not in Tauri", async () => {
+    const { onDeepLinkUrl } = await import("@/lib/tauri");
+    const unlisten = await onDeepLinkUrl(() => {});
+    expect(typeof unlisten).toBe("function");
+    expect(() => unlisten()).not.toThrow();
+  });
+
+  it("getCurrentDeepLinkUrls returns null when not in Tauri", async () => {
+    const { getCurrentDeepLinkUrls } = await import("@/lib/tauri");
+    const result = await getCurrentDeepLinkUrls();
+    expect(result).toBeNull();
+  });
+});
+
+// Task #519 — desktop OAuth callback deep links
+describe("deep links — Tauri-mode wiring", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("onDeepLinkUrl registers the handler via the plugin's onOpenUrl and returns its unlisten function", async () => {
+    vi.resetModules();
+    const unlistenSpy = vi.fn();
+    const onOpenUrlMock = vi.fn().mockResolvedValue(unlistenSpy);
+    vi.doMock("@tauri-apps/plugin-deep-link", () => ({ onOpenUrl: onOpenUrlMock }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { onDeepLinkUrl } = await import("@/lib/tauri");
+
+    const handler = vi.fn();
+    const unlisten = await onDeepLinkUrl(handler);
+
+    expect(onOpenUrlMock).toHaveBeenCalledWith(handler);
+    expect(unlisten).toBe(unlistenSpy);
+  });
+
+  it("getCurrentDeepLinkUrls returns the plugin's getCurrent() result", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-deep-link", () => ({
+      getCurrent: vi.fn().mockResolvedValue(["plyglt://auth-callback?code=abc"]),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { getCurrentDeepLinkUrls } = await import("@/lib/tauri");
+
+    const result = await getCurrentDeepLinkUrls();
+    expect(result).toEqual(["plyglt://auth-callback?code=abc"]);
+  });
+
+  it("getCurrentDeepLinkUrls returns null when the plugin reports none", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-deep-link", () => ({
+      getCurrent: vi.fn().mockResolvedValue(null),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { getCurrentDeepLinkUrls } = await import("@/lib/tauri");
+
+    const result = await getCurrentDeepLinkUrls();
+    expect(result).toBeNull();
+  });
 });
 
 // #004 — updateInterruptConfig must throw when the Tauri IPC layer throws.

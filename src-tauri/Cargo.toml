@@ -22,6 +22,10 @@ tauri-plugin-store        = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-autostart    = "2"
 tauri-plugin-updater      = "2"
+# Task #519 — hands control back to the running app after a user completes OAuth
+# sign-in in the system browser, via the custom `plyglt://` URL scheme registered
+# in tauri.conf.json's plugins.deep-link.desktop.schemes.
+tauri-plugin-deep-link    = "2"
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest    = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }

@@ -26,22 +26,28 @@
  * back to /settings/ so the user also visibly lands where the result is shown.
  * Losing either fix reintroduces the bug even though the other still "works."
  *
- * Desktop scope note (Task #515, 2026-08-06): today this uses Supabase's default
- * same-window OAuth redirect, which only completes correctly in a web context —
- * verified there. On the real Tauri desktop build, this currently redirects the
- * app's own webview to the provider's consent page rather than the system browser,
- * and has no way back into the app afterward. Task #519 will switch these calls to
- * `skipBrowserRedirect: true` + a custom-scheme `redirectTo`, opened via
- * `lib/tauri.ts`'s `openExternalUrl`, once the Tauri deep-link callback handler
- * that requires exists.
+ * Desktop (Task #519, 2026-08-07): the Tauri build uses a different flow than web.
+ * `skipBrowserRedirect: true` + a custom `plyglt://` scheme `redirectTo` — there is
+ * no "current window location" worth navigating inside the app's own webview, so
+ * Supabase instead returns the authorize URL, which is opened explicitly via
+ * `lib/tauri.ts`'s `openExternalUrl` (the real system browser, not the webview).
+ * Completion happens asynchronously: the OS hands the `plyglt://...?code=...`
+ * callback back to the running app (registered in `src-tauri/tauri.conf.json`'s
+ * `plugins.deep-link.desktop.schemes`), caught by `handleDeepLinkCallback` below,
+ * which exchanges the PKCE code for a session via `exchangeCodeForSession` — the
+ * desktop equivalent of the web flow's automatic `detectSessionInUrl`. The exact
+ * `plyglt://**` pattern must also be added to the Supabase project's own
+ * Authentication → URL Configuration → Redirect URLs allowlist, a manual
+ * infrastructure step this code cannot verify or perform.
  */
 // ============================================================
-// DEPENDS ON: @/lib/supabaseClient
-// USED BY: not yet wired to any UI — Task #516 (sign-in screen) is the first caller
+// DEPENDS ON: @/lib/supabaseClient, @/lib/tauri
+// USED BY: components/SyncSignIn.tsx (Task #516)
 // ============================================================
 
 import { create } from "zustand";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { isTauri, openExternalUrl, onDeepLinkUrl, getCurrentDeepLinkUrls } from "@/lib/tauri";
 import type { Provider } from "@supabase/supabase-js";
 
 export type AuthStatus = "loading" | "signed-out" | "signed-in";
@@ -55,9 +61,29 @@ interface AuthState {
   signOut: () => Promise<{ ok: boolean; error?: string }>;
 }
 
+// Registered in src-tauri/tauri.conf.json's plugins.deep-link.desktop.schemes.
+const DEEP_LINK_REDIRECT_URL = "plyglt://auth-callback";
+
 async function signInWithProvider(provider: Provider): Promise<{ ok: boolean; error?: string }> {
   const client = getSupabaseClient();
   if (!client) return { ok: false, error: "Sync is not configured." };
+
+  if (isTauri) {
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider,
+      options: { skipBrowserRedirect: true, redirectTo: DEEP_LINK_REDIRECT_URL },
+    });
+    if (error) {
+      console.error(`[ERR-AUTH-SIGNIN-${provider}-${Date.now()}] signInWithOAuth failed:`, error);
+      return { ok: false, error: error.message };
+    }
+    if (!data.url) {
+      console.error(`[ERR-AUTH-SIGNIN-${provider}-${Date.now()}] signInWithOAuth returned no authorize URL`);
+      return { ok: false, error: "No authorize URL returned." };
+    }
+    await openExternalUrl(data.url);
+    return { ok: true };
+  }
 
   // redirectTo must point back to /settings/ explicitly (trailing slash matches
   // next.config.ts's trailingSlash:true static export) rather than Supabase's
@@ -71,6 +97,40 @@ async function signInWithProvider(provider: Provider): Promise<{ ok: boolean; er
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+/**
+ * @internal Exported for unit testing. Extracts the PKCE `code` param from a
+ * received `plyglt://...` deep-link callback URL and completes the session.
+ * Ignores anything not carrying this app's own scheme or a `code` param — a
+ * malformed/foreign URL is silently skipped, not an error. A code being
+ * exchanged twice (e.g. an unlikely overlap between the cold-start
+ * getCurrentDeepLinkUrls() check and onOpenUrl's own listener firing for the
+ * same initial URL) fails harmlessly on the second attempt — PKCE codes are
+ * single-use and GoTrue rejects a reused one with a normal, logged error, not
+ * a crash or corrupted state.
+ */
+export async function handleDeepLinkCallback(url: string): Promise<void> {
+  if (!url.startsWith("plyglt://")) return;
+  const client = getSupabaseClient();
+  if (!client) return;
+
+  let code: string | null;
+  try {
+    code = new URL(url).searchParams.get("code");
+  } catch (e) {
+    console.error(`[ERR-AUTH-DEEPLINK-PARSE-${Date.now()}] Malformed deep-link URL:`, e);
+    return;
+  }
+  if (!code) return;
+
+  const { error } = await client.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error(`[ERR-AUTH-DEEPLINK-EXCHANGE-${Date.now()}] exchangeCodeForSession failed:`, error);
+  }
+  // No manual setState here — a successful exchange fires SIGNED_IN through
+  // onAuthStateChange below, the same single source of truth every other
+  // sign-in path already relies on.
 }
 
 export const useAuthStore = create<AuthState>()(() => ({
@@ -116,4 +176,18 @@ if (_client) {
   _client.auth.onAuthStateChange((_event, session) => _applyAuthStateChange(session));
 } else {
   useAuthStore.setState({ status: "signed-out" });
+}
+
+// Desktop-only (Task #519): catch the OAuth deep-link callback regardless of
+// which of the two ways it can arrive — the app already running when the
+// browser redirect happens (onDeepLinkUrl's event), or the OS launching this
+// process fresh via the link (getCurrentDeepLinkUrls, checked once at
+// startup, cold-start case). Both no-op in web (isTauri false).
+if (isTauri) {
+  void onDeepLinkUrl((urls) => {
+    for (const url of urls) void handleDeepLinkCallback(url);
+  });
+  void getCurrentDeepLinkUrls().then((urls) => {
+    if (urls) for (const url of urls) void handleDeepLinkCallback(url);
+  });
 }

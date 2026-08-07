@@ -67,6 +67,32 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
 }
 
+// ── Deep links (Task #519 — desktop OAuth callback) ─────────────────────────────
+
+/**
+ * Registers a listener for deep-link URLs the OS hands to the already-running
+ * app (e.g. after a user completes OAuth sign-in in the system browser and it
+ * navigates to the custom `plyglt://` scheme registered in tauri.conf.json).
+ * No-op in web — returns a no-op unlisten function, matching listen()'s
+ * degradation pattern.
+ */
+export async function onDeepLinkUrl(handler: (urls: string[]) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+  return onOpenUrl(handler);
+}
+
+/**
+ * Returns the deep-link URL(s) the app was launched with, if the OS started a
+ * fresh process via the deep link (cold start) rather than the app already
+ * running when the link arrived. null in web, or when there is none.
+ */
+export async function getCurrentDeepLinkUrls(): Promise<string[] | null> {
+  if (!isTauri) return null;
+  const { getCurrent } = await import("@tauri-apps/plugin-deep-link");
+  return getCurrent();
+}
+
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
 export type UpdateCheckResult =
