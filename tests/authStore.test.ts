@@ -112,7 +112,7 @@ describe("authStore — configured", () => {
     expect(state.email).toBe(null);
   });
 
-  it("signInWithApple calls signInWithOAuth with provider 'apple' and returns ok:true on success", async () => {
+  it("signInWithApple calls signInWithOAuth with provider 'apple' and a redirectTo back to /settings/, and returns ok:true on success", async () => {
     vi.resetModules();
     const mock = makeMockClient();
     vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
@@ -120,11 +120,14 @@ describe("authStore — configured", () => {
 
     const result = await useAuthStore.getState().signInWithApple();
 
-    expect(mock.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: "apple" });
+    expect(mock.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "apple",
+      options: { redirectTo: "http://localhost:3000/settings/" },
+    });
     expect(result).toEqual({ ok: true });
   });
 
-  it("signInWithGoogle calls signInWithOAuth with provider 'google' and returns ok:true on success", async () => {
+  it("signInWithGoogle calls signInWithOAuth with provider 'google' and a redirectTo back to /settings/, and returns ok:true on success", async () => {
     vi.resetModules();
     const mock = makeMockClient();
     vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
@@ -132,7 +135,10 @@ describe("authStore — configured", () => {
 
     const result = await useAuthStore.getState().signInWithGoogle();
 
-    expect(mock.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: "google" });
+    expect(mock.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: { redirectTo: "http://localhost:3000/settings/" },
+    });
     expect(result).toEqual({ ok: true });
   });
 
