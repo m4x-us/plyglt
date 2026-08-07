@@ -10,6 +10,7 @@ import { ACTIVE_LANGUAGE } from "@/lib/language";
 import { InterruptHandler } from "@/components/InterruptHandler";
 import { EntitlementValidator } from "@/components/EntitlementValidator";
 import { AuthSessionListener } from "@/components/AuthSessionListener";
+import { SyncTrigger } from "@/components/SyncTrigger";
 
 export const metadata: Metadata = {
   title: ACTIVE_LANGUAGE.uiStrings.appTitle,
@@ -32,6 +33,7 @@ export default function RootLayout({
           </Suspense>
           <EntitlementValidator />
           <AuthSessionListener />
+          <SyncTrigger />
           {children}
         </body>
     </html>
