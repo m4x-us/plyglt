@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
@@ -99,14 +100,19 @@ export default function LanguagePicker() {
           <p className="text-gray-700 text-xs">
             Free forever for Italian · Pro {PRICING.annual}
           </p>
-          {hasPremium && (
-            <button
-              onClick={() => openExternalUrl(CUSTOMER_PORTAL_URL)}
-              className="text-gray-600 hover:text-gray-400 text-xs transition-colors"
-            >
-              Manage license →
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            {hasPremium && (
+              <button
+                onClick={() => openExternalUrl(CUSTOMER_PORTAL_URL)}
+                className="text-gray-600 hover:text-gray-400 text-xs transition-colors"
+              >
+                Manage license →
+              </button>
+            )}
+            <Link href="/settings" className="text-gray-600 hover:text-gray-400 text-xs transition-colors">
+              Settings →
+            </Link>
+          </div>
         </div>
       </div>
 

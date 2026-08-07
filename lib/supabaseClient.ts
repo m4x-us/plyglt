@@ -49,6 +49,16 @@ export function getSupabaseClient(): SupabaseClient | null {
   cachedClient = createClient(url, anonKey, {
     auth: {
       storage: createPlatformStorage("supabase-auth"),
+      // @supabase/auth-js defaults flowType to "implicit" (access_token in a URL
+      // fragment) unless told otherwise. store/authStore.ts's desktop deep-link
+      // path (handleDeepLinkCallback) only ever parses a PKCE `?code=` query
+      // param and calls exchangeCodeForSession — an implicit-flow callback has
+      // no `code` param at all, so it silently no-ops. Found via Task #518's
+      // live human-interactive test (2026-08-07): a real desktop sign-in
+      // returned to the app but never updated auth state. PKCE is also the
+      // correct choice independent of this bug — it's the OAuth flow designed
+      // for public clients (desktop/mobile apps that can't hold a secret).
+      flowType: "pkce",
     },
   });
   return cachedClient;

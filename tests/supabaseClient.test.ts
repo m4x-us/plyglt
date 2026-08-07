@@ -78,6 +78,20 @@ describe("getSupabaseClient — configured", () => {
     expect(options.auth.storage).toBe(platformStorageInstance);
   });
 
+  it("sets flowType to pkce, not @supabase/auth-js's implicit default", () => {
+    // Task #518's live test: a real desktop sign-in returned to the app but never
+    // completed, because the implicit-flow default returns tokens in a URL
+    // fragment (#access_token=...) while store/authStore.ts's deep-link handler
+    // only ever parses a PKCE `?code=` query param via exchangeCodeForSession.
+    getSupabaseClient();
+    const [, , options] = createClientMock.mock.calls[0]! as unknown as [
+      string,
+      string,
+      { auth: { flowType: string } },
+    ];
+    expect(options.auth.flowType).toBe("pkce");
+  });
+
   it("returns the real client instance createClient produced", () => {
     expect(getSupabaseClient()).toBe(mockClientInstance);
   });

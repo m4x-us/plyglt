@@ -11,6 +11,7 @@ import { InterruptHandler } from "@/components/InterruptHandler";
 import { EntitlementValidator } from "@/components/EntitlementValidator";
 import { AuthSessionListener } from "@/components/AuthSessionListener";
 import { SyncTrigger } from "@/components/SyncTrigger";
+import { AppMenuListener } from "@/components/AppMenuListener";
 
 export const metadata: Metadata = {
   title: ACTIVE_LANGUAGE.uiStrings.appTitle,
@@ -34,6 +35,7 @@ export default function RootLayout({
           <EntitlementValidator />
           <AuthSessionListener />
           <SyncTrigger />
+          <AppMenuListener />
           {children}
         </body>
     </html>

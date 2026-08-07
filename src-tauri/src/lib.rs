@@ -1,9 +1,11 @@
 // lib.rs — Tauri application entry point for plyglt. Registers all plugins (store, notification,
-// autostart, updater), delegates tray setup to tray.rs, and wires all IPC command handlers
-// exposed by interrupt.rs and license.rs into the Tauri invoke handler. Also starts os_events.rs
-// listeners (wake, unlock, idle→active) on macOS after the main interrupt poll thread.
+// autostart, updater), delegates the native macOS menu bar to app_menu.rs and the tray dropdown
+// to tray.rs, and wires all IPC command handlers exposed by interrupt.rs and license.rs into the
+// Tauri invoke handler. Also starts os_events.rs listeners (wake, unlock, idle→active) on macOS
+// after the main interrupt poll thread.
 // Called by the Tauri runtime on startup; no other Rust file imports this module.
 
+mod app_menu;
 mod interrupt;
 mod license;
 mod os_events;
@@ -33,6 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            app_menu::setup_app_menu(app)?;
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);
             os_events::start_os_listeners(app.handle().clone(), state_for_os);
