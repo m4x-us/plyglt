@@ -35,18 +35,27 @@ export function SyncTrigger() {
   useEffect(() => {
     if (status !== "signed-in") return;
 
-    void syncNow().catch((e: unknown) => {
-      // syncNow() itself never throws (every branch returns a result object) —
-      // this catch exists only to guarantee an unexpected rejection can never
-      // become an unhandled promise rejection in a fire-and-forget call.
-      console.error(`[ERR-SYNC-TRIGGER-${Date.now()}] syncNow rejected unexpectedly`, e);
-    });
+    const runSync = () => {
+      void syncNow()
+        .then((result) => {
+          // Never surfaced to the user (BRAND.md's "never makes you feel behind"
+          // applies to infrastructure failures too) — but a resolved {ok:false}
+          // must still be discoverable in the console, or a real, persistent sync
+          // failure is invisible to everyone, including whoever's debugging it.
+          if (!result.ok) {
+            console.error(`[ERR-SYNC-TRIGGER-${Date.now()}] syncNow failed:`, result.error);
+          }
+        })
+        .catch((e: unknown) => {
+          // syncNow() itself never throws (every branch returns a result object) —
+          // this catch exists only to guarantee an unexpected rejection can never
+          // become an unhandled promise rejection in a fire-and-forget call.
+          console.error(`[ERR-SYNC-TRIGGER-${Date.now()}] syncNow rejected unexpectedly`, e);
+        });
+    };
 
-    const interval = setInterval(() => {
-      void syncNow().catch((e: unknown) => {
-        console.error(`[ERR-SYNC-TRIGGER-${Date.now()}] syncNow rejected unexpectedly`, e);
-      });
-    }, SYNC_INTERVAL_MS);
+    runSync();
+    const interval = setInterval(runSync, SYNC_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [status, syncNow]);

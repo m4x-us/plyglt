@@ -7577,6 +7577,10 @@ Dependency: Batch 14 complete (OS events architecture in place) — satisfied 20
 ## Batch 16 — Sync Backend [COMPLETE]
 Dependency: Batch 15 complete (all desktop platforms shipping). Theme: Add a cloud sync backend and auth layer so user progress persists across devices — prerequisite for Batch 17 (mobile).
 
+**2026-08-08 — extended live two-client testing found one real, confirmed-not-a-bug limitation and prompted two follow-up tasks.** Max continued exercising the two-client setup from Task #518's original verification and hit a real, sustained mastered-card-count mismatch between the desktop app and the browser client (36 vs 20 for one unit). Root-caused via direct inspection (local storage files + a live Supabase query, not guesswork): the desktop app — this project's main dev/test machine — had accumulated real local progress from before the sync event log existed (or before `enqueueReviewEvent` was wired into the production path), and that pre-existing progress was never retroactively captured as a `review_events` row, so it could never reach another device. The sync engine itself was proven working correctly for everything that happened after it went live. **Max's explicit decision: leave this as a known, accepted limitation for now** (real users starting fresh after sync ships won't hit it; a pre-existing user's historical progress not carrying over on first cross-device sign-in is an acceptable gap at this stage, revisit before a wider launch) — no backfill mechanism built. The 16 affected cards on the test machine were reconciled by having Max actually re-review them for real (after manually editing their local due-dates to make them reviewable again) rather than synthesizing data, since scripted writes using a locally-stored session token got (correctly) blocked by this session's safety tooling.
+
+Two real gaps surfaced during this debugging session and logged as follow-ups below rather than fixed in the moment: no visible sync-status indicator anywhere in the app (**Task #520**) — the single biggest reason this took as long as it did to diagnose — and a shipped bug fix (making `syncNow()`'s silent `{ok:false}` failures actually log to the console) that went out without its own test (**Task #521**).
+
 **2026-07-31: Dependency technically not yet satisfied (Batch 15 is paused, not complete) — Max explicitly chose to start Task #168 (architecture doc only, no infrastructure provisioned) ahead of Batch 15 fully closing, since the doc itself has no dependency on Windows/Linux shipping. Task #169 (actual sync implementation) should still wait for both Batch 15 to close AND Max's sign-off on #168's recommendation below — provisioning real cloud infrastructure and committing to a vendor is a bigger, harder-to-reverse step than drafting a recommendation doc.**
 
 **2026-08-03: Max signed off on Task #168's platform recommendation (Supabase + FCM, approved as-is) while Batch 15 remains paused on hardware access — a deliberate choice to keep architecture/decision work moving in parallel with an externally-blocked batch, same reasoning as 2026-07-31's note above. Task #169 (real infrastructure — schema, auth flows, offline sync layer) is now unblocked on the decision side, but has NOT been started; still recommended to wait for Batch 15 to close (or for Max to explicitly re-prioritize) before provisioning real, billed cloud infrastructure, since that's a harder-to-reverse step than the doc itself.**
@@ -7726,6 +7730,30 @@ Verified: 1665/1665 tests, `tsc`/lint/`cargo check` all clean, full local rebuil
 **Complexity:** 🔧 Full — new service
 **Blocked by:** #169 | **Blocks:** #171
 **Done when:** Push server sends APNs and FCM notifications. Desktop app registers token. Notifications fire within 60 seconds of scheduled time in test environment.
+**Owner:** Architecture Agent
+
+---
+
+### Task #520 | feature | severity 4
+**What:** Add a visible sync status indicator to Settings → Sync (`components/SyncSignIn.tsx` or a new sibling component) — at minimum, a "last synced" relative timestamp and, if pending events exist, a pending-count. No manual "sync now" button required by this task (debounced auto-sync already covers that, per Task #518's follow-up fix), just visibility into current state.
+**Why:** Found directly during Task #518's live two-client testing (2026-08-08) — a real, multi-hour-feeling debugging session where the two clients' progress counts genuinely disagreed, and there was no way for Max (or an agent debugging on his behalf) to tell from the UI whether sync had ever run, when it last succeeded, or whether anything was stuck. The eventual root cause (old pre-sync-era local progress that never generated an event) was only findable by directly inspecting local storage files and querying Supabase by hand — a real user hitting the same visible symptom would have no such option and no way to self-diagnose or even confirm "yes, sync is working, just slow" vs "sync is broken."
+**File:** `components/SyncSignIn.tsx` (or new component), `hooks/useSync.ts` (may need to expose last-sync-result/timestamp state, not just the `syncNow`/`triggerSyncSoon` functions)
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** 🔧 Medium — new UI state, wiring into existing sync hook
+**Blocked by:** Nothing (Task #169 already complete) | **Blocks:** Nothing
+**Done when:** A co-located test (Rule 14) confirms the Sync section shows a last-synced time after a successful `syncNow()`, and reflects a pending/error state distinctly from a fully-synced state.
+**Owner:** Architecture Agent
+
+---
+
+### Task #521 | tests | severity 3
+**What:** Add a co-located test for `components/SyncTrigger.tsx`'s error-visibility fix (2026-08-08): confirm that a `syncNow()` call resolving to `{ok: false, error}` produces a `console.error` call (both on the initial sign-in-triggered sync and the periodic interval sync), and that a resolved `{ok: true}` does NOT log anything. Also add the equivalent test for `hooks/useSync.ts`'s `triggerSyncSoon`'s own post-debounce logging of a failed result.
+**Why:** Shipped without a test during live debugging of Task #518's follow-up (the fix itself: `syncNow()`'s resolved `{ok:false}` result was previously never logged anywhere, only a thrown/rejected promise was — meaning a real, persistent sync failure was completely invisible in the browser console, which is exactly what made that day's live-testing session hard to diagnose). A real behavior change shipped without its own test is a stop-the-line gap per this project's own Kaizen rule (AGENTS.md) — logged here rather than closed silently.
+**File:** `components/SyncTrigger.tsx` (new test file), `hooks/useSync.test.ts` (extend existing `triggerSyncSoon` describe block)
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** 🔧 Small — test-only, following the existing `hooks/useSync.test.ts` mocking pattern for `useAuthStore`/`useSync`
+**Blocked by:** Nothing | **Blocks:** Nothing
+**Done when:** Both new/extended test cases pass; full verification gate green.
 **Owner:** Architecture Agent
 
 ---

@@ -101,7 +101,15 @@ export function useSync() {
     if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
-      void syncNow();
+      // Not surfaced to the user (silent-retry, matches syncNow()'s own contract)
+      // but must stay visible in the console — an unlogged {ok:false} here is
+      // exactly the gap that made a real, persistent sync failure undetectable
+      // during Task #518 follow-up debugging (2026-08-08).
+      void syncNow().then((result) => {
+        if (!result.ok) {
+          console.error(`[ERR-SYNC-TRIGGER-${Date.now()}] triggerSyncSoon's syncNow failed:`, result.error);
+        }
+      });
     }, TRIGGER_SYNC_DEBOUNCE_MS);
   }, [syncNow]);
 
