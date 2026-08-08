@@ -17,6 +17,7 @@ import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauriInterrupt";
 import { buildQueue, findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
+import { useSync } from "@/hooks/useSync";
 import { tierLabel } from "@/lib/cardLabels";
 
 const INTERRUPT_CARD_LIMIT = 5;
@@ -30,7 +31,12 @@ function StudyInner() {
   const isInterrupt = mode === "interrupt";
 
   const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
-  const enqueueReviewEvent = useSyncStore((s) => s.enqueueReviewEvent);
+  const enqueueReviewEventRaw = useSyncStore((s) => s.enqueueReviewEvent);
+  const { triggerSyncSoon } = useSync();
+  // Nudges a sync soon after every review (hooks/useSync.ts's debounce) instead of
+  // waiting for the periodic timer — Task #518's live test showed a review sitting
+  // unsynced for minutes reads as broken.
+  const enqueueReviewEvent: typeof enqueueReviewEventRaw = (...args) => { enqueueReviewEventRaw(...args); triggerSyncSoon(); };
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 

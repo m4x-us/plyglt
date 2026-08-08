@@ -7,7 +7,7 @@
 // store directly.
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useSRSStore } from "@/store/srsStore";
@@ -16,6 +16,14 @@ import { replayLatestEventPerCard, syncedStateToCardProgress } from "@/lib/confl
 import type { CardProgress } from "@/lib/srs";
 
 export type SyncNowResult = { ok: true } | { ok: false; error: string };
+
+// How long to wait after the most recent review before syncing — short enough
+// that a review reaches Supabase in seconds rather than up to the full 5-minute
+// SyncTrigger.tsx background interval, but debounced so a quick burst of
+// answers (a whole study session) collapses into one upload instead of one per
+// card. Found via Task #518's live test: a real review sat unsynced long enough
+// to look broken during manual verification, even though the code was correct.
+const TRIGGER_SYNC_DEBOUNCE_MS = 2000;
 
 export function useSync() {
   const status = useAuthStore((s) => s.status);
@@ -80,5 +88,22 @@ export function useSync() {
     return { ok: true };
   }, [status, userId]);
 
-  return { syncNow };
+  // Debounced fire-and-forget wrapper around syncNow(), for callers (the study
+  // session's review-commit path) that want a review to reach Supabase quickly
+  // without triggering a network call per card, and without blocking the UI on
+  // the result — matches syncNow()'s own silent-retry contract. Deliberately
+  // not cleared on unmount: the timer is a plain JS setTimeout, independent of
+  // React's lifecycle, and syncNow() reads live store state via getState() —
+  // letting it fire after the study page unmounts (e.g. an interrupt session
+  // exiting immediately after the last card) is the whole point, not a leak.
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerSyncSoon = useCallback(() => {
+    if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      void syncNow();
+    }, TRIGGER_SYNC_DEBOUNCE_MS);
+  }, [syncNow]);
+
+  return { syncNow, triggerSyncSoon };
 }

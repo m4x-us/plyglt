@@ -2,7 +2,7 @@
 // ============================================================
 // hooks/useSync.test.ts — behavioral tests for useSync's upload/download/merge orchestration
 // ============================================================
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReviewEvent } from "@/lib/reviewEvent";
 
@@ -202,5 +202,46 @@ describe("useSync — download+merge path", () => {
     await result.current.syncNow();
 
     expect((mockSRSState.cards.c1 as { state: string }).state).toBe("learning");
+  });
+});
+
+describe("useSync — triggerSyncSoon (Task #518: sync a review quickly, not on the 5-minute timer)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not call syncNow synchronously — it waits for the debounce window", () => {
+    const { result } = renderHook(() => useSync());
+
+    result.current.triggerSyncSoon();
+
+    expect(mockUploadReviewEvents).not.toHaveBeenCalled();
+    expect(mockDownloadReviewEvents).not.toHaveBeenCalled();
+  });
+
+  it("calls syncNow (via download, since there are no pending events) after the debounce window elapses", async () => {
+    const { result } = renderHook(() => useSync());
+
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(mockDownloadReviewEvents).toHaveBeenCalledWith("user-1");
+  });
+
+  it("collapses a burst of calls into a single sync — one debounce window, not one per call", async () => {
+    const { result } = renderHook(() => useSync());
+
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(500);
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(500);
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(mockDownloadReviewEvents).toHaveBeenCalledTimes(1);
   });
 });
