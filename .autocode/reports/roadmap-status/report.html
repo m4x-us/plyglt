@@ -430,7 +430,7 @@
     <p class="masthead-sub">Where the product stands against its full build plan: a complete Italian A1&ndash;B2 curriculum, a five-platform desktop-to-mobile release, and the quality process behind both. Figures below are pulled directly from internal engineering task-tracking, not summarized from memory.</p>
     <div class="masthead-meta">
       <span><b>Prepared</b> August 7, 2026</span>
-      <span><b>Covers</b> Batches 1–20 · full curriculum build, public macOS release, and sync backend engineering complete</span>
+      <span><b>Covers</b> Batches 1–20 · full curriculum build, public macOS release, and cloud sync &amp; auth live and verified</span>
       <span><b>Source</b> .autocode/tasks.md, cto.md — internal governance log</span>
     </div>
   </header>
@@ -438,7 +438,7 @@
   <section class="summary">
     <div class="stat-strip">
       <div class="stat-tile">
-        <div class="stat-value num">86<span class="unit">%</span></div>
+        <div class="stat-value num">89<span class="unit">%</span></div>
         <div class="stat-label">of full roadmap complete, weighted across five build phases</div>
       </div>
       <div class="stat-tile">
@@ -450,7 +450,7 @@
         <div class="stat-label">WorldClass confidence score — composite of engineering &amp; content quality</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-value num">1,661</div>
+        <div class="stat-value num">1,668</div>
         <div class="stat-label">automated tests passing · zero unresolved critical findings</div>
       </div></div>
   </section>
@@ -498,12 +498,12 @@
         <div class="phase-n">4</div>
         <div class="phase-main">
           <div class="phase-name">Cloud sync &amp; auth</div>
-          <div class="phase-desc">Engineering is complete. Live infrastructure is provisioned and working: a production Supabase project plus Apple and Google Sign In are both configured and verified — a real account holder signed in end-to-end in the running app and the session held correctly. The sync engine (upload, download, and cross-device conflict merging into a card's review history) is built, independently reviewed, and covered by automated tests, running on an offline-first queue so no review is ever lost to a dropped connection. The last piece of desktop-specific plumbing — completing sign-in inside the packaged Mac/Windows/Linux app the same way it already works in the browser — is also built and reviewed. What's left is a single live verification pass: a real review recorded on one device confirmed to appear on a second, run against an actual packaged build rather than a development server.</div>
+          <div class="phase-desc">Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. This unblocks push notifications, the last piece before mobile development begins.</div>
         </div>
         <div class="phase-bar-wrap">
-          <div class="bar-track attn"><div class="bar-fill" style="width:85%"></div></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
         </div>
-        <div class="phase-pct">85%<div class="pill attn" style="margin-top:6px"><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>Final verification</div></div>
+        <div class="phase-pct">100%<div class="pill done" style="margin-top:6px"><svg viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>Done</div></div>
       </div>
       <div class="phase-row">
         <div class="phase-n">5</div>
@@ -737,14 +737,6 @@
         <div>
           <div class="blocker-title">Windows / Linux hardware verification</div>
           <div class="blocker-desc">OS-level wake, unlock, and idle-detection hooks are written and compile clean, but have only been checked on macOS. Needs real Windows and Linux machines (or CI runners) for final manual verification.</div>
-        </div>
-        <div class="blocker-action">Owner action<br>needed</div>
-      </div>
-      <div class="blocker">
-        <div class="blocker-mark"></div>
-        <div>
-          <div class="blocker-title">Sync backend — final live verification</div>
-          <div class="blocker-desc">All engineering is done and independently reviewed: credentials are live, sign-in is verified end-to-end in the browser, the sync engine is built and tested, and the packaged-desktop-app sign-in path is also built and reviewed. One step remains before this closes out — a real, hands-on test proving a review recorded on one device correctly appears on a second, run against an actual packaged app build.</div>
         </div>
         <div class="blocker-action">Owner action<br>needed</div>
       </div></div>
