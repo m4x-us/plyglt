@@ -19,12 +19,16 @@
 // startup from start_os_listeners, called once from lib.rs.
 // Imports: crate::interrupt::{InterruptState, now_secs}. Used by: lib.rs.
 //
-// NOT compiled or tested on real Windows/Linux hardware by the agent that wrote the Windows and
-// Linux blocks (2026-07-31) — only the macOS target was available. Both blocks were written
-// against verified current crate docs (windows-sys 0.61.2, zbus_systemd 0.26100.0) rather than
-// from memory, but per Task #166/#167's own "Done when" criteria, `cargo build --target
-// x86_64-pc-windows-msvc` / `--target x86_64-unknown-linux-gnu` plus real-device manual testing
-// (matching the precedent set by Task #162's macOS block) are still required before shipping.
+// Not written or compiled on real Windows/Linux hardware originally (2026-07-31) — only the
+// macOS target was available locally. `.github/workflows/release.yml`'s real windows-latest and
+// ubuntu-22.04 CI runners have since actually compiled both: Linux passed clean; Windows failed
+// with 8 real compile errors (2026-08-04 run) — windows-sys 0.61.2 represents Win32 handles as
+// raw pointers (`*mut c_void`), not the plain integers the original code assumed, plus one
+// import misplaced in the wrong module. Fixed 2026-08-07 (see windows_impl's WNDCLASSEXW/
+// CreateWindowExW/GetMessageW call sites) — not yet re-verified against a fresh CI run. Per
+// Task #166/#167's own "Done when" criteria, real-device manual testing (does wake/unlock/idle
+// actually fire a notification — CI can compile the code but can't click through a live session)
+// is still required before shipping, matching the precedent set by Task #162's macOS block.
 
 use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
@@ -312,9 +316,10 @@ mod windows_impl {
     use windows_sys::Win32::System::RemoteDesktop::{
         WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION,
     };
+    use windows_sys::Win32::System::SystemInformation::GetTickCount;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetTickCount,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
         RegisterClassExW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, WM_DESTROY, WM_TIMER,
         WNDCLASSEXW,
     };
@@ -361,12 +366,12 @@ mod windows_impl {
             let hinstance = GetModuleHandleW(std::ptr::null());
             let class_name: Vec<u16> = "PlygltOsEventsWindow\0".encode_utf16().collect();
 
-            // HIGHEST-RISK SPOT IN THIS FILE FOR A COMPILE ERROR (see module header caveat):
-            // windows-sys represents Win32 handles (HWND, HICON, HCURSOR, HBRUSH, HINSTANCE...)
-            // as plain isize-like integers in some versions and as distinct newtype structs
-            // (e.g. `HICON(pub isize)`) in others. The `0` literals below assume the former. If
-            // `cargo check --target x86_64-pc-windows-msvc` reports a type mismatch here, wrap
-            // each null handle in its newtype constructor (e.g. `HICON(0)`) instead of a bare 0.
+            // windows-sys 0.61.2 represents Win32 handles (HWND, HICON, HCURSOR, HBRUSH,
+            // HINSTANCE...) as plain raw pointers (`*mut c_void`), not integers or newtype
+            // structs — confirmed against the crate source after a real
+            // `cargo build --target x86_64-pc-windows-msvc` CI run caught a bare-`0`-literal
+            // mismatch here (Task #166 follow-up, 2026-08-07). Null handles must be
+            // `std::ptr::null_mut()`, never a bare `0`.
             let wc = WNDCLASSEXW {
                 cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
                 style: 0,
@@ -374,12 +379,12 @@ mod windows_impl {
                 cbClsExtra: 0,
                 cbWndExtra: 0,
                 hInstance: hinstance,
-                hIcon: 0,
-                hCursor: 0,
-                hbrBackground: 0,
+                hIcon: std::ptr::null_mut(),
+                hCursor: std::ptr::null_mut(),
+                hbrBackground: std::ptr::null_mut(),
                 lpszMenuName: std::ptr::null(),
                 lpszClassName: class_name.as_ptr(),
-                hIconSm: 0,
+                hIconSm: std::ptr::null_mut(),
             };
 
             if RegisterClassExW(&wc) == 0 {
@@ -400,12 +405,12 @@ mod windows_impl {
                 0,
                 0,
                 HWND_MESSAGE,
-                0,
+                std::ptr::null_mut(),
                 hinstance,
                 std::ptr::null(),
             );
 
-            if hwnd == 0 {
+            if hwnd.is_null() {
                 eprintln!(
                     "[plyglt-{:010}] os_events(windows): CreateWindowExW failed — wake/unlock/idle detection unavailable this run",
                     now_secs()
@@ -431,7 +436,7 @@ mod windows_impl {
             // Blocks until a message arrives; returns 0 on WM_QUIT (never posted — this window
             // lives for the process lifetime) or -1 on error. No graceful shutdown path, matching
             // the macOS/Linux threads: the whole process exits together.
-            while GetMessageW(&mut msg, 0, 0, 0) > 0 {
+            while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
