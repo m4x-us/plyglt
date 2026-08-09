@@ -76,4 +76,48 @@ describe("SyncTrigger — signed in", () => {
 
     consoleSpy.mockRestore();
   });
+
+  it("logs a console.error when syncNow RESOLVES (not rejects) to {ok:false} on the initial sign-in-triggered sync (Task #521)", async () => {
+    // Distinct from the rejection test above: syncNow() never throws — a real,
+    // persistent sync failure resolves to {ok:false, error}. Task #521 exists
+    // because this exact case shipped without a test during Task #518's follow-up.
+    mockAuthState.status = "signed-in";
+    mockSyncNow.mockResolvedValueOnce({ ok: false, error: "network error" });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<SyncTrigger />);
+    await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalledTimes(1));
+    expect(consoleSpy.mock.calls[0]?.[1]).toBe("network error");
+
+    consoleSpy.mockRestore();
+  });
+
+  it("logs a console.error when syncNow resolves to {ok:false} on a periodic interval sync, not just the initial one (Task #521)", async () => {
+    vi.useFakeTimers();
+    mockAuthState.status = "signed-in";
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<SyncTrigger />);
+    await vi.advanceTimersByTimeAsync(0); // let the immediate on-mount call settle
+    consoleSpy.mockClear();
+
+    mockSyncNow.mockResolvedValueOnce({ ok: false, error: "server error" });
+    await vi.advanceTimersByTimeAsync(SYNC_INTERVAL_MS);
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy.mock.calls[0]?.[1]).toBe("server error");
+
+    consoleSpy.mockRestore();
+  });
+
+  it("does not log anything when syncNow resolves to {ok:true} (Task #521)", async () => {
+    mockAuthState.status = "signed-in";
+    mockSyncNow.mockResolvedValueOnce({ ok: true });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<SyncTrigger />);
+    await vi.waitFor(() => expect(mockSyncNow).toHaveBeenCalledTimes(1));
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
 });

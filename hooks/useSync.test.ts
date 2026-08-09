@@ -309,4 +309,28 @@ describe("useSync — triggerSyncSoon (Task #518: sync a review quickly, not on 
 
     expect(mockDownloadReviewEvents).toHaveBeenCalledTimes(1);
   });
+
+  it("logs a console.error when the debounced syncNow RESOLVES (not rejects) to {ok:false} (Task #521)", async () => {
+    mockDownloadReviewEvents.mockResolvedValue({ ok: false, error: "permission denied" });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = renderHook(() => useSync());
+
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    expect(consoleSpy.mock.calls[0]?.[1]).toBe("permission denied");
+    consoleSpy.mockRestore();
+  });
+
+  it("does not log anything when the debounced syncNow resolves to {ok:true} (Task #521)", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = renderHook(() => useSync());
+
+    result.current.triggerSyncSoon();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
 });

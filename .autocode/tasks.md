@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-09 (Task #520 COMPLETE — sync status indicator built, self-reviewed, and fixed, including a real concurrency race in `syncNow()`. See Task #520's own log for the full findings and fixes.)
+Last updated: 2026-08-09 (Task #521 COMPLETE — sync error-logging follow-up tests added, closing out Batch 16.)
 
 ## Summary
-Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 has Task #168/#169/#170/#520 COMPLETE — #521 still open (follow-up test coverage); Batch 17 (Mobile) unblocked on Task #170's side — Task #171 (iOS) is next, still needs real Apple/Google push credentials provisioned before it can be live-verified.
-Current Sprint: Task #520 is closed. Next up: Task #521 (small Batch 16 follow-up), or Task #171 (iOS — Batch 17). Run `/task #521` or `/task #171` to pick one up.
+Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) unblocked on Task #170's side — Task #171 (iOS) is next, still needs real Apple/Google push credentials provisioned before it can be live-verified.
+Current Sprint: Batch 16 is closed. Next up: Task #171 (iOS — Batch 17). Run `/task #171` to pick it up.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7778,6 +7778,11 @@ Verified: 1665/1665 tests, `tsc`/lint/`cargo check` all clean, full local rebuil
 **Blocked by:** Nothing | **Blocks:** Nothing
 **Done when:** Both new/extended test cases pass; full verification gate green.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-09**
+
+**Implementation:** `components/SyncTrigger.test.tsx` gained 3 tests distinguishing the previously-untested "resolves to `{ok:false}`" path from the already-tested "rejects" path: logs on the initial sign-in-triggered sync, logs on a periodic interval sync (not just the first), and does NOT log on `{ok:true}`. `hooks/useSync.test.ts`'s `triggerSyncSoon` describe block gained the equivalent pair: logs the real error string on a resolved `{ok:false}`, stays silent on `{ok:true}`. All 5 assert the specific error string reaches `console.error` (`.toBe("network error")` etc.), not just that logging happened.
+
+**Verified:** `npx tsc --noEmit` clean; `npm test -- --coverage` → 1793/1793 passing (up from 1788); coverage stmts 90.93%/branches 86.21%/funcs 91.47%/lines 92.75% (thresholds 82/81/79/84); `npm run lint` 0 errors; weak-assertion grep gate clean on both touched files.
 
 ---
 

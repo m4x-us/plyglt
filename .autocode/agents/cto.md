@@ -1693,3 +1693,15 @@ Final verification: `npx tsc --noEmit` clean, `npm test -- --coverage` 1788/1788
 CTO diagnosis run: NO — first cycle, no repeated findings to diagnose.
 
 Closed without a further re-audit round given the severity-4 sizing and the strength of convergence already achieved on the one critical finding — same proportionality judgment as Task #170's small-task precedent. Task #521 (follow-up test coverage for the sync error-logging fix) remains open, non-blocking.
+
+### Task #521 | Sync error-logging test coverage | Status: COMPLETE | Cycle 1 | Completed: 2026-08-09
+
+#### Cycle 1 — 2026-08-09 — Full Task
+Build approach: pure test-addition task, no production code changed. `components/SyncTrigger.test.tsx` already had a test for `syncNow()` rejecting (a thrown promise), but none for the more important case — `syncNow()` resolving to `{ok:false, error}` — which is the actual shape a real, persistent sync failure takes (`syncNow()` never throws by contract). Added 3 tests distinguishing that: logs on the initial sign-in-triggered sync, logs on a periodic interval sync too (not just the first call), and stays silent on `{ok:true}`. Added the equivalent 2-test pair to `hooks/useSync.test.ts`'s `triggerSyncSoon` describe block, which had the same gap. All 5 assert the exact error string reaches `console.error` (Rule 16 — no bare "was it called" checks).
+Scripts: PASS — `npx tsc --noEmit` clean, `npm test -- --coverage` 1793/1793 passing (up from 1788), coverage stmts 90.93%/branches 86.21%/funcs 91.47%/lines 92.75% (thresholds 82/81/79/84), `npm run lint` 0 errors, weak-assertion grep gate clean on both touched files.
+
+No self-review cycle run — test-only addition against an already-shipped, already-audited production code path (Task #170/#520's sync work); the task's own Done-When (both new/extended test cases pass, gate green) was met on the first pass with no findings to fix.
+Fixed this cycle: n/a (test-only). Still open: — | New findings: — | Regression signal: NO.
+CTO diagnosis run: NO — first cycle.
+
+Closes out Batch 16 entirely (#168/#169/#170/#520/#521 all COMPLETE). Next up: Task #171 (iOS, Batch 17) — still needs real Apple/Google push credentials provisioned before it can be live-verified end to end.
