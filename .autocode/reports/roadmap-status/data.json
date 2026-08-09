@@ -6,7 +6,7 @@
     { "value": "89", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
     { "value": "30,609", "unit": "", "label": "cards shipped across 126 units, all four CEFR levels (A1–B2)" },
     { "value": "85", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
-    { "value": "1,761", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
+    { "value": "1,788", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
   ],
 
   "phases": [
@@ -27,7 +27,7 @@
     },
     {
       "n": 4, "name": "Cloud sync, auth & push notifications",
-      "desc": "Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups, still open and non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.",
+      "desc": "Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups. One of those two — a visible last-synced status indicator in Settings, so a user (or whoever's debugging on their behalf) can tell at a glance whether sync is working, pending, or stuck — is now built, self-reviewed, and shipped; the review caught and fixed a genuine timing bug where two background sync attempts running close together could show a stale \"synced\" status over an active, unresolved failure, closed the same day it was found. The second follow-up (test coverage for a related error-logging fix) remains open, non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.",
       "pct": 100, "status": "done", "statusLabel": "Done"
     },
     {
@@ -69,7 +69,7 @@
     "score": 85,
     "bars": [
       { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine, push notification server", "value": 97 },
-      { "label": "Test & coverage discipline", "note": "1,761 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
+      { "label": "Test & coverage discipline", "note": "1,788 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
       { "label": "Audit & governance discipline", "note": "24 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
       { "label": "Content brand & voice fidelity", "note": "Average across all four CEFR levels' latest audit round", "value": 79 },
       { "label": "Content pedagogical rigor", "note": "Average across all four CEFR levels' latest audit round", "value": 72 }

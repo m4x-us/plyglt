@@ -450,7 +450,7 @@
         <div class="stat-label">WorldClass confidence score — composite of engineering &amp; content quality</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-value num">1,761</div>
+        <div class="stat-value num">1,788</div>
         <div class="stat-label">automated tests passing · zero unresolved critical findings</div>
       </div></div>
   </section>
@@ -498,7 +498,7 @@
         <div class="phase-n">4</div>
         <div class="phase-main">
           <div class="phase-name">Cloud sync, auth &amp; push notifications</div>
-          <div class="phase-desc">Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups, still open and non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.</div>
+          <div class="phase-desc">Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups. One of those two — a visible last-synced status indicator in Settings, so a user (or whoever's debugging on their behalf) can tell at a glance whether sync is working, pending, or stuck — is now built, self-reviewed, and shipped; the review caught and fixed a genuine timing bug where two background sync attempts running close together could show a stale "synced" status over an active, unresolved failure, closed the same day it was found. The second follow-up (test coverage for a related error-logging fix) remains open, non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.</div>
         </div>
         <div class="phase-bar-wrap">
           <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
@@ -675,7 +675,7 @@
         <div class="wc-bar-row">
           <div>
             <div class="wc-bar-label">Test &amp; coverage discipline
-              <span class="wc-bar-note">1,761 tests passing; coverage floor raised, never lowered, every batch</span>
+              <span class="wc-bar-note">1,788 tests passing; coverage floor raised, never lowered, every batch</span>
             </div>
             <div class="wc-bar-track"><div class="wc-bar-fill" style="width:91%"></div></div>
           </div>
