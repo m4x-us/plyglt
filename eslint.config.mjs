@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "src-tauri/target/**",
     // Generated coverage reports — not source code
     "coverage/**",
+    // Task #170: Deno-only entrypoint (Deno.serve/Deno.env globals this
+    // project's eslint/typescript-eslint config has no type definitions
+    // for) — every sibling file in this directory is pure and stays linted.
+    "supabase/functions/*/index.ts",
   ]),
 ]);
 

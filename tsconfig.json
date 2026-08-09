@@ -13,6 +13,12 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Task #170: supabase/functions/**/*.ts files import their sibling
+    // modules with explicit .ts extensions (Deno requires this — it has no
+    // bundler-style extensionless resolution). Scoped on, repo-wide, since
+    // noEmit is already true and this flag only affects how import
+    // specifiers are parsed, not what gets emitted.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
@@ -32,5 +38,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // Task #170: the sole Deno-only file in supabase/functions/ — uses
+    // Deno.serve/Deno.env, which aren't declared in this project's lib
+    // ("dom","esnext"). Verified via `deno check` at deploy time instead;
+    // every sibling file in that directory (pure, Deno-API-free) stays
+    // covered by this project's normal tsc gate.
+    "supabase/functions/*/index.ts"
+  ]
 }
