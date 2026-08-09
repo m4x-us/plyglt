@@ -54,8 +54,8 @@ describe("version constants", () => {
   it("SETTINGS_VERSION is 3", () => {
     expect(SETTINGS_VERSION).toBe(3);
   });
-  it("SYNC_VERSION is 1", () => {
-    expect(SYNC_VERSION).toBe(1);
+  it("SYNC_VERSION is 2", () => {
+    expect(SYNC_VERSION).toBe(2);
   });
 });
 
@@ -118,12 +118,12 @@ describe("future-version guard — storedVersion > CURRENT_VERSION throws instea
   it("migrateSyncStore throws when storedVersion is newer than SYNC_VERSION", () => {
     const futureData = { deviceId: "d1", pendingEvents: [], someUnknownFutureField: "garbage-from-a-newer-build" };
     expect(() => migrateSyncStore(futureData, SYNC_VERSION + 1)).toThrow(
-      /Sync store version 2 is newer than this app build understands/
+      /Sync store version 3 is newer than this app build understands/
     );
   });
 
   it("migrateSyncStore does NOT throw and remains a true no-op when storedVersion === SYNC_VERSION", () => {
-    const state = { deviceId: "d1", pendingEvents: [] };
+    const state = { deviceId: "d1", pendingEvents: [], lastSyncedAt: null, lastSyncError: null };
     expect(() => migrateSyncStore(state, SYNC_VERSION)).not.toThrow();
     expect(migrateSyncStore(state, SYNC_VERSION)).toBe(state);
   });
@@ -132,9 +132,11 @@ describe("future-version guard — storedVersion > CURRENT_VERSION throws instea
 // ── migrateSyncStore ──────────────────────────────────────────────────────────
 
 describe("migrateSyncStore()", () => {
-  it("v1: defaults deviceId to null and pendingEvents to [] on a completely empty/fresh object", () => {
-    const result = migrateSyncStore({}, 0) as { deviceId: string | null; pendingEvents: unknown[] };
-    expect(result).toEqual({ deviceId: null, pendingEvents: [] });
+  it("v0->v2: defaults every field to its empty value on a completely empty/fresh object", () => {
+    const result = migrateSyncStore({}, 0) as {
+      deviceId: string | null; pendingEvents: unknown[]; lastSyncedAt: number | null; lastSyncError: string | null;
+    };
+    expect(result).toEqual({ deviceId: null, pendingEvents: [], lastSyncedAt: null, lastSyncError: null });
   });
 
   it("v1: preserves a valid non-empty deviceId string", () => {
@@ -156,6 +158,42 @@ describe("migrateSyncStore()", () => {
   it("v1: falls back to [] for a non-array pendingEvents", () => {
     const result = migrateSyncStore({ pendingEvents: "not-an-array" }, 0) as { pendingEvents: unknown[] };
     expect(result.pendingEvents).toEqual([]);
+  });
+
+  it("v2: defaults lastSyncedAt/lastSyncError to null on a genuine pre-Task#520 v1 blob (deviceId+pendingEvents only)", () => {
+    const v1Data = { deviceId: "d1", pendingEvents: [{ id: "e1", cardId: "c1" }] };
+    const result = migrateSyncStore(v1Data, 1) as {
+      deviceId: string | null; pendingEvents: unknown[]; lastSyncedAt: number | null; lastSyncError: string | null;
+    };
+    expect(result).toEqual({
+      deviceId: "d1", pendingEvents: [{ id: "e1", cardId: "c1" }], lastSyncedAt: null, lastSyncError: null,
+    });
+  });
+
+  it("v2: preserves a valid numeric lastSyncedAt and string lastSyncError if somehow already present on a v1 blob", () => {
+    const v1Data = { deviceId: "d1", pendingEvents: [], lastSyncedAt: 1_700_000_000_000, lastSyncError: "network error" };
+    const result = migrateSyncStore(v1Data, 1) as {
+      deviceId: string | null; pendingEvents: unknown[]; lastSyncedAt: number | null; lastSyncError: string | null;
+    };
+    expect(result).toEqual({
+      deviceId: "d1", pendingEvents: [], lastSyncedAt: 1_700_000_000_000, lastSyncError: "network error",
+    });
+  });
+
+  it("v2: falls back to null for a non-numeric lastSyncedAt or non-string lastSyncError", () => {
+    const v1Data = { deviceId: "d1", pendingEvents: [], lastSyncedAt: "not-a-number", lastSyncError: 42 };
+    const result = migrateSyncStore(v1Data, 1) as {
+      deviceId: string | null; pendingEvents: unknown[]; lastSyncedAt: number | null; lastSyncError: string | null;
+    };
+    expect(result).toEqual({ deviceId: "d1", pendingEvents: [], lastSyncedAt: null, lastSyncError: null });
+  });
+
+  it("v2: falls back to null for a non-finite (NaN/Infinity) or negative lastSyncedAt", () => {
+    for (const bad of [NaN, Infinity, -Infinity, -1]) {
+      const v1Data = { deviceId: "d1", pendingEvents: [], lastSyncedAt: bad, lastSyncError: null };
+      const result = migrateSyncStore(v1Data, 1) as { lastSyncedAt: number | null };
+      expect(result.lastSyncedAt).toBe(null);
+    }
   });
 });
 

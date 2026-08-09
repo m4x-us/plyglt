@@ -19,7 +19,7 @@
 
 import { assertNotFutureVersion } from "@/lib/storeVersionGuard";
 
-export const SYNC_VERSION = 1;
+export const SYNC_VERSION = 2;
 
 const SYNC_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
@@ -27,6 +27,24 @@ const SYNC_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
     return {
       deviceId: typeof d.deviceId === "string" && d.deviceId.length > 0 ? d.deviceId : null,
       pendingEvents: Array.isArray(d.pendingEvents) ? d.pendingEvents : [],
+    };
+  },
+  // Task #520: adds lastSyncedAt/lastSyncError so the sync-status indicator survives
+  // an app restart. Every pre-existing persisted blob predates these fields, so both
+  // default to null (matches SyncSignIn.tsx's "never synced yet" / "no error" states) —
+  // never fabricate a timestamp or error string for data that genuinely has neither.
+  2: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    // Number.isFinite (not just typeof === "number") rejects NaN/Infinity/-Infinity —
+    // typeof NaN === "number" is true, and a NaN lastSyncedAt would render "NaNd ago"
+    // in lib/utils.ts's formatRelativeTime. A negative value is equally impossible
+    // for a real Date.now() write, so it's rejected the same way.
+    const validTimestamp =
+      typeof d.lastSyncedAt === "number" && Number.isFinite(d.lastSyncedAt) && d.lastSyncedAt >= 0;
+    return {
+      ...d,
+      lastSyncedAt: validTimestamp ? d.lastSyncedAt : null,
+      lastSyncError: typeof d.lastSyncError === "string" ? d.lastSyncError : null,
     };
   },
 };

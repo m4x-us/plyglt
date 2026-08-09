@@ -2,14 +2,20 @@
 // SyncSignIn.tsx — Sign in with Apple/Google to enable sync (Task #516)
 // ============================================================
 // Renders inside app/settings/page.tsx's "Sync" Section. Reads/writes
-// store/authStore.ts only — no direct Supabase import (single-gateway rule,
-// see lib/supabaseClient.ts's own header comment).
+// store/authStore.ts, and (Task #520) reads store/syncStore.ts's sync-status
+// fields to show a "last synced"/pending/error line — no direct Supabase
+// import (single-gateway rule, see lib/supabaseClient.ts's own header comment).
 "use client";
 import { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
+import { useIsHydrated } from "@/lib/storage";
+import { formatRelativeTime } from "@/lib/utils";
 
 export function SyncSignIn() {
   const { status, email, signInWithApple, signInWithGoogle, signOut } = useAuthStore();
+  const { pendingEvents, lastSyncedAt, lastSyncError } = useSyncStore();
+  const syncHydrated = useIsHydrated(useSyncStore);
   const [pendingProvider, setPendingProvider] = useState<"apple" | "google" | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +47,25 @@ export function SyncSignIn() {
           <div className="text-sm text-white">{email ?? "Account connected"}</div>
           <span className="text-xs bg-green-900 text-green-400 rounded-full px-2.5 py-0.5 font-semibold">Signed in</span>
         </div>
+        {syncHydrated && (
+          <div className="space-y-1">
+            {lastSyncError !== null ? (
+              // Curated BRAND.md-voice message, not the raw driver/network error text —
+              // the raw string is already logged to the console by hooks/useSync.ts's
+              // callers (SyncTrigger.tsx, triggerSyncSoon) at the point of failure.
+              <p className="text-xs text-red-400">Couldn&apos;t sync. Try again.</p>
+            ) : lastSyncedAt !== null ? (
+              <p className="text-xs text-gray-500">Last synced {formatRelativeTime(lastSyncedAt)}</p>
+            ) : (
+              <p className="text-xs text-gray-500">Not yet synced</p>
+            )}
+            {pendingEvents.length > 0 && (
+              <p className="text-xs text-gray-500">
+                {pendingEvents.length} {pendingEvents.length === 1 ? "change" : "changes"} pending
+              </p>
+            )}
+          </div>
+        )}
         <button onClick={handleSignOut} disabled={signingOut} className="text-xs text-gray-500 hover:text-gray-300 disabled:opacity-40 transition-colors px-2 py-1.5">Sign out</button>
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>

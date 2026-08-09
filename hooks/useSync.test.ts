@@ -24,7 +24,11 @@ vi.mock("@/store/authStore", () => ({
   useAuthStore: (selector: (s: typeof mockAuthState) => unknown) => selector(mockAuthState),
 }));
 
-const mockSyncState = vi.hoisted(() => ({ pendingEvents: [] as ReviewEvent[] }));
+const mockSyncState = vi.hoisted(() => ({
+  pendingEvents: [] as ReviewEvent[],
+  lastSyncedAt: null as number | null,
+  lastSyncError: null as string | null,
+}));
 const mockSyncSetState = vi.hoisted(() => vi.fn());
 vi.mock("@/store/syncStore", () => ({
   useSyncStore: {
@@ -70,6 +74,8 @@ beforeEach(() => {
   mockAuthState.status = "signed-in";
   mockAuthState.userId = "user-1";
   mockSyncState.pendingEvents = [];
+  mockSyncState.lastSyncedAt = null;
+  mockSyncState.lastSyncError = null;
   mockSRSState.cards = {};
   mockDownloadReviewEvents.mockResolvedValue({ ok: true, events: [] });
   mockUploadReviewEvents.mockResolvedValue({ ok: true });
@@ -121,9 +127,22 @@ describe("useSync — upload path", () => {
     const outcome = await result.current.syncNow();
 
     expect(outcome).toEqual({ ok: false, error: "network error" });
-    expect(mockSyncSetState).not.toHaveBeenCalled();
+    // pendingEvents itself is untouched — the only setState call this path makes
+    // is the lastSyncError write (Task #520), asserted separately below.
     expect(mockSyncState.pendingEvents).toEqual([event]);
     expect(mockDownloadReviewEvents).not.toHaveBeenCalled();
+  });
+
+  it("on upload failure: records lastSyncError and leaves lastSyncedAt untouched (Task #520)", async () => {
+    mockSyncState.pendingEvents = [makeEvent()];
+    mockSyncState.lastSyncedAt = 1_000_000;
+    mockUploadReviewEvents.mockResolvedValue({ ok: false, error: "network error" });
+    const { result } = renderHook(() => useSync());
+
+    await result.current.syncNow();
+
+    expect(mockSyncSetState).toHaveBeenCalledWith({ lastSyncError: "network error" });
+    expect(mockSyncState.lastSyncedAt).toBe(1_000_000);
   });
 
   it("a review enqueued while the upload is in flight is NOT lost — only the events actually uploaded are cleared", async () => {
@@ -180,6 +199,29 @@ describe("useSync — download+merge path", () => {
     expect(mockSRSSetState).not.toHaveBeenCalled();
   });
 
+  it("on download failure: records lastSyncError (Task #520)", async () => {
+    mockDownloadReviewEvents.mockResolvedValue({ ok: false, error: "permission denied" });
+    const { result } = renderHook(() => useSync());
+
+    await result.current.syncNow();
+
+    expect(mockSyncSetState).toHaveBeenCalledWith({ lastSyncError: "permission denied" });
+  });
+
+  it("on a fully successful sync: sets lastSyncedAt to the current time and clears any prior lastSyncError (Task #520)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+    mockSyncState.lastSyncError = "stale error from a previous failed attempt";
+    const { result } = renderHook(() => useSync());
+
+    await result.current.syncNow();
+
+    expect(mockSyncSetState).toHaveBeenCalledWith({ lastSyncedAt: 1_700_000_000_000, lastSyncError: null });
+    expect(mockSyncState.lastSyncedAt).toBe(1_700_000_000_000);
+    expect(mockSyncState.lastSyncError).toBeNull();
+    vi.useRealTimers();
+  });
+
   it("does not call srsStore.setState at all when the merged result is empty", async () => {
     mockDownloadReviewEvents.mockResolvedValue({ ok: true, events: [] });
     const { result } = renderHook(() => useSync());
@@ -202,6 +244,29 @@ describe("useSync — download+merge path", () => {
     await result.current.syncNow();
 
     expect((mockSRSState.cards.c1 as { state: string }).state).toBe("learning");
+  });
+});
+
+describe("useSync — concurrency guard (Task #520 audit finding: SyncTrigger's timer and a debounced triggerSyncSoon can race)", () => {
+  it("two overlapping syncNow() calls share a single execution — only one download round-trip happens, and both callers see the same result", async () => {
+    const { result } = renderHook(() => useSync());
+
+    const p1 = result.current.syncNow();
+    const p2 = result.current.syncNow();
+    const [r1, r2] = await Promise.all([p1, p2]);
+
+    expect(mockDownloadReviewEvents).toHaveBeenCalledTimes(1);
+    expect(r1).toEqual({ ok: true });
+    expect(r2).toEqual({ ok: true });
+  });
+
+  it("the guard clears once the in-flight sync settles, so a later call starts a genuinely new execution", async () => {
+    const { result } = renderHook(() => useSync());
+
+    await result.current.syncNow();
+    await result.current.syncNow();
+
+    expect(mockDownloadReviewEvents).toHaveBeenCalledTimes(2);
   });
 });
 

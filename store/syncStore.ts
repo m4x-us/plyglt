@@ -24,6 +24,14 @@ import type { CardProgress, Grade } from "@/lib/srs";
 interface SyncState {
   deviceId: string | null;
   pendingEvents: ReviewEvent[];
+  // Task #520: written by hooks/useSync.ts's syncNow() at each of its return
+  // points — persisted (not just in-memory) so "last synced" survives an app
+  // restart instead of resetting to "never synced" every launch.
+  lastSyncedAt: number | null; // unix ms; null = never successfully synced
+  // The most recent failed sync ATTEMPT's error string; cleared on the next success.
+  // "Not signed in" is deliberately not an attempt (hooks/useSync.ts's syncNow()
+  // returns early without touching this field), so it never appears here.
+  lastSyncError: string | null;
 
   // Builds a ReviewEvent from the CardProgress commitSession() just produced and
   // appends it to the local queue. Generates and persists a deviceId on first call
@@ -36,6 +44,8 @@ export const useSyncStore = create<SyncState>()(
     (set, get) => ({
       deviceId: null,
       pendingEvents: [],
+      lastSyncedAt: null,
+      lastSyncError: null,
 
       enqueueReviewEvent: (cardId, grade, resultingProgress) => {
         const existingDeviceId = get().deviceId;

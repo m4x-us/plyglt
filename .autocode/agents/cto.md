@@ -1671,3 +1671,25 @@ Final verification: `npx tsc --noEmit` clean, `npm test -- --coverage` 1761/1761
 CTO diagnosis run: NO — first cycle, no repeated findings to diagnose.
 
 Max explicitly signed off on closing after this one fix cycle rather than running a further re-audit round (asked directly: "Close Task #170 now" vs. "Run a re-audit first" — chose to close). Unblocks Task #171 (iOS, Batch 17).
+
+### Task #520 | Sync status indicator | Status: COMPLETE | Cycle 1 | Completed: 2026-08-09
+
+#### Cycle 1 — 2026-08-09 — Full Task
+Build approach: added `lastSyncedAt`/`lastSyncError` to `store/syncStore.ts` (`SYNC_VERSION` 1→2, migration in `store/syncMigrations.ts`), written from `hooks/useSync.ts`'s `runSyncNow()` at each return point, rendered in `components/SyncSignIn.tsx`'s signed-in branch via a new `lib/utils.ts:formatRelativeTime` helper.
+Scripts: PASS (tsc clean, coverage above threshold, lint 0 errors) — before self-review.
+
+Independent 2-agent self-review (unprimed adversarial lens + quality/philosophy lens, background agents — a proportionality call given this task's severity 4, matching the Batch-13 small-task precedent rather than the full `/audit` machine) converged strongly on one critical finding and surfaced several smaller ones:
+- **[CRITICAL, both agents independently]** `syncNow()` had no in-flight guard. `components/SyncTrigger.tsx`'s 5-minute background timer and a debounced `triggerSyncSoon()` call are genuinely concurrent real callers against the same module-level Zustand singletons (`useSyncStore`/`useSRSStore`) — whichever call's terminal `setState` landed last won regardless of which one represented current truth, so a fast call's real, still-unresolved `lastSyncError` could be silently overwritten by a slower call's stale success, hiding an active sync problem behind a "synced" status. FIXED: a module-scope `inFlightSyncPromise` in `hooks/useSync.ts` — every concurrent caller now joins the same execution instead of racing an independent one. Two new tests prove only one download round-trip happens across overlapping calls, and that the guard clears afterward.
+- `lastSyncError` (raw driver/network error text) was rendered verbatim — the first place in the app to do so, violating BRAND.md's quiet-expert voice. FIXED: curated "Couldn't sync. Try again." in the UI; raw string stays console-only.
+- No `useIsHydrated(useSyncStore)` gate — a signed-in user with a real persisted `lastSyncedAt` would briefly see "Not yet synced" before hydration completed. FIXED, same pattern as `hooks/useLangPack.ts:130`.
+- `triggerSyncSoon`'s `.then()` chain lacked the `.catch()` its sibling `SyncTrigger.tsx` already has (commit `562834f`) — a genuine rejection would become an unhandled promise rejection. FIXED to match.
+- Migration 2's `typeof === "number"` check for `lastSyncedAt` accepted `NaN`/`Infinity`/negative values. FIXED with `Number.isFinite(...) && >= 0`; `formatRelativeTime` also gained its own defensive `Number.isFinite` guard as a second line of defense.
+- CLAUDE.md's `lib/utils.ts` doc entry didn't mention the new `formatRelativeTime` export. FIXED.
+
+1 finding deferred to `debt.md` (sev 3, capped per AGENTS.md's Audit Severity Calibration — cosmetic-only, self-corrects within one sync cycle, no data loss): `lastSyncedAt`/`lastSyncError` aren't cleared on sign-out, so a shared-device account switch can briefly show a stale status line from the previous account. Real fix needs a new hook-level effect (per Layer Map, `authStore` must not reach into `syncStore` directly) — a genuinely separate small feature, deferred rather than expanding this task's scope.
+
+Fixed this cycle: all 6 substantive findings above (auto-fixed same cycle). Still open: — | New findings: — | Regression signal: NO.
+Final verification: `npx tsc --noEmit` clean, `npm test -- --coverage` 1788/1788 passing (93 test files, up from 1783), coverage stmts 90.87%/branches 86.11%/funcs 91.47%/lines 92.68% (thresholds 82/81/79/84), `npm run lint` 0 errors, existence-only-assertion grep gate clean on every file this task touched (one unrelated pre-existing hit in `tests/syncStore.test.ts` from Task #169, out of scope).
+CTO diagnosis run: NO — first cycle, no repeated findings to diagnose.
+
+Closed without a further re-audit round given the severity-4 sizing and the strength of convergence already achieved on the one critical finding — same proportionality judgment as Task #170's small-task precedent. Task #521 (follow-up test coverage for the sync error-logging fix) remains open, non-blocking.

@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-08 (Task #170 COMPLETE — push notification server built, audited, and fixed. See Task #170's own log for the full 5-agent audit findings and fixes.)
+Last updated: 2026-08-09 (Task #520 COMPLETE — sync status indicator built, self-reviewed, and fixed, including a real concurrency race in `syncNow()`. See Task #520's own log for the full findings and fixes.)
 
 ## Summary
-Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 has Task #168/#169/#170 COMPLETE — #520 and #521 still open (visible sync-status indicator, follow-up test coverage); Batch 17 (Mobile) unblocked on Task #170's side — Task #171 (iOS) is next, still needs real Apple/Google push credentials provisioned before it can be live-verified.
-Current Sprint: Task #170 is closed. Next up: Task #520 or #521 (small Batch 16 follow-ups), or Task #171 (iOS — Batch 17). Run `/task #520`, `/task #521`, or `/task #171` to pick one up.
+Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 has Task #168/#169/#170/#520 COMPLETE — #521 still open (follow-up test coverage); Batch 17 (Mobile) unblocked on Task #170's side — Task #171 (iOS) is next, still needs real Apple/Google push credentials provisioned before it can be live-verified.
+Current Sprint: Task #520 is closed. Next up: Task #521 (small Batch 16 follow-up), or Task #171 (iOS — Batch 17). Run `/task #521` or `/task #171` to pick one up.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7747,10 +7747,25 @@ Verified: 1665/1665 tests, `tsc`/lint/`cargo check` all clean, full local rebuil
 **Why:** Found directly during Task #518's live two-client testing (2026-08-08) — a real, multi-hour-feeling debugging session where the two clients' progress counts genuinely disagreed, and there was no way for Max (or an agent debugging on his behalf) to tell from the UI whether sync had ever run, when it last succeeded, or whether anything was stuck. The eventual root cause (old pre-sync-era local progress that never generated an event) was only findable by directly inspecting local storage files and querying Supabase by hand — a real user hitting the same visible symptom would have no such option and no way to self-diagnose or even confirm "yes, sync is working, just slow" vs "sync is broken."
 **File:** `components/SyncSignIn.tsx` (or new component), `hooks/useSync.ts` (may need to expose last-sync-result/timestamp state, not just the `syncNow`/`triggerSyncSoon` functions)
 **Severity:** 4 | **DoD Tier:** 2
-**Complexity:** 🔧 Medium — new UI state, wiring into existing sync hook
+**Complexity:** 🔧 Full — new UI state, wiring into existing sync hook (COMPLEXITY_EVAL: >20 words, no cosmetic keyword, touches multiple files)
 **Blocked by:** Nothing (Task #169 already complete) | **Blocks:** Nothing
 **Done when:** A co-located test (Rule 14) confirms the Sync section shows a last-synced time after a successful `syncNow()`, and reflects a pending/error state distinctly from a fully-synced state.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-09**
+
+**Implementation:** Added `lastSyncedAt: number | null` and `lastSyncError: string | null` to `store/syncStore.ts`'s persisted `SyncState` (`SYNC_VERSION` 1→2, `store/syncMigrations.ts`'s migration 2 defaults both to `null` on any pre-existing blob and validates `lastSyncedAt` via `Number.isFinite(...) && >= 0`, not just `typeof === "number"`). `hooks/useSync.ts`'s `runSyncNow()` writes both fields at each of its three return points (upload failure, download failure, full success — success clears any prior error). `components/SyncSignIn.tsx`'s signed-in branch renders a status line (curated "Couldn't sync. Try again." on error / "Last synced Xm ago" via the new `lib/utils.ts:formatRelativeTime` / "Not yet synced") plus a pending-count line, gated behind `useIsHydrated(useSyncStore)` so a real persisted value never flashes as "Not yet synced" before hydration completes.
+
+**Audit findings fixed same-cycle** (self-synthesized review — an unprimed adversarial-lens pass plus an independent quality-lens pass, both run as background agents, not the full 8-9-agent `/audit` machine, sized to this task's severity 4 per the Batch-13 small-task precedent):
+1. **[CRITICAL, both agents independently converged]** `syncNow()` had no in-flight guard — `SyncTrigger.tsx`'s 5-minute timer and a debounced `triggerSyncSoon()` call are genuinely concurrent real callers against the same module-level Zustand singletons; whichever call's terminal `setState` landed last won regardless of which one represented current truth, so a fast failure's `lastSyncError` could be silently clobbered by a slower, stale success. Fixed via a module-scope `inFlightSyncPromise` — every concurrent caller now awaits the same execution instead of racing independent ones. Two new tests in `hooks/useSync.test.ts` prove only one download round-trip happens across two overlapping calls, and that the guard clears afterward so a later call starts fresh.
+2. **[quality-lens]** `lastSyncError` (raw driver/network error text) was rendered verbatim in the UI — the first place in the app to do so, violating BRAND.md's "quiet expert" voice. Fixed: `SyncSignIn.tsx` now shows a curated "Couldn't sync. Try again." — the raw string stays console-only (already logged by `SyncTrigger.tsx`/`triggerSyncSoon`'s own catch paths).
+3. **[adversarial-lens, HIGH]** No hydration gate on the new status block — a signed-in user with a real persisted `lastSyncedAt` would briefly see "Not yet synced" before `store/syncStore.ts` finished hydrating. Fixed via `useIsHydrated(useSyncStore)`, same pattern as `hooks/useLangPack.ts:130`.
+4. **[quality-lens]** `triggerSyncSoon`'s `.then()` chain lacked the `.catch()` its sibling `SyncTrigger.tsx` has (commit `562834f`) — a genuine fetch rejection would become an unhandled promise rejection. Fixed to match.
+5. **[quality-lens]** Migration 2's `typeof d.lastSyncedAt === "number"` check accepted `NaN`/`Infinity`/negative values (`typeof NaN === "number"` is `true`), which would have rendered "NaNd ago". Fixed with `Number.isFinite(...) && >= 0`; `lib/utils.ts:formatRelativeTime` also gained its own defensive `Number.isFinite` guard (returns "just now") as a second line of defense, since it's a shared utility callable from anywhere, not solely reliant on the upstream migration guard.
+6. **[quality-lens]** CLAUDE.md's `lib/utils.ts` doc entry didn't mention `formatRelativeTime`. Updated.
+
+**Deferred to `.autocode/debt.md`** (2026-08-09 row, severity 3, capped per AGENTS.md's Audit Severity Calibration — cosmetic-only, self-corrects, no data loss): `lastSyncedAt`/`lastSyncError` aren't cleared on sign-out, so a shared-device account switch can briefly show the new account a stale status line from the previous account. Real fix requires a new hook-level effect watching auth-status transitions (per Layer Map, `store/authStore.ts` must not reach into `store/syncStore.ts` directly) — a genuinely separate small feature, not a one-line patch, so deferred rather than expanding this task's scope.
+
+**Verified:** `npx tsc --noEmit` clean; `npm test -- --coverage` → 1788/1788 passing (93 test files), coverage stmts 90.87%/branches 86.11%/funcs 91.47%/lines 92.68% (thresholds 82/81/79/84, all exceeded); `npm run lint` → 0 errors (7 pre-existing warnings unchanged); weak-assertion grep gate clean on every file this task touched (one unrelated pre-existing hit in `tests/syncStore.test.ts`, from Task #169, out of this task's scope).
 
 ---
 

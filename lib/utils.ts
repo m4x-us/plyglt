@@ -46,3 +46,26 @@ export async function sha256Hex(text: string): Promise<string> {
 export function packUrl(lang: string): string {
   return `/packs/${lang}.json`;
 }
+
+// Formats a past unix-ms timestamp as a short relative-time string ("just now",
+// "3m ago", "2h ago", "5d ago"). Task #520: used by components/SyncSignIn.tsx's
+// "last synced" line. Deliberately coarser than the day-granularity framing
+// app/stats/page.tsx uses for "last seen Nd ago" — a sync that just ran needs
+// to visibly read as recent (BRAND.md: never make the user feel behind), and
+// "0d ago" for anything under 24h would read as stale when it isn't.
+// A future timestamp (clock skew) is treated as "just now" rather than
+// producing a nonsensical negative duration. A non-finite pastMs (NaN/Infinity)
+// is treated the same way — store/syncMigrations.ts's migration already rejects
+// these before they reach persisted state, but this function is a shared utility
+// callable from anywhere, so it does not rely solely on that upstream guard.
+export function formatRelativeTime(pastMs: number, nowMs: number = Date.now()): string {
+  if (!Number.isFinite(pastMs)) return "just now";
+  const deltaMs = Math.max(0, nowMs - pastMs);
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
