@@ -429,8 +429,8 @@
     <h1 class="title">Roadmap status — engineering &amp; content</h1>
     <p class="masthead-sub">Where the product stands against its full build plan: a complete Italian A1&ndash;B2 curriculum, a five-platform desktop-to-mobile release, and the quality process behind both. Figures below are pulled directly from internal engineering task-tracking, not summarized from memory.</p>
     <div class="masthead-meta">
-      <span><b>Prepared</b> August 7, 2026</span>
-      <span><b>Covers</b> Batches 1–20 · full curriculum build, public macOS release, and cloud sync &amp; auth live and verified</span>
+      <span><b>Prepared</b> August 9, 2026</span>
+      <span><b>Covers</b> Batches 1–20 · full curriculum build, public macOS release, cloud sync &amp; auth, and push notification server live and verified</span>
       <span><b>Source</b> .autocode/tasks.md, cto.md — internal governance log</span>
     </div>
   </header>
@@ -450,7 +450,7 @@
         <div class="stat-label">WorldClass confidence score — composite of engineering &amp; content quality</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-value num">1,668</div>
+        <div class="stat-value num">1,761</div>
         <div class="stat-label">automated tests passing · zero unresolved critical findings</div>
       </div></div>
   </section>
@@ -487,7 +487,7 @@
         <div class="phase-n">3</div>
         <div class="phase-main">
           <div class="phase-name">Windows &amp; Linux desktop</div>
-          <div class="phase-desc">OS-event hooks and packaging are code-complete on both platforms. Blocked on Windows code-signing setup and on real-hardware verification — see Blockers.</div>
+          <div class="phase-desc">OS-event hooks and packaging are code-complete on both platforms. A real Windows compile issue was found and fixed this week, confirmed via an actual Windows CI run (not just local reasoning). Still blocked on Windows code-signing setup and on real-hardware verification — see Blockers.</div>
         </div>
         <div class="phase-bar-wrap">
           <div class="bar-track attn"><div class="bar-fill" style="width:90%"></div></div>
@@ -497,8 +497,8 @@
       <div class="phase-row">
         <div class="phase-n">4</div>
         <div class="phase-main">
-          <div class="phase-name">Cloud sync &amp; auth</div>
-          <div class="phase-desc">Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. This unblocks push notifications, the last piece before mobile development begins.</div>
+          <div class="phase-name">Cloud sync, auth &amp; push notifications</div>
+          <div class="phase-desc">Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups, still open and non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.</div>
         </div>
         <div class="phase-bar-wrap">
           <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
@@ -509,7 +509,7 @@
         <div class="phase-n">5</div>
         <div class="phase-main">
           <div class="phase-name">Mobile — iOS &amp; Android</div>
-          <div class="phase-desc">Not started. Queued behind sync backend; will ship from the same codebase via Tauri's mobile target, not a separate native rewrite.</div>
+          <div class="phase-desc">Not started. Its last engineering prerequisite (the push notification server) is now complete, so this phase is genuinely ready to begin — the remaining blocker is provisioning real Apple/Google developer accounts and push credentials, not further backend work. Will ship from the same codebase via Tauri's mobile target, not a separate native rewrite.</div>
         </div>
         <div class="phase-bar-wrap">
           <div class="bar-track idle"><div class="bar-fill" style="width:2%"></div></div>
@@ -666,7 +666,7 @@
         <div class="wc-bar-row">
           <div>
             <div class="wc-bar-label">Engineering foundation
-              <span class="wc-bar-note">WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine</span>
+              <span class="wc-bar-note">WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine, push notification server</span>
             </div>
             <div class="wc-bar-track"><div class="wc-bar-fill" style="width:97%"></div></div>
           </div>
@@ -675,7 +675,7 @@
         <div class="wc-bar-row">
           <div>
             <div class="wc-bar-label">Test &amp; coverage discipline
-              <span class="wc-bar-note">1,661 tests passing; coverage floor raised, never lowered, every batch</span>
+              <span class="wc-bar-note">1,761 tests passing; coverage floor raised, never lowered, every batch</span>
             </div>
             <div class="wc-bar-track"><div class="wc-bar-fill" style="width:91%"></div></div>
           </div>
@@ -684,7 +684,7 @@
         <div class="wc-bar-row">
           <div>
             <div class="wc-bar-label">Audit &amp; governance discipline
-              <span class="wc-bar-note">23 independent batch-audit cycles; zero unresolved critical findings</span>
+              <span class="wc-bar-note">24 independent batch-audit cycles; zero unresolved critical findings</span>
             </div>
             <div class="wc-bar-track"><div class="wc-bar-fill" style="width:88%"></div></div>
           </div>
@@ -711,7 +711,7 @@
     </div>
 
     <div class="wc-footline">
-      <span><b>23</b> engineering batch-audit cycles run</span>
+      <span><b>24</b> engineering batch-audit cycles run</span>
       <span><b>10</b> content quality audit rounds run</span>
       <span><b>0</b> unresolved critical findings</span>
       <span><b>3</b> findings sets accepted as documented debt, by explicit owner sign-off</span></div>
@@ -748,7 +748,7 @@
     </p>
     <div class="foot-meta">
       <span>plyglt — investor status report</span>
-      <span>Prepared August 7, 2026 — confidential</span>
+      <span>Prepared August 9, 2026 — confidential</span>
     </div>
   </footer>
 

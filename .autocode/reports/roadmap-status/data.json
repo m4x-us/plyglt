@@ -1,12 +1,12 @@
 {
-  "preparedDate": "August 7, 2026",
-  "coversLine": "Batches 1–20 · full curriculum build, public macOS release, and cloud sync & auth live and verified",
+  "preparedDate": "August 9, 2026",
+  "coversLine": "Batches 1–20 · full curriculum build, public macOS release, cloud sync & auth, and push notification server live and verified",
 
   "stats": [
     { "value": "89", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
     { "value": "30,609", "unit": "", "label": "cards shipped across 126 units, all four CEFR levels (A1–B2)" },
     { "value": "85", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
-    { "value": "1,668", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
+    { "value": "1,761", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
   ],
 
   "phases": [
@@ -22,17 +22,17 @@
     },
     {
       "n": 3, "name": "Windows & Linux desktop",
-      "desc": "OS-event hooks and packaging are code-complete on both platforms. Blocked on Windows code-signing setup and on real-hardware verification — see Blockers.",
+      "desc": "OS-event hooks and packaging are code-complete on both platforms. A real Windows compile issue was found and fixed this week, confirmed via an actual Windows CI run (not just local reasoning). Still blocked on Windows code-signing setup and on real-hardware verification — see Blockers.",
       "pct": 90, "status": "attn", "statusLabel": "Blocked"
     },
     {
-      "n": 4, "name": "Cloud sync & auth",
-      "desc": "Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. This unblocks push notifications, the last piece before mobile development begins.",
+      "n": 4, "name": "Cloud sync, auth & push notifications",
+      "desc": "Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups, still open and non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.",
       "pct": 100, "status": "done", "statusLabel": "Done"
     },
     {
       "n": 5, "name": "Mobile — iOS & Android",
-      "desc": "Not started. Queued behind sync backend; will ship from the same codebase via Tauri's mobile target, not a separate native rewrite.",
+      "desc": "Not started. Its last engineering prerequisite (the push notification server) is now complete, so this phase is genuinely ready to begin — the remaining blocker is provisioning real Apple/Google developer accounts and push credentials, not further backend work. Will ship from the same codebase via Tauri's mobile target, not a separate native rewrite.",
       "pct": 0, "status": "idle", "statusLabel": "Not started"
     }
   ],
@@ -68,14 +68,14 @@
   "worldclass": {
     "score": 85,
     "bars": [
-      { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine", "value": 97 },
-      { "label": "Test & coverage discipline", "note": "1,661 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
-      { "label": "Audit & governance discipline", "note": "23 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
+      { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine, push notification server", "value": 97 },
+      { "label": "Test & coverage discipline", "note": "1,761 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
+      { "label": "Audit & governance discipline", "note": "24 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
       { "label": "Content brand & voice fidelity", "note": "Average across all four CEFR levels' latest audit round", "value": 79 },
       { "label": "Content pedagogical rigor", "note": "Average across all four CEFR levels' latest audit round", "value": 72 }
     ],
     "footline": [
-      { "value": "23", "label": "engineering batch-audit cycles run" },
+      { "value": "24", "label": "engineering batch-audit cycles run" },
       { "value": "10", "label": "content quality audit rounds run" },
       { "value": "0", "label": "unresolved critical findings" },
       { "value": "3", "label": "findings sets accepted as documented debt, by explicit owner sign-off" }
