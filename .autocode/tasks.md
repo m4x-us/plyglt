@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-09 (Task #521 COMPLETE — sync error-logging follow-up tests added, closing out Batch 16.)
+Last updated: 2026-08-09 (Task #171 COMPLETE — rescoped after confirming this machine has no Xcode/Apple Developer Program provisioning. The buildable slice — plyglt://interrupt deep-link routing — is built, self-reviewed, and fixed. Original scope preserved as Task #522, blocked on Max.)
 
 ## Summary
-Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) unblocked on Task #170's side — Task #171 (iOS) is next, still needs real Apple/Google push credentials provisioned before it can be live-verified.
-Current Sprint: Batch 16 is closed. Next up: Task #171 (iOS — Batch 17). Run `/task #171` to pick it up.
+Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 PAUSED (blocked on Max — Azure Portal setup for #165, real Windows/Linux hardware for #166/#167); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (real iOS Xcode/Developer Program/TestFlight work) and #172 (Android, blocked on #522) remain, both requiring Max's account/infrastructure setup before an agent can meaningfully continue.
+Current Sprint: Task #171 is closed. Next up: Task #522 requires Max (Xcode install + Apple Developer Program enrollment) before any further agent work is possible on mobile. Everything else agent-executable is done. Run `/tasks debt` to review the debt register, or pick a different backlog item.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -7789,25 +7789,49 @@ Verified: 1665/1665 tests, `tsc`/lint/`cargo check` all clean, full local rebuil
 ## Batch 17 — Mobile (iOS + Android)
 Dependency: Batch 16 complete (sync backend and push notification server live). Theme: Launch plyglt on iOS and Android using Tauri 2 mobile targets, with push-interrupt sessions and seamless SRS sync with desktop.
 
-### Task #171 | build | severity 8
-**What:** iOS app — Tauri 2 iOS build pipeline. Configure Xcode project, bundle identifier (`com.plyglt.app`), push notification entitlement. Set up TestFlight distribution and App Store submission. Implement APNs push notification client: register device token on launch, send to sync backend (Task #170), handle notification tap → immediate in-app StudyCard session (bypasses main menu, presents a 3-card session directly). Requires Apple Developer Program membership (same account as macOS signing, Task #122).
-**Why:** iOS is the highest-value Pro tier opportunity. Push-interrupted mobile study sessions during commute/breaks are the flagship use case for plyglt's Pro tier.
-**File:** Multiple — Tauri iOS config, push notification client, session-from-notification flow
-**Severity:** 8 | **DoD Tier:** 3
-**Complexity:** 🔧 Full — multiple files, iOS build
-**Blocked by:** #170 | **Blocks:** #172
-**Done when:** App installable via TestFlight. APNs push notification fires on schedule (manual test). Notification tap opens app directly into a 3-card session. SRS state syncs with desktop automatically after the session.
+### Task #171 | build | severity 6
+**What:** SCOPE-CORRECTED 2026-08-09 (see original scope preserved as spun-off Task #522 below). Build the app-level routing that a real push-notification tap will eventually trigger: a `plyglt://interrupt` deep-link URL, handled via the app's existing deep-link gateway (`lib/tauri.ts`'s `onDeepLinkUrl`/`getCurrentDeepLinkUrls` — currently used only for the OAuth sign-in callback), that navigates directly to `/study?mode=interrupt` — the exact page and query param `components/InterruptHandler.tsx` already uses for desktop's Rust-driven mandatory-interrupt flow (`router.push("/study?mode=interrupt")`, line 85). Cold-start (app launched fresh by the tap) and warm-start (app already running) both need to route correctly, mirroring the two-path pattern `lib/tauri.ts` already has for OAuth. Register `interrupt` alongside the existing `signin`-callback URL handling — do not invent a second deep-link mechanism.
+**Why:** iOS is the highest-value Pro tier opportunity, and this is the one piece of "notification tap → immediate in-app session" (the original Task #171's Done-When) that is genuinely buildable and testable today, independent of Xcode. It also de-risks the native work in Task #522: once a real Xcode-generated iOS project exists, native APNs tap-handling only needs to open this already-built, already-tested `plyglt://interrupt` URL — it does not need to duplicate this app's session-launch logic.
+**File:** `lib/tauri.ts` (extend the deep-link gateway), `components/InterruptHandler.tsx` (or a new co-located hook if adding this pushes the file past its size cap) — subscribe and route
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — touches the shared Tauri gateway plus the interrupt routing component, needs both cold-start and warm-start coverage
+**Blocked by:** #170 (COMPLETE) | **Blocks:** Nothing (Task #522, not this task, is the real blocker for #172's Android equivalent and for live mobile verification)
+**Done when:** A co-located test confirms that receiving a `plyglt://interrupt` deep-link URL (both via `getCurrentDeepLinkUrls` cold-start and `onDeepLinkUrl` warm-start) triggers `router.push("/study?mode=interrupt")`, and that an unrelated deep-link URL (e.g. the existing OAuth callback) does NOT.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-09**
+
+**Implementation note — actual approach diverged from the File field above (harmlessly):** the shipped code never touches `lib/tauri.ts`. It reuses the existing generic `onDeepLinkUrl`/`getCurrentDeepLinkUrls` gateway functions as a second, fully independent subscriber — the exact same pattern `store/authStore.ts` already uses for the OAuth `plyglt://auth-callback` URL. Verified (against the real `@tauri-apps/plugin-deep-link` Rust/JS source, not assumed) that this is safe: `onOpenUrl` is a true broadcast (every `listen()` call gets its own registration), and `getCurrent()` is a read (`.lock().unwrap().clone()`), not a consume-once API — so `authStore.ts` and the new hook both see every URL, with no starvation risk. New file `hooks/useInterruptDeepLink.ts` (exports `isInterruptDeepLink` for direct testing, mirroring `authStore.ts`'s exported `handleDeepLinkCallback`), wired into `components/InterruptHandler.tsx` via one `useInterruptDeepLink()` call.
+
+**Self-review (2 parallel background agents — adversarial + quality lens, proportional to this task's severity 6, same lightweight pattern as Tasks #520/#521) converged independently on the same real finding, plus one more:**
+1. **[Both agents, independently]** `isInterruptDeepLink`'s catch block silently swallowed a malformed-URL parse failure with a comment falsely claiming parity with `store/authStore.ts`'s equivalent guard — that guard actually does log. A stop-the-line violation of AGENTS.md's "no silent catch" rule. Fixed: added a `console.error` call with a `[ERR-DEEPLINK-INTERRUPT-PARSE-...]` ref ID, genuinely matching `authStore.ts`'s pattern; new test asserts the exact log call, using a URL confirmed (in Node) to actually throw (`"plyglt://[invalid"` — the original test's `"plyglt://"` never threw at all, so it never really exercised this path; both agents caught this too).
+2. **[Adversarial-lens]** Case-sensitive hostname matching: a custom (non-"special") URL scheme's host is an opaque string, not lowercased by the parser — verified `new URL("plyglt://INTERRUPT").hostname === "INTERRUPT"`, so a differently-cased payload would silently fail to match. Fixed with an explicit `.toLowerCase()`; new regression test covers both `INTERRUPT` and `Interrupt`.
+
+Design questions the reviewers raised and ruled NOT bugs, after direct verification: gating this hook behind the `interruptEngine` feature flag (consistent with every other interrupt entry point in the same component, and BRAND.md scopes proactive interruption — desktop and mobile alike — as one Pro-gated bundle); multi-consumer deep-link starvation (ruled out by reading the actual plugin source); stale-closure/post-unmount navigation risk (ruled out — `router` is stable, cleanup correctly unlistens, a `router.push` after unmount is harmless).
+
+**Verified:** `npx tsc --noEmit` clean; `npm test -- --coverage` → 1806/1806 passing (94 test files, up from 1793); coverage stmts 90.95%/branches 86.28%/funcs 91.29%/lines 92.74% (thresholds 82/81/79/84); `npm run lint` 0 errors (7 pre-existing warnings unchanged); weak-assertion grep gate clean on both touched files.
+
+---
+
+### Task #522 | infrastructure | severity 8
+**What:** The real iOS build/release pipeline — everything the original Task #171 scoped that a coding agent cannot do without real Apple infrastructure Max must provision: (1) install full Xcode.app (this machine has only the Command Line Tools — confirmed 2026-08-09, `xcodebuild -version` fails with "requires Xcode, but active developer directory is a command line tools instance"); (2) enroll in the Apple Developer Program (same account used for macOS signing, Task #122) if not already active, and confirm it covers iOS distribution; (3) run `tauri ios init`, set the bundle identifier to `com.plyglt.app` (currently `app.plyglt` in `tauri.conf.json` — the task's original spec and the shipped config disagree, resolve during this task), and add the push notification entitlement/capability in the generated Xcode project; (4) implement the native APNs device-token registration (the OS handing the app a real push token on launch, wired to `lib/pushTokenClient.ts`'s already-built, already-tested `registerPushToken()`) — this genuinely requires the Xcode-generated iOS project from step 3, it cannot be written or tested without it; (5) wire native notification-tap handling to open the `plyglt://interrupt` deep link Task #171 already built and tested; (6) set up TestFlight distribution and submit to App Store review; (7) provision real APNs push credentials (referenced but never completed in Task #170's own audit note) and live-verify a scheduled push notification actually arrives and its tap opens a 3-card session.
+**Why:** Spun off from the original Task #171 (2026-08-09) after confirming this machine has neither Xcode.app nor Apple Developer Program provisioning — genuine infrastructure/account work outside what an autonomous coding session can execute, distinct from Task #171's real-code portion (deep-link routing), which was rescoped down and built separately.
+**File:** Multiple — Xcode project (generated, not yet existing), `tauri.conf.json`'s bundle identifier, native push registration glue
+**Severity:** 8 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — requires interactive Apple Developer Portal / App Store Connect work only Max can do, plus native iOS code that can't be authored blind without Xcode present to compile against
+**Blocked by:** #171 (COMPLETE — provides the `plyglt://interrupt` target this task's native tap-handling opens) | **Blocks:** #172 (Android's own Play Console/build-pipeline work is independent, but was originally sequenced after iOS; Task #172's "Blocked by" has been updated to point here)
+**Done when:** App installable via TestFlight. APNs push notification fires on schedule (manual test, on a real device). Notification tap opens the app directly into a 3-card session via the `plyglt://interrupt` deep link. SRS state syncs with desktop automatically after the session.
+**Owner:** Max (this task requires steps only the account owner can perform — installing Xcode, enrolling in the Apple Developer Program, App Store Connect submission; an agent can assist with the native code once Xcode exists, but cannot start this task unassisted)
+**Added:** Spun off from Task #171's original scope — 2026-08-09 — real Xcode/Developer Program/TestFlight work confirmed blocked on this machine, not agent-executable as a normal /task cycle
 
 ---
 
 ### Task #172 | build | severity 7
-**What:** Android app — Tauri 2 Android build pipeline. Configure Gradle, Play Console account, Play Store submission pipeline. Implement FCM push notification client (parallel to APNs in Task #171): register FCM token on launch, send to sync backend, handle notification tap → immediate in-app session. Target: API level 26+ (Android 8.0).
+**What:** Android app — Tauri 2 Android build pipeline. Configure Gradle, Play Console account, Play Store submission pipeline. Implement FCM push notification client (parallel to APNs in Task #522): register FCM token on launch, send to sync backend, handle notification tap → immediate in-app session (the `plyglt://interrupt` deep link Task #171 already built and tested — Tauri's deep-link plugin is cross-platform, so this reuses that same app-side routing rather than needing its own). Target: API level 26+ (Android 8.0).
 **Why:** Android completes the mobile platform coverage. FCM is the Android equivalent of APNs. Same interrupt experience as iOS.
 **File:** Multiple — Tauri Android config, FCM client, session-from-notification flow
 **Severity:** 7 | **DoD Tier:** 3
 **Complexity:** 🔧 Full — multiple files, Android build
-**Blocked by:** #171 | **Blocks:** Nothing (Batch 17 complete)
+**Blocked by:** #522 (2026-08-09: updated from #171 — #171 was rescoped to just the app-side deep-link routing and is COMPLETE; #522 carries the real native-build-pipeline dependency the original sequencing intended) | **Blocks:** Nothing (Batch 17 complete)
 **Done when:** App installable from Play Store (or internal testing track). FCM notifications fire on schedule. Tap → in-app session works. SRS state syncs with desktop.
 **Owner:** Architecture Agent
 

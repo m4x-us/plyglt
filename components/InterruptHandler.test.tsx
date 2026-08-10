@@ -10,7 +10,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
 import { validateLicense } from "@/lib/entitlement";
+import { onDeepLinkUrl, getCurrentDeepLinkUrls } from "@/lib/tauri";
 import { InterruptHandler } from "./InterruptHandler";
+
+const mockOnDeepLinkUrl = vi.mocked(onDeepLinkUrl);
+const mockGetCurrentDeepLinkUrls = vi.mocked(getCurrentDeepLinkUrls);
 
 // ── vi.hoisted: all values referenced inside vi.mock factories must be hoisted ─
 // vi.mock factories are hoisted to the top of the file; any const defined in the
@@ -38,6 +42,12 @@ vi.mock("@/lib/tauri", () => ({
   disableAutostart: vi.fn(),
   openExternalUrl: vi.fn(),
   invoke: vi.fn(),
+  // hooks/useInterruptDeepLink.ts's deep-link subscription — harmless no-op
+  // defaults so tests exercising isTauri=true (Tests 3-4 below) don't throw
+  // on these being undefined. hooks/useInterruptDeepLink.test.ts covers the
+  // hook's own routing logic directly; these tests only need it to not crash.
+  onDeepLinkUrl: vi.fn().mockResolvedValue(() => {}),
+  getCurrentDeepLinkUrls: vi.fn().mockResolvedValue(null),
 }));
 
 // ── tauriInterrupt mock — interrupt and tray badge IPC wrappers ───────────────
@@ -128,6 +138,22 @@ describe("InterruptHandler", () => {
     });
     // The effect short-circuits on !isTauri — no listener registered
     expect(tauriState.listeners.has("interrupt:fire")).toBe(false);
+    // Same short-circuit applies to useInterruptDeepLink's subscription (Task #171)
+    expect(mockOnDeepLinkUrl).not.toHaveBeenCalled();
+    expect(mockGetCurrentDeepLinkUrls).not.toHaveBeenCalled();
+  });
+
+  // ── Test 1b: useInterruptDeepLink is actually wired when isTauri is true (Task #171) ─
+  it("subscribes to the deep-link gateway when isTauri is true — proves useInterruptDeepLink is wired in, not just present", async () => {
+    tauriState.isTauri = true;
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    // Full routing behavior (which URLs trigger navigation) is covered directly in
+    // hooks/useInterruptDeepLink.test.ts — this proves InterruptHandler actually calls
+    // the hook rather than merely importing it unused.
+    expect(mockOnDeepLinkUrl).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentDeepLinkUrls).toHaveBeenCalledTimes(1);
   });
 
   // ── Test 2: DnD guard — no navigation when isInDnd() is true ─────────────────

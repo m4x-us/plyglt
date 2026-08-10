@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { isTauri, listen } from "@/lib/tauri";
 import { enterMandatoryMode, updateInterruptConfig } from "@/lib/tauriInterrupt";
 import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
+import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
 import { useLangPack } from "@/hooks/useLangPack";
 import { getFeatureFlags } from "@/lib/featureFlags";
 
@@ -35,6 +36,10 @@ function InterruptHandlerCore() {
     idleThresholdMinutes,
     computeDue,
   } = useInterruptConfig();
+
+  // Task #171: a mobile push notification tap opens plyglt://interrupt — route it
+  // to the same study session desktop's own interrupt entry points use below.
+  useInterruptDeepLink();
 
   // Sequence counter: each effect run claims a new seq. If a stale IPC call resolves
   // after a newer one has started, its resolution is ignored — only the latest write wins.

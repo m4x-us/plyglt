@@ -1705,3 +1705,24 @@ Fixed this cycle: n/a (test-only). Still open: — | New findings: — | Regress
 CTO diagnosis run: NO — first cycle.
 
 Closes out Batch 16 entirely (#168/#169/#170/#520/#521 all COMPLETE). Next up: Task #171 (iOS, Batch 17) — still needs real Apple/Google push credentials provisioned before it can be live-verified end to end.
+
+### Task #171 | iOS notification-tap deep-link routing (rescoped) | Status: COMPLETE | Cycle 1 | Completed: 2026-08-09
+
+#### Cycle 1 — 2026-08-09 — Full Task (rescoped mid-cycle before build)
+**Pre-build scope check found a hard environmental blocker.** Before building, confirmed via direct tool checks (not assumption) that this machine has neither full Xcode.app (`xcodebuild -version` fails: "requires Xcode, but active developer directory is a command line tools instance") nor any Apple Developer Program provisioning (`~/Library/MobileDevice/Provisioning Profiles` doesn't exist) — both hard requirements for the original Task #171's full scope (Xcode project config, TestFlight distribution, App Store submission, native APNs registration). Asked Max via AskUserQuestion how to proceed rather than guessing; Max chose "scope-correct now." Rewrote Task #171 to the one piece genuinely buildable and testable today — app-level routing for a `plyglt://interrupt` deep link (what a real push-notification tap will eventually open) to `/study?mode=interrupt`, the same route desktop's own mandatory-interrupt flow already uses. Spun the real Xcode/Developer Program/TestFlight/native-APNs work into new Task #522, Owner: Max, and updated Task #172's (Android) blocker from #171 to #522 for consistency.
+
+Build approach: new `hooks/useInterruptDeepLink.ts:isInterruptDeepLink`/`useInterruptDeepLink` — reuses the existing generic `lib/tauri.ts:onDeepLinkUrl`/`getCurrentDeepLinkUrls` gateway as a second independent subscriber, exactly like `store/authStore.ts`'s existing `plyglt://auth-callback` handler. Wired into `components/InterruptHandler.tsx:InterruptHandlerCore` via one `useInterruptDeepLink()` call.
+Scripts: PASS (tsc clean, 1804/1804 tests, coverage above threshold, lint 0 errors) — before self-review.
+
+Self-review: 2 parallel background agents (adversarial + quality lens, proportional sizing matching Tasks #520/#521's precedent, not the full audit machine). Both independently converged on the same real finding:
+- `isInterruptDeepLink`'s catch block silently swallowed a malformed-URL parse error, with a comment falsely claiming parity with `authStore.ts`'s equivalent guard (which actually logs). Stop-the-line violation of AGENTS.md's "no silent catch" rule. FIXED: added `console.error` with a `[ERR-DEEPLINK-INTERRUPT-PARSE-...]` ref ID; both agents also caught that the original test's malformed-URL string (`"plyglt://"`) never actually threw, so it never exercised this path at all — replaced with a genuinely-throwing input (`"plyglt://[invalid"`, confirmed in Node) and a specific assertion on the log call.
+
+Adversarial-lens found one more, independently: case-sensitive hostname matching — a custom URL scheme's host is opaque and not lowercased by the parser (verified: `new URL("plyglt://INTERRUPT").hostname === "INTERRUPT"`). FIXED with explicit `.toLowerCase()`; new regression test.
+
+Both agents also verified (not just asserted) two design questions as non-bugs: no multi-consumer starvation on the shared deep-link gateway (read the actual `@tauri-apps/plugin-deep-link` Rust source — `onOpenUrl` is a true broadcast, `getCurrent()` is a read not a consume), and gating behind the `interruptEngine` feature flag is intentional (consistent with every other interrupt entry point in the same component; BRAND.md scopes proactive interruption as one Pro-gated bundle).
+
+Fixed this cycle: both real findings (catch-swallow + case-sensitivity). Still open: — | New findings: — | Regression signal: NO.
+Final verification: `npx tsc --noEmit` clean, `npm test -- --coverage` 1806/1806 passing (94 test files, up from 1804), coverage stmts 90.95%/branches 86.28%/funcs 91.29%/lines 92.74% (thresholds 82/81/79/84), `npm run lint` 0 errors, weak-assertion grep gate clean on both touched files.
+CTO diagnosis run: NO — first cycle.
+
+Task #522 (real Xcode/Apple Developer Program/TestFlight/native-APNs work, Owner: Max) and Task #172 (Android, now blocked by #522) are the only remaining Batch 17 items — both need Max's account/infrastructure setup before further agent work is possible.
