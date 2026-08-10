@@ -93,6 +93,54 @@ export async function getCurrentDeepLinkUrls(): Promise<string[] | null> {
   return getCurrent();
 }
 
+// ── Native notifications ───────────────────────────────────────────────────────
+// Task #166 live-testing finding (2026-08-10): components/InterruptHandler.tsx's actual
+// notification-send path uses @tauri-apps/plugin-notification's OWN permission system —
+// entirely separate from the browser Notification Web API. app/settings/page.tsx's
+// "Enable review reminders" toggle was checking the browser API instead, which can read
+// "denied" in a Tauri webview (observed live on Windows) even when the real, relevant
+// native permission is grantable — permanently blocking the toggle for no real reason.
+// These wrappers are the single gateway for the Tauri plugin, so every caller (settings
+// UI, InterruptHandler.tsx) checks the ONE permission system that actually gates whether
+// a notification can be sent.
+
+/**
+ * Checks whether the OS has already granted plyglt permission to send native
+ * notifications. Always false in web (there is no native notification plugin there —
+ * web callers should use the browser Notification API directly).
+ */
+export async function isNotificationPermissionGranted(): Promise<boolean> {
+  if (!isTauri) return false;
+  const { isPermissionGranted } = await import("@tauri-apps/plugin-notification");
+  return isPermissionGranted();
+}
+
+/**
+ * Requests native notification permission from the OS. Returns the same
+ * "granted" | "denied" | "default" string union the browser Notification Web API
+ * uses (NotificationPermission is a shared DOM type), so callers can share one UI
+ * state shape across web and Tauri. Always resolves "denied" in web — there is no
+ * native plugin to request against there.
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (!isTauri) return "denied";
+  const { requestPermission } = await import("@tauri-apps/plugin-notification");
+  return requestPermission();
+}
+
+/**
+ * Sends a native OS notification. No-ops in web (callers needing a web notification
+ * should use the browser Notification API directly — this wrapper is Tauri-only).
+ * Does NOT check or request permission itself — callers must confirm
+ * isNotificationPermissionGranted() first, matching the explicit check-then-send
+ * sequence components/InterruptHandler.tsx already used before this gateway existed.
+ */
+export async function sendNativeNotification(title: string, body: string): Promise<void> {
+  if (!isTauri) return;
+  const { sendNotification } = await import("@tauri-apps/plugin-notification");
+  sendNotification({ title, body });
+}
+
 // ── Auto-updater ──────────────────────────────────────────────────────────────
 
 export type UpdateCheckResult =

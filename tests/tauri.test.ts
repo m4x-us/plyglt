@@ -72,6 +72,67 @@ describe("web-mode no-ops", () => {
     const result = await getCurrentDeepLinkUrls();
     expect(result).toBeNull();
   });
+
+  it("isNotificationPermissionGranted returns false when not in Tauri", async () => {
+    const { isNotificationPermissionGranted } = await import("@/lib/tauri");
+    expect(await isNotificationPermissionGranted()).toBe(false);
+  });
+
+  it("requestNotificationPermission returns 'denied' when not in Tauri", async () => {
+    const { requestNotificationPermission } = await import("@/lib/tauri");
+    expect(await requestNotificationPermission()).toBe("denied");
+  });
+
+  it("sendNativeNotification resolves without throwing and does not call the plugin when not in Tauri", async () => {
+    const { sendNativeNotification } = await import("@/lib/tauri");
+    await expect(sendNativeNotification("title", "body")).resolves.toBeUndefined();
+  });
+});
+
+// Task #166 live-testing fix (2026-08-10) — components/InterruptHandler.tsx's actual
+// notification-send path and app/settings/page.tsx's permission toggle must both go
+// through this ONE gateway, not each check a different, independent permission system.
+describe("native notifications — Tauri-mode wiring", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("isNotificationPermissionGranted returns the plugin's isPermissionGranted() result", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-notification", () => ({
+      isPermissionGranted: vi.fn().mockResolvedValue(true),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { isNotificationPermissionGranted } = await import("@/lib/tauri");
+
+    expect(await isNotificationPermissionGranted()).toBe(true);
+  });
+
+  it("requestNotificationPermission returns the plugin's requestPermission() result", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-notification", () => ({
+      requestPermission: vi.fn().mockResolvedValue("granted"),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { requestNotificationPermission } = await import("@/lib/tauri");
+
+    expect(await requestNotificationPermission()).toBe("granted");
+  });
+
+  it("sendNativeNotification calls the plugin's sendNotification() with title and body", async () => {
+    vi.resetModules();
+    const sendNotificationMock = vi.fn();
+    vi.doMock("@tauri-apps/plugin-notification", () => ({
+      sendNotification: sendNotificationMock,
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { sendNativeNotification } = await import("@/lib/tauri");
+
+    await sendNativeNotification("plyglt", "3 cards ready");
+
+    expect(sendNotificationMock).toHaveBeenCalledWith({ title: "plyglt", body: "3 cards ready" });
+  });
 });
 
 // Task #519 — desktop OAuth callback deep links

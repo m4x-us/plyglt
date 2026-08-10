@@ -25,10 +25,18 @@ import type { LicenseStatus } from "@/hooks/useLicenseActivation";
 // in the temporal dead zone when the factory runs. Only vi.hoisted() values
 // are resolved before the factory executes.
 
-const { tauriState, mockEnableAutostart, mockDisableAutostart } = vi.hoisted(() => ({
+const {
+  tauriState,
+  mockEnableAutostart,
+  mockDisableAutostart,
+  mockIsNotificationPermissionGranted,
+  mockRequestNotificationPermission,
+} = vi.hoisted(() => ({
   tauriState: { isTauri: false as boolean },
   mockEnableAutostart: vi.fn().mockResolvedValue(undefined),
   mockDisableAutostart: vi.fn().mockResolvedValue(undefined),
+  mockIsNotificationPermissionGranted: vi.fn().mockResolvedValue(false),
+  mockRequestNotificationPermission: vi.fn().mockResolvedValue("denied"),
 }));
 
 const { mockActivation } = vi.hoisted(() => ({
@@ -52,6 +60,8 @@ vi.mock("@/lib/tauri", () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
   invoke: vi.fn(),
   checkForUpdates: vi.fn().mockResolvedValue({ available: false }),
+  isNotificationPermissionGranted: (...args: unknown[]) => mockIsNotificationPermissionGranted(...args),
+  requestNotificationPermission: (...args: unknown[]) => mockRequestNotificationPermission(...args),
 }));
 
 // ── @/hooks/useLicenseActivation — controlled per-test via mockActivation ────
@@ -527,6 +537,64 @@ describe("SettingsPage", () => {
     await act(async () => { fireEvent.click(toggle); });
 
     expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().interruptEnabled).toBe(false);
+  });
+
+  // Task #166 live-testing fix (2026-08-10): on Tauri, the toggle must check/request
+  // permission via lib/tauri.ts's native gateway, NOT the browser Notification API —
+  // the actual bug found live (the browser API can read "denied" inside a Tauri webview
+  // even when the real, native permission is grantable, permanently blocking the toggle).
+
+  it("on Tauri, checks native permission via lib/tauri.ts on mount, not the browser Notification API", async () => {
+    const browserRequestPermission = vi.fn();
+    vi.stubGlobal("Notification", { permission: "denied", requestPermission: browserRequestPermission });
+    tauriState.isTauri = true;
+    mockIsNotificationPermissionGranted.mockResolvedValue(true);
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    await act(async () => { render(<SettingsPage />); });
+    expect(mockIsNotificationPermissionGranted).toHaveBeenCalledTimes(1);
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    // Already granted natively → enables directly, no request needed, and the browser
+    // API (which reports "denied") is never consulted.
+    expect(mockRequestNotificationPermission).not.toHaveBeenCalled();
+    expect(browserRequestPermission).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().interruptEnabled).toBe(true);
+  });
+
+  it("on Tauri, requests native permission via lib/tauri.ts and enables review reminders when granted", async () => {
+    const browserRequestPermission = vi.fn();
+    vi.stubGlobal("Notification", { permission: "denied", requestPermission: browserRequestPermission });
+    tauriState.isTauri = true;
+    mockIsNotificationPermissionGranted.mockResolvedValue(false);
+    mockRequestNotificationPermission.mockResolvedValue("granted");
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    await act(async () => { render(<SettingsPage />); });
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    expect(mockRequestNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(browserRequestPermission).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().interruptEnabled).toBe(true);
+  });
+
+  it("on Tauri, requests native permission via lib/tauri.ts and leaves review reminders disabled when refused", async () => {
+    tauriState.isTauri = true;
+    mockIsNotificationPermissionGranted.mockResolvedValue(false);
+    mockRequestNotificationPermission.mockResolvedValue("denied");
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    await act(async () => { render(<SettingsPage />); });
+
+    const toggle = getSwitchByLabel("Enable review reminders");
+    await act(async () => { fireEvent.click(toggle); });
+
+    expect(mockRequestNotificationPermission).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().interruptEnabled).toBe(false);
   });
 

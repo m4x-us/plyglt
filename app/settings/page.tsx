@@ -8,7 +8,14 @@ import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS } from "@/store/sett
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { ALL_PACK_CODES } from "@/lib/langRegistry";
 import { runEntitlementValidation } from "@/components/EntitlementValidator";
-import { isTauri, enableAutostart, disableAutostart, openExternalUrl } from "@/lib/tauri";
+import {
+  isTauri,
+  enableAutostart,
+  disableAutostart,
+  openExternalUrl,
+  isNotificationPermissionGranted,
+  requestNotificationPermission,
+} from "@/lib/tauri";
 import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { Section } from "@/components/settings/Section";
 import { Toggle } from "@/components/settings/Toggle";
@@ -25,8 +32,23 @@ export default function SettingsPage() {
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
   useEffect(() => { runEntitlementValidation(useEntitlementStore.getState); }, []);
   const [notifPermission, setNotifPermission] = useState<"granted" | "denied" | "default" | "unsupported">("unsupported");
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (typeof Notification !== "undefined") setNotifPermission(Notification.permission); }, []);
+  // Task #166 live-testing fix (2026-08-10): on Tauri, check the SAME native permission
+  // system components/InterruptHandler.tsx actually sends through — the browser
+  // Notification Web API used below is a different, unrelated permission system that can
+  // read "denied" inside a Tauri webview even when the real, relevant permission is
+  // grantable, permanently blocking this toggle for no real reason (found live on Windows).
+  // isPermissionGranted() only returns a boolean — Tauri doesn't expose a separate
+  // "denied" state upfront; a real denial only surfaces after requestPermission() below.
+  useEffect(() => {
+    if (isTauri) {
+      isNotificationPermissionGranted().then((granted) => {
+        setNotifPermission(granted ? "granted" : "default");
+      });
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
+  }, []);
   const { importRef, dataStatus, handleExport, handleImportFile } = useExportImport();
   const { licenseInput, setLicenseInput, licenseStatus, setLicenseStatus, handleActivate, handleValidate, handleDeactivate } = useLicenseActivation();
   // macOS-only: OS Triggers are implemented exclusively for macOS in os_events.rs (Batch 15
@@ -37,8 +59,15 @@ export default function SettingsPage() {
   async function handleInterruptToggle(v: boolean) {
     if (!v) { setInterruptEnabled(false); return; }
     if (notifPermission === "denied") return;
-    if (notifPermission === "default" && typeof Notification !== "undefined") {
-      const result = await Notification.requestPermission();
+    if (notifPermission === "default") {
+      // Task #166 live-testing fix: request through the same permission system that
+      // actually gates sending (lib/tauri.ts's native gateway on Tauri; the browser
+      // Notification API only in the web build, where no native plugin exists).
+      const result = isTauri
+        ? (await requestNotificationPermission())
+        : typeof Notification !== "undefined"
+          ? await Notification.requestPermission()
+          : "denied";
       setNotifPermission(result);
       if (result === "granted") setInterruptEnabled(true);
       return;

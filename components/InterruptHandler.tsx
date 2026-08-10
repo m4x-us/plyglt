@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { isTauri, listen } from "@/lib/tauri";
+import { isTauri, listen, isNotificationPermissionGranted, requestNotificationPermission, sendNativeNotification } from "@/lib/tauri";
 import { enterMandatoryMode, updateInterruptConfig } from "@/lib/tauriInterrupt";
 import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
 import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
@@ -89,19 +89,21 @@ function InterruptHandlerCore() {
         }
         router.push("/study?mode=interrupt");
       } else {
-        // Passive: system notification — import dynamically so web builds tree-shake it.
+        // Passive: system notification, via lib/tauri.ts's single gateway (Task #166
+        // live-testing fix, 2026-08-10) — was previously importing
+        // @tauri-apps/plugin-notification directly, the exact CLAUDE.md-forbidden
+        // pattern that let this permission check drift out of sync with
+        // app/settings/page.tsx's own (separate, wrong) permission check.
         try {
-          const { isPermissionGranted, requestPermission, sendNotification } =
-            await import("@tauri-apps/plugin-notification");
-          let granted = await isPermissionGranted();
+          let granted = await isNotificationPermissionGranted();
           if (!granted) {
-            granted = (await requestPermission()) === "granted";
+            granted = (await requestNotificationPermission()) === "granted";
           }
           if (granted) {
-            sendNotification({
-              title: "plyglt",
-              body: `${totalDue} card${totalDue === 1 ? "" : "s"} ready — 2 min study break?`,
-            });
+            await sendNativeNotification(
+              "plyglt",
+              `${totalDue} card${totalDue === 1 ? "" : "s"} ready — 2 min study break?`
+            );
           }
         } catch (err) {
           console.error(`[ERR-NOTIF-${Date.now()}] Notification plugin error:`, err);

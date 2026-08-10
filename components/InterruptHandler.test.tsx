@@ -19,7 +19,16 @@ const mockGetCurrentDeepLinkUrls = vi.mocked(getCurrentDeepLinkUrls);
 // ── vi.hoisted: all values referenced inside vi.mock factories must be hoisted ─
 // vi.mock factories are hoisted to the top of the file; any const defined in the
 // module body is in the temporal dead zone when the factory runs.
-const { tauriState, mockUpdateInterruptConfig, mockPush, mockEnterMandatoryMode, mockUseLangPack } = vi.hoisted(() => ({
+const {
+  tauriState,
+  mockUpdateInterruptConfig,
+  mockPush,
+  mockEnterMandatoryMode,
+  mockUseLangPack,
+  mockIsNotificationPermissionGranted,
+  mockRequestNotificationPermission,
+  mockSendNativeNotification,
+} = vi.hoisted(() => ({
   tauriState: {
     isTauri: false as boolean,
     // Captures listen callbacks by event name so tests can fire them manually.
@@ -29,6 +38,9 @@ const { tauriState, mockUpdateInterruptConfig, mockPush, mockEnterMandatoryMode,
   mockPush: vi.fn(),
   mockEnterMandatoryMode: vi.fn().mockResolvedValue(undefined),
   mockUseLangPack: vi.fn().mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null }),
+  mockIsNotificationPermissionGranted: vi.fn().mockResolvedValue(true),
+  mockRequestNotificationPermission: vi.fn().mockResolvedValue("granted"),
+  mockSendNativeNotification: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── tauri mock ────────────────────────────────────────────────────────────────
@@ -48,6 +60,9 @@ vi.mock("@/lib/tauri", () => ({
   // hook's own routing logic directly; these tests only need it to not crash.
   onDeepLinkUrl: vi.fn().mockResolvedValue(() => {}),
   getCurrentDeepLinkUrls: vi.fn().mockResolvedValue(null),
+  isNotificationPermissionGranted: (...args: unknown[]) => mockIsNotificationPermissionGranted(...args),
+  requestNotificationPermission: (...args: unknown[]) => mockRequestNotificationPermission(...args),
+  sendNativeNotification: (...args: unknown[]) => mockSendNativeNotification(...args),
 }));
 
 // ── tauriInterrupt mock — interrupt and tray badge IPC wrappers ───────────────
@@ -111,6 +126,9 @@ beforeEach(() => {
   mockUpdateInterruptConfig.mockResolvedValue(undefined);
   mockEnterMandatoryMode.mockResolvedValue(undefined);
   mockUseLangPack.mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null });
+  mockIsNotificationPermissionGranted.mockResolvedValue(true);
+  mockRequestNotificationPermission.mockResolvedValue("granted");
+  mockSendNativeNotification.mockResolvedValue(undefined);
   // Reset settings to deterministic defaults
   useSettingsStore.setState({
     interruptEnabled: true,
@@ -216,6 +234,62 @@ describe("InterruptHandler", () => {
     expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
 
     errorSpy.mockRestore();
+  });
+
+  // Task #166 live-testing fix (2026-08-10): the passive (non-mandatory) notification
+  // path previously imported @tauri-apps/plugin-notification directly with zero test
+  // coverage — now routed through lib/tauri.ts's gateway (already mocked above).
+  describe("passive notification (isMandatory=false)", () => {
+    function setupDueUnit() {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+    }
+
+    it("sends a native notification with the due count when permission is already granted", async () => {
+      setupDueUnit();
+      mockIsNotificationPermissionGranted.mockResolvedValue(true);
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); }); // mandatory=false
+
+      expect(mockRequestNotificationPermission).not.toHaveBeenCalled();
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+    });
+
+    it("requests permission first when not yet granted, then sends on grant", async () => {
+      setupDueUnit();
+      mockIsNotificationPermissionGranted.mockResolvedValue(false);
+      mockRequestNotificationPermission.mockResolvedValue("granted");
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockRequestNotificationPermission).toHaveBeenCalledTimes(1);
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+    });
+
+    it("does not send a notification when permission is refused", async () => {
+      setupDueUnit();
+      mockIsNotificationPermissionGranted.mockResolvedValue(false);
+      mockRequestNotificationPermission.mockResolvedValue("denied");
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockSendNativeNotification).not.toHaveBeenCalled();
+    });
   });
 
   // ── Test 3: updateInterruptConfig called when interruptEnabled changes ─────────
