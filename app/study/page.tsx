@@ -14,6 +14,7 @@ import StudyCard from "@/components/StudyCard";
 import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
+import StudyUnitNotFound from "@/components/StudyUnitNotFound";
 import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauriInterrupt";
 import { buildQueue, findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
@@ -72,7 +73,7 @@ function StudyInner() {
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
-  if (!isGlobal && !isInterrupt && !unit) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Unit not found.</div>;
+  if (!isGlobal && !isInterrupt && !unit) return <StudyUnitNotFound mode={mode} unitId={unitId} onHome={() => router.push("/learn")} />;
 
   if (initialQueue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
