@@ -17,7 +17,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri          = { version = "2", features = ["tray-icon"] }
+# "devtools" temporarily added 2026-08-11 for live Task #166 Windows VM diagnosis (a
+# real, unexplained WebView2 navigation failure mid-session — see .autocode/debt.md).
+# Enables right-click "Inspect Element" so a real console/network error can be captured
+# instead of guessing at the cause from the WebView's generic error page alone. This is
+# a genuine open question for Max before any real signed release ships: keep devtools
+# permanently available (many desktop apps do, for exactly this diagnosability), or
+# feature-gate it out of production builds once this investigation concludes. Not
+# decided here — do not treat this comment as settling that question.
+tauri          = { version = "2", features = ["tray-icon", "devtools"] }
 tauri-plugin-store        = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-autostart    = "2"
