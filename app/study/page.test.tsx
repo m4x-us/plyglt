@@ -17,6 +17,10 @@ import { render, screen, cleanup } from "@testing-library/react";
 
 const { mockRouterPush } = vi.hoisted(() => ({ mockRouterPush: vi.fn() }));
 
+// Controls what useSearchParams' "mode" param returns — mutable so individual tests can
+// exercise isInterrupt/isGlobal branches without every other test needing to know about it.
+const searchParamsState = vi.hoisted(() => ({ mode: "global" as string | null }));
+
 // Controls what buildQueue returns for each test
 const builtQueue = vi.hoisted(() => ({
   cards: [] as Array<{
@@ -40,7 +44,7 @@ const sessionCfg = vi.hoisted(() => ({
 // ── next/navigation ───────────────────────────────────────────────────────────
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush, replace: vi.fn() }),
-  useSearchParams: () => ({ get: (k: string) => (k === "mode" ? "global" : null) }),
+  useSearchParams: () => ({ get: (k: string) => (k === "mode" ? searchParamsState.mode : null) }),
 }));
 
 // ── @/hooks/useLangPack — return empty (initialQueue controlled via buildQueue) ─
@@ -181,6 +185,7 @@ beforeEach(() => {
   sessionCfg.sessionCorrect = 0;
   sessionCfg.sessionTotal = 0;
   sessionCfg.resumeDecision = "declined";
+  searchParamsState.mode = "global";
   setCards([]);
 });
 
@@ -235,5 +240,24 @@ describe("StudyPage — app/study/page.tsx", () => {
     expect(screen.getByText("Nothing ready.")).toBeInTheDocument();
     expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("study-done")).not.toBeInTheDocument();
+  });
+
+  // Live Windows VM finding (2026-08-12): completing an interrupt-mode session crashed the
+  // whole page with an uncaught "Cannot read properties of null (reading 'cards')" — the
+  // WebView reported this as "This page couldn't load". Root cause: the isDone branch's
+  // `unitCards` computation only checked `isGlobal`, but `unit` is null in BOTH isGlobal
+  // and isInterrupt mode (line 49) — `unit!.cards` threw whenever an interrupt session (not
+  // a global one) reached completion. The whole existing suite above ran with useSearchParams
+  // hardcoded to mode=global, so isInterrupt was structurally never exercised and this was
+  // unreachable in tests. This test fails (throws during render) without the fix.
+  it("renders StudyDoneScreen — not a crash — when an interrupt-mode session completes", () => {
+    searchParamsState.mode = "interrupt";
+    setCards([FAKE_CARD]);
+    sessionCfg.pos = 1; // pos === queue.length → done
+
+    render(<StudyPage />);
+
+    expect(screen.getByTestId("study-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
   });
 });

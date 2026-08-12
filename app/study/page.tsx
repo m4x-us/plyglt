@@ -94,7 +94,7 @@ function StudyInner() {
 
   if (isDone) {
     const pct = sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0;
-    const unitCards = isGlobal ? ALL_UNITS.flatMap((u) => u.cards) : unit!.cards;
+    const unitCards = isGlobal || isInterrupt ? ALL_UNITS.flatMap((u) => u.cards) : unit!.cards;
     return (
       <StudyDoneScreen
         isInterrupt={isInterrupt} isGlobal={isGlobal} unit={unit}
