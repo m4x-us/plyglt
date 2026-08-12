@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
 import { validateLicense } from "@/lib/entitlement";
-import { onDeepLinkUrl, getCurrentDeepLinkUrls } from "@/lib/tauri";
+import { onDeepLinkUrl, getCurrentDeepLinkUrls, listen } from "@/lib/tauri";
 import { InterruptHandler } from "./InterruptHandler";
 
 const mockOnDeepLinkUrl = vi.mocked(onDeepLinkUrl);
@@ -21,6 +21,7 @@ const mockGetCurrentDeepLinkUrls = vi.mocked(getCurrentDeepLinkUrls);
 // module body is in the temporal dead zone when the factory runs.
 const {
   tauriState,
+  navState,
   mockUpdateInterruptConfig,
   mockPush,
   mockEnterMandatoryMode,
@@ -34,6 +35,9 @@ const {
     // Captures listen callbacks by event name so tests can fire them manually.
     listeners: new Map<string, (payload: unknown) => void>(),
   },
+  // Mutable so tests can simulate a route change (Task #166 resubscription-race regression
+  // test below) — real usePathname() returns a fresh value on every render.
+  navState: { pathname: "/" },
   mockUpdateInterruptConfig: vi.fn().mockResolvedValue(undefined),
   mockPush: vi.fn(),
   mockEnterMandatoryMode: vi.fn().mockResolvedValue(undefined),
@@ -77,7 +81,7 @@ vi.mock("@/lib/tauriInterrupt", () => ({
 // ── next/navigation ───────────────────────────────────────────────────────────
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
-  usePathname: () => "/",
+  usePathname: () => navState.pathname,
 }));
 
 // ── useLangPack — default: empty units so totalDue=0; override per-test for mandatory tests ─
@@ -122,6 +126,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 beforeEach(() => {
   tauriState.isTauri = false;
   tauriState.listeners.clear();
+  navState.pathname = "/";
   vi.clearAllMocks();
   mockUpdateInterruptConfig.mockResolvedValue(undefined);
   mockEnterMandatoryMode.mockResolvedValue(undefined);
@@ -339,5 +344,73 @@ describe("InterruptHandler", () => {
       render(<InterruptHandler />);
     });
     expect(vi.mocked(validateLicense)).not.toHaveBeenCalled();
+  });
+
+  // ── Task #166 Windows VM investigation (2026-08-12): resubscription-race regression ────────
+  // Root cause of the intermittent "lock/unlock fires sometimes, not others" VM finding:
+  // the interrupt:fire listener effect used to depend on pathname (among other things), so a
+  // route change tore down and re-registered the Tauri listener via an async IPC round-trip —
+  // leaving a real window with zero listeners where a real interrupt:fire would be silently,
+  // permanently dropped. Both VM repro attempts navigated /study -> / right before locking.
+  describe("interrupt:fire subscription stability (Task #166)", () => {
+    it("subscribes to interrupt:fire exactly once, even as pathname and settings change across renders", async () => {
+      tauriState.isTauri = true;
+      const { rerender } = render(<InterruptHandler />);
+      await act(async () => {});
+      expect(vi.mocked(listen)).toHaveBeenCalledWith("interrupt:fire", expect.any(Function));
+      const interruptFireCallCount = vi.mocked(listen).mock.calls.filter(
+        (call) => call[0] === "interrupt:fire"
+      ).length;
+      expect(interruptFireCallCount).toBe(1);
+
+      // Simulate the exact VM repro: navigate away from home, then back, then change a
+      // couple of other settings the old deps array also included.
+      navState.pathname = "/study";
+      await act(async () => { rerender(<InterruptHandler />); });
+      navState.pathname = "/";
+      await act(async () => { rerender(<InterruptHandler />); });
+      await act(async () => {
+        useSettingsStore.setState({ dndStart: "23:00" });
+      });
+
+      // Still exactly one interrupt:fire registration for the component's whole lifetime —
+      // this is the assertion that fails if pathname (or any other config field) is ever
+      // put back into the subscription effect's dependency array.
+      const finalInterruptFireCallCount = vi.mocked(listen).mock.calls.filter(
+        (call) => call[0] === "interrupt:fire"
+      ).length;
+      expect(finalInterruptFireCallCount).toBe(1);
+    });
+
+    it("still respects the current pathname via the ref snapshot, without resubscribing", async () => {
+      mockUseLangPack.mockReturnValue({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" }); // DnD off all day
+      tauriState.isTauri = true;
+      const { rerender } = render(<InterruptHandler />);
+      await act(async () => {});
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      expect(typeof callback).toBe("function");
+
+      // Navigate to /study — the single, never-torn-down listener must now suppress firing,
+      // proving latestRef (not a stale closure) is what the handler reads.
+      navState.pathname = "/study";
+      await act(async () => { rerender(<InterruptHandler />); });
+      if (callback) await act(async () => { callback(false); });
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockSendNativeNotification).not.toHaveBeenCalled();
+
+      // Navigate back home — the same listener (never resubscribed) must fire again.
+      navState.pathname = "/";
+      await act(async () => { rerender(<InterruptHandler />); });
+      if (callback) await act(async () => { callback(false); });
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+    });
   });
 });

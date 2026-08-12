@@ -63,13 +63,32 @@ function InterruptHandlerCore() {
     });
   }, [interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes]);
 
-  // Subscribe to interrupt:fire events.
+  // Always-current snapshot the interrupt:fire handler below reads at call time, so the
+  // subscription effect can subscribe once instead of re-subscribing on every dependency
+  // change. Task #166 Windows VM investigation (2026-08-12): lib/tauri.ts's listen() is an
+  // async IPC round-trip to register with the Rust side — tearing down the old listener and
+  // awaiting a new one on every pathname/settings change (the old deps array below) left a
+  // real window with NO listener registered. Rust's emit_interrupt is fire-and-forget
+  // (app.emit, no queueing/retry), so an interrupt:fire landing in that window was silently,
+  // permanently dropped. Both reproduced VM failures navigated /study -> / (a pathname
+  // change) immediately before locking — exactly the trigger for this gap.
+  // router is included here too, deliberately NOT relied on as a stable dependency of the
+  // subscription effect below — App Router's useRouter() is stable in production, but that
+  // is exactly the kind of referential-stability assumption this fix exists to stop making.
+  const latestRef = useRef({ interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router });
+  useEffect(() => {
+    latestRef.current = { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router };
+  }, [interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router]);
+
+  // Subscribe to interrupt:fire events exactly once, for the component's whole lifetime —
+  // see latestRef above for why this must never re-subscribe on a dependency change.
   useEffect(() => {
     if (!isTauri) return;
 
     let unlisten: (() => void) | undefined;
 
     listen<boolean>("interrupt:fire", async (isMandatory) => {
+      const { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router } = latestRef.current;
       if (!interruptEnabled) return;
       if (isInDnd(dndStart, dndEnd)) return;
 
@@ -114,17 +133,19 @@ function InterruptHandlerCore() {
     }).catch((err) => console.error(`[ERR-LISTEN-INTERRUPT-${Date.now()}] Failed to subscribe to interrupt:fire:`, err));
 
     return () => unlisten?.();
-  }, [interruptEnabled, dndStart, dndEnd, pathname, router, units, computeDue]);
+  }, []);
 
-  // Tray "Study Now" menu item → navigate to a global study session
+  // Tray "Study Now" menu item → navigate to a global study session. Reads router via
+  // latestRef (not a direct closure) for the same reason as the interrupt:fire subscription
+  // above — subscribes once, never re-registers on a router reference change.
   useEffect(() => {
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
     listen<null>("tray:study", () => {
-      router.push("/study?mode=global");
+      latestRef.current.router.push("/study?mode=global");
     }).then(fn => { unlisten = fn; }).catch((err) => console.error(`[ERR-LISTEN-TRAY-${Date.now()}] Failed to subscribe to tray:study:`, err));
     return () => unlisten?.();
-  }, [router]);
+  }, []);
 
   return null;
 }
