@@ -5,6 +5,7 @@
 // after the main interrupt poll thread.
 // Called by the Tauri runtime on startup; no other Rust file imports this module.
 
+#[cfg(target_os = "macos")]
 mod app_menu;
 mod interrupt;
 mod license;
@@ -35,6 +36,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            // Native macOS-only Aqua app menu bar (.services(), .hide_others(), .show_all() have
+            // no Windows/Linux equivalent) — was previously called unconditionally on every
+            // platform, contradicting this module's own header comment. Live Windows VM
+            // investigation (2026-08-12, Task #166) found the tray icon completely unresponsive
+            // (no hover tooltip, no left/right-click) on a genuinely fresh launch; gating this
+            // to macOS removes one real, verified cross-platform-correctness bug from the
+            // Windows binary regardless of whether it turns out to be the tray root cause.
+            #[cfg(target_os = "macos")]
             app_menu::setup_app_menu(app)?;
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);

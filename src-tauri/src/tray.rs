@@ -20,6 +20,12 @@ pub fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
+            // Temporary diagnostic (Task #166 live Windows VM investigation, 2026-08-12): the
+            // tray icon was completely unresponsive on a fresh launch (no hover tooltip, no
+            // left/right-click) — this logs every event the OS actually delivers, so a real
+            // console build (main.rs's windows_subsystem override is temporarily disabled to
+            // make this visible) tells us whether Explorer is sending click events at all.
+            eprintln!("[plyglt] tray: icon event received: {:?}", event);
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -33,20 +39,24 @@ pub fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
                 }
             }
         })
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "study" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("tray:study", ());
+        .on_menu_event(|app, event| {
+            eprintln!("[plyglt] tray: menu event received: id={:?}", event.id.as_ref());
+            match event.id.as_ref() {
+                "study" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        let _ = window.emit("tray:study", ());
+                    }
                 }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
             }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
         })
         .build(app)?;
 
+    eprintln!("[plyglt] tray: setup_tray completed successfully (icon id=main-tray)");
     Ok(())
 }
