@@ -10511,7 +10511,7 @@ Theme: Cheap, high-value fixes that surfaced during this /meet run, executed bef
 
 ---
 
-## Batch 21 — Interrupt Trigger & Cross-Device Scheduling Redesign [READY — approved by Max 2026-08-13, all 4 open questions answered]
+## Batch 21 — Interrupt Trigger & Cross-Device Scheduling Redesign [CURRENT SPRINT — approved by Max 2026-08-13, all 4 open questions answered]
 Dependency: None — self-contained redesign of the existing interrupt engine plus new Supabase infra, doesn't block or get blocked by any other open batch. `docs/INTERRUPT_ARCHITECTURE.md` is now APPROVED; all 4 open questions resolved same day (90-minute unified interval, 500ms–1s gate-check timeout, fire-anyway-on-timeout fallback, DND/waking-hours merged into one shared setting). Ready for `/task` or `/advance`.
 
 Theme: two real bugs found live during Task #166's Windows VM testing (desktop's unlock/wake/idle bypass the interrupt interval entirely — no spacing at all; the interval clock advances even when a check finds nothing due) turned into a design conversation about what "due" should mean, which surfaced that mobile's not-yet-shipped push pipeline (Task #170) already solved this correctly and desktop should match it, plus a real gap: nothing coordinates interrupt timing across a Pro user's multiple synced devices. Full reasoning and schema in `docs/INTERRUPT_ARCHITECTURE.md`.
