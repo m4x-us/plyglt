@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-12 (Task #166 — real Windows VM manual verification in progress, PAUSED mid-investigation by Max's explicit choice, not a hard blocker. See Task #166's own log and `.autocode/debt.md`'s 2026-08-11/12 rows for exact resume-here state.)
+Last updated: 2026-08-13 (Task #166's unlock-intermittency question RESOLVED live — see debt.md; two real bugs found and fixed during the same VM session, both shipped: the `interrupt:fire` listener resubscription race (`v0.1.0-beta.9`) and the interrupt-completion null-unit crash (`v0.1.0-beta.10`). That live testing led to a broader design conversation with Max about the interrupt trigger/scheduling model — see `docs/INTERRUPT_ARCHITECTURE.md` (DRAFT, not yet signed off) and new Batch 21 below.)
 
 ## Summary
-Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 IN PROGRESS (Max set up a Parallels Windows 11 + Ubuntu VM 2026-08-10 and unblocked real-device testing — Task #166's unlock trigger has one clean, positive, live confirmation, but an intermittent non-firing repeat and an unrelated WebView-crash-recovery bug are still open; #167 Linux not yet manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (real iOS Xcode/Developer Program/TestFlight work, still needs Max to install full Xcode.app — not done this session, the VM work above was for Windows/Linux, not iOS) and #172 (Android, blocked on #522) remain open.
-Current Sprint: Task #166 is open, paused mid-investigation — resume by re-reading its tasks.md log's "For whoever picks this up next" section before doing anything else. Do NOT re-fix the two bugs already shipped (`v0.1.0-beta.6`/`v0.1.0-beta.7` — notification-permission gateway, study-page dead end); do NOT re-litigate the WebView2/GPU renderer-crash theory (explicitly retracted, unverified — devtools added in `v0.1.0-beta.8` to get real evidence instead). Next concrete step: several repeat lock/unlock trials to determine if the non-firing is genuine intermittency, plus a wake-from-sleep test (never done at all). Run `/tasks debt` to review the full debt register.
+Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 IN PROGRESS (Task #166's unlock trigger is now fully confirmed working via 5 live back-to-back lock/unlock trials, 2026-08-13 — see debt.md; wake-from-sleep still never tested; an unrelated tray-icon investigation was closed as accepted debt after ruling out 5 independent causes; #167 Linux still not manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (real iOS Xcode/Developer Program/TestFlight work, still needs Max to install full Xcode.app) and #172 (Android, blocked on #522) remain open; Batch 21 (NEW, 2026-08-13) is the interrupt trigger/cross-device scheduling redesign from `docs/INTERRUPT_ARCHITECTURE.md` — tasks registered but the whole batch is **PAUSED pending Max's sign-off on the doc** (four open questions in the doc are unanswered; see Batch 21's own header).
+Current Sprint: Batch 21 is registered and ready but not started — get Max's sign-off on `docs/INTERRUPT_ARCHITECTURE.md` (and answers to its 4 open questions) before running `/task` or `/advance` against it. Task #166 (Batch 15) has one genuinely open item left: wake-from-sleep has never been manually tested this whole VM-testing arc. Run `/tasks debt` to review the full debt register.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -10508,6 +10508,138 @@ Theme: Cheap, high-value fixes that surfaced during this /meet run, executed bef
 **Complexity:** ⚡ Direct — 2 files (lockfile + manifest, no source code), dependency bump
 **Owner:** Security Agent
 **Status: COMPLETE — 2026-08-06 (npm audit 0 vulnerabilities, was 3 high. Full gate green: tsc, 1546/1546 tests, lint, real `next build`. package.json unchanged, package-lock.json refreshed. Committed as `bdf742e`. See cto.md Task Cycle Log for full detail.)**
+
+---
+
+## Batch 21 — Interrupt Trigger & Cross-Device Scheduling Redesign [PAUSED — blocked on Max's sign-off on `docs/INTERRUPT_ARCHITECTURE.md`]
+Dependency: None technically — this is a self-contained redesign of the existing interrupt engine plus new Supabase infra, doesn't block or get blocked by any other open batch. **The whole batch is gated on Max approving `docs/INTERRUPT_ARCHITECTURE.md` first** — it commits to a real schema and cross-cutting Rust/JS/Supabase changes, and 2 of the doc's 4 open questions (interval default, DND-vs-waking-hours merge) directly gate specific tasks below. Do not run `/task` or `/advance` against this batch until that sign-off happens.
+
+Theme: two real bugs found live during Task #166's Windows VM testing (desktop's unlock/wake/idle bypass the interrupt interval entirely — no spacing at all; the interval clock advances even when a check finds nothing due) turned into a design conversation about what "due" should mean, which surfaced that mobile's not-yet-shipped push pipeline (Task #170) already solved this correctly and desktop should match it, plus a real gap: nothing coordinates interrupt timing across a Pro user's multiple synced devices. Full reasoning and schema in `docs/INTERRUPT_ARCHITECTURE.md`.
+
+**Ordering / parallelism (optimized for `/advance`):**
+- **Wave 1 (fully parallel, no cross-dependencies, distinct files):** #523, #524, #525.
+- **Wave 2 (each depends on exactly one Wave-1 task, otherwise parallel):** #526 (needs #524), #527 (needs #525), #528 (needs #525).
+- **Wave 3 (each depends on two Wave-2 tasks, but touch different files from each other — parallel):** #529 (needs #526 + #528), #530 (needs #528).
+- **Independent leaves, no dependency on the waves above, but each individually blocked on one of Max's open-question answers:** #531 (needs answer to open question 1), #532 (needs answer to open question 4).
+- #524 deliberately spans both `interrupt.rs` and `os_events.rs` as one task rather than being split further — they share the exact same interval/clock state, and this codebase has already been burned once (Wave 17, see `.autocode/agents/cto.md`'s Open Escalations #0.5) by splitting tightly-coupled shared-state changes across parallel streams that individually looked file-isolated.
+
+### Task #523 | correctness | severity 5
+**What:** `hooks/useInterruptConfig.ts`'s `computeDue()` only sums `store/srsStore.ts`'s `getStats(unitCards).due` (cards with `reps > 0 && isDue(now)`). Extend it to also count cards due via `getIntroductionDueCardIds` (the intensive introduction cadence) and qualifying new cards via `getNewCards` — the same content `lib/queue.ts`'s `buildQueue` already pulls in for a session, just missing from the fire-gate.
+**Why:** Today, on a day where a user has only an introduction-phase card needing its next appearance (per BRAND.md's "appears every interrupt on Day 1" cadence table) and zero traditional FSRS reviews due, `computeDue()` returns 0 and the interrupt never fires — silently breaking the introduction engine's own cadence promise. See `docs/INTERRUPT_ARCHITECTURE.md` §2.
+**File:** `hooks/useInterruptConfig.ts`, `hooks/useInterruptConfig.test.ts` (new or extended)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, single-scope logic fix
+**Blocked by:** Nothing | **Blocks:** Nothing (independent of the rest of this batch)
+**Done when:** A test proves `computeDue` returns non-zero when the only due content is an introduction-cadence card or a qualifying new card (today's implementation would return 0 for both — this is the Deletion Test). `npx tsc --noEmit`, full test suite, lint all clean.
+**Owner:** Architecture Agent
+
+---
+
+### Task #524 | correctness | severity 6
+**What:** Two coupled fixes to the desktop interrupt engine's Rust core, landed together: (1) unlock/wake/idle-return (`src-tauri/src/os_events.rs`, all three platform blocks — macOS poll loop, Windows wndproc, Linux D-Bus handlers) currently bypass `interval_secs` entirely per the module's own comment ("OS events intentionally bypass interval_secs") — add the same interval-elapsed gate the scheduled poll (`interrupt.rs`) already uses, so an OS event is a *check-in moment* against the schedule, not an independent trigger. (2) The "last fired" clock currently advances the instant a check happens (`interrupt.rs`'s poll loop sets `last_triggered_secs = now` before the JS layer even evaluates due-count; `os_events.rs`'s `emit_interrupt` helper does the same on every OS-triggered emit) — stop advancing it automatically on emit. Add a new Tauri command (e.g. `mark_interrupt_fired`) that becomes the *only* thing that advances `last_triggered_secs`, called by the JS layer only when it actually shows real content (wired in Task #526).
+**Why:** Without (1), lock your screen 15 times a day with anything due each time and you get 15 interrupts, not 6–10 — the core complaint that started this whole redesign. Without (2), an empty check (nothing due) silently spends a full interval for nothing, pushing the next *possible* interrupt further out than intended — the opposite failure mode, also wrong. See `docs/INTERRUPT_ARCHITECTURE.md` §3–§4.
+**File:** `src-tauri/src/interrupt.rs`, `src-tauri/src/os_events.rs`
+**Severity:** 6 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 Rust files, touches all 3 platform blocks plus the shared poll thread
+**Blocked by:** Nothing | **Blocks:** #526
+**Done when:** New unit tests (matching `os_events.rs`'s existing pure-guard-function test pattern) prove: an OS event with `now - last_triggered < interval_secs` does not fire even when due; a scheduled or OS-triggered check that finds nothing due does not change `last_triggered_secs`. `mark_interrupt_fired` command exists and is the only writer of `last_triggered_secs`. `cargo check`/`cargo test` clean on macOS host (does not compile-check Windows/Linux `cfg` blocks — same caveat as Tasks #166/#167; a real CI build on each target is still required before calling this done end-to-end).
+**Owner:** Architecture Agent
+
+---
+
+### Task #525 | infrastructure | severity 5
+**What:** New Supabase migration creating the `interrupt_gate_events` table — one append-only row per real "fired" or "snoozed" event, per user, reusing the exact conflict-resolution pattern `supabase/migrations/20260806000000_review_events.sql` already established (append-only, not a mutable current-state row) rather than inventing a new one.
+**File:** New file under `supabase/migrations/`
+**Why:** The shared per-user gate every device (desktop OS events, desktop scheduled poll, mobile cron dispatch) will check before firing and write to after firing. See `docs/INTERRUPT_ARCHITECTURE.md` §5 for the full schema and reasoning (why append-only, not last-write-wins).
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 new SQL file, schema only, no application code
+**Blocked by:** Nothing | **Blocks:** #527, #528
+**Done when:** Migration matches the schema in `docs/INTERRUPT_ARCHITECTURE.md` §5 (`id`, `user_id`, `event_type` check-constrained to `'fired'`/`'snoozed'`, `occurred_at`, `effective_until`, `device_id`, `created_at`). RLS enabled, scoped to `auth.uid() = user_id` for select/insert (matches `push_tokens`' policy shape — a user only ever sees/writes their own rows; no update/delete policy needed, append-only). Migration applies cleanly against a local/staging Supabase instance.
+**Owner:** Architecture Agent
+
+---
+
+### Task #526 | feature | severity 5
+**What:** `components/InterruptHandler.tsx`'s `interrupt:fire` handler calls the new `mark_interrupt_fired` Tauri command (Task #524) at the exact point it decides to actually show content — after the `totalDue === 0` early-return, for both the mandatory and passive-notification paths.
+**Why:** Closes the loop Task #524 opens: the Rust side stops auto-advancing the clock on emit, so nothing advances it at all until this task wires up the confirmation. Both tasks are needed together for the desktop clock semantics to actually work end to end.
+**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 file, one new IPC call at an existing decision point
+**Blocked by:** #524 | **Blocks:** #529
+**Done when:** A test proves `mark_interrupt_fired` is called exactly when real content is shown (both mandatory and passive branches) and NOT called when `totalDue === 0` short-circuits. `npx tsc --noEmit`, full test suite, lint clean.
+**Owner:** Architecture Agent
+
+---
+
+### Task #527 | feature | severity 5
+**What:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`'s `selectDueTokens` currently gates on `push_tokens.last_sent_at` (per device-token). Change it to read `interrupt_gate_events` (per user, Task #525) instead. `dispatch.ts` writes a `fired` event to the same table on a real send, instead of (or in addition to, if `last_sent_at` is kept as a device-registration diagnostic only) updating `push_tokens.last_sent_at`.
+**Why:** Without this, mobile push and desktop remain on two completely separate clocks even after Task #525's table exists — the cross-device coordination problem isn't actually solved until mobile's dispatch reads/writes the same shared state desktop will. See `docs/INTERRUPT_ARCHITECTURE.md` §5.
+**File:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts`, and their Vitest-tested counterparts (`tests/` or co-located, per this directory's existing pure-function-testing pattern — see `index.ts`'s own header on why Deno-only wiring is excluded from `tsc`)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 2 files, changes the core dispatch-gating query
+**Blocked by:** #525 | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
+**Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
+**Owner:** Architecture Agent
+
+---
+
+### Task #528 | feature | severity 5
+**What:** New pure client-side module (e.g. `lib/interruptGate.ts`, no React/Zustand — matches `lib/syncClient.ts`'s existing pattern) exposing a read function ("what's the most recent `effective_until` for this user") and a write function ("record a `fired`/`snoozed` event"), both plain authenticated Supabase REST calls against `interrupt_gate_events` (Task #525) — reusing desktop's existing authenticated Supabase session from Task #169, no new auth plumbing. Read calls use a short, non-blocking timeout (starting point 500ms–1s per `docs/INTERRUPT_ARCHITECTURE.md` §6 — Max hasn't explicitly confirmed this exact number, using the doc's own proposed default; easy to tune later, not a hard blocker) with a documented fallback contract (caller decides what to do on timeout — this module just surfaces "gate state" or "unknown, timed out," it doesn't itself decide fire-vs-suppress).
+**Why:** The shared-gate read/write logic needs to live somewhere both the OS-event path and the snooze button can call — a dedicated `lib/` module keeps it testable in isolation (mocked Supabase calls) rather than duplicated inline in two different UI entry points.
+**File:** New `lib/interruptGate.ts`, `lib/interruptGate.test.ts`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 new file, no UI wiring yet (that's #529/#530)
+**Blocked by:** #525 | **Blocks:** #529, #530
+**Done when:** Read function returns the gate state or an explicit timeout/unknown signal within the configured timeout, tested with a mocked slow/failing Supabase client. Write function correctly computes `effective_until` for both `fired` (occurred_at + interval) and `snoozed` (occurred_at + snooze minutes) event types. No React, no Zustand imports (matches CLAUDE.md's Layer Map for `lib/`).
+**Owner:** Architecture Agent
+
+---
+
+### Task #529 | feature | severity 6
+**What:** Wire Task #528's gate-check into desktop's actual firing decision: before firing (OS event or scheduled poll path), check the shared gate via `lib/interruptGate.ts`; on timeout/unknown, fall back to local last-known state and fire anyway (per `docs/INTERRUPT_ARCHITECTURE.md` §6's recommendation — fire-anyway-on-timeout over suppress-on-timeout, flagged in the doc as something Max should sanity-check, not yet a hard confirmation). On an actual fire with content, write a `fired` event via #528.
+**Why:** This is the task that actually makes cross-device coordination real — #525/#527/#528 build the pieces, this is where desktop starts using them for real firing decisions instead of only its local clock.
+**File:** `components/InterruptHandler.tsx` (or a new co-located hook if this pushes the file past its size cap, matching the project's existing extraction pattern for oversized files)
+**Severity:** 6 | **DoD Tier:** 3
+**Complexity:** 🔧 Full — cross-cutting logic change to the core firing decision path
+**Blocked by:** #526, #528 | **Blocks:** Nothing
+**Done when:** Tests prove: a fresh `fired` event from another device (simulated) suppresses a local fire that would otherwise have happened; a gate-check timeout still allows a local fire (fire-anyway fallback); a real local fire writes a `fired` event. Full verification gate clean.
+**Owner:** Architecture Agent
+
+---
+
+### Task #530 | feature | severity 5
+**What:** Desktop's snooze action (currently `lib/tauriInterrupt.ts`'s `snoozeInterrupt`, which only ever touches local in-memory Rust state via `interrupt.rs`'s `snooze_interrupt` command) also writes a `snoozed` event via Task #528's write function, so a snooze on one device is visible to every other device (including, once mobile ships, a phone) via the same shared gate.
+**Why:** Without this, a user who snoozes on their phone gets no relief on their desktop a few minutes later, and vice versa — directly the scenario Max raised. This is a genuinely new capability for mobile (which has no snooze concept at all today), not just syncing an existing one. See `docs/INTERRUPT_ARCHITECTURE.md` §8.
+**File:** `lib/tauriInterrupt.ts`, `app/study/page.tsx` (the "Snooze X min" button call site), relevant test files
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — small addition to an existing call path
+**Blocked by:** #528 | **Blocks:** Nothing
+**Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
+**Owner:** Architecture Agent
+
+---
+
+### Task #531 | product-decision | severity 3
+**What:** Unify desktop's `interrupt.rs` `interval_secs` default (currently 3 hours) with mobile's already-correctly-calibrated `push_tokens.interrupt_interval_minutes` default (90 minutes — lands at ≈8.7 interrupts over a 13-hour waking window, matching BRAND.md's 6–10/day target; desktop's 3-hour default only reaches ≈4.3/day over the same window).
+**Why:** Two independently-picked numbers for what should be one product-level cadence decision. See `docs/INTERRUPT_ARCHITECTURE.md` §7 and Open Question 1.
+**File:** `src-tauri/src/interrupt.rs` (default), `store/settingsStore.ts` / `store/migrations.ts` (if a version bump is needed for existing users' persisted default)
+**Severity:** 3 | **DoD Tier:** 1
+**Complexity:** ⚡ Direct — default-value change, not a structural one
+**Blocked by:** **Max's answer to `docs/INTERRUPT_ARCHITECTURE.md` Open Question 1** (adopt 90 min, or a different unified number) — do not guess this value | **Blocks:** Nothing
+**Done when:** Desktop's default matches whatever number Max confirms. Existing users' already-persisted custom interval settings are untouched (this only changes the *default* for new installs / never-configured users).
+**Owner:** Architecture Agent
+
+---
+
+### Task #532 | product-decision | severity 4
+**What:** Decide and implement whether desktop's DND start/end (`store/settingsStore.ts`) and mobile's waking-hours window (`push_tokens.waking_hours_start_local`/`_end_local`) become one literally-shared, synced setting, or stay related-but-separate platform-local concepts.
+**Why:** Same practical effect for a single contiguous window today, but they're framed oppositely (DND = "don't interrupt during this window" vs. waking hours = "only ever interrupt during this window") and nothing currently ties them together across platforms. See `docs/INTERRUPT_ARCHITECTURE.md` §7 and Open Question 4.
+**File:** `store/settingsStore.ts`, `store/migrations.ts`, `push_tokens` schema (if merging), UI in `app/settings/page.tsx`
+**Severity:** 4 | **DoD Tier:** 2
+**Complexity:** 🔧 Full, if merged — a real schema/sync decision, not a default tweak; ⚡ Direct if the decision is "keep separate" (near-zero code change, just document the decision)
+**Blocked by:** **Max's answer to `docs/INTERRUPT_ARCHITECTURE.md` Open Question 4** — do not guess this decision, it's a real architecture fork depending on the answer | **Blocks:** Nothing
+**Done when:** Whichever direction Max picks is implemented and documented in `docs/INTERRUPT_ARCHITECTURE.md` (updating its "Open questions" section to reflect the decision, not leaving it stale).
+**Owner:** Architecture Agent
 
 ---
 
