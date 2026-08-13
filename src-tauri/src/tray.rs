@@ -20,11 +20,14 @@ pub fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
-            // Temporary diagnostic (Task #166 live Windows VM investigation, 2026-08-12): the
-            // tray icon was completely unresponsive on a fresh launch (no hover tooltip, no
-            // left/right-click) — this logs every event the OS actually delivers, so a real
-            // console build (main.rs's windows_subsystem override is temporarily disabled to
-            // make this visible) tells us whether Explorer is sending click events at all.
+            // Diagnostic logging kept in place (Task #166 live Windows VM investigation,
+            // 2026-08-12/13 — see debt.md): the tray icon was found unresponsive to hover/click
+            // on one Windows VM after ruling out four independent causes (ghost icon, process
+            // elevation/UIPI, Parallels Coherence-mode bridging, VM-wide input quirk, the
+            // hidden-icon-overflow click-proxying bug) with no fix found. Silent by default —
+            // release builds hide the console (main.rs) so this goes nowhere unless someone
+            // re-enables it for a future investigation, same low-cost-diagnostic-aid precedent
+            // as the `devtools` Cargo feature.
             eprintln!("[plyglt] tray: icon event received: {:?}", event);
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
