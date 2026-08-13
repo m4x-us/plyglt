@@ -1,118 +1,111 @@
 ---
 status: done
 agent: adam
-stream: W1A
-wave: 1
+stream: W2A
+wave: 2
 ---
 
-# Adam — Stream W1A — Wave 1 — 2026-08-13
+# Adam — Stream W2A — Wave 2 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W1A | #524 #531 #532
+— Adam | W2A | #526
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #524  — Desktop Rust: unified interval gate + clock-only-advances-on-real-fire
-2. /task #531  — Unify desktop interrupt interval default to 90 minutes
-3. /task #532  — Merge DND start/end and waking-hours into one shared, synced setting
-
-Run in this order because #531 is a trivial default-value tweak to the same Rust file
-#524 restructures (do it right after, while that file is fresh), and #532 is the larger
-settings-schema change that touches `store/settingsStore.ts`/`store/migrations.ts` —
-files #531 may also touch conditionally. Landing all three in this stream, in this
-order, is what resolves a real semantic coupling found during this wave's pre-wave
-analysis: mobile's dispatch logic (#527, a later wave) and desktop's firing decision
-(#526/#529, later waves) both read the DND/waking-hours fields #532 reshapes — they
-must never run concurrently with #532, only after it's fully landed here.
+1. /task #526  — Desktop JS calls mark_interrupt_fired
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Adam — W1A
-[✓] #524 — Desktop Rust: unified interval gate + clock-only-advances-on-real-fire   ← done
-[→] #531 — Unify desktop interrupt interval default to 90 minutes   ← starting now
-[ ] #532 — Merge DND/waking-hours into one shared, synced setting
+Adam — W2A
+[→] #526 — Desktop JS calls mark_interrupt_fired   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-src-tauri/src/interrupt.rs
-src-tauri/src/os_events.rs
-store/settingsStore.ts
-store/migrations.ts
-push_tokens schema (new Supabase migration file, if needed for #532)
-app/settings/page.tsx
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-hooks/useInterruptConfig.ts
-hooks/useInterruptConfig.test.ts
-supabase/migrations/ (Barry/Charles's new interrupt_gate_events file — do not touch, do not collide filenames)
+supabase/functions/send-interrupt-notifications/dueSelection.ts
+supabase/functions/send-interrupt-notifications/dispatch.ts
+lib/interruptGate.ts
+lib/interruptGate.test.ts
 
 ## Task Definitions
 
-### Task #524 | correctness | severity 6
-**What:** Two coupled fixes to the desktop interrupt engine's Rust core, landed together: (1) unlock/wake/idle-return (`src-tauri/src/os_events.rs`, all three platform blocks — macOS poll loop, Windows wndproc, Linux D-Bus handlers) currently bypass `interval_secs` entirely per the module's own comment ("OS events intentionally bypass interval_secs") — add the same interval-elapsed gate the scheduled poll (`interrupt.rs`) already uses, so an OS event is a *check-in moment* against the schedule, not an independent trigger. (2) The "last fired" clock currently advances the instant a check happens (`interrupt.rs`'s poll loop sets `last_triggered_secs = now` before the JS layer even evaluates due-count; `os_events.rs`'s `emit_interrupt` helper does the same on every OS-triggered emit) — stop advancing it automatically on emit. Add a new Tauri command (e.g. `mark_interrupt_fired`) that becomes the *only* thing that advances `last_triggered_secs`, called by the JS layer only when it actually shows real content (wired in Task #526, a later wave).
-**Why:** Without (1), lock your screen 15 times a day with anything due each time and you get 15 interrupts, not 6–10 — the core complaint that started this whole redesign. Without (2), an empty check (nothing due) silently spends a full interval for nothing, pushing the next *possible* interrupt further out than intended — the opposite failure mode, also wrong. See `docs/INTERRUPT_ARCHITECTURE.md` §3–§4.
-**File:** `src-tauri/src/interrupt.rs`, `src-tauri/src/os_events.rs`
-**Severity:** 6 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 2 files, no package boundary, no matched scope-trigger word (rubric-mechanical label; real coupling risk across 3 platform blocks noted in the batch header's parallelism rationale, not reflected by this label alone)
-**Blocked by:** Nothing | **Blocks:** #526
-**Done when:** New unit tests (matching `os_events.rs`'s existing pure-guard-function test pattern) prove: an OS event with `now - last_triggered < interval_secs` does not fire even when due; a scheduled or OS-triggered check that finds nothing due does not change `last_triggered_secs`. `mark_interrupt_fired` command exists and is the only writer of `last_triggered_secs`. `cargo check`/`cargo test` clean on macOS host (does not compile-check Windows/Linux `cfg` blocks — same caveat as Tasks #166/#167; a real CI build on each target is still required before calling this done end-to-end).
+### Task #526 | feature | severity 5
+**What:** `components/InterruptHandler.tsx`'s `interrupt:fire` handler calls the new `mark_interrupt_fired` Tauri command (Task #524) at the exact point it decides to actually show content — after the `totalDue === 0` early-return, for both the mandatory and passive-notification paths.
+**Why:** Closes the loop Task #524 opens: the Rust side stops auto-advancing the clock on emit, so nothing advances it at all until this task wires up the confirmation. Both tasks are needed together for the desktop clock semantics to actually work end to end.
+**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, one new IPC call at an existing decision point
+**Blocked by:** #524 (COMPLETE, Wave 1) | **Blocks:** #529
+**Done when:** A test proves `mark_interrupt_fired` is called exactly when real content is shown (both mandatory and passive branches) and NOT called when `totalDue === 0` short-circuits. `npx tsc --noEmit`, full test suite, lint clean.
 **Owner:** Architecture Agent
 
----
+## Prior Wave Changes — Read Before Starting
 
-### Task #531 | product-decision | severity 3
-**What:** Unify desktop's `interrupt.rs` `interval_secs` default (currently 3 hours) with mobile's already-correctly-calibrated `push_tokens.interrupt_interval_minutes` default (90 minutes — lands at ≈8.7 interrupts over a 13-hour waking window, matching BRAND.md's 6–10/day target; desktop's 3-hour default only reaches ≈4.3/day over the same window).
-**Why:** Two independently-picked numbers for what should be one product-level cadence decision. See `docs/INTERRUPT_ARCHITECTURE.md` §7 and Open Question 1.
-**File:** `src-tauri/src/interrupt.rs` (default), `store/settingsStore.ts` / `store/migrations.ts` (if a version bump is needed for existing users' persisted default)
-**Severity:** 3 | **DoD Tier:** 1
-**Complexity:** ⚡ Direct — default-value change, not a structural one
-**Blocked by:** Nothing — RESOLVED 2026-08-13: Max confirmed 90 minutes, unified across both platforms. | **Blocks:** Nothing
-**Done when:** Desktop's default is 90 minutes. Existing users' already-persisted custom interval settings are untouched (this only changes the *default* for new installs / never-configured users).
-**Owner:** Architecture Agent
+These files/areas you depend on were modified in Wave 1. Read this before writing any
+code — your starting state is not what the repo looked like before Wave 1.
 
----
+**#524 (completed by Adam, Wave 1) — the exact command you need to call:**
+Rust side added `mark_interrupt_fired` as a new Tauri command (registered in
+`src-tauri/src/lib.rs`'s `invoke_handler!` list, imported from `interrupt::{...,
+mark_interrupt_fired, ...}`). It takes no JS-side arguments (state is a Tauri-managed
+`State`, not something you pass in). It is now the *only* thing in the whole codebase
+that writes `last_triggered_secs` — before your change lands, the scheduled poll can
+still re-fire every ~30s once the interval elapses, since nothing calls this command
+yet (a known, scoped interim state Adam's completion.md documents — not a bug to
+"also fix," just context for why you might see repeated fires while testing before
+your own change is in). Look at `lib/tauriInterrupt.ts`'s existing wrapper pattern for
+`updateInterruptConfig`/`enterMandatoryMode`/`snoozeInterrupt` and add a same-shaped
+wrapper for `mark_interrupt_fired`, then call it from `InterruptHandler.tsx`.
 
-### Task #532 | product-decision | severity 4
-**What:** Merge desktop's DND start/end (`store/settingsStore.ts`) and mobile's waking-hours window (`push_tokens.waking_hours_start_local`/`_end_local`) into one literally-shared, synced setting.
-**Why:** Same practical effect for a single contiguous window today, but they're framed oppositely (DND = "don't interrupt during this window" vs. waking hours = "only ever interrupt during this window") and nothing currently ties them together across platforms. See `docs/INTERRUPT_ARCHITECTURE.md` §7 and Open Question 4.
-**File:** `store/settingsStore.ts`, `store/migrations.ts`, `push_tokens` schema, UI in `app/settings/page.tsx`
-**Severity:** 4 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — a real schema/sync decision, not a default tweak
-**Blocked by:** Nothing — RESOLVED 2026-08-13: Max confirmed merge into one shared, synced setting (not "keep separate"). | **Blocks:** Nothing
-**Done when:** One synced setting governs both desktop and mobile's quiet-hours behavior, replacing the two independent concepts. `docs/INTERRUPT_ARCHITECTURE.md`'s "Open questions" section already reflects this decision.
-**Owner:** Architecture Agent
+**#523 (completed by Barry, Wave 1) — a file you own was already touched:**
+`components/InterruptHandler.test.tsx`'s `@/store/srsStore` mock now includes 3
+additional stubs (`getIntroductionDueCardIds: () => []`, `canIntroduceNewCard: () =>
+false`, `getNewCards: () => []`) alongside the original `getStats: () => ({ due: 1 })`
+— added because `hooks/useInterruptConfig.ts`'s `computeDue()` now calls those methods
+too. This is unrelated to your own task but means the mock in this file already has
+more surface area than a fresh read of an old version would suggest — don't remove
+those stubs, and be aware `computeDue`'s return value in tests now depends on all 4
+mocked methods, not just `getStats`.
 
-**IMPORTANT for #532:** this task changes the shape of `dndStart`/`dndEnd` and/or `isInDnd()` in `store/settingsStore.ts`, which a later wave's `InterruptHandler.tsx` work (#526/#529, owned by other streams in future waves) reads directly. Land this cleanly and document the new shape clearly in your completion.md — future streams depend on knowing exactly what changed.
+**#532 (completed by Adam, Wave 1) — confirms no impact on you:**
+`store/settingsStore.ts`'s `dndStart`/`dndEnd` fields and `isInDnd()`'s signature were
+deliberately left unchanged despite the DND/waking-hours merge (only the default value
+and some new unrelated helper functions changed) — so `InterruptHandler.tsx`'s existing
+`isInDnd(dndStart, dndEnd)` call at its DND guard needs no changes because of this.
 
 ## Agent Memories
 
 ## Architect Agent Memory (first 150 lines)
-[Full first 150 lines of .autocode/agents/architect.md — layer structure, key files/blast radius, past resolved findings, dead zones. Read that file directly for full context; key points: lib/ must never import from store/hooks/components/app/; store/settingsStore.ts and store/migrations.ts are established, well-understood files with an existing versioned-migration convention (see CLAUDE.md §4) — any schema change here MUST bump the relevant *_VERSION constant and add a migration entry, never modify the persisted shape without one.]
+[Full first 150 lines of .autocode/agents/architect.md — layer structure, key
+files/blast radius. Relevant here: `components/` imports from `hooks/`/`lib/` only per
+CLAUDE.md's Layer Map — call the new Tauri command through a `lib/tauriInterrupt.ts`
+wrapper, never `invoke()` directly from the component (matches the file's own existing
+gateway pattern for every other Tauri command it already wraps).]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1A/completion.md. The file
+Write your completion summary to .autocode/stream-W2A/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #524 #531 #532
+CLOSED: #526
 NOT_CLOSED: none
 
-(If not every task closed, list what didn't with a one-line reason each. Every task
-number assigned to this stream must appear in exactly one of the two lines.)
+(If not closed, list it with a one-line reason instead.)
 
 After those two lines, write whatever prose detail is useful:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
-  Exactly what shape `dndStart`/`dndEnd`/the merged setting ended up in (critical for
-  later waves' streams touching InterruptHandler.tsx and dueSelection.ts)
-  Exactly what the new `mark_interrupt_fired` command's signature/name is (critical for
-  the later wave wiring it from InterruptHandler.tsx)
+  The exact function name/signature you added to lib/tauriInterrupt.ts (Wave 3's #529
+  will call it too)
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W1A | #524 #531 #532
+— Adam | W2A | #526

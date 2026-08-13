@@ -32,7 +32,14 @@ import { isAuthorizedCronRequest } from "./auth.ts";
 import { selectDueTokens } from "./dueSelection.ts";
 import { groupReviewEventsByUserId } from "./dueEstimate.ts";
 import { dispatchNotifications } from "./dispatch.ts";
-import { fetchAllPushTokens, fetchReviewEventsForUsers, claimToken, deactivateToken } from "./supabaseAdmin.ts";
+import {
+  fetchAllPushTokens,
+  fetchReviewEventsForUsers,
+  fetchGateStateForUsers,
+  claimToken,
+  deactivateToken,
+  recordGateFired,
+} from "./supabaseAdmin.ts";
 import { sendApnsNotification, readApnsCredentialsFromEnv } from "./apnsClient.ts";
 import { sendFcmNotification, readFcmCredentialsFromEnv } from "./fcmClient.ts";
 
@@ -74,7 +81,14 @@ Deno.serve(async (req: Request) => {
 
   const now = new Date();
   const allTokens = await fetchAllPushTokens(supabaseUrl, serviceRoleKey, fetch);
-  const dueTokens = selectDueTokens(allTokens, now);
+
+  // Task #527 — the shared, cross-device fire gate replaces last_sent_at as the
+  // due/not-due decision. Fetched for every candidate user up front (not just
+  // already-due-by-other-criteria ones) since the gate check itself IS one of
+  // selectDueTokens's filter criteria.
+  const candidateUserIds = [...new Set(allTokens.map((t) => t.user_id))];
+  const gateStateByUser = await fetchGateStateForUsers(supabaseUrl, serviceRoleKey, candidateUserIds, fetch);
+  const dueTokens = selectDueTokens(allTokens, now, gateStateByUser);
 
   const dueUserIds = [...new Set(dueTokens.map((t) => t.user_id))];
   const events = await fetchReviewEventsForUsers(supabaseUrl, serviceRoleKey, dueUserIds, fetch);
@@ -99,6 +113,8 @@ Deno.serve(async (req: Request) => {
     claimToken: (tokenId, nowIso, intervalMinutes) =>
       claimToken(supabaseUrl, serviceRoleKey, tokenId, nowIso, intervalMinutes, fetch),
     deactivateToken: (tokenId) => deactivateToken(supabaseUrl, serviceRoleKey, tokenId, fetch),
+    recordGateFired: (userId, deviceId, occurredAt, effectiveUntil) =>
+      recordGateFired(supabaseUrl, serviceRoleKey, userId, deviceId, occurredAt, effectiveUntil, fetch),
   });
 
   return Response.json(summary);

@@ -27,6 +27,15 @@ export interface ReviewEventRow {
   due_date: string; // ISO timestamp
 }
 
+// Task #527 — the shared, cross-device fire gate (supabase/migrations/20260813000000_interrupt_gate_events.sql).
+// Only the columns this pipeline actually reads/writes are modeled here — see the migration
+// itself (or docs/INTERRUPT_ARCHITECTURE.md §5) for the full schema (id, created_at, etc.).
+export interface InterruptGateEventRow {
+  user_id: string;
+  event_type: "fired" | "snoozed";
+  effective_until: string; // ISO timestamp
+}
+
 export interface NotificationPayload {
   title: string;
   body: string;

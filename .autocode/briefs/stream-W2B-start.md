@@ -1,92 +1,103 @@
-# Barry — Stream W2B — Wave 2 (Batch 19) — 2026-07-05
+# Barry — Stream W2B — Wave 2 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W2B | #210 #213
+— Barry | W2B | #527
 
-You are Barry, a CTO working on a specific set of Batch 19 remediation tasks in parallel
-with 1 other window. Wave 1 already fixed the core defect (os_events.rs now reads all 4
-OS-trigger config fields). These remaining tasks are deferred cleanup that was blocked on
-Wave 1 landing. Work exclusively on the files listed under "Files You Own".
-
-NOTE before you start #191 and #198: check the current state of the file first — some of
-this task's Done-When may already be satisfied as a side effect of Wave 1's fix (e.g. the
-TODO comment #191 asks you to remove may already be gone). If so, verify quickly and close
-it rather than redoing the work.
+You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
+Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #210
-2. /task #213
+1. /task #527  — Mobile dispatch reads/writes interrupt_gate_events
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, print your status board:
+STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
+the next one, print your current status board in this exact format:
 
 Barry — W2B
-[ ] #210
-[ ] #213
+[→] #527 — Mobile dispatch reads/writes interrupt_gate_events   ← starting now
+
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-app/settings/page.test.tsx
-tests/
+supabase/functions/send-interrupt-notifications/dueSelection.ts
+supabase/functions/send-interrupt-notifications/dispatch.ts
+(and their test counterparts, wherever this directory's existing pattern puts them)
 
-## Off-Limits Files (DO NOT MODIFY — owned by the other window)
-app/settings/page.tsx
+## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
 components/InterruptHandler.tsx
-lib/tauriInterrupt.ts
-src-tauri/src/interrupt.rs
-src-tauri/src/os_events.rs
-store/migrations.ts
-store/settingsStore.ts
+components/InterruptHandler.test.tsx
+lib/interruptGate.ts
+lib/interruptGate.test.ts
 
 ## Task Definitions
 
-### Task #210: Fix reliability: out-of-range idleThresholdMinutes can fail Rust u32 deserialization and silently drop the entire bundled IPC call.
-
-**File:** app/settings/page.test.tsx (verification only — root cause is fixed by #209's clamp; see note)
-**Complexity:** ⚡ Direct — 1 file, regression test only, no Full trigger keywords
+### Task #527 | feature | severity 5
+**What:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`'s `selectDueTokens` currently gates on `push_tokens.last_sent_at` (per device-token). Change it to read `interrupt_gate_events` (per user, Task #525) instead. `dispatch.ts` writes a `fired` event to the same table on a real send, instead of (or in addition to, if `last_sent_at` is kept as a device-registration diagnostic only) updating `push_tokens.last_sent_at`.
+**Why:** Without this, mobile push and desktop remain on two completely separate clocks even after Task #525's table exists — the cross-device coordination problem isn't actually solved until mobile's dispatch reads/writes the same shared state desktop will. See `docs/INTERRUPT_ARCHITECTURE.md` §5.
+**File:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts`, and their Vitest-tested counterparts (`tests/` or co-located, per this directory's existing pure-function-testing pattern — see `index.ts`'s own header on why Deno-only wiring is excluded from `tsc`)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts), changes the core dispatch-gating query
+**Blocked by:** #525 (COMPLETE, Wave 1) | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
+**Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
 **Owner:** Architecture Agent
-**Blocked by:** #209
-**Priority:** P2
-**Status:** OPEN
 
-**What:**
-A NaN or fractional idleThresholdMinutes value would fail Rust's u32 deserialization and reject the entire bundled 7-parameter update_interrupt_config IPC call, silently dropping other unrelated valid changes (e.g. wakeEnabled) submitted in the same call, at onChange handler → updateInterruptConfig → update_interrupt_config:110. Root cause is closed by #209's input clamp (app/settings/page.tsx) — this task is the regression-test verification that the clamp actually prevents the blast-radius failure, not a separate 3-file implementation.
-NEW
+## Prior Wave Changes — Read Before Starting
 
-**Acceptance Criteria:**
-- [ ] Fix reliability issue at onChange handler → updateInterruptConfig → update_interrupt_config:110
-- [ ] Add a regression test proving a NaN/negative typed value never reaches updateInterruptConfig/invoke once #209 lands
+**#525 (completed by Charles, Wave 1) — the exact schema to code against.** Do not
+re-derive this from scratch or guess column names — use exactly this:
 
-**Source:** Audit finding F025 — severity 6 — reliability
+New file: `supabase/migrations/20260813000000_interrupt_gate_events.sql`
 
----
+Table `public.interrupt_gate_events`:
 
----
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | `uuid` | not null | `gen_random_uuid()` |
+| `user_id` | `uuid` | not null | — (FK → `auth.users(id)`, `on delete cascade`) |
+| `event_type` | `text` | not null | — (CHECK constrained to `'fired'` or `'snoozed'`) |
+| `occurred_at` | `timestamptz` | not null | — |
+| `effective_until` | `timestamptz` | not null | — |
+| `device_id` | `text` | not null | — |
+| `created_at` | `timestamptz` | not null | `now()` |
 
-### Task #213: Fix test-quality: no test exercises an out-of-range or invalid idleThresholdMinutes value.
+Index: `interrupt_gate_events_user_idx` on `(user_id, effective_until desc)` — built
+specifically for `select max(effective_until) from interrupt_gate_events where
+user_id = ?`, the exact read pattern you need for `selectDueTokens`'s replacement gate
+check. RLS: `interrupt_gate_events_select_own` / `interrupt_gate_events_insert_own`,
+both `auth.uid() = user_id` — but note your dispatch function uses the Supabase
+service-role key (bypasses RLS entirely), same as its existing `push_tokens` reads, so
+this only matters if you ever add a user-scoped client path.
 
-**File:** tests/
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** QA Agent
-**Blocked by:** #209, #211, #212
-**Priority:** P3
-**Status:** OPEN
+For a `fired` event, `effective_until` is pre-computed at write time as `occurred_at +
+interval` (the interval value in effect when the send happened) — you do not need to
+separately fetch or reason about each user's interval setting when reading the gate,
+only when writing a new `fired` row.
 
-**What:**
-No test anywhere in the diff exercises an out-of-range or invalid idleThresholdMinutes value (e.g. negative, fractional, or > 120), at tests/:n/a — missing test:0.
-NEW
+## Agent Memories
 
-**Acceptance Criteria:**
-- [ ] Fix test-quality issue at tests/:n/a — missing test:0
-- [ ] Add tests covering negative, fractional, and >120 idleThresholdMinutes inputs once #209/#211/#212 land
-
-**Source:** Audit finding F028 — severity 3 — test-quality
-
----
+## Architect Agent Memory (first 150 lines)
+[Full first 150 lines of .autocode/agents/architect.md. Most relevant: this directory
+(`supabase/functions/send-interrupt-notifications/`) is Deno-only and deliberately
+excluded from `npx tsc --noEmit` (see `index.ts`'s own header) — verify with the
+directory's existing Vitest suite instead, matching how `dueSelection.ts`,
+`dueEstimate.ts`, etc. are already tested as pure functions.]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W2B/completion.md (append):
-  Tasks closed / NOT completed / Debt entries logged / Carry-forward tasks generated
+Write your completion summary to .autocode/stream-W2B/completion.md. The file
+MUST begin with exactly these two lines, in this exact format, before any other content:
 
-Then tell Max in this window: "Barry is done."
+CLOSED: #527
+NOT_CLOSED: none
 
-— Barry | W2B | #210 #213
+(If not closed, list it with a one-line reason instead.)
+
+After those two lines, write whatever prose detail is useful:
+  Debt entries logged: [count]
+  Carry-forward tasks generated: [count]
+  Whether you kept push_tokens.last_sent_at as a diagnostic-only field or removed it
+  (future readers of this code need to know)
+
+Then tell Max in this window: "Barry is done." (or describe what's incomplete).
+
+— Barry | W2B | #527

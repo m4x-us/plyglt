@@ -22,6 +22,10 @@ export interface DispatchDeps {
   sendFcm: (token: PushTokenRow, payload: NotificationPayload) => Promise<PushSendResult>;
   claimToken: (tokenId: string, nowIso: string, intervalMinutes: number) => Promise<boolean>;
   deactivateToken: (tokenId: string) => Promise<boolean>;
+  // Task #527 — records a `fired` row in the shared, cross-device gate
+  // (interrupt_gate_events) after a real send, so the NEXT dispatch run's
+  // dueSelection.ts read excludes this user regardless of which device fires next.
+  recordGateFired: (userId: string, deviceId: string, occurredAt: string, effectiveUntil: string) => Promise<boolean>;
 }
 
 /**
@@ -39,13 +43,28 @@ async function sendAndRecord(
   token: PushTokenRow,
   payload: NotificationPayload,
   deps: DispatchDeps,
-  summary: DispatchSummary
+  summary: DispatchSummary,
+  now: Date
 ): Promise<void> {
   const send = token.platform === "ios" ? deps.sendApns : deps.sendFcm;
   const result = await send(token, payload);
 
   if (result.ok) {
     summary.sent++;
+    // Task #527 — write the shared gate event AFTER a confirmed send, using this
+    // token's own interrupt_interval_minutes (the interval in effect for this send,
+    // per docs/INTERRUPT_ARCHITECTURE.md §5 — effective_until is computed once at
+    // write time, never re-derived by a reader from the user's current setting).
+    // recordGateFired never throws (supabaseAdmin.ts's contract) — a write failure
+    // here does not downgrade an already-successful send; it only means the next
+    // dispatch run's gate read may re-select this user sooner than intended, logged
+    // as its own distinct concern rather than folded into `failed`.
+    const occurredAt = now.toISOString();
+    const effectiveUntil = new Date(now.getTime() + token.interrupt_interval_minutes * 60_000).toISOString();
+    const recorded = await deps.recordGateFired(token.user_id, token.device_id, occurredAt, effectiveUntil);
+    if (!recorded) {
+      console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${token.user_id} after a successful send`);
+    }
     return;
   }
 
@@ -119,7 +138,7 @@ export async function dispatchNotifications(
         continue;
       }
 
-      await sendAndRecord(token, payload, deps, summary);
+      await sendAndRecord(token, payload, deps, summary, now);
     } catch (e) {
       // Defensive backstop only — every known throwing call in this chain
       // is already caught at its source. If something still slips through,

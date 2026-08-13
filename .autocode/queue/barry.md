@@ -1,70 +1,100 @@
 ---
 status: done
 agent: barry
-stream: W1B
-wave: 1
+stream: W2B
+wave: 2
 ---
 
-# Barry — Stream W1B — Wave 1 — 2026-08-13
+# Barry — Stream W2B — Wave 2 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W1B | #523
+— Barry | W2B | #527
 
 You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #523  — Fix computeDue() to count introduction/new cards
+1. /task #527  — Mobile dispatch reads/writes interrupt_gate_events
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Barry — W1B
-[→] #523 — Fix computeDue() to count introduction/new cards   ← starting now
+Barry — W2B
+[→] #527 — Mobile dispatch reads/writes interrupt_gate_events   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-hooks/useInterruptConfig.ts
-hooks/useInterruptConfig.test.ts
+supabase/functions/send-interrupt-notifications/dueSelection.ts
+supabase/functions/send-interrupt-notifications/dispatch.ts
+(and their test counterparts, wherever this directory's existing pattern puts them)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-src-tauri/src/interrupt.rs
-src-tauri/src/os_events.rs
-store/settingsStore.ts
-store/migrations.ts
-app/settings/page.tsx
-supabase/migrations/ (Charles's new interrupt_gate_events file)
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+lib/interruptGate.ts
+lib/interruptGate.test.ts
 
 ## Task Definitions
 
-### Task #523 | correctness | severity 5
-**What:** `hooks/useInterruptConfig.ts`'s `computeDue()` only sums `store/srsStore.ts`'s `getStats(unitCards).due` (cards with `reps > 0 && isDue(now)`). Extend it to also count cards due via `getIntroductionDueCardIds` (the intensive introduction cadence) and qualifying new cards via `getNewCards` — the same content `lib/queue.ts`'s `buildQueue` already pulls in for a session, just missing from the fire-gate.
-**Why:** Today, on a day where a user has only an introduction-phase card needing its next appearance (per BRAND.md's "appears every interrupt on Day 1" cadence table) and zero traditional FSRS reviews due, `computeDue()` returns 0 and the interrupt never fires — silently breaking the introduction engine's own cadence promise. See `docs/INTERRUPT_ARCHITECTURE.md` §2.
-**File:** `hooks/useInterruptConfig.ts`, `hooks/useInterruptConfig.test.ts` (new or extended)
+### Task #527 | feature | severity 5
+**What:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`'s `selectDueTokens` currently gates on `push_tokens.last_sent_at` (per device-token). Change it to read `interrupt_gate_events` (per user, Task #525) instead. `dispatch.ts` writes a `fired` event to the same table on a real send, instead of (or in addition to, if `last_sent_at` is kept as a device-registration diagnostic only) updating `push_tokens.last_sent_at`.
+**Why:** Without this, mobile push and desktop remain on two completely separate clocks even after Task #525's table exists — the cross-device coordination problem isn't actually solved until mobile's dispatch reads/writes the same shared state desktop will. See `docs/INTERRUPT_ARCHITECTURE.md` §5.
+**File:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts`, and their Vitest-tested counterparts (`tests/` or co-located, per this directory's existing pure-function-testing pattern — see `index.ts`'s own header on why Deno-only wiring is excluded from `tsc`)
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 2 files, single-scope logic fix
-**Blocked by:** Nothing | **Blocks:** Nothing (independent of the rest of this batch)
-**Done when:** A test proves `computeDue` returns non-zero when the only due content is an introduction-cadence card or a qualifying new card (today's implementation would return 0 for both — this is the Deletion Test). `npx tsc --noEmit`, full test suite, lint all clean.
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts), changes the core dispatch-gating query
+**Blocked by:** #525 (COMPLETE, Wave 1) | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
+**Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
 **Owner:** Architecture Agent
+
+## Prior Wave Changes — Read Before Starting
+
+**#525 (completed by Charles, Wave 1) — the exact schema to code against.** Do not
+re-derive this from scratch or guess column names — use exactly this:
+
+New file: `supabase/migrations/20260813000000_interrupt_gate_events.sql`
+
+Table `public.interrupt_gate_events`:
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | `uuid` | not null | `gen_random_uuid()` |
+| `user_id` | `uuid` | not null | — (FK → `auth.users(id)`, `on delete cascade`) |
+| `event_type` | `text` | not null | — (CHECK constrained to `'fired'` or `'snoozed'`) |
+| `occurred_at` | `timestamptz` | not null | — |
+| `effective_until` | `timestamptz` | not null | — |
+| `device_id` | `text` | not null | — |
+| `created_at` | `timestamptz` | not null | `now()` |
+
+Index: `interrupt_gate_events_user_idx` on `(user_id, effective_until desc)` — built
+specifically for `select max(effective_until) from interrupt_gate_events where
+user_id = ?`, the exact read pattern you need for `selectDueTokens`'s replacement gate
+check. RLS: `interrupt_gate_events_select_own` / `interrupt_gate_events_insert_own`,
+both `auth.uid() = user_id` — but note your dispatch function uses the Supabase
+service-role key (bypasses RLS entirely), same as its existing `push_tokens` reads, so
+this only matters if you ever add a user-scoped client path.
+
+For a `fired` event, `effective_until` is pre-computed at write time as `occurred_at +
+interval` (the interval value in effect when the send happened) — you do not need to
+separately fetch or reason about each user's interval setting when reading the gate,
+only when writing a new `fired` row.
 
 ## Agent Memories
 
 ## Architect Agent Memory (first 150 lines)
-[Full first 150 lines of .autocode/agents/architect.md — layer structure, key files/blast
-radius. Relevant here: `store/srsStore.ts` is the project's highest blast-radius file (20
-importers) — read, don't modify it; this task only reads its existing exports
-(`getIntroductionDueCardIds`, `getNewCards`), it doesn't change srsStore.ts itself.
-`hooks/` compose `store/` + `lib/` per CLAUDE.md's Layer Map — this task stays within that
-boundary.]
+[Full first 150 lines of .autocode/agents/architect.md. Most relevant: this directory
+(`supabase/functions/send-interrupt-notifications/`) is Deno-only and deliberately
+excluded from `npx tsc --noEmit` (see `index.ts`'s own header) — verify with the
+directory's existing Vitest suite instead, matching how `dueSelection.ts`,
+`dueEstimate.ts`, etc. are already tested as pure functions.]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1B/completion.md. The file
+Write your completion summary to .autocode/stream-W2B/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #523
+CLOSED: #527
 NOT_CLOSED: none
 
 (If not closed, list it with a one-line reason instead.)
@@ -72,7 +102,9 @@ NOT_CLOSED: none
 After those two lines, write whatever prose detail is useful:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
+  Whether you kept push_tokens.last_sent_at as a diagnostic-only field or removed it
+  (future readers of this code need to know)
 
 Then tell Max in this window: "Barry is done." (or describe what's incomplete).
 
-— Barry | W1B | #523
+— Barry | W2B | #527

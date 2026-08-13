@@ -2,15 +2,16 @@
 // dueSelection.ts — which push tokens are worth attempting right now (Task #170)
 // ============================================================
 // A coarse, non-atomic pre-filter over an already-fetched snapshot of
-// push_tokens rows. This is NOT the concurrency-safety boundary — two
-// overlapping dispatch runs can both pass a token through this filter using
-// slightly stale last_sent_at values. The actual safety-critical, atomic
-// "did I really win the right to send to this token" check is
-// supabaseAdmin.ts's claimToken, a conditional UPDATE evaluated by Postgres
-// at the moment it runs, not by this in-memory filter. selectDueTokens exists
-// only to avoid computing a due-card estimate and attempting a claim for
-// tokens that are obviously not due (deactivated, outside waking hours, or
-// sent too recently even by this stale snapshot).
+// push_tokens rows and interrupt_gate_events state. This is NOT the
+// concurrency-safety boundary — two overlapping dispatch runs can both pass a
+// token through this filter using a slightly stale gate-state snapshot. The
+// actual safety-critical, atomic "did I really win the right to send to this
+// token" check is supabaseAdmin.ts's claimToken, a conditional UPDATE
+// evaluated by Postgres at the moment it runs, not by this in-memory filter.
+// selectDueTokens exists only to avoid computing a due-card estimate and
+// attempting a claim for tokens that are obviously not due (deactivated,
+// outside waking hours, or gated by a recent fire/snooze on any of the
+// user's devices — Task #527).
 // ============================================================
 // DEPENDS ON: ./types.ts
 // USED BY: index.ts (the Deno entrypoint)
@@ -66,14 +67,33 @@ export function isWithinWakingHours(timezone: string, now: Date, startHour: numb
   return hour >= startHour || hour < endHour;
 }
 
-export function selectDueTokens(tokens: readonly PushTokenRow[], now: Date): PushTokenRow[] {
+/**
+ * Task #527 — the interval gate moved from `push_tokens.last_sent_at` (per
+ * device-token) to `interrupt_gate_events` (per user, shared across every device —
+ * Task #525). This is the cross-device coordination fix: a user with a recent
+ * `fired` event from ANY of their devices is excluded here even if THIS specific
+ * token's own `last_sent_at` is old or null. `last_sent_at` is no longer read by
+ * this function at all — it remains on `push_tokens` only as the CAS field
+ * claimToken() (supabaseAdmin.ts) still uses for its own, unrelated atomic
+ * same-token-double-claim guard.
+ *
+ * `gateStateByUser` maps user_id -> that user's most recent `effective_until` ISO
+ * timestamp (supabaseAdmin.ts's fetchGateStateForUsers). A user absent from the map
+ * has never fired/snoozed on any device and is due (subject to the other two
+ * checks below).
+ */
+export function selectDueTokens(
+  tokens: readonly PushTokenRow[],
+  now: Date,
+  gateStateByUser: ReadonlyMap<string, string>
+): PushTokenRow[] {
   return tokens.filter((token) => {
     if (token.deactivated_at !== null) return false;
     if (!isWithinWakingHours(token.timezone, now, token.waking_hours_start_local, token.waking_hours_end_local)) {
       return false;
     }
-    if (token.last_sent_at === null) return true;
-    const elapsedMs = now.getTime() - new Date(token.last_sent_at).getTime();
-    return elapsedMs >= token.interrupt_interval_minutes * 60_000;
+    const effectiveUntil = gateStateByUser.get(token.user_id);
+    if (effectiveUntil === undefined) return true;
+    return now.getTime() >= new Date(effectiveUntil).getTime();
   });
 }

@@ -1,6 +1,6 @@
 // tauriInterrupt.ts — Interrupt-engine and system-tray IPC wrappers extracted from lib/tauri.ts.
-// Exports five commands — updateTrayBadge, updateInterruptConfig, snoozeInterrupt,
-// enterMandatoryMode, and exitMandatoryMode — all no-ops in web/non-Tauri builds.
+// Exports six commands — updateTrayBadge, updateInterruptConfig, snoozeInterrupt,
+// enterMandatoryMode, exitMandatoryMode, and markInterruptFired — all no-ops in web/non-Tauri builds.
 // Imports isTauri and invoke from lib/tauri.ts rather than @tauri-apps/api directly;
 // called by components/InterruptHandler.tsx, app/study/page.tsx, and app/learn/page.tsx.
 
@@ -92,5 +92,23 @@ export async function exitMandatoryMode(): Promise<void> {
     const ref = `ERR-IPC-${Date.now()}`;
     console.error(`[${ref}] exit_mandatory_mode IPC failed — window may remain in mandatory state`, err);
     throw new Error(`Exit mandatory mode IPC failed (${ref})`);
+  }
+}
+
+/**
+ * Confirms a real interrupt fire — the ONLY thing that advances src-tauri/src/interrupt.rs's
+ * `last_triggered_secs` clock (Task #524). Call this once, and only once, at the exact point
+ * components/InterruptHandler.tsx decides to actually show content for a fire — never on a
+ * bare check-in, never when `totalDue === 0`. No-op in web. Throws on IPC failure so the
+ * caller can log/handle it (Task #526).
+ */
+export async function markInterruptFired(): Promise<void> {
+  if (!isTauri) return;
+  try {
+    await invoke("mark_interrupt_fired");
+  } catch (err) {
+    const ref = `ERR-IPC-${Date.now()}`;
+    console.error(`[${ref}] mark_interrupt_fired IPC failed — Rust clock not advanced for this fire`, err);
+    throw new Error(`Mark interrupt fired IPC failed (${ref})`);
   }
 }

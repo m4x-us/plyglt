@@ -21,7 +21,7 @@
 // USED BY: index.ts (the Deno entrypoint)
 // ============================================================
 
-import type { PushTokenRow, ReviewEventRow } from "./types.ts";
+import type { PushTokenRow, ReviewEventRow, InterruptGateEventRow } from "./types.ts";
 
 function authHeaders(serviceRoleKey: string): Record<string, string> {
   return {
@@ -77,6 +77,54 @@ export async function fetchReviewEventsForUsers(
 }
 
 /**
+ * Task #527 — reads the shared, cross-device fire gate (interrupt_gate_events,
+ * Task #525) for exactly the given user ids, reduced to each user's most recent
+ * `effective_until`. Ordered `effective_until.desc` so the FIRST row seen per user
+ * in the response is already that user's max — no client-side aggregation beyond a
+ * single pass. Absence of a user in the returned Map means "no gate row at all
+ * (never fired/snoozed)" — callers must treat that as due, not as an error.
+ *
+ * On a failed request this also returns an empty Map — indistinguishable, at this
+ * layer, from "no user in the batch has ever fired." That fails OPEN (every
+ * candidate reads as due) rather than closed, unlike this file's other read
+ * (fetchReviewEventsForUsers, whose empty-array failure mode fails closed as a side
+ * effect of computeDueEstimate treating zero events as zero due cards). Accepted
+ * deliberately: the atomic per-token claimToken() PATCH below is the pipeline's real
+ * send-authorizing gate and is unaffected by this function — a genuine Supabase
+ * outage overwhelmingly fails that PATCH too (same database), so this fail-open
+ * default does not translate into an actual mass-send in the failure case that
+ * matters. See Task #527 completion notes for the full reasoning.
+ */
+export async function fetchGateStateForUsers(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userIds: readonly string[],
+  fetchImpl: typeof fetch
+): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const idList = userIds.map((id) => `"${id}"`).join(",");
+  try {
+    const response = await fetchImpl(
+      `${supabaseUrl}/rest/v1/interrupt_gate_events?select=user_id,effective_until&user_id=in.(${idList})&order=effective_until.desc`,
+      { headers: authHeaders(serviceRoleKey) }
+    );
+    if (!response.ok) {
+      console.error(`[ERR-PUSH-FETCH-GATE-${Date.now()}] fetchGateStateForUsers failed: HTTP ${response.status}`);
+      return new Map();
+    }
+    const rows = (await response.json()) as Pick<InterruptGateEventRow, "user_id" | "effective_until">[];
+    const result = new Map<string, string>();
+    for (const row of rows) {
+      if (!result.has(row.user_id)) result.set(row.user_id, row.effective_until);
+    }
+    return result;
+  } catch (e) {
+    console.error(`[ERR-PUSH-FETCH-GATE-${Date.now()}] fetchGateStateForUsers failed:`, e);
+    return new Map();
+  }
+}
+
+/**
  * Atomically claims a token for sending: PATCHes last_sent_at, scoped by a
  * WHERE clause requiring last_sent_at to still be null or past the token's
  * own interrupt_interval_minutes cutoff AT THE MOMENT POSTGRES EXECUTES THE
@@ -120,6 +168,48 @@ export async function claimToken(
     return rows.length > 0;
   } catch (e) {
     console.error(`[ERR-PUSH-CLAIM-${Date.now()}] claimToken failed for ${tokenId}:`, e);
+    return false;
+  }
+}
+
+/**
+ * Task #527 — records a `fired` row in the shared, cross-device gate
+ * (interrupt_gate_events) after a real send. `effectiveUntil` is the caller's
+ * responsibility to compute (dispatch.ts does this — `occurredAt +
+ * token.interrupt_interval_minutes`) since this function is a dumb write, matching
+ * this file's existing pattern of pure IO with all timing logic decided by its caller.
+ * Never throws (same "always resolves, never propagates" contract as every other
+ * function in this module) — a failed write here does not undo or downgrade an
+ * already-successful send; the caller only logs it as a distinct concern.
+ */
+export async function recordGateFired(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userId: string,
+  deviceId: string,
+  occurredAt: string,
+  effectiveUntil: string,
+  fetchImpl: typeof fetch
+): Promise<boolean> {
+  try {
+    const response = await fetchImpl(`${supabaseUrl}/rest/v1/interrupt_gate_events`, {
+      method: "POST",
+      headers: authHeaders(serviceRoleKey),
+      body: JSON.stringify({
+        user_id: userId,
+        event_type: "fired",
+        occurred_at: occurredAt,
+        effective_until: effectiveUntil,
+        device_id: deviceId,
+      }),
+    });
+    if (!response.ok) {
+      console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${userId}: HTTP ${response.status}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${userId}:`, e);
     return false;
   }
 }

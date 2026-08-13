@@ -67,45 +67,68 @@ describe("isWithinWakingHours", () => {
 });
 
 describe("selectDueTokens", () => {
-  it("excludes a token whose last_sent_at is within interrupt_interval_minutes of now", () => {
+  const NO_GATE = new Map<string, string>();
+
+  it("excludes a token whose user has a gate effective_until in the future", () => {
     const now = new Date("2026-06-15T10:00:00Z"); // 12:00 local Europe/Rome
-    const token = makeToken({
-      interrupt_interval_minutes: 90,
-      last_sent_at: new Date("2026-06-15T09:00:00Z").toISOString(), // 60 min ago
-    });
-    expect(selectDueTokens([token], now)).toEqual([]);
+    const token = makeToken({ user_id: "user-1" });
+    const gate = new Map([["user-1", "2026-06-15T11:00:00.000Z"]]); // 1h from now
+    expect(selectDueTokens([token], now, gate)).toEqual([]);
   });
 
-  it("includes a token whose last_sent_at is null", () => {
+  it("includes a token whose user has no gate row at all (never fired/snoozed)", () => {
     const now = new Date("2026-06-15T10:00:00Z");
-    const token = makeToken({ last_sent_at: null });
-    expect(selectDueTokens([token], now)).toEqual([token]);
+    const token = makeToken({ user_id: "user-1" });
+    expect(selectDueTokens([token], now, NO_GATE)).toEqual([token]);
   });
 
-  it("includes a token whose last_sent_at is exactly interrupt_interval_minutes ago (inclusive boundary)", () => {
+  it("includes a token whose user's gate effective_until is exactly now (inclusive boundary)", () => {
     const now = new Date("2026-06-15T10:00:00Z");
-    const token = makeToken({
-      interrupt_interval_minutes: 90,
-      last_sent_at: new Date("2026-06-15T08:30:00Z").toISOString(), // exactly 90 min ago
-    });
-    expect(selectDueTokens([token], now)).toEqual([token]);
+    const token = makeToken({ user_id: "user-1" });
+    const gate = new Map([["user-1", "2026-06-15T10:00:00.000Z"]]);
+    expect(selectDueTokens([token], now, gate)).toEqual([token]);
+  });
+
+  it("includes a token whose user's gate effective_until is in the past", () => {
+    const now = new Date("2026-06-15T10:00:00Z");
+    const token = makeToken({ user_id: "user-1" });
+    const gate = new Map([["user-1", "2026-06-15T09:00:00.000Z"]]);
+    expect(selectDueTokens([token], now, gate)).toEqual([token]);
+  });
+
+  // Task #527 — the core cross-device coordination fix: the gate is per USER, not
+  // per token, so a token's own last_sent_at (now unused by this function entirely)
+  // has no bearing on the outcome.
+  it("excludes a user's token even when that specific token's own last_sent_at is old/null, because a recent gate event exists (from any device)", () => {
+    const now = new Date("2026-06-15T10:00:00Z");
+    const token = makeToken({ user_id: "user-1", last_sent_at: null });
+    const gate = new Map([["user-1", "2026-06-15T11:00:00.000Z"]]);
+    expect(selectDueTokens([token], now, gate)).toEqual([]);
+  });
+
+  it("gates each user independently: one user's recent fire does not exclude a different user's due token", () => {
+    const now = new Date("2026-06-15T10:00:00Z");
+    const gatedToken = makeToken({ id: "t-gated", user_id: "user-1" });
+    const dueToken = makeToken({ id: "t-due", user_id: "user-2" });
+    const gate = new Map([["user-1", "2026-06-15T11:00:00.000Z"]]);
+    expect(selectDueTokens([gatedToken, dueToken], now, gate)).toEqual([dueToken]);
   });
 
   it("excludes a token when local time is before waking_hours_start_local", () => {
     const now = new Date("2026-06-15T04:00:00Z"); // 06:00 local Europe/Rome
     const token = makeToken({ waking_hours_start_local: 8, waking_hours_end_local: 20 });
-    expect(selectDueTokens([token], now)).toEqual([]);
+    expect(selectDueTokens([token], now, NO_GATE)).toEqual([]);
   });
 
   it("excludes a token when local time is at/after waking_hours_end_local", () => {
     const now = new Date("2026-06-15T18:00:00Z"); // 20:00 local Europe/Rome
     const token = makeToken({ waking_hours_start_local: 8, waking_hours_end_local: 20 });
-    expect(selectDueTokens([token], now)).toEqual([]);
+    expect(selectDueTokens([token], now, NO_GATE)).toEqual([]);
   });
 
   it("excludes a deactivated token even when otherwise due", () => {
     const now = new Date("2026-06-15T10:00:00Z");
-    const token = makeToken({ last_sent_at: null, deactivated_at: "2026-06-01T00:00:00.000Z" });
-    expect(selectDueTokens([token], now)).toEqual([]);
+    const token = makeToken({ deactivated_at: "2026-06-01T00:00:00.000Z" });
+    expect(selectDueTokens([token], now, NO_GATE)).toEqual([]);
   });
 });

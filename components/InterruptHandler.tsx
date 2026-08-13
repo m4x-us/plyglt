@@ -6,7 +6,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { isTauri, listen, isNotificationPermissionGranted, requestNotificationPermission, sendNativeNotification } from "@/lib/tauri";
-import { enterMandatoryMode, updateInterruptConfig } from "@/lib/tauriInterrupt";
+import { enterMandatoryMode, markInterruptFired, updateInterruptConfig } from "@/lib/tauriInterrupt";
 import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
 import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
 import { useLangPack } from "@/hooks/useLangPack";
@@ -97,6 +97,18 @@ function InterruptHandlerCore() {
 
       const totalDue = computeDue(units);
       if (totalDue === 0) return;
+
+      // Task #526: this is the exact point a real fire with content is decided — confirm it
+      // to Rust so src-tauri/src/interrupt.rs's last_triggered_secs clock advances (Task #524
+      // stopped advancing it automatically on every check-in). A failed confirmation must not
+      // block the interrupt from being shown — it only means the Rust clock won't advance for
+      // this fire, a soft degradation (the next check-in may re-offer sooner than intended),
+      // not a reason to skip showing real content.
+      try {
+        await markInterruptFired();
+      } catch (e) {
+        console.error(`[IH-MARKFIRED-${Date.now()}] markInterruptFired failed — Rust clock not advanced for this fire`, e);
+      }
 
       if (isMandatory) {
         try {

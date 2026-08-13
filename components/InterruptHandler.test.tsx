@@ -25,6 +25,7 @@ const {
   mockUpdateInterruptConfig,
   mockPush,
   mockEnterMandatoryMode,
+  mockMarkInterruptFired,
   mockUseLangPack,
   mockIsNotificationPermissionGranted,
   mockRequestNotificationPermission,
@@ -41,6 +42,8 @@ const {
   mockUpdateInterruptConfig: vi.fn().mockResolvedValue(undefined),
   mockPush: vi.fn(),
   mockEnterMandatoryMode: vi.fn().mockResolvedValue(undefined),
+  // Task #526
+  mockMarkInterruptFired: vi.fn().mockResolvedValue(undefined),
   mockUseLangPack: vi.fn().mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null }),
   mockIsNotificationPermissionGranted: vi.fn().mockResolvedValue(true),
   mockRequestNotificationPermission: vi.fn().mockResolvedValue("granted"),
@@ -73,6 +76,7 @@ vi.mock("@/lib/tauri", () => ({
 vi.mock("@/lib/tauriInterrupt", () => ({
   updateInterruptConfig: mockUpdateInterruptConfig,
   enterMandatoryMode: mockEnterMandatoryMode,
+  markInterruptFired: mockMarkInterruptFired,
   snoozeInterrupt: vi.fn().mockResolvedValue(undefined),
   exitMandatoryMode: vi.fn().mockResolvedValue(undefined),
   updateTrayBadge: vi.fn(),
@@ -138,6 +142,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockUpdateInterruptConfig.mockResolvedValue(undefined);
   mockEnterMandatoryMode.mockResolvedValue(undefined);
+  mockMarkInterruptFired.mockResolvedValue(undefined);
   mockUseLangPack.mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null });
   mockIsNotificationPermissionGranted.mockResolvedValue(true);
   mockRequestNotificationPermission.mockResolvedValue("granted");
@@ -214,6 +219,109 @@ describe("InterruptHandler", () => {
 
     // isInDnd() returned true — guard fired — no navigation
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  // ── Task #526: markInterruptFired confirms a real fire, and only a real fire ────────────
+  describe("markInterruptFired (Task #526)", () => {
+    it("is NOT called when totalDue === 0 (the early-return short-circuit)", async () => {
+      // beforeEach's mockUseLangPack default returns units: [] — computeDue([]) === 0.
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" }); // DnD off all day
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockMarkInterruptFired).not.toHaveBeenCalled();
+    });
+
+    it("is NOT called when isInDnd() suppresses the fire before totalDue is even checked", async () => {
+      useSettingsStore.setState({
+        interruptEnabled: true,
+        dndStart: "00:00", // covers the entire day
+        dndEnd: "23:59",
+      });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockMarkInterruptFired).not.toHaveBeenCalled();
+    });
+
+    it("is called exactly once when real content is shown on the mandatory path", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(true); }); // mandatory=true
+
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
+    });
+
+    it("is called exactly once when real content is shown on the passive (notification) path", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      mockIsNotificationPermissionGranted.mockResolvedValue(true);
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); }); // mandatory=false
+
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+      expect(mockSendNativeNotification).toHaveBeenCalled();
+    });
+
+    it("logs the failure but still shows the interrupt when the IPC call rejects", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      mockMarkInterruptFired.mockRejectedValueOnce(new Error("Tauri IPC failed"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(true); }); // mandatory=true
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("IH-MARKFIRED"),
+        expect.any(Error)
+      );
+      // The IPC failure must not block showing the interrupt.
+      expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
+
+      errorSpy.mockRestore();
+    });
   });
 
   // ── Test 4: enterMandatoryMode IPC failure is caught — navigation still proceeds ─

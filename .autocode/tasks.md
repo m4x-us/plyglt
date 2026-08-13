@@ -10571,6 +10571,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** #524 | **Blocks:** #529
 **Done when:** A test proves `mark_interrupt_fired` is called exactly when real content is shown (both mandatory and passive branches) and NOT called when `totalDue === 0` short-circuits. `npx tsc --noEmit`, full test suite, lint clean.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W2A/Adam. New `lib/tauriInterrupt.ts` export `markInterruptFired(): Promise<void>` — no args, matches the file's existing 4-sibling wrapper pattern (log-and-throw on IPC failure). Called from `InterruptHandler.tsx` right after the `totalDue === 0` guard, covering both mandatory and passive paths with one call site. Necessary scope extension beyond the brief's owned-files list: `lib/tauriInterrupt.ts` + its own test file `tests/tauri.test.ts` — required by CLAUDE.md's Layer Map (components must route Tauri IPC through `lib/`, never call `invoke()` directly) and by AGENTS.md's zero-test-coverage stop-the-line rule for new production code; no collision with Barry/Charles's Wave 2 files. `npm test` 1863/1863 at this stream's own finish time.)
 
 ---
 
@@ -10583,6 +10584,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** #525 | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
 **Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W2B/Barry. `selectDueTokens` gained a `gateStateByUser` map param and no longer reads `token.last_sent_at` for the due decision at all — a recent gate event from ANY device now excludes all of that user's tokens. `dispatch.ts` writes a `fired` event via new `recordGateFired` only after a confirmed send. `push_tokens.last_sent_at` deliberately KEPT (not removed, not merely diagnostic) — still the atomic CAS field preventing double-claiming the same token within one 5-min cron tick, a distinct concern from the new per-user cross-device gate. One documented, deliberate tradeoff: `fetchGateStateForUsers` fails open on a read error (not logged as debt — reasoned safety net explained inline). Necessary scope extension into `supabaseAdmin.ts`/`index.ts`/`types.ts` (this directory's DB-access layer, required to make the feature real) — no collision with Adam/Charles's Wave 2 files. `npm test` 1880/1880 at combined-state verification.)
 
 ---
 
@@ -10595,6 +10597,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** #525 | **Blocks:** #529, #530
 **Done when:** Read function returns the gate state or an explicit timeout/unknown signal within the configured timeout, tested with a mocked slow/failing Supabase client. Write function correctly computes `effective_until` for both `fired` (occurred_at + interval) and `snoozed` (occurred_at + snooze minutes) event types. No React, no Zustand imports (matches CLAUDE.md's Layer Map for `lib/`).
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W2C/Charles. Exports `readInterruptGateState(userId, timeoutMs = 750)` and `recordInterruptGateEvent({userId, deviceId, eventType, occurredAt, minutesUntilEligible})` — exact signatures for Wave 3's #529/#530 to call. Read returns `{status:"known", effectiveUntil}` or an explicit `{status:"unknown", reason}` on timeout/error, never guesses fire-vs-suppress itself (that's the caller's job per §6). Default timeout 750ms — midpoint of the confirmed 500ms–1s range. 13/13 new tests, 100% coverage on the new file. Followed `lib/syncClient.ts`'s established gateway pattern.)
 
 ---
 

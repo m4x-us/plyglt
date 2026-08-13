@@ -34,6 +34,7 @@ function makeDeps(overrides: Partial<DispatchDeps> = {}): DispatchDeps {
     sendFcm: vi.fn().mockResolvedValue({ ok: true }),
     claimToken: vi.fn().mockResolvedValue(true),
     deactivateToken: vi.fn().mockResolvedValue(true),
+    recordGateFired: vi.fn().mockResolvedValue(true),
     ...overrides,
   };
 }
@@ -244,6 +245,70 @@ describe("dispatchNotifications", () => {
     expect(summary).toEqual({
       sent: 1, failed: 1, skippedNoCards: 1, skippedAlreadyClaimed: 1,
       skippedNotConfigured: 0, deactivated: 1, erroredUnexpectedly: 0, total: 5,
+    });
+  });
+
+  // Task #527 — dispatch.ts now writes a `fired` row to the shared interrupt_gate_events
+  // gate on a real send, so the NEXT dispatch run's dueSelection.ts read excludes this
+  // user across every device, not just this one token.
+  describe("recordGateFired", () => {
+    it("calls recordGateFired with the token's user/device and an effective_until computed from its own interrupt_interval_minutes, after a successful send", async () => {
+      const token = makeToken({ user_id: "u1", device_id: "device-a", interrupt_interval_minutes: 90 });
+      const deps = makeDeps();
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(deps.recordGateFired).toHaveBeenCalledWith(
+        "u1",
+        "device-a",
+        "2026-06-15T10:00:00.000Z", // NOW
+        "2026-06-15T11:30:00.000Z" // NOW + 90 minutes
+      );
+    });
+
+    it("does not call recordGateFired when the send fails (transient failure)", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const deps = makeDeps({ sendApns: vi.fn().mockResolvedValue({ ok: false, permanentFailure: false, error: "HTTP 500" }) });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(deps.recordGateFired).not.toHaveBeenCalled();
+    });
+
+    it("does not call recordGateFired when there are no cards ready (never sent)", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const deps = makeDeps();
+
+      await dispatchNotifications([token], new Map(), NOW, deps);
+
+      expect(deps.recordGateFired).not.toHaveBeenCalled();
+    });
+
+    it("does not call recordGateFired when claimToken loses the race (never sent)", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const deps = makeDeps({ claimToken: vi.fn().mockResolvedValue(false) });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(deps.recordGateFired).not.toHaveBeenCalled();
+    });
+
+    it("still reports sent:1 (unaffected) when recordGateFired itself fails, logging the failure separately", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const token = makeToken({ user_id: "u1" });
+      const deps = makeDeps({ recordGateFired: vi.fn().mockResolvedValue(false) });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      const summary = await dispatchNotifications([token], events, NOW, deps);
+
+      expect(summary.sent).toBe(1);
+      expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
+        /^\[ERR-PUSH-GATE-RECORD-\d+\] recordGateFired failed for user u1 after a successful send$/
+      );
+      consoleErrorSpy.mockRestore();
     });
   });
 });

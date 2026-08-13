@@ -305,6 +305,42 @@ describe("enterMandatoryMode — IPC error surfacing", () => {
   });
 });
 
+// Task #526 — markInterruptFired is the only writer of src-tauri/src/interrupt.rs's
+// last_triggered_secs clock (Task #524); mirrors the same IPC error-surfacing contract as
+// its siblings above (catch, log an ERR-IPC- ref, rethrow).
+describe("markInterruptFired — IPC error surfacing", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("rejects with an error containing 'IPC failed' when invoke throws (mocked Tauri env)", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn().mockRejectedValue(new Error("Tauri IPC error")),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { markInterruptFired } = await import("@/lib/tauriInterrupt");
+    await expect(markInterruptFired()).rejects.toThrow("IPC failed");
+  });
+
+  it("resolves successfully when invoke returns null (void command success in Tauri)", async () => {
+    vi.resetModules();
+    const invokeSpy = vi.fn().mockResolvedValue(null);
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: invokeSpy }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const { markInterruptFired } = await import("@/lib/tauriInterrupt");
+    await expect(markInterruptFired()).resolves.toBeUndefined();
+    // lib/tauri.ts's invoke() forwards a second (undefined) arg when the caller passes none.
+    expect(invokeSpy).toHaveBeenCalledWith("mark_interrupt_fired", undefined);
+  });
+
+  it("returns void (no-op) in web mode — does not throw", async () => {
+    const { markInterruptFired } = await import("@/lib/tauriInterrupt");
+    await expect(markInterruptFired()).resolves.toBeUndefined();
+  });
+});
+
 // #096 — checkForUpdates() must never call downloadAndInstall() without explicit caller consent
 // This test fails with the old implementation (auto-installs) and passes after the fix
 // (returns UpdateCheckResult so the caller controls install timing).

@@ -1,73 +1,96 @@
 ---
 status: done
 agent: charles
-stream: W1C
-wave: 1
+stream: W2C
+wave: 2
 ---
 
-# Charles — Stream W1C — Wave 1 — 2026-08-13
+# Charles — Stream W2C — Wave 2 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Charles | W1C | #525
+— Charles | W2C | #528
 
 You are Charles, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #525  — New Supabase migration: interrupt_gate_events table
+1. /task #528  — New lib/interruptGate.ts client module
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Charles — W1C
-[→] #525 — New Supabase migration: interrupt_gate_events table   ← starting now
+Charles — W2C
+[→] #528 — New lib/interruptGate.ts client module   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-supabase/migrations/ (new file only — e.g. 20260813000000_interrupt_gate_events.sql;
-do not edit any existing migration file)
+lib/interruptGate.ts (new)
+lib/interruptGate.test.ts (new)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-src-tauri/src/interrupt.rs
-src-tauri/src/os_events.rs
-store/settingsStore.ts
-store/migrations.ts
-app/settings/page.tsx
-hooks/useInterruptConfig.ts
-hooks/useInterruptConfig.test.ts
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+supabase/functions/send-interrupt-notifications/dueSelection.ts
+supabase/functions/send-interrupt-notifications/dispatch.ts
 
 ## Task Definitions
 
-### Task #525 | infrastructure | severity 5
-**What:** New Supabase migration creating the `interrupt_gate_events` table — one append-only row per real "fired" or "snoozed" event, per user, reusing the exact conflict-resolution pattern `supabase/migrations/20260806000000_review_events.sql` already established (append-only, not a mutable current-state row) rather than inventing a new one.
-**File:** New file under `supabase/migrations/`
-**Why:** The shared per-user gate every device (desktop OS events, desktop scheduled poll, mobile cron dispatch) will check before firing and write to after firing. See `docs/INTERRUPT_ARCHITECTURE.md` §5 for the full schema and reasoning (why append-only, not last-write-wins).
+### Task #528 | feature | severity 5
+**What:** New pure client-side module (e.g. `lib/interruptGate.ts`, no React/Zustand — matches `lib/syncClient.ts`'s existing pattern) exposing a read function ("what's the most recent `effective_until` for this user") and a write function ("record a `fired`/`snoozed` event"), both plain authenticated Supabase REST calls against `interrupt_gate_events` (Task #525) — reusing desktop's existing authenticated Supabase session from Task #169, no new auth plumbing. Read calls use a short, non-blocking timeout (starting point 500ms–1s per `docs/INTERRUPT_ARCHITECTURE.md` §6 — Max confirmed this exact range 2026-08-13, not a hard blocker on the precise value) with a documented fallback contract (caller decides what to do on timeout — this module just surfaces "gate state" or "unknown, timed out," it doesn't itself decide fire-vs-suppress).
+**Why:** The shared-gate read/write logic needs to live somewhere both the OS-event path and the snooze button can call — a dedicated `lib/` module keeps it testable in isolation (mocked Supabase calls) rather than duplicated inline in two different UI entry points.
+**File:** New `lib/interruptGate.ts`, `lib/interruptGate.test.ts`
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 new SQL file, schema only, no application code
-**Blocked by:** Nothing | **Blocks:** #527, #528
-**Done when:** Migration matches the schema in `docs/INTERRUPT_ARCHITECTURE.md` §5 (`id`, `user_id`, `event_type` check-constrained to `'fired'`/`'snoozed'`, `occurred_at`, `effective_until`, `device_id`, `created_at`). RLS enabled, scoped to `auth.uid() = user_id` for select/insert (matches `push_tokens`' policy shape — a user only ever sees/writes their own rows; no update/delete policy needed, append-only). Migration applies cleanly against a local/staging Supabase instance.
+**Complexity:** ⚡ Direct — 2 files, no UI wiring yet (that's #529/#530)
+**Blocked by:** #525 (COMPLETE, Wave 1) | **Blocks:** #529, #530
+**Done when:** Read function returns the gate state or an explicit timeout/unknown signal within the configured timeout, tested with a mocked slow/failing Supabase client. Write function correctly computes `effective_until` for both `fired` (occurred_at + interval) and `snoozed` (occurred_at + snooze minutes) event types. No React, no Zustand imports (matches CLAUDE.md's Layer Map for `lib/`).
 **Owner:** Architecture Agent
 
-**IMPORTANT:** two later-wave streams (#527, mobile dispatch; #528, the new `lib/interruptGate.ts` client module) depend directly on this exact schema. Document the final column names/types precisely in your completion.md — do not leave any ambiguity about the exact shape, since those streams will write code against your description before re-reading the migration file themselves.
+## Prior Wave Changes — Read Before Starting
+
+**#525 (completed by yourself, Charles, in Wave 1) — the exact schema to code against:**
+
+New file: `supabase/migrations/20260813000000_interrupt_gate_events.sql`
+
+Table `public.interrupt_gate_events`:
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | `uuid` | not null | `gen_random_uuid()` |
+| `user_id` | `uuid` | not null | — (FK → `auth.users(id)`, `on delete cascade`) |
+| `event_type` | `text` | not null | — (CHECK constrained to `'fired'` or `'snoozed'`) |
+| `occurred_at` | `timestamptz` | not null | — |
+| `effective_until` | `timestamptz` | not null | — |
+| `device_id` | `text` | not null | — |
+| `created_at` | `timestamptz` | not null | `now()` |
+
+RLS: `interrupt_gate_events_select_own`/`interrupt_gate_events_insert_own`, both
+`auth.uid() = user_id` — this module runs client-side with the user's own authenticated
+session (unlike mobile's server-side dispatch, which uses the service-role key), so RLS
+is the actual enforcement boundary here. Your read query should be a plain `select
+max(effective_until) from interrupt_gate_events where user_id = ?` (matches the
+`(user_id, effective_until desc)` index built for exactly this). Your write function
+computes `effective_until` itself before inserting — for `'fired'`, `occurred_at +`
+whatever interval is currently configured; for `'snoozed'`, `occurred_at +` the snooze
+minutes — the table has no trigger or default that computes this for you.
 
 ## Agent Memories
 
 ## Architect Agent Memory (first 150 lines)
-[Full first 150 lines of .autocode/agents/architect.md. Most directly relevant: this
-project already has an established append-only event-log pattern in
-`supabase/migrations/20260806000000_review_events.sql` (referenced in
-`docs/SYNC_ARCHITECTURE.md` §4 and `docs/INTERRUPT_ARCHITECTURE.md` §5) — read that
-migration file directly before writing this one; match its RLS policy shape and general
-conventions rather than inventing new ones.]
+[Full first 150 lines of .autocode/agents/architect.md — layer structure. Most
+relevant: `lib/` must never import from `store/`/`hooks/`/`components/`/`app/`
+(CLAUDE.md's Layer Map, enforced by a poka-yoke test elsewhere in this codebase) — this
+module reuses desktop's existing authenticated Supabase client/session mechanism from
+Task #169's sync work (check `lib/syncClient.ts` for the established pattern of how a
+`lib/` module gets an authenticated Supabase client without importing React/Zustand).]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W1C/completion.md. The file
+Write your completion summary to .autocode/stream-W2C/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #525
+CLOSED: #528
 NOT_CLOSED: none
 
 (If not closed, list it with a one-line reason instead.)
@@ -75,9 +98,9 @@ NOT_CLOSED: none
 After those two lines, write whatever prose detail is useful:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
-  The exact filename and full column list/types of the migration you created (later
-  waves' streams need this precisely)
+  The exact exported function names/signatures (Wave 3's #529 and #530 both call these
+  directly — be precise)
 
 Then tell Max in this window: "Charles is done." (or describe what's incomplete).
 
-— Charles | W1C | #525
+— Charles | W2C | #528
