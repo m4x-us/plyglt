@@ -1,9 +1,9 @@
 # Interrupt Trigger & Cross-Device Scheduling Architecture — plyglt
 
-Status: **DRAFT — captures the redesign discussed live with Max, 2026-08-13,
-during Task #166's Windows VM testing.** Not yet implemented, not yet
-assigned a task number. Pending Max's review before either happens — see
-"Open questions for Max" at the end.
+Status: **APPROVED by Max, 2026-08-13** — all 4 open questions answered (see
+"Open questions for Max" at the end, now resolved). Registered as
+`.autocode/tasks.md` Batch 21 (Tasks #523–#532), no longer paused. Not yet
+implemented — ready for `/task` or `/advance`.
 
 This document exists because live testing surfaced a real behavioral bug
 (desktop fires on every unlock, no spacing) that turned into a broader
@@ -219,25 +219,26 @@ dropped by a network hiccup — worse, not better, given BRAND.md's own
 
 ## 7. Interval and waking-hours reconciliation
 
-Two mismatches surfaced while writing this up, not yet decided:
+Two mismatches surfaced while writing this up. **Both decided by Max,
+2026-08-13:**
 
-- **Interval default:** mobile's `push_tokens.interrupt_interval_minutes`
-  defaults to 90 — over a 13-hour waking window (8am–9pm default) that's
-  ≈8.7 interrupts/day, landing right in BRAND.md's 6–10 target. Desktop's
-  `interrupt.rs` `interval_secs` defaults to 3 hours (180 min) — over the
-  same window that's ≈4.3/day, undershooting the target. These read like
-  two independently-picked numbers. Recommend unifying desktop's default to
-  match mobile's already-correctly-calibrated 90 minutes, but this changes
-  existing users' default experience, so it's called out as a decision, not
-  folded silently into "the fix."
-- **Waking hours vs. DND:** mobile has an explicit waking-hours window as a
-  first-class concept (`waking_hours_start_local`/`_end_local`). Desktop
-  only has DND start/end (`store/settingsStore.ts`) — related but not
-  identical framing (DND is "don't interrupt during this window," waking
-  hours is "only ever interrupt during this window" — same practical effect
-  for a single contiguous window, but worth deciding whether these should
-  become one literally-shared, synced setting or stay platform-local
-  concepts that happen to behave similarly).
+- **Interval default: 90 minutes, unified across both platforms.** Mobile's
+  `push_tokens.interrupt_interval_minutes` already defaulted to 90 — over a
+  13-hour waking window (8am–9pm default) that's ≈8.7 interrupts/day,
+  landing right in BRAND.md's 6–10 target. Desktop's `interrupt.rs`
+  `interval_secs` defaulted to 3 hours (180 min) — over the same window
+  that's ≈4.3/day, undershooting the target. Decision: desktop's default
+  changes to 90 minutes to match mobile exactly — one number, one cadence,
+  on every platform (Task #531).
+- **Waking hours vs. DND: merge into one shared, synced setting.** Mobile
+  has an explicit waking-hours window as a first-class concept
+  (`waking_hours_start_local`/`_end_local`). Desktop only has DND start/end
+  (`store/settingsStore.ts`) — related but not identical framing (DND is
+  "don't interrupt during this window," waking hours is "only ever
+  interrupt during this window" — same practical effect for a single
+  contiguous window). Decision: unify into one literally-shared, synced
+  setting rather than leaving them as platform-local concepts that merely
+  happen to behave similarly (Task #532).
 
 ---
 
@@ -267,23 +268,19 @@ capability for mobile, not just "connect the existing thing."
 
 ---
 
-## Open questions for Max
+## Open questions for Max — RESOLVED 2026-08-13
 
-Not decided by this doc — flagged explicitly rather than silently assumed:
+All 4 answered, none guessed:
 
-1. **Interval default:** adopt mobile's 90 minutes as the new desktop
-   default (changes existing users' experience), or pick a different
-   unified number?
-2. **REST check timeout:** is 500ms–1s the right starting point, or would
-   you rather it be even shorter (accept more staleness) or allow a bit
-   longer (fresher data, slightly more UX risk)?
-3. **Timeout behavior:** confirmed preference is "fire anyway, fall back to
-   local" over "suppress on timeout" (§6) — sanity-check this against your
-   own read of which failure mode is worse for the brand.
-4. **DND vs. waking hours:** merge into one shared, synced setting, or keep
-   as related-but-separate platform-local concepts?
+1. **Interval default:** ✅ 90 minutes on both platforms (unify desktop to
+   match mobile exactly) — Task #531.
+2. **REST check timeout:** ✅ 500ms–1s, as originally proposed — Task #528.
+3. **Timeout behavior:** ✅ Fire anyway, fall back to local state — Task
+   #529.
+4. **DND vs. waking hours:** ✅ Merge into one shared, synced setting —
+   Task #532.
 
-**Sign-off status:** Not yet reviewed. No task number assigned — following
-this doc's own precedent (`docs/SYNC_ARCHITECTURE.md` was Task #168, its
-implementation was the separate Task #169), the plan would be to register
-this as a new task (or small batch) once you've reviewed it, not before.
+**Sign-off status:** Approved by Max 2026-08-13, all open questions
+answered. Registered as `.autocode/tasks.md` Batch 21 (Tasks #523–#532,
+same day) — see that batch's header for sequencing and `/advance`
+parallelism notes.

@@ -1,11 +1,11 @@
 ---
 # Task List — plyglt
 Generated: 2026-06-24 | Method: /meet
-Last updated: 2026-08-13 (Task #166's unlock-intermittency question RESOLVED live — see debt.md; two real bugs found and fixed during the same VM session, both shipped: the `interrupt:fire` listener resubscription race (`v0.1.0-beta.9`) and the interrupt-completion null-unit crash (`v0.1.0-beta.10`). That live testing led to a broader design conversation with Max about the interrupt trigger/scheduling model — see `docs/INTERRUPT_ARCHITECTURE.md` (DRAFT, not yet signed off) and new Batch 21 below.)
+Last updated: 2026-08-13 (Batch 21 APPROVED — Max signed off on `docs/INTERRUPT_ARCHITECTURE.md` and answered all 4 open questions same day: 90-minute unified interval, 500ms–1s gate-check timeout, fire-anyway-on-timeout, DND/waking-hours merged into one shared setting. Batch 21 is now READY for `/task`/`/advance`. Also: Task #166's unlock-intermittency question RESOLVED live — see debt.md; two real bugs found and fixed during the same VM session, both shipped: the `interrupt:fire` listener resubscription race (`v0.1.0-beta.9`) and the interrupt-completion null-unit crash (`v0.1.0-beta.10`).)
 
 ## Summary
-Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 IN PROGRESS (Task #166's unlock trigger is now fully confirmed working via 5 live back-to-back lock/unlock trials, 2026-08-13 — see debt.md; wake-from-sleep still never tested; an unrelated tray-icon investigation was closed as accepted debt after ruling out 5 independent causes; #167 Linux still not manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (real iOS Xcode/Developer Program/TestFlight work, still needs Max to install full Xcode.app) and #172 (Android, blocked on #522) remain open; Batch 21 (NEW, 2026-08-13) is the interrupt trigger/cross-device scheduling redesign from `docs/INTERRUPT_ARCHITECTURE.md` — tasks registered but the whole batch is **PAUSED pending Max's sign-off on the doc** (four open questions in the doc are unanswered; see Batch 21's own header).
-Current Sprint: Batch 21 is registered and ready but not started — get Max's sign-off on `docs/INTERRUPT_ARCHITECTURE.md` (and answers to its 4 open questions) before running `/task` or `/advance` against it. Task #166 (Batch 15) has one genuinely open item left: wake-from-sleep has never been manually tested this whole VM-testing arc. Run `/tasks debt` to review the full debt register.
+Batches 1–14, 16, 18, 19, 20 COMPLETE; Batch 15 IN PROGRESS (Task #166's unlock trigger is now fully confirmed working via 5 live back-to-back lock/unlock trials, 2026-08-13 — see debt.md; wake-from-sleep still never tested; an unrelated tray-icon investigation was closed as accepted debt after ruling out 5 independent causes; #167 Linux still not manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (real iOS Xcode/Developer Program/TestFlight work, still needs Max to install full Xcode.app) and #172 (Android, blocked on #522) remain open; **Batch 21 READY (2026-08-13)** — the interrupt trigger/cross-device scheduling redesign from `docs/INTERRUPT_ARCHITECTURE.md`, 10 tasks (#523–#532) sequenced in dependency waves for `/advance`, fully approved and unblocked.
+Current Sprint: Batch 21 is the next real work — ready to run via `/task` or `/advance`, starting with Wave 1 (#523, #524, #525, all independent/parallel). Task #166 (Batch 15) has one genuinely open item left: wake-from-sleep has never been manually tested this whole VM-testing arc. Run `/tasks debt` to review the full debt register.
 
 ## Definition of Done (applies to every task)
 **Tier 1 — Locally Complete:** Tests pass, no empty catch{}, no `as any`, self-review Five Forcing Functions
@@ -10511,8 +10511,8 @@ Theme: Cheap, high-value fixes that surfaced during this /meet run, executed bef
 
 ---
 
-## Batch 21 — Interrupt Trigger & Cross-Device Scheduling Redesign [PAUSED — blocked on Max's sign-off on `docs/INTERRUPT_ARCHITECTURE.md`]
-Dependency: None technically — this is a self-contained redesign of the existing interrupt engine plus new Supabase infra, doesn't block or get blocked by any other open batch. **The whole batch is gated on Max approving `docs/INTERRUPT_ARCHITECTURE.md` first** — it commits to a real schema and cross-cutting Rust/JS/Supabase changes, and 2 of the doc's 4 open questions (interval default, DND-vs-waking-hours merge) directly gate specific tasks below. Do not run `/task` or `/advance` against this batch until that sign-off happens.
+## Batch 21 — Interrupt Trigger & Cross-Device Scheduling Redesign [READY — approved by Max 2026-08-13, all 4 open questions answered]
+Dependency: None — self-contained redesign of the existing interrupt engine plus new Supabase infra, doesn't block or get blocked by any other open batch. `docs/INTERRUPT_ARCHITECTURE.md` is now APPROVED; all 4 open questions resolved same day (90-minute unified interval, 500ms–1s gate-check timeout, fire-anyway-on-timeout fallback, DND/waking-hours merged into one shared setting). Ready for `/task` or `/advance`.
 
 Theme: two real bugs found live during Task #166's Windows VM testing (desktop's unlock/wake/idle bypass the interrupt interval entirely — no spacing at all; the interval clock advances even when a check finds nothing due) turned into a design conversation about what "due" should mean, which surfaced that mobile's not-yet-shipped push pipeline (Task #170) already solved this correctly and desktop should match it, plus a real gap: nothing coordinates interrupt timing across a Pro user's multiple synced devices. Full reasoning and schema in `docs/INTERRUPT_ARCHITECTURE.md`.
 
@@ -10520,7 +10520,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 - **Wave 1 (fully parallel, no cross-dependencies, distinct files):** #523, #524, #525.
 - **Wave 2 (each depends on exactly one Wave-1 task, otherwise parallel):** #526 (needs #524), #527 (needs #525), #528 (needs #525).
 - **Wave 3 (each depends on two Wave-2 tasks, but touch different files from each other — parallel):** #529 (needs #526 + #528), #530 (needs #528).
-- **Independent leaves, no dependency on the waves above, but each individually blocked on one of Max's open-question answers:** #531 (needs answer to open question 1), #532 (needs answer to open question 4).
+- **Independent leaves, no dependency on the waves above, ready any time:** #531, #532 (both were gated on Max's open-question answers — resolved 2026-08-13).
 - #524 deliberately spans both `interrupt.rs` and `os_events.rs` as one task rather than being split further — they share the exact same interval/clock state, and this codebase has already been burned once (Wave 17, see `.autocode/agents/cto.md`'s Open Escalations #0.5) by splitting tightly-coupled shared-state changes across parallel streams that individually looked file-isolated.
 
 ### Task #523 | correctness | severity 5
@@ -10625,20 +10625,20 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **File:** `src-tauri/src/interrupt.rs` (default), `store/settingsStore.ts` / `store/migrations.ts` (if a version bump is needed for existing users' persisted default)
 **Severity:** 3 | **DoD Tier:** 1
 **Complexity:** ⚡ Direct — default-value change, not a structural one
-**Blocked by:** **Max's answer to `docs/INTERRUPT_ARCHITECTURE.md` Open Question 1** (adopt 90 min, or a different unified number) — do not guess this value | **Blocks:** Nothing
-**Done when:** Desktop's default matches whatever number Max confirms. Existing users' already-persisted custom interval settings are untouched (this only changes the *default* for new installs / never-configured users).
+**Blocked by:** Nothing — **RESOLVED 2026-08-13: Max confirmed 90 minutes, unified across both platforms.** | **Blocks:** Nothing
+**Done when:** Desktop's default is 90 minutes. Existing users' already-persisted custom interval settings are untouched (this only changes the *default* for new installs / never-configured users).
 **Owner:** Architecture Agent
 
 ---
 
 ### Task #532 | product-decision | severity 4
-**What:** Decide and implement whether desktop's DND start/end (`store/settingsStore.ts`) and mobile's waking-hours window (`push_tokens.waking_hours_start_local`/`_end_local`) become one literally-shared, synced setting, or stay related-but-separate platform-local concepts.
+**What:** Merge desktop's DND start/end (`store/settingsStore.ts`) and mobile's waking-hours window (`push_tokens.waking_hours_start_local`/`_end_local`) into one literally-shared, synced setting.
 **Why:** Same practical effect for a single contiguous window today, but they're framed oppositely (DND = "don't interrupt during this window" vs. waking hours = "only ever interrupt during this window") and nothing currently ties them together across platforms. See `docs/INTERRUPT_ARCHITECTURE.md` §7 and Open Question 4.
-**File:** `store/settingsStore.ts`, `store/migrations.ts`, `push_tokens` schema (if merging), UI in `app/settings/page.tsx`
+**File:** `store/settingsStore.ts`, `store/migrations.ts`, `push_tokens` schema, UI in `app/settings/page.tsx`
 **Severity:** 4 | **DoD Tier:** 2
-**Complexity:** 🔧 Full, if merged — a real schema/sync decision, not a default tweak; ⚡ Direct if the decision is "keep separate" (near-zero code change, just document the decision)
-**Blocked by:** **Max's answer to `docs/INTERRUPT_ARCHITECTURE.md` Open Question 4** — do not guess this decision, it's a real architecture fork depending on the answer | **Blocks:** Nothing
-**Done when:** Whichever direction Max picks is implemented and documented in `docs/INTERRUPT_ARCHITECTURE.md` (updating its "Open questions" section to reflect the decision, not leaving it stale).
+**Complexity:** 🔧 Full — a real schema/sync decision, not a default tweak
+**Blocked by:** Nothing — **RESOLVED 2026-08-13: Max confirmed merge into one shared, synced setting** (not "keep separate"). | **Blocks:** Nothing
+**Done when:** One synced setting governs both desktop and mobile's quiet-hours behavior, replacing the two independent concepts. `docs/INTERRUPT_ARCHITECTURE.md`'s "Open questions" section already reflects this decision.
 **Owner:** Architecture Agent
 
 ---
