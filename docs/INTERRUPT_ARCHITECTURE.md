@@ -1,9 +1,11 @@
 # Interrupt Trigger & Cross-Device Scheduling Architecture — plyglt
 
-Status: **APPROVED by Max, 2026-08-13** — all 4 open questions answered (see
-"Open questions for Max" at the end, now resolved). Registered as
-`.autocode/tasks.md` Batch 21 (Tasks #523–#532), no longer paused. Not yet
-implemented — ready for `/task` or `/advance`.
+Status: **IMPLEMENTED — Batch 21 COMPLETE, 2026-08-13.** All 4 open questions
+were answered (see "Open questions for Max" at the end), all 10 tasks
+(#523–#532) shipped via `/advance` across 3 waves the same day, zero debt
+logged. See `.autocode/tasks.md` Batch 21 for the per-task implementation
+notes and `CLAUDE.md`'s Architecture §1 for the resulting module list
+(`lib/interruptGate.ts`, `hooks/useSnoozeAndExit.ts`, etc.).
 
 This document exists because live testing surfaced a real behavioral bug
 (desktop fires on every unlock, no spacing) that turned into a broader
