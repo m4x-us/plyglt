@@ -1,5 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS, IDLE_THRESHOLD_MIN, IDLE_THRESHOLD_MAX } from "@/store/settingsStore";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import {
+  useSettingsStore,
+  INTERVAL_OPTIONS,
+  SNOOZE_OPTIONS,
+  IDLE_THRESHOLD_MIN,
+  IDLE_THRESHOLD_MAX,
+  dndWindowToWakingHours,
+  wakingHoursToDndWindow,
+} from "@/store/settingsStore";
 
 beforeEach(() => {
   useSettingsStore.setState({
@@ -35,6 +43,29 @@ describe("useSettingsStore — default values", () => {
     expect(s.unlockEnabled).toBe(true);
     expect(s.idleEnabled).toBe(true);
     expect(s.idleThresholdMinutes).toBe(15);
+  });
+
+  // Task #531: the true module-level default (as opposed to this file's beforeEach, which
+  // explicitly overwrites intervalHours to 3 for test isolation and would otherwise mask a
+  // regression here) must be 90 minutes (1.5h), unified with mobile's
+  // push_tokens.interrupt_interval_minutes default. vitest's test environment is "node"
+  // (vitest.config.ts), so lib/storage.ts's localStorage accessor returns null and a freshly
+  // re-imported store hydrates with no persisted data — exactly the "brand-new install" case
+  // this default targets.
+  it("intervalHours defaults to 1.5 (90 minutes) on a fresh, never-persisted store", async () => {
+    vi.resetModules();
+    const { useSettingsStore: freshStore } = await import("@/store/settingsStore");
+    expect(freshStore.getState().intervalHours).toBe(1.5);
+  });
+
+  // Task #532: the default DND window must be the exact complement of mobile's push_tokens
+  // waking-hours default (8-21) — 21:00-08:00, not the pre-#532 22:00-08:00 (which was one
+  // hour off that complement, the mismatch docs/INTERRUPT_ARCHITECTURE.md §7 flags).
+  it("dndStart/dndEnd default to 21:00/08:00 (the complement of mobile's 8-21 waking default) on a fresh, never-persisted store", async () => {
+    vi.resetModules();
+    const { useSettingsStore: freshStore } = await import("@/store/settingsStore");
+    expect(freshStore.getState().dndStart).toBe("21:00");
+    expect(freshStore.getState().dndEnd).toBe("08:00");
   });
 });
 
@@ -210,5 +241,51 @@ describe("useSettingsStore — persist merge revalidates sourceLang on every hyd
     ) as { sourceLang: string; dndStart: string; idleThresholdMinutes: number };
     expect(result.dndStart).toBe("23:00");
     expect(result.idleThresholdMinutes).toBe(45);
+  });
+});
+
+// Task #532: the real conversion bridge between desktop's DND-window framing and mobile's
+// push_tokens waking-hours framing — same real-world window, opposite representation.
+describe("dndWindowToWakingHours / wakingHoursToDndWindow", () => {
+  it("converts the new default DND window (21:00-08:00) to mobile's default waking hours (8-21)", () => {
+    expect(dndWindowToWakingHours("21:00", "08:00")).toEqual({
+      wakingHoursStartLocal: 8,
+      wakingHoursEndLocal: 21,
+    });
+  });
+
+  it("converts mobile's default waking hours (8-21) back to the DND window shape (21:00-08:00)", () => {
+    expect(wakingHoursToDndWindow(8, 21)).toEqual({ dndStart: "21:00", dndEnd: "08:00" });
+  });
+
+  it("round-trips a whole-hour DND window through both conversions unchanged", () => {
+    const waking = dndWindowToWakingHours("23:00", "07:00");
+    const backToDnd = wakingHoursToDndWindow(waking.wakingHoursStartLocal, waking.wakingHoursEndLocal);
+    expect(backToDnd).toEqual({ dndStart: "23:00", dndEnd: "07:00" });
+  });
+
+  it("truncates non-zero minutes to the hour (documented, accepted precision loss)", () => {
+    expect(dndWindowToWakingHours("21:30", "07:45")).toEqual({
+      wakingHoursStartLocal: 7,
+      wakingHoursEndLocal: 21,
+    });
+  });
+
+  it("clamps out-of-range hour values into push_tokens' 0-23 constraint", () => {
+    expect(wakingHoursToDndWindow(-3, 30)).toEqual({ dndStart: "23:00", dndEnd: "00:00" });
+  });
+
+  it("clamps an out-of-range hour parsed from a malformed DND string into 0-23", () => {
+    expect(dndWindowToWakingHours("25:00", "08:00")).toEqual({
+      wakingHoursStartLocal: 8,
+      wakingHoursEndLocal: 23,
+    });
+  });
+
+  it("falls back to hour 0 for a DND string whose hour component doesn't parse to a number", () => {
+    expect(dndWindowToWakingHours("bad-input", "08:00")).toEqual({
+      wakingHoursStartLocal: 8,
+      wakingHoursEndLocal: 0,
+    });
   });
 });

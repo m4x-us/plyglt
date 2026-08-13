@@ -14,8 +14,8 @@ mod tray;
 
 use std::sync::{Arc, Mutex};
 use interrupt::{
-    enter_mandatory_mode, exit_mandatory_mode, snooze_interrupt, update_interrupt_config,
-    InterruptState,
+    enter_mandatory_mode, exit_mandatory_mode, mark_interrupt_fired, snooze_interrupt,
+    update_interrupt_config, InterruptState,
 };
 use license::{ls_activate_license, ls_deactivate_license, ls_validate_license, open_url};
 
@@ -54,6 +54,7 @@ pub fn run() {
             update_tray_badge,
             update_interrupt_config,
             snooze_interrupt,
+            mark_interrupt_fired,
             enter_mandatory_mode,
             exit_mandatory_mode,
             ls_activate_license,

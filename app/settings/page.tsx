@@ -123,6 +123,13 @@ export default function SettingsPage() {
             </Section>
           )}
           {interruptEnabled && (
+            // Task #532: this window is now the single canonical quiet-hours setting shared
+            // with mobile's waking-hours concept (opposite framing, same real window — see
+            // store/settingsStore.ts's dndWindowToWakingHours/wakingHoursToDndWindow and
+            // docs/INTERRUPT_ARCHITECTURE.md §7). No live cross-device write-through exists
+            // yet (that's the future desktop sync layer, Task #169 area), so copy below
+            // deliberately does not claim a synced-across-devices behavior the app doesn't
+            // perform today.
             <Section title="Do Not Disturb">
               <p className="text-gray-500 text-xs mb-4">No reminders will fire during these hours (uses your local time).</p>
               <div className="flex items-center gap-4">

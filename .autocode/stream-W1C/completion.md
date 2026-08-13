@@ -1,42 +1,62 @@
-# Stream W1C — Batch 19 Remediation (Task #184)
-**Date:** 2026-07-07
-**Agent:** Charles
-**Status:** COMPLETE
-**Verification gate at close:** tsc=0 errors · 964/964 tests pass · lint=0 errors · `node -e "console.log(/^\d{4}-\d{2}-\d{2}$/.test('2026-13-45') && !isNaN(new Date('2026-13-45').getTime()))"` → `false`
+CLOSED: #525
+NOT_CLOSED: none
 
-## Tasks closed
-- #184 — Fix two safety gaps in the SRS v3 migration (`store/migrations.ts` + `tests/migrations.test.ts`)
+Debt entries logged: 0
+Carry-forward tasks generated: 0
 
-## What was done
+## Task #525 — interrupt_gate_events migration
 
-### Fix 1 — Calendar-invalid date strings (e.g. `"2026-13-45"`)
+**File created:** `supabase/migrations/20260813000000_interrupt_gate_events.sql`
 
-Added `&& !isNaN(new Date(record.phaseStartDate).getTime())` and `&& !isNaN(new Date(record.introducedDate).getTime())` after each `DATE_RE.test()` call in the v3 migration.
+Followed `supabase/migrations/20260806000000_review_events.sql`'s append-only
+pattern exactly (read directly before writing, per architect memory), not
+`push_tokens.sql`'s mutable pattern, per docs/INTERRUPT_ARCHITECTURE.md §5's
+explicit instruction to reuse the append-only shape.
 
-`"2026-13-45"` passes `/^\d{4}-\d{2}-\d{2}$/` (month 13, day 45 each match `\d{2}`) but `new Date("2026-13-45")` is Invalid Date. Without the fix it became `phaseStartDate`, and `getDayOfPhase` returned `NaN` — silently hiding the card in every session forever.
+### Exact schema (for streams #527/#528 to code against — do not re-derive, use this verbatim)
 
-### Fix 2 — Null record in introductions map
+Table: `public.interrupt_gate_events`
 
-Added a null guard before accessing properties on each record:
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | `uuid` | not null | `gen_random_uuid()` |
+| `user_id` | `uuid` | not null | — (FK → `auth.users(id)`, `on delete cascade`) |
+| `event_type` | `text` | not null | — (CHECK constrained to `'fired'` or `'snoozed'`) |
+| `occurred_at` | `timestamptz` | not null | — |
+| `effective_until` | `timestamptz` | not null | — |
+| `device_id` | `text` | not null | — |
+| `created_at` | `timestamptz` | not null | `now()` |
 
-```typescript
-const record: Record<string, unknown> =
-  rawRecord !== null && typeof rawRecord === "object"
-    ? rawRecord as Record<string, unknown>
-    : {};
-```
+- Primary key: `id`.
+- Index: `interrupt_gate_events_user_idx` on `(user_id, effective_until desc)` — matches the hot-path read pattern (`select max(effective_until) from interrupt_gate_events where user_id = ?`).
+- RLS: enabled. Two policies only — `interrupt_gate_events_select_own` (SELECT, `using (auth.uid() = user_id)`) and `interrupt_gate_events_insert_own` (INSERT, `with check (auth.uid() = user_id)`). No update/delete policy — append-only by design, matching `review_events`.
 
-A stored `null` entry caused `TypeError: Cannot read properties of null` when the IIFE accessed `record.phaseStartDate`. Zustand's persist middleware catches that TypeError and silently resets the entire store to defaults — wiping all SRS card history. The guard uses an empty object fallback so the IIFE reaches the today-fallback path and the null record gets a valid phaseStartDate without throwing.
+### Verification performed
 
-Also changed the `introductions` cast from `Record<string, Record<string, unknown>>` to `Record<string, unknown>` so TypeScript doesn't fight the runtime null check.
+Supabase CLI is not installed in this environment and no `supabase/config.toml`
+exists (no linked local project), so "applies cleanly against a
+local/staging Supabase instance" was verified by hand against a real
+Postgres server instead of skipped:
 
-### Tests added (two new `it()` blocks)
-1. `"v2 → v3: null record does not throw and produces a valid phaseStartDate (Zustand data-loss guard)"` — covers Fix 2. Asserts `not.toThrow()` + valid YYYY-MM-DD output.
-2. `"v2 → v3: calendar-invalid introducedDate (e.g. '2026-13-45') falls back to today, not preserved"` — covers Fix 1. Asserts result ≠ `"2026-13-45"`, is valid calendar date, and `introducedDate` field is not clobbered.
+1. Confirmed a local Postgres instance was already running (`psql -lqt`).
+2. Created a scratch database (`charles_migration_test`), added a minimal
+   `auth.users` table and a stub `auth.uid()` function to reproduce
+   Supabase's auth schema surface.
+3. Ran the migration file directly with `psql -f` — succeeded (`CREATE
+   TABLE`, `CREATE INDEX`, `ALTER TABLE`, 2× `CREATE POLICY`, zero errors).
+4. Inspected the resulting table with `\d public.interrupt_gate_events` and
+   `pg_policies` — column names, types, nullability, defaults, the CHECK
+   constraint, the FK, and both RLS policies all match the spec above and
+   `docs/INTERRUPT_ARCHITECTURE.md` §5's SQL block exactly.
+5. Re-ran the same file a second time to check idempotency: `create table
+   if not exists` and `create index if not exists` no-op correctly on
+   rerun (NOTICE + skip); the two `create policy` statements error on
+   rerun (`policy ... already exists`) — this is expected and matches
+   `review_events.sql`/`push_tokens.sql`'s own convention exactly (neither
+   uses a guarded/idempotent policy statement either); Supabase's migration
+   runner tracks applied migrations and never re-applies one, so this isn't
+   a real-world path.
+6. Dropped the scratch database when done.
 
-## Test count
-- Before: 950
-- After: 964 (+14 new tests across the session — 2 from this task)
-
-## Debt entries logged: 0
-## Carry-forward tasks generated: 0
+No existing migration files were touched. No other files were touched
+outside `supabase/migrations/`.

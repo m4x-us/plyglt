@@ -6,6 +6,7 @@
 import type { Unit } from "@/content/types";
 import { useSettingsStore, isInDnd } from "@/store/settingsStore";
 import { useSRSStore } from "@/store/srsStore";
+import { localDateStr } from "@/lib/utils";
 
 export { isInDnd };
 
@@ -22,10 +23,33 @@ export function useInterruptConfig() {
     idleThresholdMinutes,
   } = useSettingsStore();
 
+  // Mirrors what lib/queue.ts's buildQueue actually pulls into a session: FSRS-due
+  // reviews, introduction-cadence cards due for their next appearance, and (capped at
+  // one, matching the daily introduction cap) a qualifying new card — not just FSRS due
+  // reviews. Docs: docs/INTERRUPT_ARCHITECTURE.md §2.
   function computeDue(units: Unit[]): number {
     if (units.length === 0) return 0;
     const state = useSRSStore.getState();
-    return units.reduce((sum, u) => sum + state.getStats(u.cards).due, 0);
+    const today = localDateStr();
+
+    const reviewDue = units.reduce((sum, u) => sum + state.getStats(u.cards).due, 0);
+
+    const allCardIds = new Set(units.flatMap((u) => u.cards.map((c) => c.id)));
+    const introDue = state.getIntroductionDueCardIds(today).filter((id) => allCardIds.has(id)).length;
+
+    // Only one new card is ever introduced per day (store's own cap) — count at most 1,
+    // not the full pool of untouched cards, however large.
+    let newCardDue = 0;
+    if (state.canIntroduceNewCard(today)) {
+      for (const u of units) {
+        if (state.getNewCards(u.cards, 1).length > 0) {
+          newCardDue = 1;
+          break;
+        }
+      }
+    }
+
+    return reviewDue + introDue + newCardDue;
   }
 
   return {

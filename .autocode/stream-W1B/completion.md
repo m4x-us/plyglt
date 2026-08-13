@@ -1,42 +1,61 @@
-# Barry — W1B — Completion Summary
-Date: 2026-07-07
+CLOSED: #523
+NOT_CLOSED: none
 
----
+## Task #523 — Fix computeDue() to count introduction/new cards
 
-## Wave 1 — 2026-07-07 (#180) — Barry
+**What changed:** `hooks/useInterruptConfig.ts`'s `computeDue()` previously only summed
+`getStats(unitCards).due` (FSRS reviews with `reps > 0 && isDue`). It now also counts:
+- Cards due for their next intensive-introduction-cadence appearance
+  (`getIntroductionDueCardIds(today)`, filtered to card ids actually present in the
+  passed-in units, so a stray id from a different language pack never inflates the count).
+- At most **one** qualifying new/untouched card (`getNewCards`), and only when
+  `canIntroduceNewCard(today)` is true — matching the real one-new-card-per-day cap the
+  introduction engine enforces (`store/srsStore.ts`'s `canIntroduceNewCard`, consumed by
+  `hooks/useStudySession.ts`'s session-start introduction effect). Deliberately capped at 1
+  rather than summing every unit's full new-card pool — the pool can be huge (curriculum is
+  ~30k cards) and only one new card is ever actually introduced per day regardless of how
+  many units have eligible candidates.
 
-**Status: COMPLETE**
-**Files modified: 2**
+This closes the gap `docs/INTERRUPT_ARCHITECTURE.md` §2 describes: on a day with zero
+traditional FSRS reviews due but an introduction-phase card needing its next appearance (or
+a fresh new-card slot open), the interrupt engine previously computed `totalDue === 0` and
+silently never fired — breaking BRAND.md's "appears every interrupt on Day 1" cadence
+promise for that day.
 
-### Tasks closed
-- **#180** — Wire variety rule, close spec gaps, and add rescue path in store/srsStore.ts — COMPLETE
+**Files touched:**
+- `hooks/useInterruptConfig.ts` — the fix itself (owned file)
+- `hooks/useInterruptConfig.test.ts` — new test file, 9 cases (owned file)
+- `components/InterruptHandler.test.tsx` — **1 mechanical, non-semantic addition** to its
+  existing `@/store/srsStore` mock (added 3 no-op stubs: `getIntroductionDueCardIds: () =>
+  []`, `canIntroduceNewCard: () => false`, `getNewCards: () => []`) so its existing
+  `getState()` stub doesn't throw now that `computeDue` calls those methods. This file isn't
+  listed as owned by any Wave 1 stream (checked adam.md/charles.md/derek.md — all three
+  explicitly list `hooks/useInterruptConfig.ts`/`.test.ts` as MY off-limits/owned files, none
+  claim `InterruptHandler.test.tsx`), and leaving it broken would fail the Verification
+  Gate's "full test suite" requirement — a direct, mechanical consequence of this fix, not
+  scope creep. Zero existing assertions or test behavior changed; all three new stubs return
+  the same "nothing extra" defaults the old single-method mock implied.
 
-### What was built
+**Verification gate — all green:**
+- `npx tsc --noEmit` — clean
+- `npm test` — 1834/1834 passed (96 files), including the 9 new tests and
+  `components/InterruptHandler.test.tsx`'s 12 existing tests (all still pass with their
+  original assertions intact)
+- `npm run lint` — 0 errors (7 pre-existing warnings elsewhere, unrelated to this change)
+- Deletion Test satisfied: two dedicated tests
+  (`hooks/useInterruptConfig.test.ts`) prove `computeDue` returns non-zero for exactly the
+  two scenarios today's implementation would return 0 for — an introduction-cadence-only
+  day and a qualifying-new-card-only day — plus tests for the 1-per-day new-card cap, the
+  cross-unit id-membership filter, and a combined-sources sum.
 
-**`store/srsStore.ts`** — Four behavior fixes:
+Debt entries logged: 0
+Carry-forward tasks generated: 0
 
-**F03 (variety rule):** Added `getNextCardType` import from `@/lib/introduction`. Added `ALL_CARD_TYPES: CardType[]` constant and `CardType` import. In `recordIntroductionResult`, after `recordResult`, calls `getNextCardType(record.lastSeenType, ALL_CARD_TYPES)` and writes the result to `lastSeenType` before persisting. This gives the introduction engine a rotating type on every encounter.
+Note for later-wave streams touching `hooks/useInterruptConfig.ts` or
+`InterruptHandler.tsx` (#526/#529 per Adam's brief): `computeDue`'s signature and return
+semantics are unchanged (still `(units: Unit[]) => number`) — only its internal counting
+logic grew. No API changes for downstream callers to adjust to.
 
-**F10 (cross-day failure check):** Added `CONSECUTIVE_WRONG_RESET = 3` constant. `canIntroduceNewCard` now also returns false if any IntroductionRecord has `consecutiveWrongToday >= 3` AND `lastSeenDate !== today` — implements BRAND.md "wrong across multiple days → pause new card introductions".
+Barry is done.
 
-**F12 (rescue path):** `getIntroductionDueCardIds` now includes a rescue branch: if a card is at day >= 22 and not graduated, it appears once per day (appearances < 1). Without this, day-22+ non-graduates disappear permanently from both queues since `maxAppearancesToday(22) = 0`.
-
-**F13 (graduated card guard):** Changed `introduceCard` guard from `if (existing && !existing.graduated) return` to `if (existing) return`. A graduated card's history must never be silently overwritten.
-
-**`tests/srsStore.test.ts`** — Added 4 tests (one per fix):
-- F03: asserts `lastSeenType` advances to "recognize" then "produce" after two consecutive `recordIntroductionResult` calls — uses specific `toBe()` assertions
-- F10: manually seeds a `consecutiveWrongToday=3 / lastSeenDate="2026-06-24"` record, then asserts `canIntroduceNewCard("2026-06-25")` returns false
-- F12: seeds a card with `phaseStartDate="2026-06-01"` (day 22 on "2026-06-22"), asserts it appears in due list; then seeds `appearancesToday=1` and asserts it no longer appears
-- F13: graduates a card via 15 consecutive corrects, calls `introduceCard` again, asserts `graduated` remains true and `introducedDate` is unchanged
-
-### Verification results
-- `npm test` → 968/968 ✓ (up 12 from 956 at start of session)
-- `npx tsc --noEmit` → clean ✓
-- `npm run lint` → 0 errors (pre-existing warning in hooks/useExportImport.test.ts, not Barry's file)
-- `grep -n "getNextCardType" store/srsStore.ts` → import (line 8) + call site (line 243) ✓
-
-### Notable observations
-The F10 condition (`consecutiveWrongToday >= 3 AND lastSeenDate !== today`) cannot be reached through normal `recordIntroductionResult` flow: when the counter reaches 3, `recordResult` immediately resets it to 0 with `lastSeenDate = today`. The condition guards against corrupted/migrated state and is tested by manually seeding the store. This is documented via the test's setup comment.
-
-### Debt entries logged: 0
-### Carry-forward tasks generated: 0
+— Barry | W1B | #523

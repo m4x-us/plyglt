@@ -91,9 +91,17 @@ vi.mock("@/hooks/useLangPack", () => ({
 }));
 
 // ── srsStore — minimal stub so getStats().due can be controlled per-test ─────
+// Task #523: computeDue (hooks/useInterruptConfig.ts) now also reads
+// getIntroductionDueCardIds/canIntroduceNewCard/getNewCards — stubbed here to their
+// "nothing extra due" defaults so existing due-count-only assertions are unaffected.
 vi.mock("@/store/srsStore", () => ({
   useSRSStore: {
-    getState: () => ({ getStats: () => ({ due: 1 }) }),
+    getState: () => ({
+      getStats: () => ({ due: 1 }),
+      getIntroductionDueCardIds: () => [],
+      canIntroduceNewCard: () => false,
+      getNewCards: () => [],
+    }),
   },
 }));
 

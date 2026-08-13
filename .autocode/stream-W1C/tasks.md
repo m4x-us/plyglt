@@ -1,14 +1,11 @@
 # Stream W1C Task State
 
-### Task #184 | data-loss | severity 5
-**What:** Fix two safety gaps in the SRS v3 migration introduced by Task #178. (1) `DATE_RE = /^\d{4}-\d{2}-\d{2}$/` accepts calendar-invalid strings like `"2026-13-45"`; these pass the regex, become `phaseStartDate`, and produce `NaN` in `getDayOfPhase` — silently hiding the card forever. The migration comment explicitly warns about this risk for empty strings but does not address it for invalid dates. Fix: add `&& !isNaN(new Date(v).getTime())` after each `DATE_RE.test()` call. (2) The for-loop at line 58 iterates over `Object.entries(introductions)` but does not guard against a stored null value (e.g. `{ "card-1": null }`); accessing `record.phaseStartDate` throws `TypeError`, which Zustand's persist middleware catches and resolves by resetting to default empty state — silently wiping all SRS card history.
-
-Add two tests: (a) introductions map containing a null record — must not throw and must produce a valid phaseStartDate; (b) record with `introducedDate: "2026-13-45"` (calendar-invalid) — must fall back to today's date, not preserve the invalid string.
-**Why:** Both bugs can silently corrupt or destroy user SRS progress. The NaN risk is the same failure mode the migration comment already warns about; the null-record risk causes silent data loss via the Zustand fallback path.
-**File:** `store/migrations.ts`, `tests/migrations.test.ts`
-**Severity:** 5 | **DoD Tier:** 1
-**Complexity:** ⚡ Direct — 2 files, no package boundary, single-scope fix
-**Blocked by:** Nothing | **Blocks:** #183 (F007/F008 tests reference the corrected migration behaviour)
-**Test required:** Two new it() blocks as described above.
-**Done when:** New tests pass. `node -e "console.log(/^\d{4}-\d{2}-\d{2}$/.test('2026-13-45') && !isNaN(new Date('2026-13-45').getTime()))"` prints `false`. Verification gate green.
+### Task #525 | infrastructure | severity 5
+**What:** New Supabase migration creating the `interrupt_gate_events` table — one append-only row per real "fired" or "snoozed" event, per user, reusing the exact conflict-resolution pattern `supabase/migrations/20260806000000_review_events.sql` already established (append-only, not a mutable current-state row) rather than inventing a new one.
+**File:** New file under `supabase/migrations/`
+**Why:** The shared per-user gate every device (desktop OS events, desktop scheduled poll, mobile cron dispatch) will check before firing and write to after firing. See `docs/INTERRUPT_ARCHITECTURE.md` §5 for the full schema and reasoning (why append-only, not last-write-wins).
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 1 new SQL file, schema only, no application code
+**Blocked by:** Nothing | **Blocks:** #527, #528
+**Done when:** Migration matches the schema in `docs/INTERRUPT_ARCHITECTURE.md` §5 (`id`, `user_id`, `event_type` check-constrained to `'fired'`/`'snoozed'`, `occurred_at`, `effective_until`, `device_id`, `created_at`). RLS enabled, scoped to `auth.uid() = user_id` for select/insert (matches `push_tokens`' policy shape — a user only ever sees/writes their own rows; no update/delete policy needed, append-only). Migration applies cleanly against a local/staging Supabase instance.
 **Owner:** Architecture Agent

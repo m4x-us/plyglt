@@ -10528,10 +10528,11 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** Today, on a day where a user has only an introduction-phase card needing its next appearance (per BRAND.md's "appears every interrupt on Day 1" cadence table) and zero traditional FSRS reviews due, `computeDue()` returns 0 and the interrupt never fires — silently breaking the introduction engine's own cadence promise. See `docs/INTERRUPT_ARCHITECTURE.md` §2.
 **File:** `hooks/useInterruptConfig.ts`, `hooks/useInterruptConfig.test.ts` (new or extended)
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, single-scope logic fix
+**Complexity:** ⚡ Direct — 2 files, single-scope logic fix
 **Blocked by:** Nothing | **Blocks:** Nothing (independent of the rest of this batch)
 **Done when:** A test proves `computeDue` returns non-zero when the only due content is an introduction-cadence card or a qualifying new card (today's implementation would return 0 for both — this is the Deletion Test). `npx tsc --noEmit`, full test suite, lint all clean.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W1B/Barry. `computeDue` now also counts introduction-due cards and at most 1 qualifying new card, gated by `canIntroduceNewCard`. 9 new tests. Also fixed a mechanical ripple: `components/InterruptHandler.test.tsx`'s srsStore mock needed 3 new no-op stubs since `computeDue`'s real implementation now calls them — not this task's owned file, but required to keep the full suite green. `npm test` 1834/1834, `tsc`/`lint` clean.)
 
 ---
 
@@ -10540,10 +10541,11 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** Without (1), lock your screen 15 times a day with anything due each time and you get 15 interrupts, not 6–10 — the core complaint that started this whole redesign. Without (2), an empty check (nothing due) silently spends a full interval for nothing, pushing the next *possible* interrupt further out than intended — the opposite failure mode, also wrong. See `docs/INTERRUPT_ARCHITECTURE.md` §3–§4.
 **File:** `src-tauri/src/interrupt.rs`, `src-tauri/src/os_events.rs`
 **Severity:** 6 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 2 Rust files, touches all 3 platform blocks plus the shared poll thread
+**Complexity:** ⚡ Direct — 2 files, no package boundary, no matched scope-trigger word (rubric-mechanical label; real coupling risk across 3 platform blocks noted in the batch header's parallelism rationale, not reflected by this label alone)
 **Blocked by:** Nothing | **Blocks:** #526
 **Done when:** New unit tests (matching `os_events.rs`'s existing pure-guard-function test pattern) prove: an OS event with `now - last_triggered < interval_secs` does not fire even when due; a scheduled or OS-triggered check that finds nothing due does not change `last_triggered_secs`. `mark_interrupt_fired` command exists and is the only writer of `last_triggered_secs`. `cargo check`/`cargo test` clean on macOS host (does not compile-check Windows/Linux `cfg` blocks — same caveat as Tasks #166/#167; a real CI build on each target is still required before calling this done end-to-end).
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W1A/Adam. New shared `interval_elapsed()` gate used by both the scheduled poll and all 3 platforms' OS-event handlers in `os_events.rs`. New `mark_interrupt_fired` Tauri command is now the sole writer of `last_triggered_secs`; the poll thread and `emit_interrupt()` no longer touch it. 17 new/extended Rust tests, 35/35 total pass. Known, scoped interim state until Task #526 wires the JS caller: the scheduled poll can still re-emit every 30s once the interval elapses, since nothing calls `mark_interrupt_fired` yet — matches the architecture doc's own model, not a bug.)
 
 ---
 
@@ -10556,6 +10558,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** Nothing | **Blocks:** #527, #528
 **Done when:** Migration matches the schema in `docs/INTERRUPT_ARCHITECTURE.md` §5 (`id`, `user_id`, `event_type` check-constrained to `'fired'`/`'snoozed'`, `occurred_at`, `effective_until`, `device_id`, `created_at`). RLS enabled, scoped to `auth.uid() = user_id` for select/insert (matches `push_tokens`' policy shape — a user only ever sees/writes their own rows; no update/delete policy needed, append-only). Migration applies cleanly against a local/staging Supabase instance.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W1C/Charles. `supabase/migrations/20260813000000_interrupt_gate_events.sql` — matches the doc's schema exactly, plus a `(user_id, effective_until desc)` index for the hot-path read. Verified by hand against a real local Postgres instance (Supabase CLI unavailable in this environment) — table/index/constraints/RLS policies all confirmed via `\d` and `pg_policies`, plus a re-run idempotency check. Blocks #527/#528, both now unblocked.)
 
 ---
 
@@ -10564,7 +10567,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** Closes the loop Task #524 opens: the Rust side stops auto-advancing the clock on emit, so nothing advances it at all until this task wires up the confirmation. Both tasks are needed together for the desktop clock semantics to actually work end to end.
 **File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 file, one new IPC call at an existing decision point
+**Complexity:** ⚡ Direct — 2 files, one new IPC call at an existing decision point
 **Blocked by:** #524 | **Blocks:** #529
 **Done when:** A test proves `mark_interrupt_fired` is called exactly when real content is shown (both mandatory and passive branches) and NOT called when `totalDue === 0` short-circuits. `npx tsc --noEmit`, full test suite, lint clean.
 **Owner:** Architecture Agent
@@ -10576,7 +10579,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** Without this, mobile push and desktop remain on two completely separate clocks even after Task #525's table exists — the cross-device coordination problem isn't actually solved until mobile's dispatch reads/writes the same shared state desktop will. See `docs/INTERRUPT_ARCHITECTURE.md` §5.
 **File:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts`, and their Vitest-tested counterparts (`tests/` or co-located, per this directory's existing pure-function-testing pattern — see `index.ts`'s own header on why Deno-only wiring is excluded from `tsc`)
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 2 files, changes the core dispatch-gating query
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts), changes the core dispatch-gating query
 **Blocked by:** #525 | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
 **Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
 **Owner:** Architecture Agent
@@ -10588,7 +10591,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** The shared-gate read/write logic needs to live somewhere both the OS-event path and the snooze button can call — a dedicated `lib/` module keeps it testable in isolation (mocked Supabase calls) rather than duplicated inline in two different UI entry points.
 **File:** New `lib/interruptGate.ts`, `lib/interruptGate.test.ts`
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 1 new file, no UI wiring yet (that's #529/#530)
+**Complexity:** ⚡ Direct — 2 files, no UI wiring yet (that's #529/#530)
 **Blocked by:** #525 | **Blocks:** #529, #530
 **Done when:** Read function returns the gate state or an explicit timeout/unknown signal within the configured timeout, tested with a mocked slow/failing Supabase client. Write function correctly computes `effective_until` for both `fired` (occurred_at + interval) and `snoozed` (occurred_at + snooze minutes) event types. No React, no Zustand imports (matches CLAUDE.md's Layer Map for `lib/`).
 **Owner:** Architecture Agent
@@ -10600,7 +10603,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** This is the task that actually makes cross-device coordination real — #525/#527/#528 build the pieces, this is where desktop starts using them for real firing decisions instead of only its local clock.
 **File:** `components/InterruptHandler.tsx` (or a new co-located hook if this pushes the file past its size cap, matching the project's existing extraction pattern for oversized files)
 **Severity:** 6 | **DoD Tier:** 3
-**Complexity:** 🔧 Full — cross-cutting logic change to the core firing decision path
+**Complexity:** ⚡ Direct — 1 file, no matched scope-trigger word (rubric-mechanical label; genuinely cross-cutting in effect since it's the task that makes #526/#528 actually load-bearing, not reflected by file count alone)
 **Blocked by:** #526, #528 | **Blocks:** Nothing
 **Done when:** Tests prove: a fresh `fired` event from another device (simulated) suppresses a local fire that would otherwise have happened; a gate-check timeout still allows a local fire (fire-anyway fallback); a real local fire writes a `fired` event. Full verification gate clean.
 **Owner:** Architecture Agent
@@ -10612,7 +10615,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Why:** Without this, a user who snoozes on their phone gets no relief on their desktop a few minutes later, and vice versa — directly the scenario Max raised. This is a genuinely new capability for mobile (which has no snooze concept at all today), not just syncing an existing one. See `docs/INTERRUPT_ARCHITECTURE.md` §8.
 **File:** `lib/tauriInterrupt.ts`, `app/study/page.tsx` (the "Snooze X min" button call site), relevant test files
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — small addition to an existing call path
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts)
 **Blocked by:** #528 | **Blocks:** Nothing
 **Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
 **Owner:** Architecture Agent
@@ -10628,6 +10631,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** Nothing — **RESOLVED 2026-08-13: Max confirmed 90 minutes, unified across both platforms.** | **Blocks:** Nothing
 **Done when:** Desktop's default is 90 minutes. Existing users' already-persisted custom interval settings are untouched (this only changes the *default* for new installs / never-configured users).
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W1A/Adam. `interrupt.rs`'s default is now `90 * 60`; `settingsStore.ts`'s `INTERVAL_OPTIONS` extended to include 1.5h with `intervalHours` defaulting to it. No version bump needed — default-value-only change, zustand's `persist` only applies the `create()` default when no persisted state exists at all. Existing users' custom settings untouched, confirmed by a dedicated fresh-module-import test.)
 
 ---
 
@@ -10640,6 +10644,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** Nothing — **RESOLVED 2026-08-13: Max confirmed merge into one shared, synced setting** (not "keep separate"). | **Blocks:** Nothing
 **Done when:** One synced setting governs both desktop and mobile's quiet-hours behavior, replacing the two independent concepts. `docs/INTERRUPT_ARCHITECTURE.md`'s "Open questions" section already reflects this decision.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W1A/Adam. `store/settingsStore.ts`'s `dndStart`/`dndEnd` are now documented as the single canonical shared quiet-hours setting; default realigned to `"21:00"`/`"08:00"` — the exact complement of mobile's waking-hours default (8–21), fixing a prior 1-hour misalignment between the two platforms. New pure conversion helpers `dndWindowToWakingHours`/`wakingHoursToDndWindow` bridge desktop's "HH:MM" shape and `push_tokens`' whole-hour smallint columns, ready for the future desktop sync layer to call — no live cross-device write-through exists yet, since that layer isn't built (correctly not overclaimed in UI copy). Wire shape/signature of `dndStart`/`dndEnd`/`isInDnd()` deliberately UNCHANGED — Adam could not touch `hooks/useInterruptConfig.ts`/`InterruptHandler.tsx` (owned by other streams), so the semantic coupling flagged by pre-wave analysis (§532→#526/#527/#529) is resolved by preserving the existing contract rather than by coordinating a breaking change.)
 
 ---
 

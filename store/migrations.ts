@@ -315,7 +315,11 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       interruptEnabled: typeof d.interruptEnabled === "boolean" ? d.interruptEnabled : false,
       intervalHours:    typeof d.intervalHours === "number" ? d.intervalHours : 3,
       mandatory:        typeof d.mandatory === "boolean" ? d.mandatory : false,
-      dndStart:         typeof d.dndStart === "string" ? d.dndStart : "22:00",
+      // Task #532: fallback aligned to settingsStore.ts's new canonical default (21:00–08:00,
+      // the exact complement of mobile's push_tokens waking-hours default 8-21) — this branch
+      // only ever fires for pre-v1 data missing dndStart/dndEnd entirely (already-corrupt/
+      // legacy), so realigning it does not change any real user's already-migrated value.
+      dndStart:         typeof d.dndStart === "string" ? d.dndStart : "21:00",
       dndEnd:           typeof d.dndEnd === "string" ? d.dndEnd : "08:00",
       snoozeMinutes:    typeof d.snoozeMinutes === "number" ? d.snoozeMinutes : 30,
     };

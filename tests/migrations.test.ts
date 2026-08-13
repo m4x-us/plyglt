@@ -873,7 +873,9 @@ describe("migrateSettingsStore()", () => {
     expect(result.interruptEnabled).toBe(false);
     expect(result.intervalHours).toBe(3);
     expect(result.mandatory).toBe(false);
-    expect(result.dndStart).toBe("22:00");
+    // Task #532: fallback realigned to 21:00 — the exact complement of mobile's push_tokens
+    // waking-hours default (8-21) — see store/migrations.ts's dndStart fallback comment.
+    expect(result.dndStart).toBe("21:00");
     expect(result.dndEnd).toBe("08:00");
     expect(result.snoozeMinutes).toBe(30);
   });

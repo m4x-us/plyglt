@@ -1,87 +1,78 @@
 ---
 status: done
 agent: barry
-stream: W25B
-wave: 25
+stream: W1B
+wave: 1
 ---
 
-# Barry — Stream W25B — Wave 25 — 2026-07-28
+# Barry — Stream W1B — Wave 1 — 2026-08-13
 
-IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions:
-— Barry | W25B | #489 #490
+IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
+(including short replies, confirmations, and one-word answers):
+— Barry | W1B | #523
 
 You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
-You (this same worker identity, prior wave) already landed Task #488 in Wave 24, which rewrote
-entitlementCrossTabSync.ts's doc comment to name both tested failure sources (getItem-throws,
-migrate()-throws) explicitly and scope the "confirmed with a live regression test" claim
-accordingly. Both of today's tasks are follow-up doc-reconciliation work on that same comment —
-read the CURRENT state of the file first; a lot of #489/#490's raw material may already be
-addressed by #488's rewrite. Don't assume the original finding text describes the file as it
-exists today — verify against the actual current doc comment before deciding what's left to fix.
-
 ## Your Tasks (run in this exact order)
-1. /task #489 — Fix code-quality: entitlementCrossTabSync's Task #482 comment justifies keeping dead code via a generality the file's own header disclaims
-2. /task #490 — Fix code-quality: entitlementCrossTabSync's "confirmed with a live regression test" claim overstates what the cited test actually proves
+1. /task #523  — Fix computeDue() to count introduction/new cards
 
-STATUS BOARD RULE — MANDATORY: After every completed /task, print your current status board:
+STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
+the next one, print your current status board in this exact format:
 
-Barry — W25B
-[✓] #489 — header vs comment contradiction   ← done
-[→] #490 — "confirmed with a test" overclaim   ← starting now
+Barry — W1B
+[→] #523 — Fix computeDue() to count introduction/new cards   ← starting now
 
-Then proceed to the next task.
+Then proceed to the next task. This lets Max glance at any window and know
+exactly where you are.
 
 ## Files You Own (edit ONLY these)
-store/entitlementCrossTabSync.ts
+hooks/useInterruptConfig.ts
+hooks/useInterruptConfig.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/importBackup.ts
-tests/importBackup.test.ts
+src-tauri/src/interrupt.rs
+src-tauri/src/os_events.rs
+store/settingsStore.ts
+store/migrations.ts
+app/settings/page.tsx
+supabase/migrations/ (Charles's new interrupt_gate_events file)
 
 ## Task Definitions
 
-### Task #489: Fix code-quality: entitlementCrossTabSync's Task #482 comment justifies keeping dead code via a generality the file's own header disclaims
+### Task #523 | correctness | severity 5
+**What:** `hooks/useInterruptConfig.ts`'s `computeDue()` only sums `store/srsStore.ts`'s `getStats(unitCards).due` (cards with `reps > 0 && isDue(now)`). Extend it to also count cards due via `getIntroductionDueCardIds` (the intensive introduction cadence) and qualifying new cards via `getNewCards` — the same content `lib/queue.ts`'s `buildQueue` already pulls in for a session, just missing from the fire-gate.
+**Why:** Today, on a day where a user has only an introduction-phase card needing its next appearance (per BRAND.md's "appears every interrupt on Day 1" cadence table) and zero traditional FSRS reviews due, `computeDue()` returns 0 and the interrupt never fires — silently breaking the introduction engine's own cadence promise. See `docs/INTERRUPT_ARCHITECTURE.md` §2.
+**File:** `hooks/useInterruptConfig.ts`, `hooks/useInterruptConfig.test.ts` (new or extended)
+**Severity:** 5 | **DoD Tier:** 2
+**Complexity:** ⚡ Direct — 2 files, single-scope logic fix
+**Blocked by:** Nothing | **Blocks:** Nothing (independent of the rest of this batch)
+**Done when:** A test proves `computeDue` returns non-zero when the only due content is an introduction-cadence card or a qualifying new card (today's implementation would return 0 for both — this is the Deletion Test). `npx tsc --noEmit`, full test suite, lint all clean.
+**Owner:** Architecture Agent
 
-**File:** store/entitlementCrossTabSync.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Blocked by:** Task #488 (COMPLETE — Wave 24 already rewrote most of the relevant doc comment)
-**Priority:** P3
+## Agent Memories
 
-**What:**
-The module header states this module is "USED BY: store/entitlementStore.ts ONLY" and warns that calling it twice for the same store key duplicates listeners. The Task #482 comment justifies leaving the dead reject-branch in place by citing possible future reuse of this module "with a non-Zustand or differently-configured rehydrate function." A module whose own header discloses exactly one caller cannot justify unreachable code by invoking a generality its own header disclaims two paragraphs above. at store/entitlementCrossTabSync.ts (header block vs Task #482 inline comment).
-
-**Acceptance Criteria:**
-- [ ] Reconcile the header's single-caller claim with the doc comment's multi-caller justification — either the header's scope claim is updated to reflect genuine intended reuse, or the doc comment's justification is narrowed to something consistent with a single-caller module
-- [ ] No behavior change required unless Task #488 also changes something here
-
-**Source:** Cycle-10 audit finding F005 — severity 5 — Rule 20 violation.
-
----
-
-### Task #490: Fix code-quality: entitlementCrossTabSync's "confirmed with a live regression test" claim overstates what the cited test actually proves
-
-**File:** store/entitlementCrossTabSync.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Blocked by:** Task #488 (COMPLETE — Wave 24 already rewrote the doc comment to name both tested failure sources explicitly; verify whether this task's remaining scope is already closed by that rewrite before doing new work)
-**Priority:** P3
-
-**What:**
-The Task #482 doc comment states the dead-branch claim is "confirmed with a live regression test." The cited test exercises only one failure injection (`getItem` rejects, no `onRehydrateStorage`); zustand's actual catch-all also applies to `migrate()` throwing, `merge()` throwing, and `setItem()` re-persist rejecting, none of which the test triggers. The word "confirmed" attached to the full blanket claim rather than the narrower tested sub-case is not literally true. at store/entitlementCrossTabSync.ts (Task #482 comment block).
-
-**Acceptance Criteria:**
-- [ ] Narrow the doc comment's claim to name specifically which failure path the cited test covers, rather than implying full coverage of every path that funnels into zustand's swallowed catch
-- [ ] If Wave 24's Task #488 rewrite already lists both tested failure sources (getItem-throws, migrate()-throws) by name and no longer makes a blanket "any rejection path" claim, this task may already be substantively closed — confirm explicitly by re-reading the current comment, and if so, mark this complete with a note explaining why, rather than rewriting a comment that's already accurate. There may still be a residual gap: `merge()` throwing and `setItem()` re-persist rejecting are two more zustand paths into the same swallowed catch that neither #482 nor #488 tested — decide whether those are worth a mention or a further tracked-debt note.
-
-**Source:** Cycle-10 audit finding F006 — severity 4.
+## Architect Agent Memory (first 150 lines)
+[Full first 150 lines of .autocode/agents/architect.md — layer structure, key files/blast
+radius. Relevant here: `store/srsStore.ts` is the project's highest blast-radius file (20
+importers) — read, don't modify it; this task only reads its existing exports
+(`getIntroductionDueCardIds`, `getNewCards`), it doesn't change srsStore.ts itself.
+`hooks/` compose `store/` + `lib/` per CLAUDE.md's Layer Map — this task stays within that
+boundary.]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W25B/completion.md, beginning with:
+Write your completion summary to .autocode/stream-W1B/completion.md. The file
+MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #489 #490
+CLOSED: #523
 NOT_CLOSED: none
 
-(or the appropriate variant). Then prose detail. Then tell Max: "Barry is done."
+(If not closed, list it with a one-line reason instead.)
 
-— Barry | W25B | #489 #490
+After those two lines, write whatever prose detail is useful:
+  Debt entries logged: [count]
+  Carry-forward tasks generated: [count]
+
+Then tell Max in this window: "Barry is done." (or describe what's incomplete).
+
+— Barry | W1B | #523

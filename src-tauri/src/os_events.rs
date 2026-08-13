@@ -13,11 +13,14 @@
 //             were considered and rejected: XScreenSaverQueryInfo needs X11 and is inert under
 //             Wayland; /proc/uptime is system boot time, not user input idle time, and cannot
 //             detect an idle→active edge at all. IdleHint is compositor-agnostic. (Task #167)
-// All platforms share the same enabled/snooze guard shape and call the same emit_interrupt()
-// helper, which resets last_triggered_secs so the interval-timer poll in interrupt.rs does not
-// double-fire. Each platform runs on its own single named background thread started at app
-// startup from start_os_listeners, called once from lib.rs.
-// Imports: crate::interrupt::{InterruptState, now_secs}. Used by: lib.rs.
+// All platforms share the same enabled/snooze/interval-elapsed guard shape (Task #524 — wake,
+// unlock, and idle→active are check-in moments against the SAME interval_elapsed gate the
+// scheduled poll in interrupt.rs uses, never an independent trigger authority; see
+// docs/INTERRUPT_ARCHITECTURE.md §4) and call the same emit_interrupt() helper, which does NOT
+// touch last_triggered_secs — only interrupt.rs's mark_interrupt_fired command does that, once
+// the JS layer actually shows a session with real content. Each platform runs on its own single
+// named background thread started at app startup from start_os_listeners, called once from lib.rs.
+// Imports: crate::interrupt::{InterruptState, now_secs, interval_elapsed}. Used by: lib.rs.
 //
 // Not written or compiled on real Windows/Linux hardware originally (2026-07-31) — only the
 // macOS target was available locally. `.github/workflows/release.yml`'s real windows-latest and
@@ -36,7 +39,7 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use crate::interrupt::{InterruptState, now_secs};
+use crate::interrupt::{InterruptState, interval_elapsed, now_secs};
 
 /// Poll interval for OS-event detection — shorter than the 30 s interrupt poll for responsiveness.
 const OS_POLL_SECS: u64 = 5;
@@ -150,9 +153,10 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                 // Each tick fires at most ONE interrupt regardless of how many detectors trigger.
                 // Without this guard, a lid-open (sleep+lock→wake+unlock) emits two rapid-fire
                 // events in the same 5 s tick, which can cause overlapping sessions in the frontend.
-                // OS events intentionally bypass interval_secs — a wake or unlock should always
-                // interrupt regardless of the configured schedule.  last_triggered_secs is reset
-                // (preventing a double-fire from the interval poll) but not checked here.
+                // Task #524: OS events no longer bypass interval_secs — each detector below also
+                // requires interval_elapsed(now, last_triggered, interval_secs), the same gate the
+                // scheduled poll in interrupt.rs uses. A wake/unlock/idle-return is a check-in
+                // moment against the shared schedule, not an independent trigger.
                 let mut tick_fired = false;
 
                 // All FFI calls and state logic are wrapped together so a panic in either the
@@ -173,11 +177,13 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                     was_locked = is_locked; // advance before possible emit
 
                     // ── Guard state (read once, release lock before any emit) ──────────────────
-                    let (enabled, snooze_until, mandatory, wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs) = {
+                    let (enabled, snooze_until, mandatory, wake_enabled, unlock_enabled, idle_enabled, idle_threshold_secs, interval_secs, last_triggered) = {
                         let Ok(st) = state.lock() else { return; };
                         (st.enabled, st.snooze_until_secs, st.mandatory,
-                         st.wake_enabled, st.unlock_enabled, st.idle_enabled, st.idle_threshold_secs)
+                         st.wake_enabled, st.unlock_enabled, st.idle_enabled, st.idle_threshold_secs,
+                         st.interval_secs, st.last_triggered_secs)
                     };
+                    let interval_ok = interval_elapsed(now, last_triggered, interval_secs);
 
                     let idle_secs = idle_seconds();
                     let is_idle = idle_secs >= idle_threshold_secs as f64;
@@ -190,14 +196,15 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                         && enabled
                         && wake_enabled
                         && now >= snooze_until
+                        && interval_ok
                     {
-                        emit_interrupt(&app, &state, now, mandatory);
+                        emit_interrupt(&app, mandatory);
                         tick_fired = true;
                     }
 
                     // ── Unlock detection ────────────────────────────────────────────────────────
-                    if !tick_fired && prev_locked && !is_locked && enabled && unlock_enabled && now >= snooze_until {
-                        emit_interrupt(&app, &state, now, mandatory);
+                    if !tick_fired && prev_locked && !is_locked && enabled && unlock_enabled && now >= snooze_until && interval_ok {
+                        emit_interrupt(&app, mandatory);
                         tick_fired = true;
                     }
 
@@ -205,8 +212,8 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
                     // Fires on the idle→active edge.  No separate cooldown is needed: once
                     // prev_idle is false the user must idle for another idle_threshold_secs
                     // before the next fire is possible.
-                    if !tick_fired && prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until {
-                        emit_interrupt(&app, &state, now, mandatory);
+                    if !tick_fired && prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until && interval_ok {
+                        emit_interrupt(&app, mandatory);
                         // tick_fired = true; — kept for symmetry if a 4th detector is ever added
                     }
                 }));
@@ -234,18 +241,12 @@ pub fn start_os_listeners(app: AppHandle, state: Arc<Mutex<InterruptState>>) {
 
 // ── Shared helpers (all platforms) ────────────────────────────────────────────────────────────
 
-/// Emit "interrupt:fire" and update last_triggered_secs so the interval-timer poll in
-/// interrupt.rs does not fire again immediately after an OS-event trigger. Body has no
-/// platform-specific code — shared by macOS, Windows, and Linux.
-fn emit_interrupt(
-    app: &AppHandle,
-    state: &Arc<Mutex<InterruptState>>,
-    now: u64,
-    mandatory: bool,
-) {
-    if let Ok(mut st) = state.lock() {
-        st.last_triggered_secs = now;
-    }
+/// Emit "interrupt:fire" to the JS frontend. Task #524: no longer touches
+/// last_triggered_secs — that clock now only advances via interrupt.rs's mark_interrupt_fired
+/// command, called by the JS layer once it actually shows a session with real content (so this
+/// helper no longer needs the state/now params the pre-#524 version used to write the clock).
+/// Body has no platform-specific code — shared by macOS, Windows, and Linux.
+fn emit_interrupt(app: &AppHandle, mandatory: bool) {
     let _ = app.emit("interrupt:fire", mandatory);
 }
 
@@ -308,7 +309,7 @@ mod windows_impl {
     use std::thread;
     use tauri::{AppHandle, Emitter};
 
-    use crate::interrupt::{now_secs, InterruptState};
+    use crate::interrupt::{interval_elapsed, now_secs, InterruptState};
     use super::emit_interrupt;
 
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
@@ -499,11 +500,12 @@ mod windows_impl {
             let Some(loop_state) = borrow.as_ref() else { return };
 
             let now = now_secs();
-            let (enabled, snooze_until, mandatory, wake_enabled, unlock_enabled) = {
+            let (enabled, snooze_until, mandatory, wake_enabled, unlock_enabled, interval_secs, last_triggered) = {
                 let Ok(st) = loop_state.state.lock() else { return };
-                (st.enabled, st.snooze_until_secs, st.mandatory, st.wake_enabled, st.unlock_enabled)
+                (st.enabled, st.snooze_until_secs, st.mandatory, st.wake_enabled, st.unlock_enabled,
+                 st.interval_secs, st.last_triggered_secs)
             };
-            if !enabled || now < snooze_until {
+            if !enabled || now < snooze_until || !interval_elapsed(now, last_triggered, interval_secs) {
                 return;
             }
             let should_fire = match kind {
@@ -511,7 +513,7 @@ mod windows_impl {
                 EventKind::Unlock => unlock_enabled,
             };
             if should_fire {
-                emit_interrupt(&loop_state.app, &loop_state.state, now, mandatory);
+                emit_interrupt(&loop_state.app, mandatory);
             }
         });
     }
@@ -523,9 +525,10 @@ mod windows_impl {
             let Some(loop_state) = borrow.as_mut() else { return };
 
             let now = now_secs();
-            let (enabled, snooze_until, mandatory, idle_enabled, idle_threshold_secs) = {
+            let (enabled, snooze_until, mandatory, idle_enabled, idle_threshold_secs, interval_secs, last_triggered) = {
                 let Ok(st) = loop_state.state.lock() else { return };
-                (st.enabled, st.snooze_until_secs, st.mandatory, st.idle_enabled, st.idle_threshold_secs)
+                (st.enabled, st.snooze_until_secs, st.mandatory, st.idle_enabled, st.idle_threshold_secs,
+                 st.interval_secs, st.last_triggered_secs)
             };
 
             let idle_secs = idle_seconds();
@@ -533,8 +536,10 @@ mod windows_impl {
             let prev_idle = loop_state.was_idle;
             loop_state.was_idle = is_idle; // advance before possible emit
 
-            if prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until {
-                emit_interrupt(&loop_state.app, &loop_state.state, now, mandatory);
+            if prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until
+                && interval_elapsed(now, last_triggered, interval_secs)
+            {
+                emit_interrupt(&loop_state.app, mandatory);
             }
         });
     }
@@ -578,7 +583,7 @@ mod linux_impl {
     use std::time::Duration;
     use tauri::{AppHandle, Emitter};
 
-    use crate::interrupt::{now_secs, InterruptState};
+    use crate::interrupt::{interval_elapsed, now_secs, InterruptState};
     use super::emit_interrupt;
 
     use futures_util::StreamExt;
@@ -725,23 +730,23 @@ mod linux_impl {
 
     async fn on_wake(app: &AppHandle, state: &Arc<Mutex<InterruptState>>) {
         let now = now_secs();
-        let (enabled, snooze_until, mandatory, wake_enabled) = {
+        let (enabled, snooze_until, mandatory, wake_enabled, interval_secs, last_triggered) = {
             let Ok(st) = state.lock() else { return };
-            (st.enabled, st.snooze_until_secs, st.mandatory, st.wake_enabled)
+            (st.enabled, st.snooze_until_secs, st.mandatory, st.wake_enabled, st.interval_secs, st.last_triggered_secs)
         };
-        if enabled && wake_enabled && now >= snooze_until {
-            emit_interrupt(app, state, now, mandatory);
+        if enabled && wake_enabled && now >= snooze_until && interval_elapsed(now, last_triggered, interval_secs) {
+            emit_interrupt(app, mandatory);
         }
     }
 
     async fn on_unlock(app: &AppHandle, state: &Arc<Mutex<InterruptState>>) {
         let now = now_secs();
-        let (enabled, snooze_until, mandatory, unlock_enabled) = {
+        let (enabled, snooze_until, mandatory, unlock_enabled, interval_secs, last_triggered) = {
             let Ok(st) = state.lock() else { return };
-            (st.enabled, st.snooze_until_secs, st.mandatory, st.unlock_enabled)
+            (st.enabled, st.snooze_until_secs, st.mandatory, st.unlock_enabled, st.interval_secs, st.last_triggered_secs)
         };
-        if enabled && unlock_enabled && now >= snooze_until {
-            emit_interrupt(app, state, now, mandatory);
+        if enabled && unlock_enabled && now >= snooze_until && interval_elapsed(now, last_triggered, interval_secs) {
+            emit_interrupt(app, mandatory);
         }
     }
 
@@ -755,9 +760,9 @@ mod linux_impl {
         was_idle: bool,
     ) -> bool {
         let now = now_secs();
-        let (enabled, snooze_until, mandatory, idle_enabled) = {
+        let (enabled, snooze_until, mandatory, idle_enabled, interval_secs, last_triggered) = {
             let Ok(st) = state.lock() else { return was_idle };
-            (st.enabled, st.snooze_until_secs, st.mandatory, st.idle_enabled)
+            (st.enabled, st.snooze_until_secs, st.mandatory, st.idle_enabled, st.interval_secs, st.last_triggered_secs)
         };
 
         // idle_threshold_secs is enforced by logind's own IdleAction/IdleActionSec config for
@@ -773,8 +778,10 @@ mod linux_impl {
             Err(_) => return was_idle, // query failed — hold previous state, try again next tick
         };
 
-        if was_idle && !is_idle && enabled && idle_enabled && now >= snooze_until {
-            emit_interrupt(app, state, now, mandatory);
+        if was_idle && !is_idle && enabled && idle_enabled && now >= snooze_until
+            && interval_elapsed(now, last_triggered, interval_secs)
+        {
+            emit_interrupt(app, mandatory);
         }
         is_idle
     }
@@ -785,38 +792,50 @@ mod linux_impl {
 #[cfg(test)]
 mod tests {
     use super::WAKE_THRESHOLD_SECS;
+    use crate::interrupt::interval_elapsed;
 
     // Pure guard-condition helpers that mirror the detection branches in start_os_listeners.
     // Testing these directly avoids needing a Tauri AppHandle or macOS FFI in unit tests.
+    //
+    // Task #524: every helper below now also takes (interval_secs, last_triggered) and gates on
+    // interval_elapsed(now, last_triggered, interval_secs) — the same shared gate the scheduled
+    // poll in interrupt.rs uses. Pre-#524 tests that weren't about the interval gate itself pass
+    // ALWAYS_ELAPSED (interval_secs=1, last_triggered=0) so the interval condition is trivially
+    // true and the original assertions still isolate the behavior they were written to test.
 
-    fn wake_fires(elapsed: u64, enabled: bool, wake_enabled: bool, now: u64, snooze_until: u64) -> bool {
+    const ALWAYS_ELAPSED: (u64, u64) = (1, 0); // (interval_secs, last_triggered) — always satisfied at now=1000+
+
+    fn wake_fires(elapsed: u64, enabled: bool, wake_enabled: bool, now: u64, snooze_until: u64, interval_secs: u64, last_triggered: u64) -> bool {
         elapsed > WAKE_THRESHOLD_SECS && enabled && wake_enabled && now >= snooze_until
+            && interval_elapsed(now, last_triggered, interval_secs)
     }
 
-    fn unlock_fires(prev_locked: bool, is_locked: bool, enabled: bool, unlock_enabled: bool, now: u64, snooze_until: u64) -> bool {
+    fn unlock_fires(prev_locked: bool, is_locked: bool, enabled: bool, unlock_enabled: bool, now: u64, snooze_until: u64, interval_secs: u64, last_triggered: u64) -> bool {
         prev_locked && !is_locked && enabled && unlock_enabled && now >= snooze_until
+            && interval_elapsed(now, last_triggered, interval_secs)
     }
 
-    fn idle_fires(prev_idle: bool, is_idle: bool, enabled: bool, idle_enabled: bool, now: u64, snooze_until: u64) -> bool {
+    fn idle_fires(prev_idle: bool, is_idle: bool, enabled: bool, idle_enabled: bool, now: u64, snooze_until: u64, interval_secs: u64, last_triggered: u64) -> bool {
         prev_idle && !is_idle && enabled && idle_enabled && now >= snooze_until
+            && interval_elapsed(now, last_triggered, interval_secs)
     }
 
     // #187 — wake_enabled gates wake detection
 
     #[test]
     fn wake_disabled_suppresses_wake_interrupt() {
-        assert!(!wake_fires(WAKE_THRESHOLD_SECS + 1, true, false, 1000, 0),
+        assert!(!wake_fires(WAKE_THRESHOLD_SECS + 1, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "wake_enabled=false must suppress interrupt even when all other conditions are met");
     }
 
     #[test]
     fn wake_enabled_fires_when_conditions_met() {
-        assert!(wake_fires(WAKE_THRESHOLD_SECS + 1, true, true, 1000, 0));
+        assert!(wake_fires(WAKE_THRESHOLD_SECS + 1, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     #[test]
     fn wake_below_threshold_never_fires() {
-        assert!(!wake_fires(WAKE_THRESHOLD_SECS, true, true, 1000, 0),
+        assert!(!wake_fires(WAKE_THRESHOLD_SECS, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "elapsed must exceed WAKE_THRESHOLD_SECS, not merely equal it");
     }
 
@@ -824,18 +843,18 @@ mod tests {
 
     #[test]
     fn unlock_disabled_suppresses_unlock_interrupt() {
-        assert!(!unlock_fires(true, false, true, false, 1000, 0),
+        assert!(!unlock_fires(true, false, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "unlock_enabled=false must suppress interrupt on lock→unlock transition");
     }
 
     #[test]
     fn unlock_enabled_fires_on_lock_edge() {
-        assert!(unlock_fires(true, false, true, true, 1000, 0));
+        assert!(unlock_fires(true, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     #[test]
     fn unlock_no_fire_without_prior_lock() {
-        assert!(!unlock_fires(false, false, true, true, 1000, 0),
+        assert!(!unlock_fires(false, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "no fire unless prev_locked was true");
     }
 
@@ -843,19 +862,47 @@ mod tests {
 
     #[test]
     fn idle_disabled_suppresses_idle_return_interrupt() {
-        assert!(!idle_fires(true, false, true, false, 1000, 0),
+        assert!(!idle_fires(true, false, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "idle_enabled=false must suppress interrupt on idle→active transition");
     }
 
     #[test]
     fn idle_enabled_fires_on_active_return() {
-        assert!(idle_fires(true, false, true, true, 1000, 0));
+        assert!(idle_fires(true, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     #[test]
     fn idle_no_fire_without_prior_idle() {
-        assert!(!idle_fires(false, false, true, true, 1000, 0),
+        assert!(!idle_fires(false, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "no fire unless user was previously idle");
+    }
+
+    // ── Task #524 — OS events respect interval_secs the same as the scheduled poll ─────────────
+
+    #[test]
+    fn wake_does_not_fire_when_interval_not_yet_elapsed_even_though_due() {
+        // A real wake event, wake_enabled, not snoozed — but only 10s have passed since
+        // last_triggered against a 90-minute (5400s) interval. Must not fire.
+        assert!(!wake_fires(WAKE_THRESHOLD_SECS + 1, true, true, 1010, 0, 5400, 1000),
+            "OS wake events must not bypass interval_secs — this is the exact bug Task #524 fixes");
+    }
+
+    #[test]
+    fn unlock_does_not_fire_when_interval_not_yet_elapsed_even_though_due() {
+        assert!(!unlock_fires(true, false, true, true, 1010, 0, 5400, 1000),
+            "OS unlock events must not bypass interval_secs — locking/unlocking 15x/day must not mean 15 interrupts");
+    }
+
+    #[test]
+    fn idle_return_does_not_fire_when_interval_not_yet_elapsed_even_though_due() {
+        assert!(!idle_fires(true, false, true, true, 1010, 0, 5400, 1000),
+            "OS idle-return events must not bypass interval_secs");
+    }
+
+    #[test]
+    fn wake_fires_once_interval_has_actually_elapsed() {
+        assert!(wake_fires(WAKE_THRESHOLD_SECS + 1, true, true, 1000 + 5400, 0, 5400, 1000),
+            "once the full interval has genuinely elapsed, a real wake event fires normally");
     }
 
     // #190 — idle_threshold_secs from state replaces hardcoded constant
@@ -888,38 +935,45 @@ mod tests {
     // OS event (WM_POWERBROADCAST/PBT_APMRESUMEAUTOMATIC; logind's PrepareForSleep(false)) with
     // no elapsed-time heuristic — event_wake_fires below models that different guard shape.
 
-    fn event_wake_fires(event_occurred: bool, enabled: bool, wake_enabled: bool, now: u64, snooze_until: u64) -> bool {
+    fn event_wake_fires(event_occurred: bool, enabled: bool, wake_enabled: bool, now: u64, snooze_until: u64, interval_secs: u64, last_triggered: u64) -> bool {
         event_occurred && enabled && wake_enabled && now >= snooze_until
+            && interval_elapsed(now, last_triggered, interval_secs)
     }
 
     #[test]
     fn event_wake_disabled_suppresses_wake_interrupt() {
-        assert!(!event_wake_fires(true, true, false, 1000, 0),
+        assert!(!event_wake_fires(true, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "wake_enabled=false must suppress interrupt even when the OS reported a real resume event");
     }
 
     #[test]
     fn event_wake_enabled_fires_when_conditions_met() {
-        assert!(event_wake_fires(true, true, true, 1000, 0));
+        assert!(event_wake_fires(true, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     #[test]
     fn event_wake_no_event_never_fires() {
-        assert!(!event_wake_fires(false, true, true, 1000, 0),
+        assert!(!event_wake_fires(false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "no resume event occurred this tick — must not fire regardless of other flags");
     }
 
     #[test]
     fn event_wake_respects_snooze() {
-        assert!(!event_wake_fires(true, true, true, 1000, 2000),
+        assert!(!event_wake_fires(true, true, true, 1000, 2000, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "now < snooze_until must suppress even a real resume event");
+    }
+
+    #[test]
+    fn event_wake_respects_interval_even_on_a_real_os_event() {
+        assert!(!event_wake_fires(true, true, true, 1010, 0, 5400, 1000),
+            "Windows/Linux receive wake as a real OS event, but it must still respect interval_secs (Task #524)");
     }
 
     // Windows/Linux reuse of unlock_fires — same shape, different event source per platform.
 
     #[test]
     fn windows_linux_unlock_disabled_suppresses_unlock_interrupt() {
-        assert!(!unlock_fires(true, false, true, false, 1000, 0),
+        assert!(!unlock_fires(true, false, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1),
             "unlock_enabled=false must suppress WM_WTSSESSION_CHANGE/logind Unlock the same way it suppresses macOS's polled unlock");
     }
 
@@ -927,7 +981,7 @@ mod tests {
     fn windows_linux_unlock_fires_on_real_event() {
         // Windows/Linux don't poll prev/current lock state — the OS event itself IS the edge.
         // Modeled here as prev_locked=true, is_locked=false (the edge unlock_fires expects).
-        assert!(unlock_fires(true, false, true, true, 1000, 0));
+        assert!(unlock_fires(true, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     // Windows/Linux reuse of idle_fires — same shape, values sourced from GetLastInputInfo
@@ -935,11 +989,11 @@ mod tests {
 
     #[test]
     fn windows_linux_idle_disabled_suppresses_idle_interrupt() {
-        assert!(!idle_fires(true, false, true, false, 1000, 0));
+        assert!(!idle_fires(true, false, true, false, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 
     #[test]
     fn windows_linux_idle_fires_on_active_return() {
-        assert!(idle_fires(true, false, true, true, 1000, 0));
+        assert!(idle_fires(true, false, true, true, 1000, 0, ALWAYS_ELAPSED.0, ALWAYS_ELAPSED.1));
     }
 }
