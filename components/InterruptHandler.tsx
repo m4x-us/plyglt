@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { isTauri, listen, isNotificationPermissionGranted, requestNotificationPermission, sendNativeNotification } from "@/lib/tauri";
 import { enterMandatoryMode, markInterruptFired, updateInterruptConfig } from "@/lib/tauriInterrupt";
+import { readInterruptGateState, recordInterruptGateEvent } from "@/lib/interruptGate";
 import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
 import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
 import { useLangPack } from "@/hooks/useLangPack";
@@ -34,6 +35,8 @@ function InterruptHandlerCore() {
     unlockEnabled,
     idleEnabled,
     idleThresholdMinutes,
+    userId,
+    deviceId,
     computeDue,
   } = useInterruptConfig();
 
@@ -75,10 +78,10 @@ function InterruptHandlerCore() {
   // router is included here too, deliberately NOT relied on as a stable dependency of the
   // subscription effect below — App Router's useRouter() is stable in production, but that
   // is exactly the kind of referential-stability assumption this fix exists to stop making.
-  const latestRef = useRef({ interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router });
+  const latestRef = useRef({ interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router, intervalHours, userId, deviceId });
   useEffect(() => {
-    latestRef.current = { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router };
-  }, [interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router]);
+    latestRef.current = { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router, intervalHours, userId, deviceId };
+  }, [interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router, intervalHours, userId, deviceId]);
 
   // Subscribe to interrupt:fire events exactly once, for the component's whole lifetime —
   // see latestRef above for why this must never re-subscribe on a dependency change.
@@ -88,7 +91,7 @@ function InterruptHandlerCore() {
     let unlisten: (() => void) | undefined;
 
     listen<boolean>("interrupt:fire", async (isMandatory) => {
-      const { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router } = latestRef.current;
+      const { interruptEnabled, dndStart, dndEnd, pathname, units, computeDue, router, intervalHours, userId, deviceId } = latestRef.current;
       if (!interruptEnabled) return;
       if (isInDnd(dndStart, dndEnd)) return;
 
@@ -97,6 +100,20 @@ function InterruptHandlerCore() {
 
       const totalDue = computeDue(units);
       if (totalDue === 0) return;
+
+      // Task #529: shared cross-device gate check — before actually firing, ask whether
+      // another device (desktop or mobile) already fired/snoozed within the current
+      // interval. Signed-out (no userId) has nothing to check against; readInterruptGateState
+      // itself returns "unknown" on timeout/error/not_configured — both cases fall back to
+      // local-only behavior and fire anyway, per docs/INTERRUPT_ARCHITECTURE.md §6 (Max
+      // confirmed fire-anyway-on-timeout over suppress-on-timeout, 2026-08-13). Only a
+      // "known" result with a still-future effectiveUntil suppresses this fire.
+      if (userId) {
+        const gate = await readInterruptGateState(userId);
+        if (gate.status === "known" && gate.effectiveUntil !== null && Date.now() < gate.effectiveUntil) {
+          return;
+        }
+      }
 
       // Task #526: this is the exact point a real fire with content is decided — confirm it
       // to Rust so src-tauri/src/interrupt.rs's last_triggered_secs clock advances (Task #524
@@ -108,6 +125,24 @@ function InterruptHandlerCore() {
         await markInterruptFired();
       } catch (e) {
         console.error(`[IH-MARKFIRED-${Date.now()}] markInterruptFired failed — Rust clock not advanced for this fire`, e);
+      }
+
+      // Task #529: record this fire on the shared gate so other devices see it. Best-effort,
+      // fire-and-forget (not awaited) — a failed or skipped write only means cross-device
+      // suppression won't apply to THIS fire; it must never delay or block content that's
+      // already been decided. deviceId can be null on a device that has never committed a
+      // review yet (store/syncStore.ts generates it lazily) — skip the write rather than
+      // invent a device id for this unrelated purpose.
+      if (userId && deviceId) {
+        recordInterruptGateEvent({
+          userId,
+          deviceId,
+          eventType: "fired",
+          occurredAt: Date.now(),
+          minutesUntilEligible: intervalHours * 60,
+        }).catch((e) => {
+          console.error(`[IH-GATE-WRITE-${Date.now()}] recordInterruptGateEvent failed — this fire won't be visible to other devices`, e);
+        });
       }
 
       if (isMandatory) {

@@ -3,8 +3,11 @@
 // enterMandatoryMode, exitMandatoryMode, and markInterruptFired — all no-ops in web/non-Tauri builds.
 // Imports isTauri and invoke from lib/tauri.ts rather than @tauri-apps/api directly;
 // called by components/InterruptHandler.tsx, app/study/page.tsx, and app/learn/page.tsx.
+// snoozeInterrupt also imports lib/interruptGate.ts (a sibling lib/ module, legal under
+// CLAUDE.md's Layer Map) to additionally write the shared cross-device gate (Task #530).
 
 import { isTauri, invoke } from "@/lib/tauri";
+import { recordInterruptGateEvent } from "@/lib/interruptGate";
 
 // ── Tray badge ────────────────────────────────────────────────────────────────
 
@@ -59,8 +62,23 @@ export async function updateInterruptConfig(
   }
 }
 
-/** Snooze the interrupt for `minutes`. No-op in web. Throws on IPC failure. */
-export async function snoozeInterrupt(minutes: number): Promise<void> {
+/**
+ * Snooze the interrupt for `minutes`. No-op in web. Throws on IPC failure — this local
+ * Rust snooze is the primary mechanism and must keep its existing failure contract.
+ *
+ * Task #530: when `gateContext` is supplied (the caller has a signed-in userId and a
+ * known deviceId), also records a `snoozed` event on the shared, cross-device gate
+ * (lib/interruptGate.ts, Task #528) so the snooze is visible to every other of this
+ * user's devices, not just this one — the exact scenario docs/INTERRUPT_ARCHITECTURE.md
+ * §8 calls out (snooze on phone should give relief on desktop too, and vice versa).
+ * This is purely additive: the local snooze above already fully succeeded by the time
+ * this runs, so a shared-write failure is logged but never thrown — it only means other
+ * devices won't see this particular snooze, not that this device's own snooze failed.
+ */
+export async function snoozeInterrupt(
+  minutes: number,
+  gateContext?: { userId: string; deviceId: string }
+): Promise<void> {
   if (!isTauri) return;
   try {
     await invoke("snooze_interrupt", { minutes });
@@ -68,6 +86,19 @@ export async function snoozeInterrupt(minutes: number): Promise<void> {
     const ref = `ERR-IPC-${Date.now()}`;
     console.error(`[${ref}] snooze_interrupt IPC failed — interrupts will continue firing`, err);
     throw new Error(`Snooze IPC failed (${ref})`);
+  }
+
+  if (gateContext) {
+    const result = await recordInterruptGateEvent({
+      userId: gateContext.userId,
+      deviceId: gateContext.deviceId,
+      eventType: "snoozed",
+      occurredAt: Date.now(),
+      minutesUntilEligible: minutes,
+    });
+    if (!result.ok) {
+      console.error(`[ERR-INTERRUPT-GATE-SNOOZE-${Date.now()}] recordInterruptGateEvent failed for snooze:`, result.error);
+    }
   }
 }
 

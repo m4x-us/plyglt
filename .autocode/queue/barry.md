@@ -1,100 +1,106 @@
 ---
 status: done
 agent: barry
-stream: W2B
-wave: 2
+stream: W3B
+wave: 3
 ---
 
-# Barry — Stream W2B — Wave 2 — 2026-08-13
+# Barry — Stream W3B — Wave 3 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W2B | #527
+— Barry | W3B | #530
 
 You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
+This is the last wave of Batch 21 (docs/INTERRUPT_ARCHITECTURE.md) — once #529 (the
+other Wave 3 stream) and #530 both close, the whole batch is done.
+
 ## Your Tasks (run in this exact order)
-1. /task #527  — Mobile dispatch reads/writes interrupt_gate_events
+1. /task #530  — Snooze writes a shared event
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Barry — W2B
-[→] #527 — Mobile dispatch reads/writes interrupt_gate_events   ← starting now
+Barry — W3B
+[→] #530 — Snooze writes a shared event   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-supabase/functions/send-interrupt-notifications/dueSelection.ts
-supabase/functions/send-interrupt-notifications/dispatch.ts
-(and their test counterparts, wherever this directory's existing pattern puts them)
+lib/tauriInterrupt.ts
+app/study/page.tsx
+(and relevant test files — tests/tauri.test.ts, app/study/page.test.tsx)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
 components/InterruptHandler.tsx
 components/InterruptHandler.test.tsx
-lib/interruptGate.ts
-lib/interruptGate.test.ts
+(Adam's W3A stream owns these for #529)
 
 ## Task Definitions
 
-### Task #527 | feature | severity 5
-**What:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`'s `selectDueTokens` currently gates on `push_tokens.last_sent_at` (per device-token). Change it to read `interrupt_gate_events` (per user, Task #525) instead. `dispatch.ts` writes a `fired` event to the same table on a real send, instead of (or in addition to, if `last_sent_at` is kept as a device-registration diagnostic only) updating `push_tokens.last_sent_at`.
-**Why:** Without this, mobile push and desktop remain on two completely separate clocks even after Task #525's table exists — the cross-device coordination problem isn't actually solved until mobile's dispatch reads/writes the same shared state desktop will. See `docs/INTERRUPT_ARCHITECTURE.md` §5.
-**File:** `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts`, and their Vitest-tested counterparts (`tests/` or co-located, per this directory's existing pure-function-testing pattern — see `index.ts`'s own header on why Deno-only wiring is excluded from `tsc`)
+### Task #530 | feature | severity 5
+**What:** Desktop's snooze action (currently `lib/tauriInterrupt.ts`'s `snoozeInterrupt`, which only ever touches local in-memory Rust state via `interrupt.rs`'s `snooze_interrupt` command) also writes a `snoozed` event via Task #528's write function, so a snooze on one device is visible to every other device (including, once mobile ships, a phone) via the same shared gate.
+**Why:** Without this, a user who snoozes on their phone gets no relief on their desktop a few minutes later, and vice versa — directly the scenario Max raised. This is a genuinely new capability for mobile (which has no snooze concept at all today), not just syncing an existing one. See `docs/INTERRUPT_ARCHITECTURE.md` §8.
+**File:** `lib/tauriInterrupt.ts`, `app/study/page.tsx` (the "Snooze X min" button call site), relevant test files
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts), changes the core dispatch-gating query
-**Blocked by:** #525 (COMPLETE, Wave 1) | **Blocks:** Nothing (mobile has no production caller yet — Tasks #171/#522/#172)
-**Done when:** `selectDueTokens` (or its replacement) queries `interrupt_gate_events` per user, not `push_tokens.last_sent_at` per token. Tests prove a user with a recent `fired` event (from ANY device) is excluded even if their specific token's own `last_sent_at` is old/null. Existing dispatch tests still pass.
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts)
+**Blocked by:** #528 (COMPLETE, Wave 2) | **Blocks:** Nothing
+**Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
 **Owner:** Architecture Agent
 
 ## Prior Wave Changes — Read Before Starting
 
-**#525 (completed by Charles, Wave 1) — the exact schema to code against.** Do not
-re-derive this from scratch or guess column names — use exactly this:
+**#528 (completed by Charles, Wave 2) — the exact write function you call:**
 
-New file: `supabase/migrations/20260813000000_interrupt_gate_events.sql`
+```ts
+export async function recordInterruptGateEvent(params: {
+  userId: string;
+  deviceId: string;
+  eventType: "fired" | "snoozed";
+  occurredAt: number;          // unix ms
+  minutesUntilEligible: number; // snooze minutes, for your call
+}): Promise<{ ok: true } | { ok: false; error: string }>
+```
+For your snooze call: `eventType: "snoozed"`, `occurredAt: Date.now()`,
+`minutesUntilEligible` = the snooze duration in minutes (already available where
+`snoozeInterrupt` is called today — check `app/study/page.tsx`'s existing "Snooze X
+min" button and `store/settingsStore.ts`'s `snoozeMinutes` setting for the exact
+source value). `effective_until` is computed *inside* `recordInterruptGateEvent` from
+`occurredAt + minutesUntilEligible * 60_000` — you don't compute it yourself.
 
-Table `public.interrupt_gate_events`:
+**Where to get `userId` and `deviceId`:** `userId` from `store/authStore.ts`'s
+`userId: string | null`. `deviceId` from `store/syncStore.ts`'s `deviceId` (generated
+once, persisted — reuse it, don't generate a new one). If `userId` is null (signed
+out), skip the shared-gate write entirely — the existing local Rust snooze
+(`interrupt.rs`'s `snooze_interrupt`) still applies regardless; the shared write is
+additive, not a replacement, same relationship #529's gate-check has to the existing
+local firing logic.
 
-| Column | Type | Nullable | Default |
-|---|---|---|---|
-| `id` | `uuid` | not null | `gen_random_uuid()` |
-| `user_id` | `uuid` | not null | — (FK → `auth.users(id)`, `on delete cascade`) |
-| `event_type` | `text` | not null | — (CHECK constrained to `'fired'` or `'snoozed'`) |
-| `occurred_at` | `timestamptz` | not null | — |
-| `effective_until` | `timestamptz` | not null | — |
-| `device_id` | `text` | not null | — |
-| `created_at` | `timestamptz` | not null | `now()` |
-
-Index: `interrupt_gate_events_user_idx` on `(user_id, effective_until desc)` — built
-specifically for `select max(effective_until) from interrupt_gate_events where
-user_id = ?`, the exact read pattern you need for `selectDueTokens`'s replacement gate
-check. RLS: `interrupt_gate_events_select_own` / `interrupt_gate_events_insert_own`,
-both `auth.uid() = user_id` — but note your dispatch function uses the Supabase
-service-role key (bypasses RLS entirely), same as its existing `push_tokens` reads, so
-this only matters if you ever add a user-scoped client path.
-
-For a `fired` event, `effective_until` is pre-computed at write time as `occurred_at +
-interval` (the interval value in effect when the send happened) — you do not need to
-separately fetch or reason about each user's interval setting when reading the gate,
-only when writing a new `fired` row.
+**#526 (completed by Adam, Wave 2) — a sibling function's pattern to match:**
+`lib/tauriInterrupt.ts` already has `markInterruptFired()` (added Wave 2, no args,
+same file you're touching) as the most recent addition to this file's wrapper
+collection — read it directly for the established error-handling/logging shape
+(`[ERR-IPC-...]`-tagged `console.error` + throw) before adding your own change to
+`snoozeInterrupt`, so the two stay stylistically consistent within the same file.
 
 ## Agent Memories
 
 ## Architect Agent Memory (first 150 lines)
-[Full first 150 lines of .autocode/agents/architect.md. Most relevant: this directory
-(`supabase/functions/send-interrupt-notifications/`) is Deno-only and deliberately
-excluded from `npx tsc --noEmit` (see `index.ts`'s own header) — verify with the
-directory's existing Vitest suite instead, matching how `dueSelection.ts`,
-`dueEstimate.ts`, etc. are already tested as pure functions.]
+[Full first 150 lines of .autocode/agents/architect.md — layer structure. Most
+relevant: `lib/tauriInterrupt.ts` is a `lib/` gateway file — it may import from
+`lib/interruptGate.ts` (a sibling `lib/` module) directly; `app/study/page.tsx` stays
+within the ≤150-line route cap CLAUDE.md documents — if your change would push it over,
+follow the project's existing extraction-to-a-hook pattern rather than let the route
+grow past the limit.]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W2B/completion.md. The file
+Write your completion summary to .autocode/stream-W3B/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #527
+CLOSED: #530
 NOT_CLOSED: none
 
 (If not closed, list it with a one-line reason instead.)
@@ -102,9 +108,9 @@ NOT_CLOSED: none
 After those two lines, write whatever prose detail is useful:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
-  Whether you kept push_tokens.last_sent_at as a diagnostic-only field or removed it
-  (future readers of this code need to know)
 
-Then tell Max in this window: "Barry is done." (or describe what's incomplete).
+Then tell Max in this window: "Barry is done." (or describe what's incomplete). This is
+the last task in Batch 21 for your stream — once you and Adam (W3A) both report done,
+the whole batch closes.
 
-— Barry | W2B | #527
+— Barry | W3B | #530

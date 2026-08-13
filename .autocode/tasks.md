@@ -10610,6 +10610,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** #526, #528 | **Blocks:** Nothing
 **Done when:** Tests prove: a fresh `fired` event from another device (simulated) suppresses a local fire that would otherwise have happened; a gate-check timeout still allows a local fire (fire-anyway fallback); a real local fire writes a `fired` event. Full verification gate clean.
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W3A/Adam. `InterruptHandler.tsx`'s `interrupt:fire` handler now reads the shared gate before firing (suppresses on a still-future `effectiveUntil` from any device; falls through to firing on timeout/unknown/no-history/signed-out, per the confirmed fire-anyway policy) and fire-and-forget writes a `fired` event after a real local fire. Necessary scope extension: `hooks/useInterruptConfig.ts` gained `userId`/`deviceId` passthrough — required by the Layer Map, since `components/` can't import `store/` directly. 8 new tests covering all 3 DoD scenarios plus edge cases. `npm test` 1889/1889 at this stream's own finish time.)
 
 ---
 
@@ -10622,6 +10623,7 @@ Theme: two real bugs found live during Task #166's Windows VM testing (desktop's
 **Blocked by:** #528 | **Blocks:** Nothing
 **Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
 **Owner:** Architecture Agent
+**Status: COMPLETE — 2026-08-13** (Stream W3B/Barry. `snoozeInterrupt` gained an optional `gateContext` param — local Rust snooze runs first, unchanged; the shared-gate write is purely additive and never blocks or throws on failure. New `hooks/useSnoozeAndExit.ts` extracted (necessary scope extension flagged by architect memory: `app/study/page.tsx` was already at 149/150 lines) — net result the route actually shrank to 148 lines while gaining the feature. Cross-device semantics proven end-to-end with a real (non-mocked) `lib/interruptGate.ts` against a fake in-memory Supabase client — device-A's snooze read back by a caller with no device context, exact `effectiveUntil` asserted via fake timers, plus per-user scoping confirmed. `npm test` 1902/1902.)
 
 ---
 

@@ -15,9 +15,10 @@ import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
-import { exitMandatoryMode, snoozeInterrupt } from "@/lib/tauriInterrupt";
+import { exitMandatoryMode } from "@/lib/tauriInterrupt";
 import { buildQueue, findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
+import { useSnoozeAndExit } from "@/hooks/useSnoozeAndExit";
 import { useSync } from "@/hooks/useSync";
 import { tierLabel } from "@/lib/cardLabels";
 
@@ -39,6 +40,7 @@ function StudyInner() {
   // unsynced for minutes reads as broken.
   const enqueueReviewEvent: typeof enqueueReviewEventRaw = (...args) => { enqueueReviewEventRaw(...args); triggerSyncSoon(); };
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
+  const handleSnooze = useSnoozeAndExit(snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
   const allCards = useMemo(
@@ -115,10 +117,7 @@ function StudyInner() {
       <div className="flex items-center justify-between max-w-xl mx-auto w-full mb-6">
         {isInterrupt ? (
           <button
-            onClick={async () => {
-              try { await snoozeInterrupt(snoozeMinutes); } catch (err) { console.error(`[ERR-IPC-SNOOZE-${Date.now()}] Snooze failed:`, err); }
-              try { await exitMandatoryMode(); } catch (err) { console.error(`[ERR-IPC-EXIT-${Date.now()}] exitMandatoryMode failed:`, err); } finally { router.push("/learn"); }
-            }}
+            onClick={handleSnooze}
             className="text-yellow-600 hover:text-yellow-400 text-sm font-medium transition-colors"
           >
             Snooze {snoozeMinutes} min

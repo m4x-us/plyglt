@@ -6,9 +6,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Unit, Card } from "@/content/types";
 
-const { mockUseSettingsStore, mockGetState } = vi.hoisted(() => ({
+const { mockUseSettingsStore, mockGetState, mockUseAuthStore, mockUseSyncStore } = vi.hoisted(() => ({
   mockUseSettingsStore: vi.fn(),
   mockGetState: vi.fn(),
+  // Task #529: selector-style mocks — call the selector against a fixed default state
+  // object so `useAuthStore((s) => s.userId)` and `useSyncStore((s) => s.deviceId)` behave
+  // like the real Zustand hooks without pulling in real store/authStore.ts (which wires a
+  // live Supabase onAuthStateChange listener at module load) or store/syncStore.ts.
+  mockUseAuthStore: vi.fn((selector: (s: { userId: string | null }) => unknown) => selector({ userId: null })),
+  mockUseSyncStore: vi.fn((selector: (s: { deviceId: string | null }) => unknown) => selector({ deviceId: null })),
 }));
 
 vi.mock("@/store/settingsStore", () => ({
@@ -18,6 +24,14 @@ vi.mock("@/store/settingsStore", () => ({
 
 vi.mock("@/store/srsStore", () => ({
   useSRSStore: { getState: mockGetState },
+}));
+
+vi.mock("@/store/authStore", () => ({
+  useAuthStore: mockUseAuthStore,
+}));
+
+vi.mock("@/store/syncStore", () => ({
+  useSyncStore: mockUseSyncStore,
 }));
 
 import { useInterruptConfig } from "./useInterruptConfig";
@@ -156,5 +170,26 @@ describe("useInterruptConfig — computeDue", () => {
     );
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.computeDue([dueCardUnit, introUnit, newUnit])).toBe(3);
+  });
+});
+
+// Task #529 — userId/deviceId exposure for lib/interruptGate.ts's caller (InterruptHandler.tsx)
+describe("useInterruptConfig — userId / deviceId", () => {
+  it("returns null for both when signed out with no local device id yet", () => {
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.userId).toBeNull();
+    expect(result.current.deviceId).toBeNull();
+  });
+
+  it("returns the real userId/deviceId from the underlying stores when present", () => {
+    mockUseAuthStore.mockImplementation((selector: (s: { userId: string | null }) => unknown) =>
+      selector({ userId: "user-123" })
+    );
+    mockUseSyncStore.mockImplementation((selector: (s: { deviceId: string | null }) => unknown) =>
+      selector({ deviceId: "device-abc" })
+    );
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.userId).toBe("user-123");
+    expect(result.current.deviceId).toBe("device-abc");
   });
 });

@@ -6,6 +6,8 @@
 import type { Unit } from "@/content/types";
 import { useSettingsStore, isInDnd } from "@/store/settingsStore";
 import { useSRSStore } from "@/store/srsStore";
+import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { localDateStr } from "@/lib/utils";
 
 export { isInDnd };
@@ -22,6 +24,13 @@ export function useInterruptConfig() {
     idleEnabled,
     idleThresholdMinutes,
   } = useSettingsStore();
+
+  // Task #529: identifiers the shared cross-device interrupt gate (lib/interruptGate.ts)
+  // needs — userId scopes the gate read/write to this user; deviceId is diagnostic-only on
+  // the write (docs/INTERRUPT_ARCHITECTURE.md §5). Both come from store/, wrapped here so
+  // components/InterruptHandler.tsx (a components/ file) never imports store/ directly.
+  const userId = useAuthStore((s) => s.userId);
+  const deviceId = useSyncStore((s) => s.deviceId);
 
   // Mirrors what lib/queue.ts's buildQueue actually pulls into a session: FSRS-due
   // reviews, introduction-cadence cards due for their next appearance, and (capped at
@@ -62,6 +71,8 @@ export function useInterruptConfig() {
     unlockEnabled,
     idleEnabled,
     idleThresholdMinutes,
+    userId,
+    deviceId,
     computeDue,
   };
 }

@@ -1,124 +1,109 @@
-# Barry — Stream W3B — Wave 3 — 2026-07-02
+# Barry — Stream W3B — Wave 3 — 2026-08-13
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W3B | #161
+— Barry | W3B | #530
 
 You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
+This is the last wave of Batch 21 (docs/INTERRUPT_ARCHITECTURE.md) — once #529 (the
+other Wave 3 stream) and #530 both close, the whole batch is done.
+
 ## Your Tasks (run in this exact order)
-1. /task #161  — Extract interrupt IPC from lib/tauri.ts to lib/tauriInterrupt.ts
+1. /task #530  — Snooze writes a shared event
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Barry — W3B
-[→] #161 — Extract interrupt IPC to lib/tauriInterrupt.ts   ← starting now
+[→] #530 — Snooze writes a shared event   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-lib/tauriInterrupt.ts  (new — create this file)
-lib/tauri.ts
-components/InterruptHandler.tsx
-app/settings/page.tsx
+lib/tauriInterrupt.ts
 app/study/page.tsx
-app/learn/page.tsx
+(and relevant test files — tests/tauri.test.ts, app/study/page.test.tsx)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-src-tauri/src/lib.rs
-src-tauri/src/tray.rs
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+(Adam's W3A stream owns these for #529)
 
 ## Task Definitions
 
-### Task #161 | architecture | severity 5
-**What:** Extract the 5 interrupt-specific exports from `lib/tauri.ts` into a new `lib/tauriInterrupt.ts`: `updateInterruptConfig`, `snoozeInterrupt`, `enterMandatoryMode`, `exitMandatoryMode`, `updateTrayBadge`. Add Rule 2 header to `lib/tauriInterrupt.ts`. Update ALL callers to import from `@/lib/tauriInterrupt`. Remove the 5 functions from `lib/tauri.ts`.
-**Why:** `lib/tauri.ts` is at 151 lines. Task #162 will add OS-trigger IPC calls — without extraction, `lib/tauri.ts` exceeds 200 lines. Extract interrupt IPC into its own module now.
-**File:** `lib/tauri.ts`, `lib/tauriInterrupt.ts` (new), `components/InterruptHandler.tsx`, `app/settings/page.tsx`, `app/study/page.tsx`, `app/learn/page.tsx`
+### Task #530 | feature | severity 5
+**What:** Desktop's snooze action (currently `lib/tauriInterrupt.ts`'s `snoozeInterrupt`, which only ever touches local in-memory Rust state via `interrupt.rs`'s `snooze_interrupt` command) also writes a `snoozed` event via Task #528's write function, so a snooze on one device is visible to every other device (including, once mobile ships, a phone) via the same shared gate.
+**Why:** Without this, a user who snoozes on their phone gets no relief on their desktop a few minutes later, and vice versa — directly the scenario Max raised. This is a genuinely new capability for mobile (which has no snooze concept at all today), not just syncing an existing one. See `docs/INTERRUPT_ARCHITECTURE.md` §8.
+**File:** `lib/tauriInterrupt.ts`, `app/study/page.tsx` (the "Snooze X min" button call site), relevant test files
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 4+ files (1 new), refactor
-**Blocked by:** #159 | **Blocks:** #162
-**Test required:** No behavior change — `npm test` passing is the test.
-**Done when:** `lib/tauriInterrupt.ts` exists with Rule 2 header and all 5 exports. `lib/tauri.ts` ≤ 145 lines. No interrupt-specific imports from `lib/tauri.ts` in callers. `npm test` passes.
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts)
+**Blocked by:** #528 (COMPLETE, Wave 2) | **Blocks:** Nothing
+**Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
 **Owner:** Architecture Agent
 
-## Caller Survey (run before starting — do not trust this list blindly, re-grep)
+## Prior Wave Changes — Read Before Starting
 
-Pre-flight grep already run. Current callers of the 5 interrupt exports:
+**#528 (completed by Charles, Wave 2) — the exact write function you call:**
 
-1. `components/InterruptHandler.tsx` — imports `enterMandatoryMode`, `updateInterruptConfig`
-   from `@/lib/tauri`. Also imports `isTauri`, `listen` which STAY in lib/tauri.ts.
+```ts
+export async function recordInterruptGateEvent(params: {
+  userId: string;
+  deviceId: string;
+  eventType: "fired" | "snoozed";
+  occurredAt: number;          // unix ms
+  minutesUntilEligible: number; // snooze minutes, for your call
+}): Promise<{ ok: true } | { ok: false; error: string }>
+```
+For your snooze call: `eventType: "snoozed"`, `occurredAt: Date.now()`,
+`minutesUntilEligible` = the snooze duration in minutes (already available where
+`snoozeInterrupt` is called today — check `app/study/page.tsx`'s existing "Snooze X
+min" button and `store/settingsStore.ts`'s `snoozeMinutes` setting for the exact
+source value). `effective_until` is computed *inside* `recordInterruptGateEvent` from
+`occurredAt + minutesUntilEligible * 60_000` — you don't compute it yourself.
 
-2. `app/study/page.tsx` — imports `exitMandatoryMode`, `snoozeInterrupt`
-   from `@/lib/tauri`. Also imports other non-interrupt things — check before editing.
+**Where to get `userId` and `deviceId`:** `userId` from `store/authStore.ts`'s
+`userId: string | null`. `deviceId` from `store/syncStore.ts`'s `deviceId` (generated
+once, persisted — reuse it, don't generate a new one). If `userId` is null (signed
+out), skip the shared-gate write entirely — the existing local Rust snooze
+(`interrupt.rs`'s `snooze_interrupt`) still applies regardless; the shared write is
+additive, not a replacement, same relationship #529's gate-check has to the existing
+local firing logic.
 
-3. `app/learn/page.tsx` — imports `updateTrayBadge`, `listen`
-   from `@/lib/tauri`. `listen` STAYS in lib/tauri.ts; only `updateTrayBadge` moves.
-
-`app/settings/page.tsx` — does NOT import interrupt exports (imports only
-`isTauri`, `enableAutostart`, `disableAutostart`, `openExternalUrl`). No edit needed.
-
-Re-run the grep yourself before editing to confirm nothing changed:
-  grep -r "updateInterruptConfig\|snoozeInterrupt\|enterMandatoryMode\|exitMandatoryMode\|updateTrayBadge" \
-    --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v ".test." | grep "import"
-
-## What To Do
-
-1. Create `lib/tauriInterrupt.ts`:
-   - Rule 2 header (2–3 sentences: owns interrupt-engine and tray-badge IPC wrappers;
-     all 5 exports degrade gracefully in web/non-Tauri environments)
-   - Import `isTauri` and `invoke` from `@/lib/tauri` (these STAY in tauri.ts)
-   - Copy the 5 functions verbatim:
-     * `updateTrayBadge(dueCount: number): void` (lines 46–51 in tauri.ts)
-     * `updateInterruptConfig(enabled, intervalHours, mandatory): Promise<void>` (lines 56–69)
-     * `snoozeInterrupt(minutes): Promise<void>` (lines 72–81)
-     * `enterMandatoryMode(): Promise<void>` (lines 84–88)
-     * `exitMandatoryMode(): Promise<void>` (lines 91–95)
-
-2. Edit `lib/tauri.ts`:
-   - Remove the 5 function bodies (updateTrayBadge, updateInterruptConfig,
-     snoozeInterrupt, enterMandatoryMode, exitMandatoryMode)
-   - Keep everything else: isTauri, invoke, listen, emit, openExternalUrl,
-     checkForUpdates, UpdateCheckResult, enableAutostart, disableAutostart
-   - After removal, tauri.ts should be ≤ 100 lines
-
-3. Update callers (3 files — see list above):
-   - Split each caller's `import { ... } from "@/lib/tauri"` into two imports:
-     * Keep non-interrupt items importing from `@/lib/tauri`
-     * Add new import of interrupt items from `@/lib/tauriInterrupt`
-   - Minimal diffs — do not reorder, reformat, or touch unrelated lines
-
-4. Run `npm test` to verify all 902 tests still pass.
+**#526 (completed by Adam, Wave 2) — a sibling function's pattern to match:**
+`lib/tauriInterrupt.ts` already has `markInterruptFired()` (added Wave 2, no args,
+same file you're touching) as the most recent addition to this file's wrapper
+collection — read it directly for the established error-handling/logging shape
+(`[ERR-IPC-...]`-tagged `console.error` + throw) before adding your own change to
+`snoozeInterrupt`, so the two stay stylistically consistent within the same file.
 
 ## Agent Memories
 
-## Architecture Agent Memory (relevant excerpt)
-Stack: Tauri 2 + Next.js + React 19 + Zustand 5 + TypeScript.
-
-lib/tauri.ts is the SINGLE GATEWAY to all Tauri APIs. Rule: never import
-@tauri-apps/api directly from outside lib/tauri.ts. After this task, the rule
-expands: lib/tauriInterrupt.ts is also a gateway module — it imports `isTauri`
-and `invoke` from lib/tauri.ts, not from @tauri-apps/api directly.
-
-Layer rule: lib/ must never import from store/, hooks/, components/, or app/.
-lib/tauriInterrupt.ts must remain pure (no React, no Zustand).
-
-The 5 exports to move all follow the same graceful-degradation pattern:
-  if (!isTauri) return; // or return { available: false } etc.
-Preserve this pattern exactly in tauriInterrupt.ts.
-
-UpdateCheckResult type and checkForUpdates() STAY in lib/tauri.ts — they are
-used by components/UpdateChecker.tsx which is in a different domain.
+## Architect Agent Memory (first 150 lines)
+[Full first 150 lines of .autocode/agents/architect.md — layer structure. Most
+relevant: `lib/tauriInterrupt.ts` is a `lib/` gateway file — it may import from
+`lib/interruptGate.ts` (a sibling `lib/` module) directly; `app/study/page.tsx` stays
+within the ≤150-line route cap CLAUDE.md documents — if your change would push it over,
+follow the project's existing extraction-to-a-hook pattern rather than let the route
+grow past the limit.]
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W3B/completion.md:
-  Tasks closed: [list task numbers]
-  Tasks NOT completed: [list + done-when condition that failed]
+Write your completion summary to .autocode/stream-W3B/completion.md. The file
+MUST begin with exactly these two lines, in this exact format, before any other content:
+
+CLOSED: #530
+NOT_CLOSED: none
+
+(If not closed, list it with a one-line reason instead.)
+
+After those two lines, write whatever prose detail is useful:
   Debt entries logged: [count]
   Carry-forward tasks generated: [count]
 
-Then tell Max in this window: "Barry is done." (or describe what's incomplete).
+Then tell Max in this window: "Barry is done." (or describe what's incomplete). This is
+the last task in Batch 21 for your stream — once you and Adam (W3A) both report done,
+the whole batch closes.
 
-— Barry | W3B | #161
+— Barry | W3B | #530

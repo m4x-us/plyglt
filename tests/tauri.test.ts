@@ -269,6 +269,169 @@ describe("snoozeInterrupt — IPC error surfacing", () => {
   });
 });
 
+// Task #530 — snoozeInterrupt also writes a shared, cross-device gate event via
+// lib/interruptGate.ts's recordInterruptGateEvent when a gateContext (signed-in userId +
+// known deviceId) is supplied, so a snooze on one device gives relief on every other of
+// this user's devices too (docs/INTERRUPT_ARCHITECTURE.md §8). Purely additive: never
+// changes the local-snooze IPC contract tested above, and a write failure here must never
+// throw — the local snooze has already fully succeeded by the time this code runs.
+describe("snoozeInterrupt — shared gate event (Task #530)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("calls recordInterruptGateEvent with eventType 'snoozed' and the exact given fields when gateContext is supplied", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
+    const mockRecordEvent = vi.fn().mockResolvedValue({ ok: true });
+    vi.doMock("@/lib/interruptGate", () => ({ recordInterruptGateEvent: mockRecordEvent }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    await snoozeInterrupt(30, { userId: "user-1", deviceId: "device-1" });
+
+    expect(mockRecordEvent).toHaveBeenCalledWith({
+      userId: "user-1",
+      deviceId: "device-1",
+      eventType: "snoozed",
+      occurredAt: expect.any(Number), // existence-check: real Date.now() call site, non-deterministic
+      minutesUntilEligible: 30,
+    });
+  });
+
+  it("does not call recordInterruptGateEvent when gateContext is omitted", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
+    const mockRecordEvent = vi.fn().mockResolvedValue({ ok: true });
+    vi.doMock("@/lib/interruptGate", () => ({ recordInterruptGateEvent: mockRecordEvent }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    await snoozeInterrupt(30);
+
+    expect(mockRecordEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not call recordInterruptGateEvent in web mode, even when gateContext is supplied", async () => {
+    const mockRecordEvent = vi.fn().mockResolvedValue({ ok: true });
+    vi.doMock("@/lib/interruptGate", () => ({ recordInterruptGateEvent: mockRecordEvent }));
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    await snoozeInterrupt(30, { userId: "user-1", deviceId: "device-1" });
+
+    expect(mockRecordEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not call recordInterruptGateEvent when the local snooze IPC itself fails", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({
+      invoke: vi.fn().mockRejectedValue(new Error("Tauri IPC error")),
+    }));
+    const mockRecordEvent = vi.fn().mockResolvedValue({ ok: true });
+    vi.doMock("@/lib/interruptGate", () => ({ recordInterruptGateEvent: mockRecordEvent }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    await expect(snoozeInterrupt(30, { userId: "user-1", deviceId: "device-1" })).rejects.toThrow("IPC failed");
+
+    expect(mockRecordEvent).not.toHaveBeenCalled();
+  });
+
+  it("resolves successfully (does not throw) and logs an error when recordInterruptGateEvent fails", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
+    vi.doMock("@/lib/interruptGate", () => ({
+      recordInterruptGateEvent: vi.fn().mockResolvedValue({ ok: false, error: "network unreachable" }),
+    }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    await expect(snoozeInterrupt(30, { userId: "user-1", deviceId: "device-1" })).resolves.toBeUndefined();
+
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
+      /^\[ERR-INTERRUPT-GATE-SNOOZE-\d+\] recordInterruptGateEvent failed for snooze:$/
+    );
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+// Task #530 acceptance criterion, proven end-to-end: "a device checking the gate shortly
+// after respects a snooze event it didn't itself create." Runs the REAL lib/interruptGate.ts
+// (recordInterruptGateEvent AND readInterruptGateState — not mocked, unlike the block above),
+// backed by a fake in-memory Supabase client, so the only thing under test is whether a write
+// from one device_id is visible to a read that supplies no device_id at all (readInterruptGateState
+// scopes purely by user_id — this is the actual mechanism that makes cross-device sharing work).
+describe("snoozeInterrupt + readInterruptGateState — cross-device visibility (Task #530)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("a snooze written by device-A is read back by a caller that never supplied any device id", async () => {
+    vi.resetModules();
+    // A prior test in this file registered a partial vi.doMock of @/lib/interruptGate —
+    // doMock registrations outlive resetModules(), so this test must explicitly restore
+    // the real module (it needs both recordInterruptGateEvent AND readInterruptGateState).
+    vi.doUnmock("@/lib/interruptGate");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T10:00:00.000Z"));
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(null) }));
+
+    interface FakeRow { user_id: string; effective_until: string }
+    const rows: FakeRow[] = [];
+    const fakeClient = {
+      from: (table: string) => {
+        if (table !== "interrupt_gate_events") throw new Error(`unexpected table: ${table}`);
+        return {
+          insert: async (row: FakeRow) => {
+            rows.push(row);
+            return { error: null };
+          },
+          select: () => ({
+            eq: (_col: string, userId: string) => ({
+              order: () => ({
+                limit: () => ({
+                  abortSignal: async () => {
+                    const matches = rows
+                      .filter((r) => r.user_id === userId)
+                      .sort((a, b) => b.effective_until.localeCompare(a.effective_until));
+                    return { data: matches.slice(0, 1), error: null };
+                  },
+                }),
+              }),
+            }),
+          }),
+        };
+      },
+    };
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => fakeClient }));
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+    const { snoozeInterrupt } = await import("@/lib/tauriInterrupt");
+    const { readInterruptGateState } = await import("@/lib/interruptGate");
+
+    // "Device A" snoozes for 30 minutes.
+    await snoozeInterrupt(30, { userId: "user-1", deviceId: "device-A" });
+
+    // A read that has no notion of which device it's running on (readInterruptGateState
+    // scopes purely by user_id) — simulating "device B" (or any other check-in) seeing the
+    // same user's gate state.
+    const gateState = await readInterruptGateState("user-1");
+
+    // 2026-06-15T10:00:00.000Z + 30 minutes, exactly — proves the actual computed value,
+    // not just "some timestamp in the future."
+    expect(gateState).toEqual({ status: "known", effectiveUntil: new Date("2026-06-15T10:30:00.000Z").getTime() });
+
+    // A different user's read is unaffected — the gate is scoped per user, not global.
+    const otherUserState = await readInterruptGateState("user-2");
+    expect(otherUserState).toEqual({ status: "known", effectiveUntil: null });
+
+    vi.useRealTimers();
+  });
+});
+
 // Task #506 (bundled F10) — enterMandatoryMode previously had no try/catch, unlike its 3
 // siblings (updateInterruptConfig, snoozeInterrupt, exitMandatoryMode), all of which catch,
 // log an ERR-IPC- ref, and rethrow. This block mirrors snoozeInterrupt's IPC error-surfacing

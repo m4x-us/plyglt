@@ -9,6 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { validateLicense } from "@/lib/entitlement";
 import { onDeepLinkUrl, getCurrentDeepLinkUrls, listen } from "@/lib/tauri";
 import { InterruptHandler } from "./InterruptHandler";
@@ -26,6 +28,8 @@ const {
   mockPush,
   mockEnterMandatoryMode,
   mockMarkInterruptFired,
+  mockReadInterruptGateState,
+  mockRecordInterruptGateEvent,
   mockUseLangPack,
   mockIsNotificationPermissionGranted,
   mockRequestNotificationPermission,
@@ -44,6 +48,10 @@ const {
   mockEnterMandatoryMode: vi.fn().mockResolvedValue(undefined),
   // Task #526
   mockMarkInterruptFired: vi.fn().mockResolvedValue(undefined),
+  // Task #529 — default: "known" with no gate history, i.e. safe to fire (matches a
+  // brand-new user with no prior fired/snoozed events anywhere).
+  mockReadInterruptGateState: vi.fn().mockResolvedValue({ status: "known", effectiveUntil: null }),
+  mockRecordInterruptGateEvent: vi.fn().mockResolvedValue({ ok: true }),
   mockUseLangPack: vi.fn().mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null }),
   mockIsNotificationPermissionGranted: vi.fn().mockResolvedValue(true),
   mockRequestNotificationPermission: vi.fn().mockResolvedValue("granted"),
@@ -80,6 +88,12 @@ vi.mock("@/lib/tauriInterrupt", () => ({
   snoozeInterrupt: vi.fn().mockResolvedValue(undefined),
   exitMandatoryMode: vi.fn().mockResolvedValue(undefined),
   updateTrayBadge: vi.fn(),
+}));
+
+// ── interruptGate mock — shared cross-device gate (Task #529) ────────────────
+vi.mock("@/lib/interruptGate", () => ({
+  readInterruptGateState: mockReadInterruptGateState,
+  recordInterruptGateEvent: mockRecordInterruptGateEvent,
 }));
 
 // ── next/navigation ───────────────────────────────────────────────────────────
@@ -143,6 +157,8 @@ beforeEach(() => {
   mockUpdateInterruptConfig.mockResolvedValue(undefined);
   mockEnterMandatoryMode.mockResolvedValue(undefined);
   mockMarkInterruptFired.mockResolvedValue(undefined);
+  mockReadInterruptGateState.mockResolvedValue({ status: "known", effectiveUntil: null });
+  mockRecordInterruptGateEvent.mockResolvedValue({ ok: true });
   mockUseLangPack.mockReturnValue({ units: [], unitMap: {}, lang: { code: "it" }, loading: false, error: null });
   mockIsNotificationPermissionGranted.mockResolvedValue(true);
   mockRequestNotificationPermission.mockResolvedValue("granted");
@@ -159,6 +175,11 @@ beforeEach(() => {
     idleEnabled: true,
     idleThresholdMinutes: 15,
   });
+  // Task #529: default signed-out / no local device id — every pre-existing test in this
+  // file (written before #529) exercises the "no userId → skip the gate entirely, fire
+  // anyway" path, so their assertions are unaffected by this reset.
+  useAuthStore.setState({ status: "signed-out", userId: null, email: null });
+  useSyncStore.setState({ deviceId: null });
 });
 
 afterEach(() => {
@@ -319,6 +340,150 @@ describe("InterruptHandler", () => {
       );
       // The IPC failure must not block showing the interrupt.
       expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
+
+      errorSpy.mockRestore();
+    });
+  });
+
+  // ── Task #529: shared cross-device interrupt gate ───────────────────────────────────
+  describe("shared cross-device interrupt gate (Task #529)", () => {
+    function setupSignedInDueUnit() {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00", intervalHours: 2 });
+      useAuthStore.setState({ status: "signed-in", userId: "user-1", email: null });
+      useSyncStore.setState({ deviceId: "device-1" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+    }
+
+    it("suppresses a local fire when a fresh 'fired' event from another device is still in effect", async () => {
+      setupSignedInDueUnit();
+      mockReadInterruptGateState.mockResolvedValue({
+        status: "known",
+        effectiveUntil: Date.now() + 60_000, // another device fired 1 minute from now or later
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockReadInterruptGateState).toHaveBeenCalledWith("user-1");
+      // Suppressed before ever reaching the local "show content" logic.
+      expect(mockMarkInterruptFired).not.toHaveBeenCalled();
+      expect(mockSendNativeNotification).not.toHaveBeenCalled();
+      expect(mockRecordInterruptGateEvent).not.toHaveBeenCalled();
+    });
+
+    it("fires locally when the gate's effectiveUntil has already passed", async () => {
+      setupSignedInDueUnit();
+      mockReadInterruptGateState.mockResolvedValue({
+        status: "known",
+        effectiveUntil: Date.now() - 60_000, // eligible again as of a minute ago
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires locally (fire-anyway fallback) when the gate read times out", async () => {
+      setupSignedInDueUnit();
+      mockReadInterruptGateState.mockResolvedValue({ status: "unknown", reason: "timeout" });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires locally without ever checking the gate when signed out (no userId)", async () => {
+      // beforeEach already resets to signed-out; this test makes the intent explicit.
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockReadInterruptGateState).not.toHaveBeenCalled();
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+      expect(mockRecordInterruptGateEvent).not.toHaveBeenCalled();
+    });
+
+    it("records a 'fired' event with the current interval-in-minutes on a real local fire", async () => {
+      setupSignedInDueUnit();
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockRecordInterruptGateEvent).toHaveBeenCalledTimes(1);
+      // toHaveBeenCalledTimes(1) guarantees calls[0] exists — non-null assertion is safe
+      // (same pattern already used elsewhere in this file, e.g. the updateInterruptConfig test).
+      const call = mockRecordInterruptGateEvent.mock.calls[0]![0];
+      expect(call.userId).toBe("user-1");
+      expect(call.deviceId).toBe("device-1");
+      expect(call.eventType).toBe("fired");
+      expect(call.minutesUntilEligible).toBe(120); // intervalHours=2 → 120 minutes
+    });
+
+    it("does not record a gate event when signed in but no local deviceId exists yet", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      useAuthStore.setState({ status: "signed-in", userId: "user-1", email: null });
+      useSyncStore.setState({ deviceId: null }); // no review committed on this device yet
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      // The fire itself must still proceed normally.
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+      expect(mockRecordInterruptGateEvent).not.toHaveBeenCalled();
+    });
+
+    it("logs a failure but does not block the fire when recordInterruptGateEvent rejects", async () => {
+      setupSignedInDueUnit();
+      mockRecordInterruptGateEvent.mockRejectedValueOnce(new Error("write failed"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+      // Let the fire-and-forget recordInterruptGateEvent promise settle.
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      expect(mockSendNativeNotification).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("IH-GATE-WRITE"),
+        expect.any(Error)
+      );
 
       errorSpy.mockRestore();
     });

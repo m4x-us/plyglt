@@ -1,12 +1,11 @@
 # Stream W3B Task State
 
-### Task #161 | architecture | severity 5
-**What:** Extract the 5 interrupt-specific exports from `lib/tauri.ts` into a new `lib/tauriInterrupt.ts`: `updateInterruptConfig`, `snoozeInterrupt`, `enterMandatoryMode`, `exitMandatoryMode`, `updateTrayBadge`. Add Rule 2 header to `lib/tauriInterrupt.ts`. Update callers (`components/InterruptHandler.tsx`, `app/settings/page.tsx`) to import from `@/lib/tauriInterrupt`. Grep for any other callers: `grep -r "updateInterruptConfig\|snoozeInterrupt\|enterMandatoryMode\|exitMandatoryMode\|updateTrayBadge" --include="*.ts" --include="*.tsx" . | grep -v node_modules`. If `lib/tauri.ts` re-exports them for backwards compatibility, add a note that the re-exports will be removed in a future cleanup.
-**Why:** `lib/tauri.ts` is at 151 lines. Task #162 will add OS-trigger IPC calls (enableWakeTrigger, enableUnlockTrigger, setIdleThreshold) — without extraction, `lib/tauri.ts` exceeds 200 lines. Extract interrupt IPC into its own module now.
-**File:** `lib/tauri.ts`, `lib/tauriInterrupt.ts` (new), `components/InterruptHandler.tsx`, `app/settings/page.tsx`
+### Task #530 | feature | severity 5
+**What:** Desktop's snooze action (currently `lib/tauriInterrupt.ts`'s `snoozeInterrupt`, which only ever touches local in-memory Rust state via `interrupt.rs`'s `snooze_interrupt` command) also writes a `snoozed` event via Task #528's write function, so a snooze on one device is visible to every other device (including, once mobile ships, a phone) via the same shared gate.
+**Why:** Without this, a user who snoozes on their phone gets no relief on their desktop a few minutes later, and vice versa — directly the scenario Max raised. This is a genuinely new capability for mobile (which has no snooze concept at all today), not just syncing an existing one. See `docs/INTERRUPT_ARCHITECTURE.md` §8.
+**File:** `lib/tauriInterrupt.ts`, `app/study/page.tsx` (the "Snooze X min" button call site), relevant test files
 **Severity:** 5 | **DoD Tier:** 2
-**Complexity:** 🔧 Full — 4 files (1 new), refactor
-**Blocked by:** #159 | **Blocks:** #162
-**Test required:** No behavior change — `npm test` passing is the test (all existing InterruptHandler + settings tests must pass).
-**Done when:** `lib/tauriInterrupt.ts` exists with Rule 2 header and all 5 exports. `lib/tauri.ts` ≤ 145 lines. No interrupt-specific imports from `lib/tauri.ts` in callers (or clearly marked re-exports). `npm test` passes.
+**Complexity:** 🔧 Full — 4 files (2 source + their 2 test counterparts)
+**Blocked by:** #528 (COMPLETE, Wave 2) | **Blocks:** Nothing
+**Done when:** Clicking Snooze writes a `snoozed` event with the correct `effective_until` (now + snooze minutes). A test proves a device checking the gate shortly after respects a snooze event it didn't itself create (simulated as if from another device).
 **Owner:** Architecture Agent
