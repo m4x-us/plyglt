@@ -39,6 +39,11 @@ targets:
     info:
       path: plyglt_iOS/Info.plist
       properties:
+        # plyglt:// custom scheme — required for the plyglt://interrupt deep link
+        # (Task #171's routing; tao's AppDelegate application:openURL: forwards it).
+        CFBundleURLTypes:
+          - CFBundleURLName: app.plyglt
+            CFBundleURLSchemes: [plyglt]
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
@@ -55,6 +60,10 @@ targets:
         CFBundleVersion: "0.1.0"
     entitlements:
       path: plyglt_iOS/plyglt_iOS.entitlements
+      properties:
+        # APNs (Task #522). "development" = sandbox APNs for debug/dev builds;
+        # App Store/TestFlight distribution signing rewrites this to "production".
+        aps-environment: development
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full

@@ -10,6 +10,7 @@ mod app_menu;
 mod interrupt;
 mod license;
 mod os_events;
+mod push;
 // tray-icon and native menu APIs (tauri::tray, tauri::menu) are desktop-only — the mobile
 // build of the tauri crate doesn't expose them at all (confirmed via a real `tauri ios dev`
 // compile: `tauri::menu`/`tauri::tray` unresolved-import errors, Task #522). `desktop` is a
@@ -78,9 +79,17 @@ pub fn run() {
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);
             os_events::start_os_listeners(app.handle().clone(), state_for_os);
+            // APNs tap-handling proxy must be installed during launch, before any
+            // notification-response delivery — not lazily from a JS-invoked command
+            // (a cold-start tap would be lost). See push.rs's module header.
+            #[cfg(target_os = "ios")]
+            push::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            push::register_for_push_notifications,
+            push::get_push_token,
+            push::take_pending_push_tap,
             update_tray_badge,
             update_interrupt_config,
             snooze_interrupt,

@@ -70,6 +70,19 @@ zbus_systemd = { version = "0.26100", features = ["login1"] }
 tokio = { version = "1", features = ["rt", "time"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
+# Task #522 — iOS APNs push-notification native glue (src-tauri/src/push.rs):
+# adds token-registration callbacks to tao's runtime-declared AppDelegate class and wraps the
+# UNUserNotificationCenter delegate to route push taps (tauri-plugin-notification's own iOS
+# delegate deliberately ignores UNPushNotificationTrigger notifications). Versions pinned to
+# the exact ones already resolved in Cargo.lock via tao/wry so no second objc2 major ever
+# enters the graph (two objc2 versions would register colliding ObjC runtime classes).
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-ui-kit = "0.3"
+objc2-user-notifications = "0.3"
+block2 = "0.6"
+
 [profile.release]
 panic         = "abort"
 codegen-units = 1

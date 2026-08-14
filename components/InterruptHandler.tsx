@@ -10,6 +10,8 @@ import { enterMandatoryMode, markInterruptFired, updateInterruptConfig } from "@
 import { readInterruptGateState, recordInterruptGateEvent } from "@/lib/interruptGate";
 import { useInterruptConfig, isInDnd } from "@/hooks/useInterruptConfig";
 import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
+import { usePushInterruptTap } from "@/hooks/usePushInterruptTap";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useLangPack } from "@/hooks/useLangPack";
 import { getFeatureFlags } from "@/lib/featureFlags";
 
@@ -43,6 +45,12 @@ function InterruptHandlerCore() {
   // Task #171: a mobile push notification tap opens plyglt://interrupt — route it
   // to the same study session desktop's own interrupt entry points use below.
   useInterruptDeepLink();
+
+  // Task #522 (iOS): native push-notification taps arrive via push.rs's delegate
+  // proxy rather than a deep link — route them the same way, and register the
+  // APNs device token with Supabase once permission + Pro + sign-in line up.
+  usePushInterruptTap();
+  usePushRegistration();
 
   // Sequence counter: each effect run claims a new seq. If a stale IPC call resolves
   // after a newer one has started, its resolution is ignored — only the latest write wins.
