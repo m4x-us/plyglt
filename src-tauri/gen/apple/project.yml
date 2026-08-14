@@ -59,7 +59,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.1.0
-        CFBundleVersion: "0.1.0"
+        CFBundleVersion: "0.1.0.2"
     entitlements:
       path: plyglt_iOS/plyglt_iOS.entitlements
       properties:
