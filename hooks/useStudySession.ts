@@ -14,6 +14,10 @@ type UseStudySessionParams = {
   initialQueue: Card[];
   allCardMap: Record<string, Card>;
   isGlobal: boolean;
+  // Scopes the interrupt-floor flex fallback (see the mount effect below) to proactive
+  // interrupt sessions only — a manually-opened Global Review with nothing due is allowed to
+  // show the normal empty-queue screen; only the daily-interrupt promise is a hard floor.
+  isInterrupt: boolean;
   unitId: string;
   getResumableSession: () => ActiveSession | null;
   clearActiveSession: () => void;
@@ -32,6 +36,7 @@ export function useStudySession({
   initialQueue,
   allCardMap,
   isGlobal,
+  isInterrupt,
   unitId,
   getResumableSession,
   clearActiveSession,
@@ -79,12 +84,27 @@ export function useStudySession({
   // subsequent sessions pick it up via getIntroductionDueCardIds in buildQueue.
   useEffect(() => {
     const today = localDateStr();
-    if (!canIntroduceNewCard(today)) return;
     const first = selectQualifyingNewCard(allCardMap, cards, introductions);
-    if (!first) return;
-    introduceCard(first.id, today);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
+    if (!first) return; // nothing left to teach anywhere — genuinely nothing to flex to
+    if (canIntroduceNewCard(today)) {
+      introduceCard(first.id, today);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
+      return;
+    }
+    // BRAND.md commits to 6-10 interrupts every day, never fewer. Today's normal one-new-card
+    // cap is already used, but if this interrupt session would otherwise be completely empty
+    // (no FSRS reviews due, no introduction-cadence cards — lib/queue.ts's buildQueue never
+    // interleaves new cards in interrupt/global mode, so initialQueue.length === 0 here means
+    // exactly that), the app still owes the user a lesson: flex past the cap rather than show
+    // nothing. Scoped to isInterrupt — a manually-opened Global Review with nothing due is
+    // allowed to show the normal empty-queue screen; only the daily-interrupt promise is a
+    // hard floor. Matches hooks/useInterruptConfig.ts's computeDue, which fires the interrupt
+    // in this exact scenario expecting this fallback to supply real content once the session opens.
+    if (isInterrupt && initialQueue.length === 0) {
+      introduceCard(first.id, today);
+      setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount only — one introduction attempt per session
 

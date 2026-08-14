@@ -19,6 +19,7 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     initialQueue: CARDS,
     allCardMap: CARD_MAP,
     isGlobal: false,
+    isInterrupt: false,
     unitId: "it-a1u01",
     getResumableSession: vi.fn(() => null),
     clearActiveSession: vi.fn(),
@@ -203,6 +204,77 @@ describe("useStudySession — introduction auto-selection", () => {
     );
     // c1 is the lowest-tier qualifying card; it's already in the initial queue so no append
     expect(result.current.queue).toHaveLength(3);
+  });
+});
+
+// ── interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer) ────────────
+// Deletion Test: without the fallback branch, canIntroduceNewCard false means the mount
+// effect returns immediately — no introduceCard call, no queue append — leaving an interrupt
+// session with an empty queue even though a real untouched card exists.
+
+describe("useStudySession — interrupt-floor flex fallback", () => {
+  it("flexes past the daily cap when isInterrupt and the session would otherwise be empty", () => {
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [], // empty — no FSRS-due or introduction-due cards this interrupt
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false), // today's normal 1/day cap already used
+          introduceCard,
+        }),
+      ),
+    );
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("c1", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    expect(result.current.queue.map((c) => c.id)).toContain("c1");
+  });
+
+  it("does not flex when isInterrupt is false, even with an empty queue", () => {
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          isInterrupt: false, // e.g. a manually-opened Global Review
+          canIntroduceNewCard: vi.fn(() => false),
+          introduceCard,
+        }),
+      ),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+  });
+
+  it("does not flex when isInterrupt is true but the queue is non-empty (a review is already due)", () => {
+    const introduceCard = vi.fn();
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: CARDS, // non-empty — a review or intro card is already due
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false),
+          introduceCard,
+        }),
+      ),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+  });
+
+  it("does not flex when there is no qualifying card left anywhere (truly nothing to teach)", () => {
+    const introduceCard = vi.fn();
+    const introductions = Object.fromEntries(CARDS.map((c) => [c.id, { cardId: c.id } as never]));
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false),
+          introduceCard,
+          introductions, // every card already has a record — selectQualifyingNewCard finds none
+        }),
+      ),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
   });
 });
 

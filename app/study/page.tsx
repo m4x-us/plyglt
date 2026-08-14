@@ -71,13 +71,17 @@ function StudyInner() {
   );
 
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions, enqueueReviewEvent });
+    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions, enqueueReviewEvent });
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
   if (!isGlobal && !isInterrupt && !unit) return <StudyUnitNotFound mode={mode} unitId={unitId} onHome={() => router.push("/learn")} />;
 
-  if (initialQueue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
+  // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt session
+  // that starts with an empty initialQueue can still end up non-empty once useStudySession's
+  // mount effect performs the interrupt-floor flex introduction (hooks/useStudySession.ts) —
+  // checking the stale memo here would show "nothing ready" even after that fallback succeeds.
+  if (queue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
   if (resumeDecision === "pending") {
     const saved = getResumableSession();

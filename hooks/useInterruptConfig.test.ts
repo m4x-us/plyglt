@@ -125,13 +125,9 @@ describe("useInterruptConfig — computeDue", () => {
     expect(result.current.computeDue([unit])).toBe(1);
   });
 
-  it("does not count a qualifying new card when canIntroduceNewCard is false (daily cap already used)", () => {
-    const newCard = makeCard("u1-c1");
-    const unit = makeUnit("u1", [newCard]);
-    mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [newCard.id] }));
-    const { result } = renderHook(() => useInterruptConfig());
-    expect(result.current.computeDue([unit])).toBe(0);
-  });
+  // Superseded by "flexes past the daily cap" below (BRAND.md: 6-10 interrupts/day, never
+  // fewer) — canIntroduceNewCard:false alone no longer means "count 0," since the flex
+  // fallback finds the same untouched card and counts it instead.
 
   it("only counts one new card across all units, even if multiple units have qualifying new cards", () => {
     const cardA = makeCard("u1-c1");
@@ -170,6 +166,34 @@ describe("useInterruptConfig — computeDue", () => {
     );
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.computeDue([dueCardUnit, introUnit, newUnit])).toBe(3);
+  });
+
+  // Interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer). Deletion Test:
+  // without the fallback, this scenario — canIntroduceNewCard false (today's cap already used)
+  // but an untouched card still exists in the catalog — returns 0 today, silently skipping the
+  // interrupt. The fallback must still find that untouched card and count it.
+  it("flexes past the daily cap: counts an untouched card when today's normal supply is otherwise empty", () => {
+    const newCard = makeCard("u1-c1");
+    const unit = makeUnit("u1", [newCard]);
+    mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [newCard.id] }));
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(1);
+  });
+
+  it("does not flex when reviews are due — the normal review count already makes the day non-empty", () => {
+    const dueCard = makeCard("u1-c1");
+    const unit = makeUnit("u1", [dueCard]);
+    mockGetState.mockReturnValue(makeState({ dueCardIds: [dueCard.id], canIntroduceNewCard: false, newCardIds: [] }));
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(1); // review count only — no flex needed or applied
+  });
+
+  it("stays at 0 when the flex check also finds no untouched card anywhere (truly nothing left)", () => {
+    const card = makeCard("u1-c1");
+    const unit = makeUnit("u1", [card]);
+    mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [] }));
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(0);
   });
 });
 

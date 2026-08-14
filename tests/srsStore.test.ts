@@ -470,6 +470,29 @@ describe("srsStore — introduction engine actions", () => {
     expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24")).toBe(true);
   });
 
+  // Interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer) — maxPerDay
+  // lets a caller introduce more than the normal 1/day when the day's other content is empty.
+  it("canIntroduceNewCard(today, maxPerDay) returns true past the default cap when maxPerDay allows it", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24")).toBe(false); // default cap=1, already used
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24", 2)).toBe(true); // flexed to 2
+  });
+
+  it("canIntroduceNewCard(today, maxPerDay) still blocks once maxPerDay itself is reached", () => {
+    useSRSStore.getState().introduceCard("card-1", "2026-06-24");
+    useSRSStore.getState().introduceCard("card-2", "2026-06-24");
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-24", 2)).toBe(false);
+  });
+
+  it("canIntroduceNewCard(today, maxPerDay) still respects the strandedAcrossDays pause regardless of maxPerDay", () => {
+    useSRSStore.getState().introduceCard("stranded-flex", "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-flex", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-flex", false, "2026-06-24");
+    useSRSStore.getState().recordIntroductionResult("stranded-flex", false, "2026-06-24");
+    expect(useSRSStore.getState().introductions["stranded-flex"]?.strandedAcrossDays).toBe(true);
+    expect(useSRSStore.getState().canIntroduceNewCard("2026-06-25", 10)).toBe(false);
+  });
+
   it("getIntroductionDueCardIds excludes graduated cards", () => {
     useSRSStore.getState().introduceCard("card-1", "2026-06-24");
     for (let i = 0; i < 15; i++) {

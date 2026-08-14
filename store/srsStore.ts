@@ -95,7 +95,13 @@ interface SRSState {
   introduceCard: (cardId: string, today: string) => void;
   recordIntroductionResult: (cardId: string, correct: boolean, today: string) => void;
   getIntroductionDueCardIds: (today: string) => string[];
-  canIntroduceNewCard: (today: string) => boolean;
+  // maxPerDay defaults to 1 (BRAND.md's normal daily cap). Callers pass a higher value to
+  // flex past the cap when the day's normal content supply (FSRS due + introduction cadence
+  // + one new card) would otherwise leave a proactive interrupt with nothing to show — BRAND.md
+  // commits to 6-10 interrupts every day, never fewer, so "nothing due" must never mean "skip
+  // the lesson." See hooks/useInterruptConfig.ts's computeDue and hooks/useStudySession.ts's
+  // mount effect, which apply the identical flex condition (Task: interrupt content floor).
+  canIntroduceNewCard: (today: string, maxPerDay?: number) => boolean;
 }
 
 export const useSRSStore = create<SRSState>()(
@@ -286,11 +292,14 @@ export const useSRSStore = create<SRSState>()(
           .map(([cardId]) => cardId);
       },
 
-      canIntroduceNewCard: (today) => {
+      canIntroduceNewCard: (today, maxPerDay = 1) => {
         const { introductions } = get();
         const values = Object.values(introductions);
-        // One new card per day: block if any card was introduced today
-        if (values.some((r) => r.introducedDate === today)) return false;
+        // Block once maxPerDay cards have been introduced today. Default 1 preserves the
+        // normal BRAND.md cap; callers flexing past it for the interrupt-floor fallback pass
+        // a higher value explicitly (see the interface comment above).
+        const introducedTodayCount = values.filter((r) => r.introducedDate === today).length;
+        if (introducedTodayCount >= maxPerDay) return false;
         // BRAND.md: pause introductions until the stranded card stabilizes (any correct answer).
         // strandedAcrossDays is the authoritative signal — set on triple-wrong, cleared only by
         // a correct answer. The prior guard also required lastSeenDate !== today, which caused

@@ -242,6 +242,23 @@ describe("StudyPage — app/study/page.tsx", () => {
     expect(screen.queryByTestId("study-done")).not.toBeInTheDocument();
   });
 
+  // Interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer). The mocked
+  // buildQueue (builtQueue.cards) simulates an empty initialQueue — the same starting state
+  // useStudySession's mount effect sees before it performs the flex introduction — while
+  // sessionCfg.queue simulates the hook's live queue AFTER that fallback ran and appended a
+  // card. Deletion Test: reverting the page's guard to check initialQueue.length instead of
+  // queue.length makes this render "Nothing ready." even though the hook already has content.
+  it("renders StudyCard, not 'Nothing ready', when initialQueue is empty but the hook's live queue has a flex-introduced card", () => {
+    builtQueue.cards = []; // initialQueue starts empty
+    sessionCfg.queue = [FAKE_CARD]; // ...but useStudySession's mount-effect flex fallback added one
+    sessionCfg.pos = 0;
+
+    render(<StudyPage />);
+
+    expect(screen.getByTestId("study-card")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing ready.")).not.toBeInTheDocument();
+  });
+
   // Live Windows VM finding (2026-08-12): completing an interrupt-mode session crashed the
   // whole page with an uncaught "Cannot read properties of null (reading 'cards')" — the
   // WebView reported this as "This page couldn't load". Root cause: the isDone branch's

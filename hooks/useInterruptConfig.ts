@@ -46,10 +46,25 @@ export function useInterruptConfig() {
     const allCardIds = new Set(units.flatMap((u) => u.cards.map((c) => c.id)));
     const introDue = state.getIntroductionDueCardIds(today).filter((id) => allCardIds.has(id)).length;
 
-    // Only one new card is ever introduced per day (store's own cap) — count at most 1,
+    // Only one new card is ever introduced per day under the normal cap — count at most 1,
     // not the full pool of untouched cards, however large.
     let newCardDue = 0;
     if (state.canIntroduceNewCard(today)) {
+      for (const u of units) {
+        if (state.getNewCards(u.cards, 1).length > 0) {
+          newCardDue = 1;
+          break;
+        }
+      }
+    }
+
+    // BRAND.md commits to 6-10 interrupts every day, never fewer — "nothing due" must never
+    // mean the app goes quiet. If today's normal supply (reviews + introduction cadence + one
+    // new card) is completely empty, flex past the daily new-card cap and check for ANY
+    // untouched, prerequisite-met card anywhere in the catalog. The session itself performs the
+    // matching flexed introduction on open — see hooks/useStudySession.ts's mount effect, which
+    // uses the identical "would this interrupt session otherwise be empty" trigger.
+    if (reviewDue === 0 && introDue === 0 && newCardDue === 0) {
       for (const u of units) {
         if (state.getNewCards(u.cards, 1).length > 0) {
           newCardDue = 1;
