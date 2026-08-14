@@ -16,8 +16,6 @@
 		A6A331870D20EA3A2DCD4BAB /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 821CB36861CE5E2C51514F1E /* WebKit.framework */; };
 		B088FF5EDF11D6A1812EC4B2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA45AE6FA337A73306DBC485 /* Assets.xcassets */; };
 		C6E4A64BEF3C57ECB22DCEF6 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 785768C33F99450FD21B75D2 /* main.mm */; };
-		CC3DAD4F2D58A90FE46D1975 /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = 47A85982D788BDADAF3BE913 /* libapp.a */; };
-		E42A0032841CA683FD323E7A /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = B61028D1BFFA4DC1870B2EBE /* libapp.a */; };
 		ED578BE8247E86CFA622B982 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC17A9676037E8D33182B8D2 /* MetalKit.framework */; };
 		F0AD4782C34ED8897B255EF9 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8AE29518DF2F4B96FA580617 /* Metal.framework */; };
 		FE95C8E6A00120D8CF391966 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8EC30AAF0D4D211731F4A87C /* assets */; };
@@ -28,12 +26,10 @@
 		2A06274BBBE3737A07898652 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		2DCCD1FC412C7A248DDA84ED /* plyglt_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = plyglt_iOS.entitlements; sourceTree = "<group>"; };
 		373403C1ACF738F75FE05412 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
-		3ECAB46D679DA29268469AB8 /* push.rs */ = {isa = PBXFileReference; path = push.rs; sourceTree = "<group>"; };
-		47A85982D788BDADAF3BE913 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		4B9935F8411493206C7125F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		5C2A5BAA78D56F6028084A65 /* app_menu.rs */ = {isa = PBXFileReference; path = app_menu.rs; sourceTree = "<group>"; };
-		5DDD0ECFC4E85C4C814FB192 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
-		6C17432166C2643D20D8724E /* tray.rs */ = {isa = PBXFileReference; path = tray.rs; sourceTree = "<group>"; };
+		5C2A5BAA78D56F6028084A65 /* app_menu.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = app_menu.rs; sourceTree = "<group>"; };
+		5DDD0ECFC4E85C4C814FB192 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
+		6C17432166C2643D20D8724E /* tray.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = tray.rs; sourceTree = "<group>"; };
 		6C6F885A4B2449C2085D8322 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		74131DF99F17004AC218AD30 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		785768C33F99450FD21B75D2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
@@ -41,15 +37,14 @@
 		8557168738E78E7DAE2D5F31 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		8AE29518DF2F4B96FA580617 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		8EC30AAF0D4D211731F4A87C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
-		99D6E4A791D24E9F95A9A2F2 /* os_events.rs */ = {isa = PBXFileReference; path = os_events.rs; sourceTree = "<group>"; };
-		9B6C712D12F0C21072D34B5C /* interrupt.rs */ = {isa = PBXFileReference; path = interrupt.rs; sourceTree = "<group>"; };
+		99D6E4A791D24E9F95A9A2F2 /* os_events.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = os_events.rs; sourceTree = "<group>"; };
+		9B6C712D12F0C21072D34B5C /* interrupt.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = interrupt.rs; sourceTree = "<group>"; };
 		9C85D26A4E7F840A58EE41FE /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
-		AE37CD5A60FA5A2630210494 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
-		B61028D1BFFA4DC1870B2EBE /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		AE37CD5A60FA5A2630210494 /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
 		BA45AE6FA337A73306DBC485 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BC17A9676037E8D33182B8D2 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
-		E2747C36B77F267C6A735569 /* license.rs */ = {isa = PBXFileReference; path = license.rs; sourceTree = "<group>"; };
-		E4319A6FB1D48230A54C0FC7 /* plyglt_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = plyglt_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2747C36B77F267C6A735569 /* license.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = license.rs; sourceTree = "<group>"; };
+		E4319A6FB1D48230A54C0FC7 /* plyglt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = plyglt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,28 +81,12 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		2CD3445F95E6CAA03F659B6B /* release */ = {
-			isa = PBXGroup;
-			children = (
-				47A85982D788BDADAF3BE913 /* libapp.a */,
-			);
-			path = release;
-			sourceTree = "<group>";
-		};
 		3DAD561632EBF44D61A14D68 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E4319A6FB1D48230A54C0FC7 /* plyglt_iOS.app */,
+				E4319A6FB1D48230A54C0FC7 /* plyglt.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		886E953C6464F23A5C42AAC2 /* debug */ = {
-			isa = PBXGroup;
-			children = (
-				B61028D1BFFA4DC1870B2EBE /* libapp.a */,
-			);
-			path = debug;
 			sourceTree = "<group>";
 		};
 		96222DAD1A03974D1168B207 /* Sources */ = {
@@ -144,26 +123,15 @@
 				E2747C36B77F267C6A735569 /* license.rs */,
 				AE37CD5A60FA5A2630210494 /* main.rs */,
 				99D6E4A791D24E9F95A9A2F2 /* os_events.rs */,
-				3ECAB46D679DA29268469AB8 /* push.rs */,
 				6C17432166C2643D20D8724E /* tray.rs */,
 			);
 			name = src;
 			path = ../../src;
 			sourceTree = "<group>";
 		};
-		C0897092A022D8047B9C9614 /* arm64 */ = {
-			isa = PBXGroup;
-			children = (
-				886E953C6464F23A5C42AAC2 /* debug */,
-				2CD3445F95E6CAA03F659B6B /* release */,
-			);
-			path = arm64;
-			sourceTree = "<group>";
-		};
 		C7EF8FD340CF95F9E50B6DA6 /* Externals */ = {
 			isa = PBXGroup;
 			children = (
-				C0897092A022D8047B9C9614 /* arm64 */,
 			);
 			path = Externals;
 			sourceTree = "<group>";
@@ -192,13 +160,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_CCE30C39-F579-4686-8119-CBC9D694155E" /* x86_64 */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = x86_64;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -219,7 +180,7 @@
 			packageProductDependencies = (
 			);
 			productName = plyglt_iOS;
-			productReference = E4319A6FB1D48230A54C0FC7 /* plyglt_iOS.app */;
+			productReference = E4319A6FB1D48230A54C0FC7 /* plyglt.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -230,8 +191,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 0CCF613629B1B96C10EE8338 /* Build configuration list for PBXProject "plyglt" */;
 			developmentRegion = en;
@@ -260,8 +219,6 @@
 				B088FF5EDF11D6A1812EC4B2 /* Assets.xcassets in Resources */,
 				784ADBE4697281B7B0EE1CBF /* LaunchScreen.storyboard in Resources */,
 				FE95C8E6A00120D8CF391966 /* assets in Resources */,
-				CC3DAD4F2D58A90FE46D1975 /* libapp.a in Resources */,
-				E42A0032841CA683FD323E7A /* libapp.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,12 +327,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = plyglt_iOS/plyglt_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "RV5FNNH8L4";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -387,14 +343,25 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.plyglt;
 				PRODUCT_NAME = "plyglt";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "RV5FNNH8L4";
 			};
 			name = release;
 		};
@@ -402,12 +369,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = plyglt_iOS/plyglt_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "RV5FNNH8L4";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -419,14 +385,25 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.plyglt;
 				PRODUCT_NAME = "plyglt";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "RV5FNNH8L4";
 			};
 			name = debug;
 		};

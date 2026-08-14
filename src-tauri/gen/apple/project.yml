@@ -46,6 +46,9 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: app.plyglt
             CFBundleURLSchemes: [plyglt]
+        # HTTPS-only encryption: pre-answers App Store Connect's export-compliance
+        # question so TestFlight builds skip "Missing Compliance" forever.
+        ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
@@ -59,7 +62,10 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.1.0
-        CFBundleVersion: "0.1.0.2"
+        # The App Store export rewrites the build number on every upload
+        # (ExportOptions manageAppVersionAndBuildNumber) — this source value is
+        # only the starting point, never what actually ships.
+        CFBundleVersion: "0.1.0"
     entitlements:
       path: plyglt_iOS/plyglt_iOS.entitlements
       properties:
