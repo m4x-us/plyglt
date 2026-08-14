@@ -1,0 +1,12 @@
+# Supabase CLI project config. Only function-deploy settings live here — the
+# project ref is passed via --project-ref (plyglt-prod: ivtrndmqshlfobonxdmv).
+
+# send-interrupt-notifications authenticates with its own CRON_SECRET Bearer
+# check (constant-time compare in index.ts), NOT a Supabase JWT. Without this
+# setting, `supabase functions deploy` defaults to platform-level JWT
+# verification, which rejects the pg_cron invocation (Bearer <cron-secret> is
+# not a JWT) with UNAUTHORIZED_INVALID_JWT_FORMAT before our code ever runs —
+# hit live on the first real deploy, 2026-08-14. This file makes the flag
+# impossible to forget on future deploys.
+[functions.send-interrupt-notifications]
+verify_jwt = false
