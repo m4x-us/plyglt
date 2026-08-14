@@ -11,11 +11,27 @@
 // USED BY: index.ts (the Deno entrypoint)
 // ============================================================
 
-/** Constant-time string comparison — avoids leaking the secret's length/content via response-timing. */
+// Fixed comparison length for the padded constant-time compare below — comfortably
+// longer than any real "Bearer <CRON_SECRET>" value this function will ever see.
+const COMPARISON_LENGTH = 256;
+
+/**
+ * Constant-time string comparison. Pads both inputs to a fixed length and always
+ * walks the full fixed length, so execution time never varies with either input's
+ * real length — the previous `a.length !== b.length` early return leaked the
+ * correct secret's length via response timing to a remote prober (debt.md,
+ * 2026-08-08). The final `a.length ^ b.length` XOR (itself an O(1), branch-free
+ * operation — it adds no timing signal) still rejects a length mismatch; without
+ * it, two inputs differing only in the padded region (e.g. an over-length probe
+ * sharing the first COMPARISON_LENGTH characters with the real secret) would
+ * incorrectly compare equal.
+ */
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+  const paddedA = a.padEnd(COMPARISON_LENGTH, "\0");
+  const paddedB = b.padEnd(COMPARISON_LENGTH, "\0");
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < COMPARISON_LENGTH; i++) diff |= paddedA.charCodeAt(i) ^ paddedB.charCodeAt(i);
+  diff |= a.length ^ b.length;
   return diff === 0;
 }
 

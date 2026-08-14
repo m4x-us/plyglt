@@ -29,4 +29,17 @@ describe("isAuthorizedCronRequest", () => {
   it("returns false for a same-length but different-content header (exercises the constant-time compare, not just a length check)", () => {
     expect(isAuthorizedCronRequest("Bearer real-secret-124", "real-secret-123")).toBe(false);
   });
+
+  it("returns false for an over-length header padded with null characters past the real value (would false-positive under a padding-only compare with no length check)", () => {
+    // "Bearer abc" is 10 chars; appending 50 null chars keeps the total under the
+    // fixed 256-char comparison window, so every byte the padded compare walks
+    // past index 10 is \0 on both sides — identical to the real value's own
+    // padding. Only the explicit a.length ^ b.length check at the end catches this.
+    const paddedProbe = "Bearer abc" + "\0".repeat(50);
+    expect(isAuthorizedCronRequest(paddedProbe, "abc")).toBe(false);
+  });
+
+  it("returns false for a header far longer than the fixed comparison window, without throwing", () => {
+    expect(isAuthorizedCronRequest("Bearer " + "x".repeat(500), "real-secret-123")).toBe(false);
+  });
 });
