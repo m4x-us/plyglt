@@ -33,7 +33,11 @@ describe("enqueueReviewEvent", () => {
     useSyncStore.getState().enqueueReviewEvent("c1", "good", makeProgress());
     const deviceId = useSyncStore.getState().deviceId;
     expect(typeof deviceId).toBe("string");
-    expect(deviceId!.length).toBeGreaterThan(0);
+    // deviceId is crypto.randomUUID() (store/syncStore.ts:52) — the value is non-deterministic,
+    // so assert the exact UUID v4 shape instead of a specific value.
+    expect(deviceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    );
   });
 
   it("reuses the same deviceId across multiple calls rather than generating a new one each time", () => {

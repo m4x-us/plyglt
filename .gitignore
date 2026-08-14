@@ -44,3 +44,6 @@ next-env.d.ts
 
 # rust / tauri
 /src-tauri/target
+
+# local dev TLS certificates (mkcert) — never commit private keys
+/certs
