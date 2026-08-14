@@ -220,9 +220,15 @@ pub async fn enter_mandatory_mode(
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
-    window.set_always_on_top(true).map_err(|e| e.to_string())?;
-    window.set_closable(false).map_err(|e| e.to_string())?;
-    window.set_minimizable(false).map_err(|e| e.to_string())?;
+    // set_always_on_top/set_closable/set_minimizable are desktop window-chrome APIs with no
+    // mobile equivalent (a mobile app has no minimize/close buttons or window stacking to lock
+    // — the app IS the screen) — don't exist on the mobile tauri crate at all (Task #522).
+    #[cfg(desktop)]
+    {
+        window.set_always_on_top(true).map_err(|e| e.to_string())?;
+        window.set_closable(false).map_err(|e| e.to_string())?;
+        window.set_minimizable(false).map_err(|e| e.to_string())?;
+    }
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     Ok(())
@@ -242,9 +248,12 @@ pub async fn exit_mandatory_mode(
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
-    window.set_always_on_top(false).map_err(|e| e.to_string())?;
-    window.set_closable(true).map_err(|e| e.to_string())?;
-    window.set_minimizable(true).map_err(|e| e.to_string())?;
+    #[cfg(desktop)]
+    {
+        window.set_always_on_top(false).map_err(|e| e.to_string())?;
+        window.set_closable(true).map_err(|e| e.to_string())?;
+        window.set_minimizable(true).map_err(|e| e.to_string())?;
+    }
     if was_auto {
         window.hide().map_err(|e| e.to_string())?;
     }

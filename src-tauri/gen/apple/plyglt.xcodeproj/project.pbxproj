@@ -1,0 +1,490 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		31BC5BAA76CA3A2BE241564A /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 373403C1ACF738F75FE05412 /* Security.framework */; };
+		33B88A7EC2555E265AAC31A8 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8557168738E78E7DAE2D5F31 /* CoreGraphics.framework */; };
+		411F2C1F75EFE9AEE144B799 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 74131DF99F17004AC218AD30 /* libapp.a */; };
+		784ADBE4697281B7B0EE1CBF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0149CA1CB8705F37DB17ECD9 /* LaunchScreen.storyboard */; };
+		78B84A35D129C341EC6F3387 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A06274BBBE3737A07898652 /* UIKit.framework */; };
+		85522A09D776121389BA067D /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6C6F885A4B2449C2085D8322 /* QuartzCore.framework */; };
+		A6A331870D20EA3A2DCD4BAB /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 821CB36861CE5E2C51514F1E /* WebKit.framework */; };
+		B088FF5EDF11D6A1812EC4B2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA45AE6FA337A73306DBC485 /* Assets.xcassets */; };
+		C6E4A64BEF3C57ECB22DCEF6 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 785768C33F99450FD21B75D2 /* main.mm */; };
+		ED578BE8247E86CFA622B982 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC17A9676037E8D33182B8D2 /* MetalKit.framework */; };
+		F0AD4782C34ED8897B255EF9 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8AE29518DF2F4B96FA580617 /* Metal.framework */; };
+		FE95C8E6A00120D8CF391966 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8EC30AAF0D4D211731F4A87C /* assets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0149CA1CB8705F37DB17ECD9 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		2A06274BBBE3737A07898652 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		2DCCD1FC412C7A248DDA84ED /* plyglt_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = plyglt_iOS.entitlements; sourceTree = "<group>"; };
+		373403C1ACF738F75FE05412 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		4B9935F8411493206C7125F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5C2A5BAA78D56F6028084A65 /* app_menu.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = app_menu.rs; sourceTree = "<group>"; };
+		5DDD0ECFC4E85C4C814FB192 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
+		6C17432166C2643D20D8724E /* tray.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = tray.rs; sourceTree = "<group>"; };
+		6C6F885A4B2449C2085D8322 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		74131DF99F17004AC218AD30 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		785768C33F99450FD21B75D2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		821CB36861CE5E2C51514F1E /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		8557168738E78E7DAE2D5F31 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		8AE29518DF2F4B96FA580617 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		8EC30AAF0D4D211731F4A87C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		99D6E4A791D24E9F95A9A2F2 /* os_events.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = os_events.rs; sourceTree = "<group>"; };
+		9B6C712D12F0C21072D34B5C /* interrupt.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = interrupt.rs; sourceTree = "<group>"; };
+		9C85D26A4E7F840A58EE41FE /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		AE37CD5A60FA5A2630210494 /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
+		BA45AE6FA337A73306DBC485 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BC17A9676037E8D33182B8D2 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		E2747C36B77F267C6A735569 /* license.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = license.rs; sourceTree = "<group>"; };
+		E4319A6FB1D48230A54C0FC7 /* plyglt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = plyglt.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		20CF2DD52E5CD710DBC18176 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				411F2C1F75EFE9AEE144B799 /* libapp.a in Frameworks */,
+				33B88A7EC2555E265AAC31A8 /* CoreGraphics.framework in Frameworks */,
+				F0AD4782C34ED8897B255EF9 /* Metal.framework in Frameworks */,
+				ED578BE8247E86CFA622B982 /* MetalKit.framework in Frameworks */,
+				85522A09D776121389BA067D /* QuartzCore.framework in Frameworks */,
+				31BC5BAA76CA3A2BE241564A /* Security.framework in Frameworks */,
+				78B84A35D129C341EC6F3387 /* UIKit.framework in Frameworks */,
+				A6A331870D20EA3A2DCD4BAB /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		23424A5844D2C468AD679018 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8557168738E78E7DAE2D5F31 /* CoreGraphics.framework */,
+				74131DF99F17004AC218AD30 /* libapp.a */,
+				8AE29518DF2F4B96FA580617 /* Metal.framework */,
+				BC17A9676037E8D33182B8D2 /* MetalKit.framework */,
+				6C6F885A4B2449C2085D8322 /* QuartzCore.framework */,
+				373403C1ACF738F75FE05412 /* Security.framework */,
+				2A06274BBBE3737A07898652 /* UIKit.framework */,
+				821CB36861CE5E2C51514F1E /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		3DAD561632EBF44D61A14D68 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E4319A6FB1D48230A54C0FC7 /* plyglt.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		96222DAD1A03974D1168B207 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				97966A4E7C77493E1603493C /* plyglt */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		97966A4E7C77493E1603493C /* plyglt */ = {
+			isa = PBXGroup;
+			children = (
+				785768C33F99450FD21B75D2 /* main.mm */,
+				A1048EA53D82562669CDB729 /* bindings */,
+			);
+			path = plyglt;
+			sourceTree = "<group>";
+		};
+		A1048EA53D82562669CDB729 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				9C85D26A4E7F840A58EE41FE /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		BC328DE7F32669D96B484728 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				5C2A5BAA78D56F6028084A65 /* app_menu.rs */,
+				9B6C712D12F0C21072D34B5C /* interrupt.rs */,
+				5DDD0ECFC4E85C4C814FB192 /* lib.rs */,
+				E2747C36B77F267C6A735569 /* license.rs */,
+				AE37CD5A60FA5A2630210494 /* main.rs */,
+				99D6E4A791D24E9F95A9A2F2 /* os_events.rs */,
+				6C17432166C2643D20D8724E /* tray.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		C7EF8FD340CF95F9E50B6DA6 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		D8BACFF6F2F4A8AEE2CD3846 /* plyglt_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				4B9935F8411493206C7125F9 /* Info.plist */,
+				2DCCD1FC412C7A248DDA84ED /* plyglt_iOS.entitlements */,
+			);
+			path = plyglt_iOS;
+			sourceTree = "<group>";
+		};
+		D97ABA554B3397AE6FB0987A = {
+			isa = PBXGroup;
+			children = (
+				8EC30AAF0D4D211731F4A87C /* assets */,
+				BA45AE6FA337A73306DBC485 /* Assets.xcassets */,
+				0149CA1CB8705F37DB17ECD9 /* LaunchScreen.storyboard */,
+				C7EF8FD340CF95F9E50B6DA6 /* Externals */,
+				D8BACFF6F2F4A8AEE2CD3846 /* plyglt_iOS */,
+				96222DAD1A03974D1168B207 /* Sources */,
+				BC328DE7F32669D96B484728 /* src */,
+				23424A5844D2C468AD679018 /* Frameworks */,
+				3DAD561632EBF44D61A14D68 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		417A2487C28E8FCED71E5696 /* plyglt_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 329081CA78AA94F91ECDDE22 /* Build configuration list for PBXNativeTarget "plyglt_iOS" */;
+			buildPhases = (
+				DF2304D0FF85D55FC5A23305 /* Build Rust Code */,
+				146627998CC2E145A98C754C /* Sources */,
+				9BE7AE91DE49A422EC86A364 /* Resources */,
+				20CF2DD52E5CD710DBC18176 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = plyglt_iOS;
+			packageProductDependencies = (
+			);
+			productName = plyglt_iOS;
+			productReference = E4319A6FB1D48230A54C0FC7 /* plyglt.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CF5B078E3BF284E92008A312 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 0CCF613629B1B96C10EE8338 /* Build configuration list for PBXProject "plyglt" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D97ABA554B3397AE6FB0987A;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3DAD561632EBF44D61A14D68 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				417A2487C28E8FCED71E5696 /* plyglt_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9BE7AE91DE49A422EC86A364 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B088FF5EDF11D6A1812EC4B2 /* Assets.xcassets in Resources */,
+				784ADBE4697281B7B0EE1CBF /* LaunchScreen.storyboard in Resources */,
+				FE95C8E6A00120D8CF391966 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DF2304D0FF85D55FC5A23305 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run -- tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		146627998CC2E145A98C754C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C6E4A64BEF3C57ECB22DCEF6 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		410BEE9684CE4FBBD17FC3B8 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		5D738381C357C2FB0B5EBC2B /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = plyglt_iOS/plyglt_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "RV5FNNH8L4";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = plyglt_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.plyglt;
+				PRODUCT_NAME = "plyglt";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		BC2F20B16CAE08C49B62E085 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = plyglt_iOS/plyglt_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "RV5FNNH8L4";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = plyglt_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.plyglt;
+				PRODUCT_NAME = "plyglt";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		D7E284C31D9FAB10EE6B49D3 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0CCF613629B1B96C10EE8338 /* Build configuration list for PBXProject "plyglt" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				410BEE9684CE4FBBD17FC3B8 /* debug */,
+				D7E284C31D9FAB10EE6B49D3 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		329081CA78AA94F91ECDDE22 /* Build configuration list for PBXNativeTarget "plyglt_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC2F20B16CAE08C49B62E085 /* debug */,
+				5D738381C357C2FB0B5EBC2B /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = CF5B078E3BF284E92008A312 /* Project object */;
+}

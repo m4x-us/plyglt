@@ -17,15 +17,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# "devtools" temporarily added 2026-08-11 for live Task #166 Windows VM diagnosis (a
-# real, unexplained WebView2 navigation failure mid-session — see .autocode/debt.md).
-# Enables right-click "Inspect Element" so a real console/network error can be captured
-# instead of guessing at the cause from the WebView's generic error page alone. This is
-# a genuine open question for Max before any real signed release ships: keep devtools
-# permanently available (many desktop apps do, for exactly this diagnosability), or
-# feature-gate it out of production builds once this investigation concludes. Not
-# decided here — do not treat this comment as settling that question.
-tauri          = { version = "2", features = ["tray-icon", "devtools"] }
+# The Cargo "devtools" feature was temporarily added 2026-08-11 for live Task #166
+# Windows VM diagnosis, then removed 2026-08-13 per Max's explicit decision: devtools
+# must not ship in the real signed release. Without this feature, `tauri build`
+# (.github/workflows/release.yml's build path — no `--debug` flag) never includes
+# devtools; `tauri dev` / `tauri build --debug` still get devtools automatically via
+# debug_assertions, independent of this feature, so local diagnosis is unaffected.
+tauri          = { version = "2", features = ["tray-icon"] }
 tauri-plugin-store        = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-autostart    = "2"
@@ -37,6 +35,15 @@ tauri-plugin-deep-link    = "2"
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest    = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+# Explicit dependency (not just transitive) so lib.rs can call install_default() directly.
+# "ring" matches the provider already resolved elsewhere in the tree (tauri-plugin-updater's
+# own reqwest 0.13 dependency, tokio-rustls) — using a second provider (e.g. aws-lc-rs) would
+# add a second crypto backend for no reason. Task #522 (real iOS Simulator run) found that with
+# two reqwest major versions in the graph (this crate's own 0.12 pin, and 0.13 pulled in
+# transitively by tauri-plugin-updater) and no default crypto provider installed anywhere, the
+# app panics and crashes on first launch the moment any HTTP client is constructed — see
+# lib.rs's install_default() call, the first thing run() does.
+rustls     = { version = "0.23", features = ["ring"] }
 
 # Task #166 — Windows OS-event listeners (src-tauri/src/os_events.rs windows_impl module):
 # message-only window + WNDPROC for WM_POWERBROADCAST (wake) and WM_WTSSESSION_CHANGE (unlock),

@@ -10,6 +10,12 @@ mod app_menu;
 mod interrupt;
 mod license;
 mod os_events;
+// tray-icon and native menu APIs (tauri::tray, tauri::menu) are desktop-only — the mobile
+// build of the tauri crate doesn't expose them at all (confirmed via a real `tauri ios dev`
+// compile: `tauri::menu`/`tauri::tray` unresolved-import errors, Task #522). `desktop` is a
+// cfg alias Tauri's own build script provides (already relied on above via `mobile` in
+// `#[cfg_attr(mobile, tauri::mobile_entry_point)]`).
+#[cfg(desktop)]
 mod tray;
 
 use std::sync::{Arc, Mutex};
@@ -21,20 +27,43 @@ use license::{ls_activate_license, ls_deactivate_license, ls_validate_license, o
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Must run before anything constructs an HTTP client (tauri_plugin_updater does this eagerly
+    // during .plugin() registration below). Without an explicit crypto provider installed, the
+    // first reqwest client construction panics with "No rustls crypto provider is configured" —
+    // a real, verified crash-on-launch found live on iOS (Task #522, 2026-08-13): two reqwest
+    // major versions exist in the dependency graph (this crate's 0.12, tauri-plugin-updater's
+    // transitive 0.13), and neither one wins a default installation on its own. install_default()
+    // returning Err just means a provider is already installed (fine, not an error to surface).
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let interrupt_state = Arc::new(Mutex::new(InterruptState::default()));
     let state_for_thread = Arc::clone(&interrupt_state);
     let state_for_os = Arc::clone(&interrupt_state);
 
-    tauri::Builder::default()
+    // tauri_plugin_autostart has no mobile equivalent — iOS/Android apps cannot register as a
+    // login item, and the plugin's own `init()` doesn't compile against the mobile tauri crate
+    // (confirmed via a real `tauri ios dev` build, Task #522). Built as a mutable builder rather
+    // than one fluent chain so this one plugin registration can be conditionally skipped without
+    // restructuring every other `.plugin(...)` call.
+    // `mut` is only needed on desktop, where the block below reassigns `builder` — mobile skips
+    // that block, so mobile compiles report a false-positive unused_mut without this allow.
+    #[cfg_attr(not(desktop), allow(unused_mut))]
+    let mut builder = tauri::Builder::default()
         .manage(interrupt_state)
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_autostart::init(
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
-        ))
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init())
+        ));
+    }
+
+    builder
         .setup(|app| {
             // Native macOS-only Aqua app menu bar (.services(), .hide_others(), .show_all() have
             // no Windows/Linux equivalent) — was previously called unconditionally on every
@@ -45,6 +74,7 @@ pub fn run() {
             // Windows binary regardless of whether it turns out to be the tray root cause.
             #[cfg(target_os = "macos")]
             app_menu::setup_app_menu(app)?;
+            #[cfg(desktop)]
             tray::setup_tray(app)?;
             interrupt::start(app.handle().clone(), state_for_thread);
             os_events::start_os_listeners(app.handle().clone(), state_for_os);
@@ -66,8 +96,12 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+// Single definition kept (rather than two cfg-gated function bodies) so the invoke_handler
+// registration below never needs its own cfg conditional — `AppHandle::tray_by_id` doesn't
+// exist at all on the mobile tauri crate (Task #522), so mobile gets a no-op body instead.
 #[tauri::command]
 fn update_tray_badge(app: tauri::AppHandle, count: u32) {
+    #[cfg(desktop)]
     if let Some(tray) = app.tray_by_id("main-tray") {
         let tooltip = if count == 0 {
             "plyglt — nothing ready".to_string()
@@ -87,4 +121,6 @@ fn update_tray_badge(app: tauri::AppHandle, count: u32) {
             let _ = tray.set_title(title.as_deref());
         }
     }
+    #[cfg(not(desktop))]
+    let _ = (app, count);
 }
