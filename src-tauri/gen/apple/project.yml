@@ -1,8 +1,10 @@
 name: plyglt
 options:
   bundleIdPrefix: app.plyglt
+  # Apple requires a minimum of iOS 15.0 for all App Store uploads starting Spring 2027
+  # (upload warning 90068 on the first TestFlight build, 2026-08-14).
   deploymentTarget:
-    iOS: 14.0
+    iOS: 15.0
 fileGroups: [../../src]
 configs:
   debug: debug

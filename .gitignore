@@ -47,3 +47,6 @@ next-env.d.ts
 
 # local dev TLS certificates (mkcert) — never commit private keys
 /certs
+
+# supabase CLI local state
+supabase/.temp/
