@@ -16,13 +16,12 @@ import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
 import { exitMandatoryMode } from "@/lib/tauriInterrupt";
-import { buildQueue, findUnitName } from "@/lib/queue";
+import { buildQueue, findUnitName, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useSnoozeAndExit } from "@/hooks/useSnoozeAndExit";
 import { useSync } from "@/hooks/useSync";
 import { tierLabel } from "@/lib/cardLabels";
 
-const INTERRUPT_CARD_LIMIT = 5;
 
 function StudyInner() {
   const searchParams = useSearchParams();
@@ -32,7 +31,7 @@ function StudyInner() {
   const isGlobal = mode === "global";
   const isInterrupt = mode === "interrupt";
 
-  const { getDueCards, getNewCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
+  const { getDueCards, getNewCards, getNearDueCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
   const enqueueReviewEventRaw = useSyncStore((s) => s.enqueueReviewEvent);
   const { triggerSyncSoon } = useSync();
   // Nudges a sync soon after every review (hooks/useSync.ts's debounce) instead of
@@ -61,7 +60,7 @@ function StudyInner() {
   const initialQueue = useMemo(() => {
     if (!prereqsMet) return [];
     const full = buildQueue(allCards, getDueCards, getNewCards, isGlobal || isInterrupt, getIntroductionDueCardIds);
-    return isInterrupt ? full.slice(0, INTERRUPT_CARD_LIMIT) : full;
+    return isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId, isGlobal, isInterrupt, prereqsMet]);
 
@@ -71,7 +70,7 @@ function StudyInner() {
   );
 
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, cards, introductions, enqueueReviewEvent });
+    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;

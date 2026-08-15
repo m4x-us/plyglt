@@ -87,27 +87,34 @@ describe("computeDueEstimate", () => {
   });
 });
 
-describe("buildNotificationPayload", () => {
-  it("returns null when cardCount is 0 (no zero-card nag push)", () => {
-    expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" })).toBeNull();
-  });
-
-  it("formats body as '<n> cards ready' for plural counts, using canonical terminology", () => {
-    const payload = buildNotificationPayload({ cardCount: 5, sessionType: "review" });
-    expect(payload).toEqual({
+describe("buildNotificationPayload — Batch 23 session floor", () => {
+  // The client fills every interrupt session to at least INTERRUPT_SESSION_FLOOR (6)
+  // cards (lib/queue.ts), so the payload floors the announced count at 6 and a zero
+  // estimate no longer suppresses the send. Deletion Test: the pre-floor code
+  // returned null for 0 and "1 card ready" for 1.
+  it("floors a zero estimate at 6 — never returns null, never suppresses the send", () => {
+    expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" })).toEqual({
       title: "plyglt",
-      body: "5 cards ready",
-      data: { cardCount: 5, sessionType: "review" },
+      body: "6 cards ready",
+      data: { cardCount: 6, sessionType: "review" },
     });
   });
 
-  it("formats body as '1 card ready' (singular) for a single ready card", () => {
-    const payload = buildNotificationPayload({ cardCount: 1, sessionType: "review" });
-    expect(payload?.body).toBe("1 card ready");
+  it("floors a small positive estimate (1) at 6 — the session the tap opens holds at least 6", () => {
+    expect(buildNotificationPayload({ cardCount: 1, sessionType: "review" }).body).toBe("6 cards ready");
+  });
+
+  it("keeps an estimate above the floor exact", () => {
+    const payload = buildNotificationPayload({ cardCount: 9, sessionType: "review" });
+    expect(payload).toEqual({
+      title: "plyglt",
+      body: "9 cards ready",
+      data: { cardCount: 9, sessionType: "review" },
+    });
   });
 
   it("never uses forbidden terminology ('due' or 'overdue') in the body", () => {
     const payload = buildNotificationPayload({ cardCount: 3, sessionType: "review" });
-    expect(payload?.body).not.toMatch(/due|overdue/i);
+    expect(payload.body).not.toMatch(/due|overdue/i);
   });
 });

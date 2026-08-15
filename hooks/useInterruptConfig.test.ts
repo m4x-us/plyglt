@@ -52,8 +52,9 @@ function makeState(overrides: Partial<{
   introductionDueIds: string[];
   canIntroduceNewCard: boolean;
   newCardIds: string[];
+  nearDueIds: string[];
 }> = {}) {
-  const { dueCardIds = [], introductionDueIds = [], canIntroduceNewCard = false, newCardIds = [] } = overrides;
+  const { dueCardIds = [], introductionDueIds = [], canIntroduceNewCard = false, newCardIds = [], nearDueIds = [] } = overrides;
   return {
     getStats: (unitCards: Card[]) => ({
       due: unitCards.filter((c) => dueCardIds.includes(c.id)).length,
@@ -66,6 +67,8 @@ function makeState(overrides: Partial<{
     canIntroduceNewCard: () => canIntroduceNewCard,
     getNewCards: (unitCards: Card[], limit = 20) =>
       unitCards.filter((c) => newCardIds.includes(c.id)).slice(0, limit),
+    getNearDueCards: (unitCards: Card[], limit: number) =>
+      unitCards.filter((c) => nearDueIds.includes(c.id)).slice(0, limit),
   };
 }
 
@@ -188,7 +191,18 @@ describe("useInterruptConfig — computeDue", () => {
     expect(result.current.computeDue([unit])).toBe(1); // review count only — no flex needed or applied
   });
 
-  it("stays at 0 when the flex check also finds no untouched card anywhere (truly nothing left)", () => {
+  // Batch 23: the session floor can fill with a near-due review pulled slightly early,
+  // so the fire-gate must count that scenario too. Deletion Test: without the near-due
+  // mirror, this returns 0 and the interrupt never fires despite a servable session.
+  it("counts a near-due card when nothing is due, nothing is new, and no untouched card exists (Batch 23)", () => {
+    const studied = makeCard("u1-c1");
+    const unit = makeUnit("u1", [studied]);
+    mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, nearDueIds: [studied.id] }));
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(1);
+  });
+
+  it("stays at 0 when the flex check also finds no untouched card AND no near-due card anywhere (truly nothing left)", () => {
     const card = makeCard("u1-c1");
     const unit = makeUnit("u1", [card]);
     mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [] }));

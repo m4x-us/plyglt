@@ -7,6 +7,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import type { Card } from "@/content/types";
 import type { IntroductionRecord } from "@/content/types";
 import { selectQualifyingNewCard, type Grade, type CardProgress } from "@/lib/srs";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_MAX_NEW } from "@/lib/queue";
 import type { ActiveSession } from "@/store/srsStore";
 import { localDateStr } from "@/lib/utils";
 
@@ -22,8 +23,13 @@ type UseStudySessionParams = {
   getResumableSession: () => ActiveSession | null;
   clearActiveSession: () => void;
   commitSession: (cardId: string, grade: Grade, session: ActiveSession) => CardProgress;
-  canIntroduceNewCard: (today: string) => boolean;
+  canIntroduceNewCard: (today: string, maxPerDay?: number) => boolean;
   introduceCard: (cardId: string, today: string) => void;
+  // Batch 23 — interrupt-session floor fill: already-studied, not-yet-due cards
+  // ordered soonest-due first (store/srsStore.ts's getNearDueCards, bound by the
+  // page to the session's card scope). Injected like every other store-backed
+  // action here for testability.
+  getNearDueCards: (limit: number) => Card[];
   cards: Record<string, CardProgress>;
   introductions: Record<string, IntroductionRecord>;
   // Task #169 — records the review as a local sync event, queued for upload once
@@ -43,6 +49,7 @@ export function useStudySession({
   commitSession,
   canIntroduceNewCard,
   introduceCard,
+  getNearDueCards,
   cards,
   introductions,
   enqueueReviewEvent,
@@ -78,35 +85,89 @@ export function useStudySession({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
 
-  // On mount: introduce the first qualifying new card if today's quota is open.
-  // Cards are sorted by tier ascending (tier 1 before tier 2 per BRAND.md).
-  // The introduced card is appended to the current queue so it appears this session;
-  // subsequent sessions pick it up via getIntroductionDueCardIds in buildQueue.
+  // On mount: introduce the first qualifying new card if today's quota is open
+  // (all session types), then — for interrupt sessions only — fill the queue up
+  // to lib/queue.ts's INTERRUPT_SESSION_FLOOR (Batch 23, owner-ratified spec:
+  // every interrupt targets 45-90 seconds ≈ 6 cards; a 1-card burst spends the
+  // attention cost of an interruption on almost no learning). Fill order:
+  //   1. more NEW cards (Max's ratified fill choice — starvation is cold-start-
+  //      shaped, exactly when extra intros are pure ramp-up), hard-capped at
+  //      INTERRUPT_SESSION_MAX_NEW (3) per session — the working-memory limit —
+  //      and gated on the introduction engine's strandedAcrossDays pause
+  //      (canIntroduceNewCard with an unbounded maxPerDay checks ONLY that
+  //      pause; the numeric daily cap deliberately flexes here, Task #533).
+  //   2. near-due FSRS reviews pulled slightly early (soonest-due first).
+  // A final Task #533 backstop preserves the original never-completely-empty
+  // guarantee even when the stranded pause blocks step 1 and no near-due card
+  // exists. Non-interrupt sessions keep the original one-new-card behavior;
+  // hooks/useInterruptConfig.ts's computeDue mirrors this supply logic when
+  // deciding whether an interrupt fires at all.
   useEffect(() => {
     const today = localDateStr();
-    const first = selectQualifyingNewCard(allCardMap, cards, introductions);
-    if (!first) return; // nothing left to teach anywhere — genuinely nothing to flex to
-    if (canIntroduceNewCard(today)) {
-      introduceCard(first.id, today);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
-      return;
+    // sessionIds tracks the full session content (initial queue + everything this
+    // pass adds) for both dedupe and the floor arithmetic; `added` holds only the
+    // cards that actually need appending. The normal daily-intro path may pick a
+    // card already sitting in the queue (unit sessions interleave new cards via
+    // buildQueue) — that introduction still happens, it just appends nothing.
+    const sessionIds = new Set<string>(initialQueue.map((c) => c.id));
+    const added: Card[] = [];
+    const introducedIds = new Set<string>();
+
+    const introduceNext = (): boolean => {
+      const next = selectQualifyingNewCard(allCardMap, cards, introductions, introducedIds);
+      if (!next) return false;
+      introduceCard(next.id, today);
+      introducedIds.add(next.id);
+      if (!sessionIds.has(next.id)) {
+        sessionIds.add(next.id);
+        added.push(next);
+      }
+      return true;
+    };
+
+    // Normal daily-cap path — one new card per day, every session type.
+    if (canIntroduceNewCard(today)) introduceNext();
+
+    if (isInterrupt) {
+      // strandedAcrossDays check only — an unbounded maxPerDay disables the
+      // numeric daily cap without bypassing the stranded pause (BRAND.md:
+      // introductions stay paused until a struggling card stabilizes).
+      const strandedPauseClear = canIntroduceNewCard(today, Number.MAX_SAFE_INTEGER);
+      while (
+        strandedPauseClear &&
+        sessionIds.size < INTERRUPT_SESSION_FLOOR &&
+        introducedIds.size < INTERRUPT_SESSION_MAX_NEW
+      ) {
+        if (!introduceNext()) break;
+      }
+
+      if (sessionIds.size < INTERRUPT_SESSION_FLOOR) {
+        // Over-fetch by the session size so cards already present don't shrink
+        // the effective fill below the shortfall.
+        for (const card of getNearDueCards(INTERRUPT_SESSION_FLOOR + sessionIds.size)) {
+          if (sessionIds.size >= INTERRUPT_SESSION_FLOOR) break;
+          if (sessionIds.has(card.id)) continue;
+          sessionIds.add(card.id);
+          added.push(card);
+        }
+      }
+
+      // Task #533 backstop: a proactive interrupt must never be completely
+      // empty. Only reachable when the stranded pause blocked the fill loop AND
+      // no near-due card exists — introduce one card anyway, matching the
+      // original pre-floor behavior.
+      if (sessionIds.size === 0) introduceNext();
     }
-    // BRAND.md commits to 6-10 interrupts every day, never fewer. Today's normal one-new-card
-    // cap is already used, but if this interrupt session would otherwise be completely empty
-    // (no FSRS reviews due, no introduction-cadence cards — lib/queue.ts's buildQueue never
-    // interleaves new cards in interrupt/global mode, so initialQueue.length === 0 here means
-    // exactly that), the app still owes the user a lesson: flex past the cap rather than show
-    // nothing. Scoped to isInterrupt — a manually-opened Global Review with nothing due is
-    // allowed to show the normal empty-queue screen; only the daily-interrupt promise is a
-    // hard floor. Matches hooks/useInterruptConfig.ts's computeDue, which fires the interrupt
-    // in this exact scenario expecting this fallback to supply real content once the session opens.
-    if (isInterrupt && initialQueue.length === 0) {
-      introduceCard(first.id, today);
-      setQueue((prev) => (prev.some((c) => c.id === first.id) ? prev : [...prev, first]));
+
+    if (added.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setQueue((prev) => {
+        const have = new Set(prev.map((c) => c.id));
+        return [...prev, ...added.filter((c) => !have.has(c.id))];
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount only — one introduction attempt per session
+  }, []); // mount only — one fill pass per session
 
   // Apply resume when decision is made.
   // Multiple synchronous setState calls inside this effect are intentional —

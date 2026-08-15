@@ -215,10 +215,15 @@ export function prerequisitesMet(card: Card, progressMap: Record<string, CardPro
 export function selectQualifyingNewCard(
   allCardMap: Record<string, Card>,
   cards: Record<string, CardProgress>,
-  introductions: Record<string, IntroductionRecord>
+  introductions: Record<string, IntroductionRecord>,
+  // Batch 23: the interrupt-session floor picks SEVERAL new cards in one mount
+  // effect, but `introductions` is a snapshot from before the effect ran — the
+  // caller passes the ids it has already introduced this pass so the same card
+  // is never selected twice within one fill loop.
+  excludeIds?: ReadonlySet<string>
 ): Card | null {
   const qualifying = Object.values(allCardMap)
-    .filter((c) => !cards[c.id] && !introductions[c.id] && prerequisitesMet(c, cards))
+    .filter((c) => !cards[c.id] && !introductions[c.id] && !excludeIds?.has(c.id) && prerequisitesMet(c, cards))
     .sort((a, b) => a.tier - b.tier);
   return qualifying[0] ?? null;
 }

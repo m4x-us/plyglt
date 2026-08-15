@@ -117,7 +117,7 @@ Streaks exist as a light continuity indicator. They are not weaponized: no strea
 
 ## The Proactive Interruption Model
 
-Most apps wait for you to open them. plyglt interrupts your workday with a short review session — a tray notification, a mandatory overlay, 3–5 cards. Each session lasts under a minute.
+Most apps wait for you to open them. plyglt interrupts your workday with a short review session — a tray notification, a mandatory overlay, 6–8 cards. Each session takes 45–90 seconds. Six cards is a floor, not an average: when the scheduler has fewer ready, the session fills with new material and nearly-ready reviews rather than shrinking — a one-card interruption spends the cost of interrupting on almost no learning.
 
 On desktop (Mac, Windows, Linux) via Tauri, plyglt can interrupt on a schedule, on computer unlock, or when idle time is detected. On mobile, push notifications serve the same function. Pro feature on all platforms.
 
@@ -127,11 +127,11 @@ On desktop (Mac, Windows, Linux) via Tauri, plyglt can interrupt on a schedule, 
 
 **The testing effect makes retrieval the event.** Roediger & Karpicke (2006) showed that the act of retrieving a memory — regardless of session length — is what strengthens it. A 60-second burst is a series of retrieval events. Duration is irrelevant once retrieval happens.
 
-**Cognitive load theory supports small batches.** Working memory holds roughly 7 items (Sweller). A 3–5 card burst stays well within that limit. Longer sessions push past it — performance degrades as cognitive load accumulates toward the end.
+**Cognitive load theory limits new material, not reviews.** Working memory holds roughly 4 chunks (Cowan, 2001). That caps how many never-seen items one burst can introduce — plyglt never presents more than 3 new cards per session. Retrieving already-learned cards does not compete for that space: each retrieval is an independent event, so a burst can safely hold 6–8 reviews.
 
 **FSRS makes this exceptionally powerful.** plyglt's interruptions trigger retrieval at the exact moment before forgetting. The timing does the work, not the session length. A 60-second retrieval at the right moment is maximally effective. A 60-minute session at the wrong moment is largely wasted.
 
-The result: 6–10 minutes of language learning distributed as 6–10 interruptions across the workday — enough to reach B2 in 2.5 years (~73 total hours of targeted practice), more effective per minute than any single focused session, and sustainable indefinitely.
+The result: 6–12 minutes of language learning distributed as 6–10 interruptions across the workday — enough to reach B2 in 2.5 years, more effective per minute than any single focused session, and sustainable indefinitely.
 
 ### The ultra-intensive introduction phase
 
@@ -166,7 +166,7 @@ Once introduced, new content enters an ultra-intensive repetition phase before g
 | Wrong 3× in a row | Resets to Day 1 — appears in every interrupt again |
 | Wrong across multiple days | New card introductions pause until this one stabilizes |
 
-**One new card introduced per day maximum.** On any given day, several cards are at different intensive stages — one at Day 1 appearing 8 times, one at Day 6 appearing twice, one at Day 15 appearing once — plus FSRS reviews. Sessions stay short because the daily new card load is hard-capped.
+**One new card introduced per day at steady state.** On any given day, several cards are at different intensive stages — one at Day 1 appearing 8 times, one at Day 6 appearing twice, one at Day 15 appearing once — plus FSRS reviews. At that steady state the cadence alone supplies roughly 28 appearances a day, and sessions stay short because the daily new card load holds at one. The cap flexes only when the pipeline is empty — a brand-new account, or a return from vacation — where a session below its 6-card floor introduces additional new cards (never more than 3 per session) until the pipeline refills and the cap reasserts itself.
 
 ---
 

@@ -80,6 +80,11 @@ interface SRSState {
 
   // Returns Card objects that are new and whose prerequisites are met (tier-ordered)
   getNewCards: (unitCards: Card[], limit?: number) => Card[];
+  // Batch 23 — interrupt-session floor fill: already-studied cards NOT yet due,
+  // ordered soonest-due first, for pulling slightly early when a session would
+  // otherwise fall below lib/queue.ts's INTERRUPT_SESSION_FLOOR. FSRS tolerates
+  // early review (the scheduler simply reschedules from the actual review time).
+  getNearDueCards: (unitCards: Card[], limit: number) => Card[];
 
   getStats: (unitCards: Card[]) => {
     due: number;
@@ -178,6 +183,18 @@ export const useSRSStore = create<SRSState>()(
           .filter((card) => !progressMap[card.id])
           .filter((card) => prerequisitesMet(card, progressMap))
           .sort((a, b) => a.tier - b.tier)
+          .slice(0, limit);
+      },
+
+      getNearDueCards: (unitCards, limit) => {
+        const progressMap = get().cards;
+        const now = Date.now();
+        return unitCards
+          .filter((card) => {
+            const p = progressMap[card.id];
+            return p && p.reps > 0 && !isDue(p, now);
+          })
+          .sort((a, b) => progressMap[a.id]!.dueDate - progressMap[b.id]!.dueDate)
           .slice(0, limit);
       },
 

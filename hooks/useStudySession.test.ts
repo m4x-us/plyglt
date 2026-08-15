@@ -26,6 +26,7 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     commitSession: vi.fn(),
     canIntroduceNewCard: vi.fn(() => false),
     introduceCard: vi.fn(),
+    getNearDueCards: vi.fn(() => []),
     cards: {},
     introductions: {},
     enqueueReviewEvent: vi.fn(),
@@ -275,6 +276,139 @@ describe("useStudySession — interrupt-floor flex fallback", () => {
       ),
     );
     expect(introduceCard).not.toHaveBeenCalled();
+  });
+});
+
+// ── interrupt session-size floor (Batch 23) ───────────────────────────────────
+// Owner-ratified spec (2026-08-14): every interrupt session holds at least
+// INTERRUPT_SESSION_FLOOR (6) cards — filled with flexed new introductions
+// (hard cap INTERRUPT_SESSION_MAX_NEW = 3 per session), then near-due reviews
+// pulled slightly early. Deletion Test: without the fill loop, an interrupt
+// whose initialQueue holds 1-5 cards mounts with exactly that many.
+
+describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
+  // Cap-used-but-not-stranded: the store's real canIntroduceNewCard(today) is
+  // false once today's 1 is used, while canIntroduceNewCard(today, MAX_SAFE_INTEGER)
+  // stays true until a card is stranded. The mock mirrors that split exactly.
+  const capUsedNotStranded = () => vi.fn((_t: string, maxPerDay?: number) => maxPerDay !== undefined);
+
+  const catalog = ["n1", "n2", "n3", "n4", "n5"].map((id) => makeCard(id));
+  const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+  const nearDuePool = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => makeCard(id));
+
+  it("fills an empty interrupt session to exactly 6: 3 flexed new cards, then 3 near-due", () => {
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard: capUsedNotStranded(),
+          introduceCard,
+          getNearDueCards: vi.fn(() => nearDuePool),
+        }),
+      ),
+    );
+    expect(introduceCard.mock.calls.map((c) => c[0])).toEqual(["n1", "n2", "n3"]);
+    expect(result.current.queue.map((c) => c.id)).toEqual(["n1", "n2", "n3", "r1", "r2", "r3"]);
+  });
+
+  it("tops up a 4-card interrupt queue to 6 with 2 flexed new cards and no near-due", () => {
+    const initial = ["d1", "d2", "d3", "d4"].map((id) => makeCard(id));
+    const getNearDueCards = vi.fn(() => nearDuePool);
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: initial,
+          allCardMap: { ...Object.fromEntries(initial.map((c) => [c.id, c])), ...catalogMap },
+          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])), // studied → not "new"
+          isInterrupt: true,
+          canIntroduceNewCard: capUsedNotStranded(),
+          introduceCard,
+          getNearDueCards,
+        }),
+      ),
+    );
+    expect(introduceCard.mock.calls.map((c) => c[0])).toEqual(["n1", "n2"]);
+    expect(result.current.queue).toHaveLength(6);
+  });
+
+  it("falls back to near-due-only fill when the stranded pause blocks new introductions", () => {
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false), // stranded — false for BOTH call shapes
+          introduceCard,
+          getNearDueCards: vi.fn(() => nearDuePool),
+        }),
+      ),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+    expect(result.current.queue.map((c) => c.id)).toEqual(["r1", "r2", "r3", "r4", "r5", "r6"]);
+  });
+
+  it("stops at the catalog's edge without padding duplicates when supply runs out below the floor", () => {
+    const onlyTwo = { n1: makeCard("n1"), n2: makeCard("n2") };
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: onlyTwo,
+          isInterrupt: true,
+          canIntroduceNewCard: capUsedNotStranded(),
+          introduceCard,
+          getNearDueCards: vi.fn(() => []),
+        }),
+      ),
+    );
+    expect(result.current.queue.map((c) => c.id)).toEqual(["n1", "n2"]);
+  });
+
+  it("never duplicates a near-due card that is already in the queue", () => {
+    const shared = makeCard("shared");
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [shared],
+          allCardMap: { shared },
+          cards: { shared: { reps: 1 } as never },
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false),
+          introduceCard,
+          getNearDueCards: vi.fn(() => [shared, ...nearDuePool]),
+        }),
+      ),
+    );
+    expect(result.current.queue.map((c) => c.id)).toEqual(["shared", "r1", "r2", "r3", "r4", "r5"]);
+  });
+
+  it("does not fill a short NON-interrupt session — unit and global sessions keep their natural size", () => {
+    const introduceCard = vi.fn();
+    const getNearDueCards = vi.fn(() => nearDuePool);
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [makeCard("d1")],
+          allCardMap: { d1: makeCard("d1"), ...catalogMap },
+          cards: { d1: { reps: 1 } as never },
+          isInterrupt: false,
+          canIntroduceNewCard: capUsedNotStranded(),
+          introduceCard,
+          getNearDueCards,
+        }),
+      ),
+    );
+    expect(introduceCard).not.toHaveBeenCalled();
+    expect(getNearDueCards).not.toHaveBeenCalled();
+    expect(result.current.queue).toHaveLength(1);
   });
 });
 

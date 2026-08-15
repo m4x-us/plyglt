@@ -6,6 +6,26 @@ import { localDateStr } from "@/lib/utils";
 
 const SESSION_NEW_LIMIT = 15;
 
+// ── Interrupt-session content floor (Batch 23, owner-ratified 2026-08-14) ────
+// Every proactive interrupt session targets 45-90 seconds of retrieval, which
+// at 8-15s/card means a 6-card floor — a 1-card burst spends the attention cost
+// of an interruption on almost no learning. When the day's normal supply (FSRS
+// due + introduction cadence) falls short, hooks/useStudySession.ts's mount
+// effect fills the gap: new-card introductions first (Max's ratified choice —
+// starvation is cold-start-shaped, exactly when extra intros are pure ramp-up),
+// hard-capped at 3 per session (working memory holds ~4 chunks — Cowan 2001 —
+// so more than 3 never-seen items in one burst causes interference), then
+// near-due FSRS reviews pulled slightly early. The server mirrors the floor in
+// supabase/functions/send-interrupt-notifications/dueEstimate.ts — keep the
+// two `6` values in sync.
+export const INTERRUPT_SESSION_FLOOR = 6;
+export const INTERRUPT_SESSION_MAX_NEW = 3;
+// Ceiling: 8 cards ≈ the top of the 45-90s window at 8-15s/card. Replaces the
+// old app/study/page.tsx INTERRUPT_CARD_LIMIT of 5, which sat BELOW the new
+// floor. On a heavy backlog day the session shows 8 and the rest wait for the
+// next interrupt — BRAND.md: cards are ready, never overdue; no wall of debt.
+export const INTERRUPT_SESSION_CAP = 8;
+
 export function buildQueue(
   cards: Card[],
   getDueCards: (cards: Card[]) => string[],

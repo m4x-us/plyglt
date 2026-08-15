@@ -247,6 +247,47 @@ describe("lib/constants — import-graph seam (static USED BY list must be repla
   });
 });
 
+// ── getNearDueCards — interrupt-floor fill source (Batch 23) ─────────────────
+
+describe("getNearDueCards()", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
+  });
+
+  function card(id: string) {
+    return { id, type: "recognize" as const, prompt: "t", accepted: ["t"], tags: [], tier: 1 as const };
+  }
+  function progress(cardId: string, dueDate: number, reps = 3) {
+    return { cardId, state: "review" as const, stability: 5, difficulty: 5, retrievability: 0.9, dueDate, lapses: 0, reps };
+  }
+
+  it("returns studied not-yet-due cards ordered soonest-due first, respecting the limit", () => {
+    const now = Date.now();
+    useSRSStore.setState({
+      cards: {
+        far: progress("far", now + 3 * 86400000),
+        soon: progress("soon", now + 1 * 86400000),
+        mid: progress("mid", now + 2 * 86400000),
+      },
+    });
+    const unitCards = [card("far"), card("soon"), card("mid")];
+    expect(useSRSStore.getState().getNearDueCards(unitCards, 2).map((c) => c.id)).toEqual(["soon", "mid"]);
+  });
+
+  it("excludes cards that are already due (they belong to getDueCards) and untouched cards (reps 0 / no progress)", () => {
+    const now = Date.now();
+    useSRSStore.setState({
+      cards: {
+        due: progress("due", now - 1000),
+        future: progress("future", now + 86400000),
+        zeroReps: progress("zeroReps", now + 86400000, 0),
+      },
+    });
+    const unitCards = [card("due"), card("future"), card("zeroReps"), card("untouched")];
+    expect(useSRSStore.getState().getNearDueCards(unitCards, 10).map((c) => c.id)).toEqual(["future"]);
+  });
+});
+
 // ── getNewCards — prerequisite logic tests (#023) ────────────────────────────
 
 describe("getNewCards() — prerequisite logic", () => {

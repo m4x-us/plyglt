@@ -45,7 +45,6 @@ export interface NotificationPayload {
 export interface DispatchSummary {
   sent: number;
   failed: number;
-  skippedNoCards: number;
   skippedAlreadyClaimed: number;
   // Audit finding (2026-08-08): a send result of {ok:false, skipped:true}
   // (APNs/FCM credentials not configured for this deployment — a normal,

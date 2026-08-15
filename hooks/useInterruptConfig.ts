@@ -71,6 +71,20 @@ export function useInterruptConfig() {
           break;
         }
       }
+      // Batch 23 — the session-floor fill can also pull a near-due review slightly
+      // early (getNearDueCards), so a day where the stranded pause blocks new
+      // introductions AND nothing is due can still hold a real session. Without
+      // this mirror, the fire-gate would stay silent in a scenario the session
+      // itself can serve — the exact computeDue/buildQueue divergence Task #523
+      // existed to close.
+      if (newCardDue === 0) {
+        for (const u of units) {
+          if (state.getNearDueCards(u.cards, 1).length > 0) {
+            newCardDue = 1;
+            break;
+          }
+        }
+      }
     }
 
     return reviewDue + introDue + newCardDue;

@@ -83,6 +83,9 @@ vi.mock("@/hooks/useLangPack", () => ({
 vi.mock("@/lib/queue", () => ({
   buildQueue: () => builtQueue.cards,
   findUnitName: () => "Test Unit",
+  // Real value, not a stand-in: the page slices interrupt queues to this cap
+  // (Batch 23) — a fake number here would silently diverge from lib/queue.ts.
+  INTERRUPT_SESSION_CAP: 8,
 }));
 
 // ── @/hooks/useStudySession — controlled per-test via sessionCfg ─────────────

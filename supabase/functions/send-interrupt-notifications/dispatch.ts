@@ -109,7 +109,6 @@ export async function dispatchNotifications(
   const summary: DispatchSummary = {
     sent: 0,
     failed: 0,
-    skippedNoCards: 0,
     skippedAlreadyClaimed: 0,
     skippedNotConfigured: 0,
     deactivated: 0,
@@ -121,14 +120,12 @@ export async function dispatchNotifications(
     try {
       const events = reviewEventsByUser.get(token.user_id) ?? [];
       const estimate = computeDueEstimate(events, token.user_id, now);
+      // Batch 23: buildNotificationPayload always returns a payload — the
+      // client's session floor (lib/queue.ts INTERRUPT_SESSION_FLOOR) fills
+      // any shortfall, so a zero server-side estimate is never a reason to
+      // skip. The interval/waking-hours/cross-device gates in dueSelection.ts
+      // remain the only send/no-send decisions.
       const payload = buildNotificationPayload(estimate);
-
-      // No cards ready: never claims the token (no rate-limit window
-      // consumed) and never sends — BRAND.md's "no zero-card nag" principle.
-      if (!payload) {
-        summary.skippedNoCards++;
-        continue;
-      }
 
       const claimed = await deps.claimToken(token.id, now.toISOString(), token.interrupt_interval_minutes);
       if (!claimed) {

@@ -68,18 +68,29 @@ export function computeDueEstimate(
 }
 
 /**
- * Returns null when there is nothing to announce — per BRAND.md's "no
- * overdue cards, no pressure" principle, the server never sends a nagging
- * zero-card push. Body text uses canonical terminology ("ready", never
- * "due"/"overdue") and carries no exclamation mark, per BRAND.md's voice
- * rules.
+ * Batch 23 (owner-ratified 2026-08-14): the client guarantees every interrupt
+ * session holds at least INTERRUPT_SESSION_FLOOR cards (lib/queue.ts — filled
+ * with flexed new-card introductions and near-due reviews when the FSRS-due
+ * count alone falls short), so the server-side estimate — a documented lower
+ * bound over synced review_events only — must never be a send/no-send gate.
+ * A zero estimate simply means "the client will fill the session"; skipping
+ * the push entirely was the mobile-side version of the exact "6-10 interrupts
+ * every day, never fewer" gap Task #533 closed on desktop. The body floors the
+ * announced count at the session floor for the same reason: the session the
+ * tap opens genuinely holds at least that many cards (catalog permitting).
+ * Keep this `6` in sync with lib/queue.ts's INTERRUPT_SESSION_FLOOR (Deno
+ * functions cannot import from lib/).
+ *
+ * Body text uses canonical terminology ("ready", never "due"/"overdue") and
+ * carries no exclamation mark, per BRAND.md's voice rules.
  */
-export function buildNotificationPayload(estimate: { cardCount: number; sessionType: "review" }): NotificationPayload | null {
-  if (estimate.cardCount === 0) return null;
-  const cardWord = estimate.cardCount === 1 ? "card" : "cards";
+export const INTERRUPT_SESSION_FLOOR = 6;
+
+export function buildNotificationPayload(estimate: { cardCount: number; sessionType: "review" }): NotificationPayload {
+  const announced = Math.max(estimate.cardCount, INTERRUPT_SESSION_FLOOR);
   return {
     title: "plyglt",
-    body: `${estimate.cardCount} ${cardWord} ready`,
-    data: { cardCount: estimate.cardCount, sessionType: estimate.sessionType },
+    body: `${announced} cards ready`,
+    data: { cardCount: announced, sessionType: estimate.sessionType },
   };
 }
