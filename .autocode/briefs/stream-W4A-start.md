@@ -1,299 +1,182 @@
-# Adam — Stream W4A — Wave 4 — 2026-07-07
+# Adam — Stream W4A — Wave 4 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W4A | #232 #231 #233 #228 #229 #230 #234 #240 #241 #242
+— Adam | W4A | #563 #576 #584 #572
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
-## Your Tasks (run in this exact order)
-1. /task #232 — Fix migration v3's isNaN date guard missing day-of-month rollover
-2. /task #231 — Fix getDayOfPhase's date validation missing calendar-invalid-but-shape-valid dates
-3. /task #233 — Fix migration's null-record recovery producing an incomplete IntroductionRecord
-4. /task #228 — Fix canIntroduceNewCard's cross-day wrong-streak pause (dead code)
-5. /task #229 — Fix the "variety rule" (Task #180) having zero effect on what the user is shown
-6. /task #230 — Fix getNextCardType producing only 2 of 5 CardTypes
-7. /task #234 — Fix getDayOfPhase's throw being uncaught inside getIntroductionDueCardIds's filter loop
-8. /task #240 — Fix DATE_RE regex duplicated across two files
-9. /task #241 — Fix phase-day boundary magic number 22 repeated in 3 places
-10. /task #242 — Fix shouldGraduate() being exported but never called
+This is Wave 4 of Batch 23's remediation. Wave 3 (already merged to main) fixed the
+production bugs these tests are meant to guard — read the CURRENT state of
+`hooks/useStudySession.ts` and `store/srsStore.ts` (both off-limits to you this wave, but
+read-only inspection is fine and necessary) before writing any test, since the fixes changed
+shape from what the original findings described.
 
-**Why this order:** #232 before #231 — a hidden semantic coupling was detected: #231's own acceptance criteria says to verify its docstring against #232's day-of-month-rollover finding, so #232 should land first. #230 is declared "Blocked by #229" and #234 is declared "Blocked by #231" in tasks.md — do not start those until their blocker is COMPLETE. The three DRY cleanups (#240, #241, #242) run last since they touch the same functions the earlier fixes will have just changed — doing them last avoids rework/merge friction within your own sequential work.
+## Your Tasks (run in this exact order)
+1. /task #563  — Fix tests: no test can detect the daily-cap overshoot (#562's bug — now fixed in Wave 3, verify a regression test exists or is still needed)
+2. /task #576  — Fix tests: #538/#541 regression tests were never added — the backstop code they'd test was DELETED in Wave 3, not fixed
+3. /task #584  — Fix tests: near-due-card dedup test only proves the outer filter, not the inner loop check
+4. /task #572  — Fix tests: srsStore.test.ts's "respects the limit parameter" test uses a weak bound instead of an exact value
+
+IMPORTANT CONTEXT FROM WAVE 3 (read `hooks/useStudySession.ts`'s current state, and Adam's
+own Wave 3 completion note reproduced below, before starting #563/#576):
+
+> #562 — the per-iteration daily-cap recheck: `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)`
+> is now called directly inside the `while` loop's condition (not once before it). The old
+> `flexIntroAllowed` local variable no longer exists.
+> #563 (Wave 3 stream's own note): "my #562 fix already ships with its own dedicated
+> regression test ('stops flexing new cards the moment canIntroduceNewCard flips false
+> mid-batch...') — #563 may already be satisfied; worth checking before writing a duplicate."
+> #565 — the never-empty backstop was DELETED entirely (not made reachable) — Wave 3 judged
+> it was still dead code after the #562 fix and removed it rather than leave misleading
+> "safety net" code in place.
+> #576 (Wave 3 stream's own note): "any #538/#541 regression test that asserted on the
+> backstop's behavior specifically needs updating to reflect it no longer exists as a
+> distinct code path (the near-due fill and flex loop are now the only fill mechanisms)."
+
+Given this: for #563, first check `hooks/useStudySession.test.ts` for the test Adam's Wave 3
+stream added for #562 — if it genuinely proves the daily cap is enforced per-iteration (not
+just per-session), #563 may already be closed; verify with a Deletion Test before deciding
+whether to add anything new. For #576, since the backstop no longer exists, a literal
+"stranded-pause-blocks-backstop" test doesn't make sense anymore — the #538 concern (does a
+stranded pause correctly block ALL new-card introduction during an interrupt session, not
+specifically "the backstop") is still valid and should be tested against the current code
+shape (the flex while-loop, since that's the only introduction path left). The #541
+(near-due-interleaving) concern is separate and still applies as originally described — check
+whether Wave 3's own new tests already cover it (Adam's Wave 3 stream mentioned adding tests
+for #562/#573/#574 but not explicitly #541's interleaving scenario).
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Adam — W4A
-[✓] #232 — Fix migration v3's isNaN date guard   ← done
-[→] #231 — Fix getDayOfPhase's date validation   ← starting now
-[ ] #233 — Fix migration's null-record recovery
-[ ] #228 — Fix canIntroduceNewCard's cross-day pause
-[ ] #229 — Fix the variety rule wiring
-[ ] #230 — Fix getNextCardType's 2-of-5 bug
-[ ] #234 — Fix uncaught throw in getIntroductionDueCardIds
-[ ] #240 — Extract duplicate DATE_RE
-[ ] #241 — Extract duplicate magic number 22
-[ ] #242 — Wire shouldGraduate() into recordResult
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+[→] #563 — Fix tests: daily-cap overshoot test   ← starting now
+[ ] #576 — Fix tests: #538/#541 regression tests (backstop deleted, retarget)
+[ ] #584 — Fix tests: inner-loop dedup check untested
+[ ] #572 — Fix tests: weak bound instead of exact value
 
 ## Files You Own (edit ONLY these)
-store/srsStore.ts
-lib/introduction.ts
-store/migrations.ts
+hooks/useStudySession.test.ts
 tests/srsStore.test.ts
-app/study/page.tsx
-content/types.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/langRegistry.ts
-lib/language.ts
-lib/entitlement.ts
-tests/commitSession.test.ts
-tests/useLangPack.test.ts
-tests/packLoader.test.ts
-tests/study_loop.test.ts
-tests/importBackup.test.ts
-AGENTS.md
+CLAUDE.md
+lib/queue.ts
+docs/INTERRUPT_ARCHITECTURE.md
+hooks/useStudySession.ts (read-only reference — production file, already fixed in Wave 3)
+store/srsStore.ts (read-only reference — production file, already fixed in Wave 3)
 
 ## Task Definitions
 
-### Task #232: Fix data-loss: migration v3's isNaN date guard misses day-of-month rollover
+### Task #563: Fix tests: no test can detect the daily-cap overshoot
 
-**File:** store/migrations.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P2
-
-**What:**
-The v3 migration's date guard (store/migrations.ts:71-90, added by Task #184 specifically to reject calendar-invalid dates) does not catch day-of-month rollover: `"2026-02-30"` passes both `DATE_RE` and `!isNaN(new Date(...).getTime())` because JS's `Date` silently normalizes it to a valid timestamp (March 2nd), so the calendar-invalid string is preserved as-is into the migrated record instead of falling back to today. The guard's own comment overclaims "rejects calendar-invalid strings" as a general class when it only covers month-overflow (e.g. month 13). Converged independently by Agents K, Red R, V, confirmed via `node` by the orchestrating CTO.
-
-**Acceptance Criteria:**
-- [ ] Strengthen the date guard to also reject day-of-month rollover — e.g. re-format the parsed `Date` back to a `YYYY-MM-DD` string and compare it to the original input string; a mismatch means the input was calendar-invalid even though `getTime()` didn't return NaN
-- [ ] Add a test asserting a v2 record with `phaseStartDate: "2026-02-30"` falls back to today's date after migration, not a silently-rolled-forward date
-- [ ] Correct the guard's comment to accurately describe what it now covers
-
-**Done when:** A migration test with `phaseStartDate: "2026-02-30"` asserts the migrated record's `phaseStartDate` equals the fallback (today), not `"2026-02-30"` or a rolled-forward value. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — data-loss — converged independently by Agents K, Red R, V.
-
----
-
-### Task #231: Fix requirements: getDayOfPhase's date validation misses calendar-invalid-but-shape-valid dates
-
-**File:** lib/introduction.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Architecture Agent
-**Blocked by:** Nothing (but run after #232 — see order rationale above)
-**Priority:** P1
-
-**What:**
-`getDayOfPhase` (lib/introduction.ts:51-62) validates only string shape via `DATE_RE = /^\d{4}-\d{2}-\d{2}$/`, not calendar validity. A shape-valid, calendar-invalid string like `"2026-13-45"` passes the guard; `new Date("2026-13-45").getTime()` is `NaN`, so the function silently returns `NaN` instead of throwing — directly contradicting its own docstring ("Throws on malformed input... NaN propagation would cause silent card disappearance"). This is the exact failure mode Task #179 was built to eliminate, reintroduced one validation layer down. 5 of 8 auditors converged on this (S, W, K, Red R, V), each independently verifying via `node`.
-
-**Acceptance Criteria:**
-- [ ] Add an `isNaN(new Date(...).getTime())` check to `getDayOfPhase` itself (matching what `store/migrations.ts`'s v3 migration already does at the persistence boundary), throwing the same `[ERR-INTRO-DATE]` error on failure
-- [ ] Add a test asserting `getDayOfPhase("2026-13-45", "2026-07-01")` throws, not returns NaN
-- [ ] Update the function's docstring only if its claim still doesn't fully hold after the fix (verify against Task #232's day-of-month rollover finding too — since #232 lands first in your queue, use whatever stricter validation approach it settled on for consistency)
-
-**Done when:** `getDayOfPhase("2026-13-45", "2026-07-01")` throws `[ERR-INTRO-DATE]` instead of returning NaN, verified by a new test. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 7 — requirements — converged independently by Agents S, W, K, Red R, V plus the orchestrating CTO's own node verification.
-
----
-
-### Task #233: Fix data-loss: migration's null-record recovery produces an incomplete IntroductionRecord
-
-**File:** store/migrations.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P2
-
-**What:**
-The v3 migration's null-record recovery path (store/migrations.ts:67-91, added by Task #184 to prevent a full-store-reset TypeError) produces `{ ...record, phaseStartDate }` where `record` is `{}` for a null/corrupt entry — only `phaseStartDate` is populated; the other 10 required `IntroductionRecord` fields are missing. The next `recordResult` call computes `record.totalEncounters + 1` and `record.consecutiveCorrect + 1` as `undefined + 1 = NaN`, permanently corrupting those counters — since `NaN >= GRADUATION_THRESHOLD` is always false, the card can never graduate again. A "recovery" path that itself introduces silent, permanent data corruption on the record it recovers. Found by Agent A, confirmed via code trace by the orchestrating CTO.
-
-**Acceptance Criteria:**
-- [ ] Build a complete default `IntroductionRecord` (all 11 fields, matching `introduceCard`'s initialization defaults) when a corrupt/null entry is recovered, not just `phaseStartDate`
-- [ ] Add a test asserting that after migrating a `null` introduction record and then calling `recordResult` on it, `totalEncounters` and `consecutiveCorrect` are real numbers, not `NaN`
-- [ ] Verify the recovered record can still graduate normally after 15 consecutive correct answers
-
-**Done when:** A test migrates a null introduction record, calls `recordResult` on the migrated output, and asserts `totalEncounters` and `consecutiveCorrect` are `1` (not `NaN`). Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 6 — data-loss — found by Agent A, confirmed by the orchestrating CTO's own code trace.
-
----
-
-### Task #228: Fix requirements: canIntroduceNewCard's cross-day wrong-streak pause is dead code
-
-**File:** store/srsStore.ts, lib/introduction.ts, tests/srsStore.test.ts
-**Complexity:** 🔧 Full — architectural fix, requires a new persisted signal
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-
-**What:**
-`canIntroduceNewCard` (store/srsStore.ts:272) gates on `r.consecutiveWrongToday >= CONSECUTIVE_WRONG_RESET && r.lastSeenDate !== today` to implement BRAND.md's "Wrong across multiple days → New card introductions pause until this one stabilizes." This is Task #180's own F10 acceptance criterion. It is dead code: `recordResult` (lib/introduction.ts:120-127) always resets `consecutiveWrongToday` to 0 in the exact same write that would ever push it to the threshold — no writer in the codebase can persist a value >= 3. The only test for this (`tests/srsStore.test.ts` "F10") injects the unreachable state directly via `setState`, bypassing the real write path entirely. 7 of 8 independent audit agents converged on this finding.
-
-**Acceptance Criteria:**
-- [ ] Introduce a signal that survives the same-day reset — e.g. a `strandedAcrossDays: boolean` set once when a card resets to Day 1 and only cleared once the card records a correct answer on a later day, or redefine the trigger around comparing `phaseStartDate` resets across distinct calendar days
-- [ ] Replace the F10 unit test with a seam test (matching `tests/seam_introduction.test.ts`'s pattern) that drives the cross-day-pause condition through `introduceCard`/`recordIntroductionResult` end-to-end, not via direct `setState` injection
-- [ ] Verify the fix actually blocks `canIntroduceNewCard` when a real multi-day-wrong sequence is played through the store API
-
-**Done when:** A new seam test drives a card wrong across 2+ real calendar-day boundaries through `recordIntroductionResult` and asserts `canIntroduceNewCard` returns `false` as a result — without directly setting `consecutiveWrongToday` via `setState`. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 9 — requirements — converged independently by Agents A, B, N, W, K, Red R, V.
-
----
-
-### Task #229: Fix requirements: the "variety rule" (Task #180) has zero effect on what the user is shown
-
-**File:** store/srsStore.ts, lib/introduction.ts, app/study/page.tsx, content/types.ts
-**Complexity:** 🔧 Full — requires either a content-model change or removing the dead mechanism
-**Owner:** Architecture Agent
-**Blocked by:** Nothing
-**Priority:** P1
-
-**What:**
-BRAND.md requires "each encounter uses a different retrieval angle" during the intensive introduction phase. Task #180 added `getNextCardType`/`lastSeenType` machinery to implement this, but it is fully inert: `app/study/page.tsx:147` calls `recordIntroductionResult(currentCard.id, g !== "again", localDateStr())` — it never passes the actually-displayed card's type. `recordIntroductionResult` (store/srsStore.ts:246-247) computes `getNextCardType(record.lastSeenType, ALL_CARD_TYPES)` and writes the result back into `lastSeenType`, but nothing anywhere in the codebase reads `IntroductionRecord.lastSeenType` to select what's actually shown — `StudyCard.tsx` renders strictly from the content pack's fixed, immutable `card.type`. There is no "sibling card" concept in the content model to even vary the presented format for a given word. 3 independent auditors (A, B, W) confirmed this via full-repo grep of `lastSeenType`.
-
-**Acceptance Criteria:**
-- [ ] Decide the actual mechanism: either (a) content packs need sibling cards per word/type so the queue can select an alternate-type card for the same word on each introduction encounter, or (b) if varying the retrieval angle is out of scope for now, remove the dead `lastSeenType`/`getNextCardType` wiring and its tests rather than leaving inert code that looks functional
-- [ ] If implementing: add a seam test that drives two consecutive introduction encounters for the same card through the real queue-building path and asserts the actually-displayed card type differs
-- [ ] Update content/types.ts's `lastSeenType` doc comment to be accurate about what it does today
-
-**Done when:** Either a real end-to-end seam test proves the displayed card type varies across encounters, or the dead mechanism is removed with an explicit documented decision. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 9 — requirements — converged independently by Agents A, B, W plus the orchestrating CTO's own full-repo grep.
-
----
-
-### Task #230: Fix code-quality: getNextCardType can only ever produce 2 of 5 CardTypes
-
-**File:** lib/introduction.ts
-**Complexity:** ⚡ Direct — 1 file, algorithm fix
-**Owner:** Architecture Agent
-**Blocked by:** Task #229 (fix depends on whether the mechanism is kept or removed)
-**Priority:** P1
-
-**What:**
-`getNextCardType` (lib/introduction.ts:140-146) filters only the single `lastSeenType` out of the candidate pool and takes `pool[0]`. Given the fixed-order `ALL_CARD_TYPES = ["recognize","produce","conjugate","fill_blank","passage_cloze"]`, this means the function can only ever oscillate between `"recognize"` and `"produce"` — empirically confirmed via 10 sequential calls producing only 2 distinct outputs. `conjugate`, `fill_blank`, and `passage_cloze` are structurally unreachable no matter how many times the function is called. This defeats BRAND.md's stated premise ("varied retrieval across encounters produces durable memory") independent of the wiring gap in Task #229.
-
-**Acceptance Criteria:**
-- [ ] If Task #229 keeps the mechanism: rewrite the selection algorithm to genuinely rotate/vary across all N available types (e.g. round-robin through a shuffled or rotating order, or track more than just the single last-seen type)
-- [ ] Add a test that calls the function N times in sequence and asserts all 5 CardTypes appear across the sequence (not just 2)
-- [ ] If Task #229 removes the mechanism: this task is superseded — close as not-applicable with a cross-reference
-
-**Done when:** A test drives `getNextCardType` through 10+ sequential calls and asserts at least 4 of the 5 CardTypes appear in the output sequence. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 8 — code-quality — confirmed empirically by the orchestrating CTO and independently by Agent W.
-
----
-
-### Task #234: Fix error-handling: getDayOfPhase's throw is uncaught inside getIntroductionDueCardIds's filter loop
-
-**File:** store/srsStore.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Architecture Agent
-**Blocked by:** Task #231 (getDayOfPhase's throw conditions are changing)
-**Priority:** P2
-
-**What:**
-`getIntroductionDueCardIds` (store/srsStore.ts:250-264) calls `getDayOfPhase` inside a `.filter()` over ALL introduction records with no per-record try/catch anywhere in the call chain, and the app has zero `ErrorBoundary`/`componentDidCatch` components. One corrupted record now aborts due-card computation for every card, not just the offending one — a larger blast radius than the silent single-card disappearance the throw-on-invalid-input design was meant to replace. Found independently by Agents S and K.
-
-**Acceptance Criteria:**
-- [ ] Wrap the `getDayOfPhase` call inside the filter callback in a try/catch that logs a ref ID and excludes only that one record from the due-card set, rather than letting the exception propagate and abort the whole computation
-- [ ] Add a test with one corrupt record and one valid record in `state.introductions`, asserting the valid record's card ID is still returned
-
-**Done when:** A test with a mix of one corrupt and one valid introduction record asserts `getIntroductionDueCardIds` returns the valid record's card without throwing. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — error-handling — found independently by Agents S and K.
-
----
-
-### Task #240: Fix code-quality: DATE_RE regex duplicated across two files
-
-**File:** lib/introduction.ts, store/migrations.ts
-**Complexity:** ⚡ Direct — 2 files, extract to shared module
-**Owner:** Architecture Agent
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
+**Status:** OPEN
 
 **What:**
-`const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;` is independently defined in both lib/introduction.ts:9 and store/migrations.ts:60 — the exact duplicate-constant failure class this team already hit once this batch (`CONSECUTIVE_WRONG_RESET`, fixed in Batch 18 Wave 1). AGENTS.md explicitly bans "any parallel list/array that should be derived from a single source of truth." Found independently by Agents B and Red R.
+No test in the suite can detect the F001 overshoot. The canIntroduceNewCard mock (capUsedNotStranded) is a pure function of its own call arguments only and returns the same answer regardless of how many cards were already introduced earlier in the same render. INTERRUPT_FLEX_DAILY_MAX's actual value (9) is never asserted in any test file; a regression reverting the daily cap back to the pre-#551 Number.MAX_SAFE_INTEGER bug would pass every existing test unchanged.
+
+NOTE: Wave 3 already fixed the underlying #562 bug and its own stream reported adding a dedicated regression test. Check first whether that test already satisfies this finding (run a Deletion Test: temporarily revert the `while` loop's per-iteration check back to a single pre-loop check, confirm the existing test fails). Only add a new test if a real gap remains.
 
 **Acceptance Criteria:**
-- [ ] Export `DATE_RE` once from a shared module (e.g. lib/utils.ts, already imported by both files) and import it in both places
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:capUsedNotStranded mock / flexes-past-daily-cap test:0
+- [ ] Audit passes: real Verification Gate (tsc, npm test, npm run lint) — `scripts/deep-audit.sh` does not exist in this repo
 
-**Done when:** `grep -rn "DATE_RE = " lib/ store/` returns exactly one definition. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — converged independently by Agents B and Red R.
+**Source:** Audit finding F002 — severity 5 — tests
 
 ---
 
-### Task #241: Fix code-quality: phase-day boundary magic number 22 repeated in 3 places
+### Task #576: Fix tests: #538/#541 regression tests never added
 
-**File:** lib/introduction.ts, store/srsStore.ts
-**Complexity:** ⚡ Direct — 2 files
-**Owner:** Architecture Agent
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
+**Status:** OPEN
 
 **What:**
-The phase-day graduation boundary `22` is a bare literal repeated in three places with no shared named constant: `MAX_APPEARANCES_BY_PHASE_DAY[22] = 0` and `getDayOfPhase`'s `Math.min(diffDays + 1, 22)` clamp (both lib/introduction.ts), and the day-22+ rescue-path check in store/srsStore.ts:257. Found by Agent B.
+The regression tests explicitly requested for #538 (stranded-pause-blocks-backstop) and #541 (near-due-interleaving) were never added to hooks/useStudySession.test.ts, by either the Wave 1 remediation stream or Wave 2. No test in the current suite regresses either specific fix.
+
+NOTE: the "backstop" this originally referred to was DELETED in Wave 3 (see the context note above the task list) — do not write a test targeting code that no longer exists. Retarget: write a test proving a stranded pause correctly blocks ALL new-card introduction during an interrupt session via whatever mechanism currently implements that (the flex while-loop's `canIntroduceNewCard` check). For #541 (near-due-interleaving — a scenario where already-in-session cards are interleaved rather than clustered in the near-due pool, and the fill should still reach the floor), check whether Wave 3 already added equivalent coverage before writing a duplicate.
 
 **Acceptance Criteria:**
-- [ ] Extract a named constant (e.g. `MAX_PHASE_DAY = 22`) in lib/introduction.ts, export it, and use it at all three call sites
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:stranded-pause-blocks-backstop / near-due-interleaving regression tests:0
+- [ ] Audit passes: real Verification Gate
 
-**Done when:** `grep -rn "\b22\b" lib/introduction.ts store/srsStore.ts` shows no remaining bare `22` literal tied to the phase-day boundary. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — found by Agent B.
+**Source:** Audit finding F015 — severity 5 — tests
 
 ---
 
-### Task #242: Fix code-quality: shouldGraduate() exported but never called; duplicated inline
+### Task #584: Fix tests: near-due dedup test only proves the outer filter
 
-**File:** lib/introduction.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Architecture Agent
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
 **Blocked by:** Nothing
 **Priority:** P3
+**Status:** OPEN
 
 **What:**
-`shouldGraduate()` (lib/introduction.ts:88-91) is exported but never called from production code — only from tests. `recordResult` (line 116) re-implements the identical check inline (`graduated: consecutiveCorrect >= GRADUATION_THRESHOLD`) instead of calling `shouldGraduate(record)`. Two independent expressions of the same rule. Found by Agent B.
+This pre-existing test only proves the outer setQueue dedup filter catches a duplicate; it does not exercise the inner loop-level check at all, a gap the test's own inline comment admits. A regression that removed the inner check would not be caught by this test.
+
+NOTE: Charles's Wave 3 stream (W3C) reported this may already be resolved — check `hooks/useStudySession.test.ts` for a test proving the inner loop-level check specifically (distinct from the outer setQueue filter) before writing a new one.
 
 **Acceptance Criteria:**
-- [ ] Change `recordResult` to call `shouldGraduate({ ...record, consecutiveCorrect })` instead of re-implementing the comparison inline
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:never duplicates a near-due card already in the queue test:0
+- [ ] Audit passes: real Verification Gate
 
-**Done when:** `recordResult`'s graduation check calls `shouldGraduate` rather than duplicating its comparison. Verification gate green.
+**Source:** Audit finding F023 — severity 4 — tests
 
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 4 — code-quality — found by Agent B.
+---
+
+### Task #572: Fix tests: weak bound instead of exact value
+
+**File:** tests/srsStore.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Uses toBeLessThanOrEqual(3) instead of toBe(3) for a test named "respects the limit parameter". This passes even if the slice returned 0 or 1 cards instead of the correct 3.
+
+Charles's Wave 3 stream added a new `!introMap[card.id]` filter to `store/srsStore.ts`'s `getNewCards` (Task #567) — read the current implementation before changing this test's expected value, since the exact count of cards satisfying "limit parameter respected" may now differ depending on this test's fixture data (whether any of its fixture cards have `introductions` entries). Change `toBeLessThanOrEqual(3)` to `toBe(3)` (or whatever the genuinely correct exact count is, given the current getNewCards implementation and this test's specific fixture).
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/srsStore.test.ts:respects the limit parameter test:351
+- [ ] Audit passes: real Verification Gate
+
+**Source:** Audit finding F011 — severity 5 — tests
+
+---
 
 ## Agent Memories
 
-## Architecture Agent Memory (relevant excerpt — Introduction Engine + recent resolutions)
-
-### Introduction Engine (M1 — LIVE)
-`lib/introduction.ts` — pure-function module (no React, no Zustand). Six exports: getDayOfPhase, maxAppearancesToday, shouldAppearToday, recordResult, shouldGraduate, getNextCardType.
-Integrated via 4 srsStore actions: introduceCard, recordIntroductionResult, getIntroductionDueCardIds, canIntroduceNewCard.
-
-### History of this exact area (read before touching it)
-- Batch 5 audit (2026-07-02) originally found: F01 (dead triple-wrong reset — FIXED via phaseStartDate, Task #178), F12 (day-22+ stranded cards — FIXED via rescue path, Task #180), F10 (cross-day pause missing — Task #180 claimed to fix this but the batch-level audit found it's dead code — this is your Task #228), F13 (graduated-card overwrite — FIXED, Task #180), F03 (variety rule zero production callers — Task #180 claimed to wire this but the batch-level audit found it's inert — this is your Task #229), F07 (unfrozen MAX_APPEARANCES_BY_PHASE_DAY — FIXED, Task #179).
-- The recurring failure pattern in this exact codebase area: a fix looks complete and its unit test passes, but the test verifies the fix in isolation or via injected state rather than through the real end-to-end call path. This is exactly why #228 and #229 exist — do not repeat this mistake. Every fix in this stream needs a seam test (see `tests/seam_introduction.test.ts` for the correct pattern) that drives the real production call path, not just a unit test on the pure function or a `setState` injection.
-- `shouldGraduate` has zero production callers — graduation is determined by the `graduated` field written by `recordResult` inline. This is your Task #242 to fix.
-
-## Resolved Findings
-- RESOLVED (Task #226, 2026-07-07): lib/answerCheck.ts curly-apostrophe grading bug. Root cause was the shared apostrophe-normalization regex being byte-identical on both sides. Fixed with a single shared `APOSTROPHE_RE` constant.
+## QA Agent Memory (relevant excerpt)
+Rule 18 (Deletion Test): before adding a test, check whether an existing test already
+satisfies the same falsifiability requirement — duplicating coverage is waste, but silently
+skipping a genuine gap because "it looks similar" is worse. When in doubt, run the Deletion
+Test on the existing test first.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W4A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
+Write your completion summary to .autocode/stream-W4A/completion.md. The file
+MUST begin with exactly these two lines, in this exact format, before any other content:
+
+CLOSED: #[NUM] #[NUM] #[NUM]
+NOT_CLOSED: #[NUM] — [one-line reason]
+
+(If every assigned task closed: `NOT_CLOSED: none`. If none closed: `CLOSED: none`.)
+
+After those two lines, write whatever prose detail is useful — for each task, state explicitly
+whether you found existing Wave 3 coverage already sufficient or had to add something new.
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W4A | #232 #231 #233 #228 #229 #230 #234 #240 #241 #242
+— Adam | W4A | #563 #576 #584 #572

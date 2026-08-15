@@ -37,11 +37,24 @@ export const INTERRUPT_SESSION_CAP = 8;
 // cold-start population this flex path targets first. Set to 3x the
 // per-session cap — enough ramp-up room across a 6-10-interrupt day to
 // meaningfully refill an empty pipeline without letting one bad day
-// introduce dozens of new cards. Passed as canIntroduceNewCard's maxPerDay
-// (store/srsStore.ts) — that function already counts introductions across
-// ALL of today's sessions (the introductions map is persisted, not
-// per-session), so this constant alone gives a real cross-session ceiling
-// with no store-layer change needed.
+// introduce dozens of new cards.
+//
+// Enforced by hooks/useStudySession.ts's mount-fill effect passing this as
+// canIntroduceNewCard's maxPerDay (store/srsStore.ts) — that function counts
+// introductions across ALL of today's sessions (the introductions map is
+// persisted, not per-session), so no store-layer change was needed to make
+// the ceiling cross-session. Task #562 (Wave 3) fixed a real gap in HOW that
+// call is made: the check must be re-evaluated on every new-card
+// introduction, not computed once per session mount and reused — a
+// once-per-mount check reads a stale introducedTodayCount for every
+// introduction after the first one in the same fill pass, and separately let
+// each of several same-day interrupt sessions pass a still-under-ceiling
+// check and each be granted a full INTERRUPT_SESSION_MAX_NEW batch,
+// overshooting this ceiling by up to INTERRUPT_SESSION_MAX_NEW - 1 cards per
+// extra session. The mount effect's fill loop now calls
+// `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)` as part of the
+// while-condition itself, once per iteration, so this constant genuinely
+// bounds the running total rather than a stale snapshot of it.
 export const INTERRUPT_FLEX_DAILY_MAX = INTERRUPT_SESSION_MAX_NEW * 3;
 
 export function buildQueue(

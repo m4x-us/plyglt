@@ -1,47 +1,97 @@
-# Stream W4C — Wave 4 Test Quality Fixes (#237 #238 #239)
-**Date:** 2026-07-07
-**Agent:** Charles
-**Status:** COMPLETE
-**Verification gate at close:** tsc=0 errors · 1011/1011 tests pass · lint=0 errors
+CLOSED: #575 #582
+NOT_CLOSED: none
 
-## Tasks closed
-- #237 — Fix commitSession atomicity test (tests/commitSession.test.ts)
-- #238 — Fix useLangPack error-message enumeration omitting base_pack_not_loaded (tests/useLangPack.test.ts)
-- #239 — Add packLoader stale-cache semantic-corruption test (tests/packLoader.test.ts + lib/packLoader.ts)
+## Summary
 
-## What was done
+Both tasks closed. Both touch `docs/INTERRUPT_ARCHITECTURE.md` §10, which I read in full
+(all of 10.1–10.7) before editing, plus the current committed `hooks/useStudySession.ts`
+(read-only reference, Wave 3's `#562`/`#565`/`#573` already merged) to verify every claim
+against the real code rather than trusting the brief's summary alone. Verification gate — all
+green:
+- `npx tsc --noEmit` — clean (docs-only change, no code touched)
+- `npm test` — 101 files, 1967 tests passed
+- `npm run lint` — 0 errors, 8 pre-existing warnings, none in files I touched
+  (`docs/INTERRUPT_ARCHITECTURE.md` isn't ESLint-lintable — markdown, not code — confirmed by
+  running `npx eslint docs/` directly, which reports the whole `docs/` glob as ignored by
+  config, not an error)
 
-### #237 — commitSession atomicity test
+Debt entries logged: 0
+Carry-forward tasks generated: 0
 
-Rewrote "all three slices are consistent — no partial application" (was lines 36-47) to use the subscribe + snapshot-count pattern, mirroring `tests/seam_studyLoop.test.ts:93-129`.
+## Approach: no renumbering
 
-**Old approach:** Called `commitSession`, read final state, asserted 4 values. Would pass identically if `commitSession` made 3 sequential `set()` calls instead of 1.
+Both tasks named specific subsection numbers (10.3, 10.4) that are cross-referenced by number
+in several other files (`.autocode/patterns.md`, `.autocode/tasks.md`, multiple streams'
+`completion.md`/`tasks.md`/briefs). Renumbering the doc's subsections to insert new content
+would have made every one of those historical references point at the wrong section. I kept
+all existing `### 10.x` numbers exactly where they were and:
+- Added the new cold-start content as a `####` sub-subsection inside the existing `### 10.2`
+  (titled "Cold-start pack-loading race (Task #552/#573)") rather than a new top-level `10.x`
+  — the brief's own task #575 text explicitly permits "add a subsection (or extend an existing
+  one)," and this reads naturally as part of 10.2 since it's about the same mount effect's
+  reliability, not a new mechanism.
+- Rewrote the BODY of 10.3 and 10.4 in place (including their headings, to remove the now-false
+  claims from the heading text itself, not just the prose below it) without changing their
+  section numbers.
+- Updated the 10.7 summary table's `hooks/useStudySession.ts` row to reflect the backstop's
+  removal and the cold-start fix.
+- Updated the §10 intro paragraph to mention Wave 3's remediation alongside Wave 1's, and
+  named all three corrected claims up front (cold-start freeze, ceiling per-iteration
+  enforcement, backstop removal) so a reader skimming just the intro gets the accurate current
+  state without needing to read all of 10.2–10.4.
 
-**New approach:** Subscribes to the store before calling `commitSession`, pushes a snapshot of `{reps, activeSession, streak}` on each store notification, then asserts `snapshots.length === 1`. Three sequential `set()` calls would produce 3 snapshots — the test catches the violation. The single snapshot is also checked for the expected values on all three slices.
+## Task #575 — cold-start-freeze gap (#552/#573) not documented
 
-New test name: `"commitSession is atomic — cards, activeSession, and streak update in a single store tick"`
+Added `#### Cold-start pack-loading race (Task #552/#573)` inside §10.2, documenting:
+- **Root cause:** `app/study/page.tsx` calls `useStudySession` unconditionally before its own
+  `packLoading` early return. A session mounting while the pack is still loading renders the
+  hook first with an empty `allCardMap`/`initialQueue`. `useState(initialQueue)` only consumes
+  its initializer on the true first render, and the mount-fill effect originally had an empty
+  `[]` dependency array — so the one real fill pass ran against that empty snapshot and never
+  got a second chance once real pack data arrived, permanently freezing the queue empty.
+- **Why Wave 1's #552 didn't actually fix this:** it only added `allCards` to
+  `app/study/page.tsx`'s `initialQueue` `useMemo` dependency array — a real fix for that
+  memo's own staleness, but the actual freeze lived inside `useStudySession`'s own mount-fill
+  effect in a different file, which #552 never touched.
+- **The real Wave 3 fix (#573):** the effect's dependency array changed from `[]` to
+  `[allCardMap]` (re-fires on every `allCardMap` reference change — i.e., whenever the pack
+  finishes loading), with `allCardMap`'s emptiness doubling as the "not loaded yet" ready-signal
+  (a real pack always has thousands of cards) and a `mountFillDoneRef` guard preserving the
+  original "exactly one real fill pass per session" invariant despite the effect potentially
+  re-firing multiple times.
 
-### #238 — base_pack_not_loaded discriminant coverage
+## Task #582 — false per-introduction-ceiling claim (10.3) + stale backstop text (10.4)
 
-`RAW_DISCRIMINANTS` had 4 of 5 `LoadPackResult` error discriminants. `base_pack_not_loaded` was missing.
+**10.3 rewrite:** kept the accurate Wave 1/Batch 23 history (the `strandedAcrossDays` pause
+preservation, `INTERRUPT_FLEX_DAILY_MAX` replacing `Number.MAX_SAFE_INTEGER`) but added the
+real Wave 3 correction: Wave 1's fix computed the ceiling check ONCE before the flex loop
+started (a frozen `const flexIntroAllowed`), which could still let a single session's loop
+introduce up to 3 cards in a row without re-checking — overshooting the ceiling by up to 2
+within one mount if the loop crossed the boundary mid-batch. Task #562 (Wave 3) moved the
+check into the `while` loop's own condition, re-evaluated fresh on every iteration against
+live store state. Also added the Task #566 note (already present as a code comment) that the
+check's `false` result doesn't distinguish the stranded pause from the ceiling — both are
+legitimate, equally-valid reasons to stop, and this is by design.
 
-Added `"base_pack_not_loaded"` to `RAW_DISCRIMINANTS` and `base_pack_not_loaded: "Load the base language pack first."` to `EXPECTED_MESSAGES`. TypeScript's `Record<(typeof RAW_DISCRIMINANTS)[number], string>` type now enforces exhaustiveness — adding a 6th discriminant to `loadPackTypes.ts` will automatically break this test until `EXPECTED_MESSAGES` is updated.
+**10.4 rewrite (retitled, not just re-bodied):** old title "The never-empty backstop now
+respects the pause" was itself the false claim, since it described code that no longer exists.
+New title: "The never-empty backstop was removed as dead code (Task #565, Wave 3 — supersedes
+Wave 1's #538 re-gating fix)." Body now states plainly that the backstop was deleted entirely,
+explains the actual reasoning from the code's own comment (`introduceNext()` is a pure function
+of frozen inputs, so a repeat call after the loop already tried and failed can never succeed),
+and states explicitly that the near-due fill and flex loop are now the only two fill mechanisms
+— matching the brief's exact instruction. Also updated 10.7's summary table row accordingly.
 
-All 5 discriminants now run through the 4-assertion describe loop (not-raw, exact-copy, no-exclamation, no-filler-words) → 20 tests total for the map.
+## Note on `scripts/deep-audit.sh`
 
-### #239 — stale-cache semantic-corruption test + production fix
+Still does not exist in this repo (same finding as every prior wave's stream) — substituted the
+real Verification Gate as every task's acceptance criteria itself instructed.
 
-**Gap:** Both stale-cache fallback paths in `lib/packLoader.ts:210-235` did `JSON.parse(cachedData) as Pack` without shape validation. The happy-path download branch has `if (!Array.isArray(pack.units)) { return { ok: false, error: "parse_error" }; }` (line 257), but the two offline paths did not. A truncated cache write (plausible: the file's own atomic-write comment acknowledges this risk) with `units: "not-an-array"` would leak a malformed `Pack` as `ok:true`.
+## Cross-checked against a parallel, independent source
 
-**Production fix (`lib/packLoader.ts`):** Added `if (!Array.isArray(pack.units)) { return { ok: false, error: "parse_error" }; }` immediately after `JSON.parse(cachedData)` in both stale-cache paths — the HTTP-error path (lines ~211-214) and the network-throws path (lines ~228-231). Consistent with the download path's existing check.
-
-Note: `lib/packLoader.ts` is not in the off-limits list. The production fix was required by the Kaizen principle — the test reveals a real bug that must be fixed in the same commit, not logged as carry-forward.
-
-**Test:** Added to `loadPack` describe block, immediately after the existing "serves stale cache when network is unavailable" test. Seeds cache with `{ ...fakePack(), units: "not-an-array" }` (syntactically valid JSON), version-mismatches the meta so the cache-hit branch is bypassed, makes fetch throw to force the stale-cache-fallback path, then asserts `result.ok === false` and `result.error === "parse_error"`. The test fails if the `!Array.isArray` guard is removed.
-
-## Test count
-- Before: 964 (start of session)
-- After: 1011 (47 new tests across the session — #237 rewrote 1 existing test, #238 added 4 new tests for base_pack_not_loaded, #239 added 1 new test)
-
-## Debt entries logged: 0
-## Carry-forward tasks generated: 0
+While reading around for this task, I noticed `CLAUDE.md` (off-limits to me, edited by another
+window this same session) already carries an accurate, independently-written description of
+the exact same Wave 3 mechanism I was documenting here (`hooks/useStudySession.ts`'s entry in
+its Layer Map notes). I did not copy from it, but its description matches what I found reading
+the actual code directly — a useful independent confirmation that my read of the current
+mechanism is correct, not just internally consistent with itself.

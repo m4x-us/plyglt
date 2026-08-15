@@ -276,7 +276,7 @@ capability for mobile, not just "connect the existing thing."
 
 ---
 
-## 10. Interrupt content-supply floor (Batch 22–23, remediated Wave 1 2026-08-15)
+## 10. Interrupt content-supply floor (Batch 22–23, remediated Wave 1 and Wave 3 2026-08-15)
 
 Status: **IMPLEMENTED.** Batch 22 (`.autocode/tasks.md`, Task #533) closed a
 real gap live Windows testing surfaced: §2 above fixed `computeDue`
@@ -287,10 +287,16 @@ made the interrupt engine go completely silent — contradicting BRAND.md's
 Batch 23 then found that "non-empty" alone wasn't enough either: a caught-up
 user's session could still land as a single card, a real, live-tested UX
 complaint ("way too small"). This section documents the current, live
-behavior after both batches plus Wave 1's audit remediation
-(`/audit 23`, Tasks #538/#539/#541/#544/#545/#550/#551) — not the original
-Batch 23 spec text, which has since been corrected in two places (noted
-below).
+behavior after both batches, Wave 1's audit remediation (`/audit 23`, Tasks
+#538/#539/#541/#544/#545/#550/#551), and Wave 3's follow-up remediation
+(Tasks #562/#565/#573) — not the original Batch 23 spec text, nor Wave 1's
+own corrections, both of which have since been superseded in places (noted
+below). In particular: 10.2 now documents a real cold-start pack-loading
+race Wave 1's own #552 fix did not actually close (fixed in Wave 3 as
+#573); 10.3 now describes the real per-iteration daily-ceiling enforcement
+(Wave 3 #562, correcting Wave 1's once-per-mount version); and 10.4 now
+documents that the never-empty backstop described there in Wave 1 was
+removed entirely in Wave 3 (#565) as dead code, not merely re-gated.
 
 ### 10.1 The client-side content floor (`lib/queue.ts`)
 
@@ -322,7 +328,39 @@ one-per-day new card) falls short of the floor:
 stranded introduction pause, or a genuinely exhausted catalog, can leave a
 session below 6 — even, in one rare combination, completely empty (10.4).
 
-### 10.3 The flex fill is gated, not unlimited (Task #538/#551 — corrects the original Batch 23 shipment)
+#### Cold-start pack-loading race (Task #552/#573)
+
+`app/study/page.tsx` calls `useStudySession` unconditionally, before its own
+`packLoading` early return — a session that mounts while the language pack
+is still loading (a still-loading non-Italian pack, a specialty-pack load,
+or a cold push-tap launch straight into `/study?mode=interrupt`) renders the
+hook first with an empty `allCardMap`/`initialQueue`. `useState(initialQueue)`
+only consumes its initializer on that true first render, and the mount-fill
+effect originally had an empty `[]` dependency array (run once, on mount) —
+so the fill pass ran exactly once against that empty snapshot and never got
+a second chance once real pack data actually arrived, permanently freezing
+the queue empty.
+
+**Wave 1's Task #552 did not fix this.** It added `allCards` to
+`app/study/page.tsx`'s `initialQueue` `useMemo` dependency array — a real
+fix for that memo's own staleness, but the actual freeze lived inside
+`useStudySession`'s mount-fill effect, in a different file, which #552
+never touched. The freeze remained live and reachable through the exact
+cold-start paths above.
+
+**Fixed in Wave 3 (Task #573).** The effect's dependency array changed from
+`[]` to `[allCardMap]`, so it re-fires on every `allCardMap` reference
+change rather than exactly once on mount. `allCardMap` doubles as the
+ready-signal: a real language pack always has thousands of cards, so an
+empty `allCardMap` can only mean "not loaded yet," never a legitimate
+steady state — the effect returns immediately whenever it's still empty. A
+`mountFillDoneRef` (`useRef(false)`) guard preserves the original "exactly
+one real fill pass per session" invariant despite the effect now
+potentially re-firing several times: the guard is set only once the fill
+logic actually runs, on whichever render is the first to see real pack
+data, so every other re-fire — before or after that point — is a no-op.
+
+### 10.3 The flex fill's daily ceiling is enforced per introduction attempt, not once per mount (Task #562 — corrects Wave 1's original #538/#551 fix)
 
 Step 1 above disables the *numeric* daily new-card cap
 (`store/srsStore.ts`'s `canIntroduceNewCard`'s `maxPerDay` default of 1) but
@@ -333,39 +371,95 @@ must not disable two other things:
   Batch 23 shipment passed `Number.MAX_SAFE_INTEGER` as `maxPerDay`, which
   correctly left the pause check intact (`canIntroduceNewCard` checks the
   pause independently of the numeric cap) — this part was already right.
-- **A real cross-session daily ceiling.** This part was the actual bug: an
-  unbounded `maxPerDay` also disabled the numeric cap for the *rest of the
-  day*, not just the current session. Because `canIntroduceNewCard`'s
+- **A real cross-session daily ceiling.** This part was the actual Batch 23
+  bug: an unbounded `maxPerDay` also disabled the numeric cap for the *rest
+  of the day*, not just the current session. Because `canIntroduceNewCard`'s
   `introducedTodayCount` already counts every card introduced today across
   ALL sessions (the `introductions` map is persisted store state, not
   per-session), a persistently-starved catalog — the default state for any
   brand-new user — could flex 3 new cards into *every* interrupt that day
   with no ceiling, contradicting BRAND.md's "one new card introduced per day
   at steady state" framing for exactly the population this flex path targets
-  first. **Fix:** pass `INTERRUPT_FLEX_DAILY_MAX` (9) instead of
-  `Number.MAX_SAFE_INTEGER`. No `store/srsStore.ts` change was needed — the
-  existing per-day counting logic already supports an arbitrary finite
-  ceiling.
+  first. Wave 1's fix: pass `INTERRUPT_FLEX_DAILY_MAX` (9) instead of
+  `Number.MAX_SAFE_INTEGER`.
+
+**Wave 1's fix computed the ceiling check once, before the flex loop
+started** (`const flexIntroAllowed = canIntroduceNewCard(today,
+INTERRUPT_FLEX_DAILY_MAX)`, used as a frozen boolean for the loop's whole
+duration). That correctly reflected the ceiling as of the moment the
+session mounted, but a single session's own loop can introduce up to
+`INTERRUPT_SESSION_MAX_NEW` (3) cards in a row — each one calling
+`introduceCard`, which bumps the SAME persisted `introducedTodayCount` this
+check reads. A session mounting when the day's count was already within 2
+of the ceiling could still flex a full 3-card batch in that one loop,
+overshooting `INTERRUPT_FLEX_DAILY_MAX` by up to 2 within a single mount,
+since nothing re-checked the ceiling after the first or second
+introduction inside that same pass.
+
+**Fixed in Wave 3 (Task #562):** the check moved into the `while` loop's
+own condition, re-evaluated on every iteration —
+`canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)` is called fresh each
+time around, not once before the loop. Because the real store action reads
+live `introductions` state, each iteration's check correctly sees every
+`introduceCard` call this same pass has already committed — the moment an
+introduction pushes the day's count to the ceiling, the very next iteration
+sees it and the loop stops, rather than blindly finishing out a batch
+against a stale pre-loop snapshot. No `store/srsStore.ts` change was needed
+for either the Wave 1 or Wave 3 fix — the existing per-day counting logic
+already supports an arbitrary finite ceiling and always reflects the live
+count; only the caller's check frequency changed.
+
+**One check, two distinct causes (Task #566):** `canIntroduceNewCard`
+returning `false` inside the loop means either the `strandedAcrossDays`
+pause is active OR the daily flex ceiling has been reached — the loop
+deliberately does not distinguish them, since both are legitimate reasons
+to stop flexing new cards, and the near-due fill step below runs
+regardless of which one stopped it.
 
 `hooks/useInterruptConfig.ts`'s `computeDue` mirrors this exact gate in its
-own zero-supply flex-fallback branch (Task #539) — before this fix,
+own zero-supply flex-fallback branch (Task #539) — before that fix,
 `computeDue` could count (and therefore fire an interrupt promising) an
 untouched card that the session's own flex fill would then refuse to
 introduce, a real fire-gate/session-content divergence of the same shape §2
 already closed once for the normal-cap case.
 
-### 10.4 The never-empty backstop now respects the pause (Task #538 — corrects the original Batch 23 shipment)
+### 10.4 The never-empty backstop was removed as dead code (Task #565, Wave 3 — supersedes Wave 1's #538 re-gating fix)
 
-A final backstop in the mount effect exists so an interrupt is never
-completely empty when the pipeline can actually supply something. The
-original Batch 23 shipment called it unconditionally — bypassing the
-stranded pause entirely, a direct contradiction of the invariant in 10.3.
-**Fixed:** the backstop now only fires when the same flex-gate from 10.3
-allows it. Net effect: when the stranded pause is active AND no near-due
-card exists either, the session is now genuinely allowed to be empty — a
-deliberate product decision that BRAND.md's named pause invariant takes
-priority over the "never completely empty" guarantee in this one rare
-combination, rather than the guarantee silently overriding a named rule.
+A backstop originally existed at the end of the mount effect
+(`if (sessionIds.size === 0 && flexIntroAllowed) introduceNext();`) so an
+interrupt would never be completely empty when the pipeline could actually
+supply something. The original Batch 23 shipment called it unconditionally
+— bypassing the stranded pause entirely, a direct contradiction of the
+invariant in 10.3. Wave 1's fix (Task #538) re-gated it behind the same
+flex check as the loop above, so it only fired when that check allowed it.
+
+**Removed entirely in Wave 3 (Task #565) — it was structurally dead code.**
+`introduceNext()` is a pure function of `(allCardMap, cards, introductions,
+introducedIds)`, none of which change between the flex loop's last attempt
+and this backstop's own call. Whenever the backstop's `flexIntroAllowed`
+guard was true, the while loop directly above it had *already* run to
+completion with bit-identical arguments and, if it stopped without filling
+the floor, had already tried `introduceNext()` at least once and failed
+(the loop's only exit conditions besides the floor being reached are the
+flex-gate going false or `introduceNext()` itself returning false — the
+same failure the backstop would immediately reproduce). A repeat call
+against the same frozen inputs could never succeed where the loop's own
+attempt hadn't. Task #562's per-iteration recheck (10.3) doesn't change
+this analysis — it only changes *when* the loop stops, never whether a
+retry against unchanged inputs can find something new.
+
+**Net effect:** the near-due fill step (below) and the flex loop (10.3) are
+now the *only two* fill mechanisms for a floor-filling interrupt session —
+there is no longer a third, final attempt after both have run. A session
+that reaches the end of the fill pass with zero content (the flex loop
+introduced nothing, and no near-due card exists either) is genuinely empty.
+This remains the deliberate product decision it always was: BRAND.md's
+named `strandedAcrossDays` pause invariant takes priority over the "never
+completely empty" guarantee in this one rare combination — Task #561
+already documents the floor as a target, not an unconditional guarantee;
+removing the dead-code backstop doesn't change that guarantee's actual
+behavior, only the doc and code's honesty about how many independent
+mechanisms implement it.
 
 ### 10.5 Near-due over-fetch is a proven bound, not a heuristic (Task #541)
 
@@ -421,7 +515,7 @@ the old skip-gate.
 | Area | File(s) | Current behavior |
 |---|---|---|
 | Client floor/cap/ceiling constants | `lib/queue.ts` | `INTERRUPT_SESSION_FLOOR`(6), `INTERRUPT_SESSION_MAX_NEW`(3), `INTERRUPT_SESSION_CAP`(8), `INTERRUPT_FLEX_DAILY_MAX`(9) — see 10.1 |
-| Session fill + pause/ceiling gating + never-empty backstop | `hooks/useStudySession.ts` | Mount-effect fill order, flex gate, backstop — see 10.2–10.5 |
+| Session fill + cold-start reliability + pause/ceiling gating | `hooks/useStudySession.ts` | Mount-effect fill order, cold-start ready-signal + once-guard, per-iteration ceiling recheck — see 10.2–10.5. The never-empty backstop (formerly here too) was removed as dead code in Wave 3 (10.4) — no longer a mechanism this file implements |
 | Fire-gate mirror | `hooks/useInterruptConfig.ts` | `computeDue`'s flex-fallback, gated identically to the session fill — see 10.3 |
 | Server estimate + payload | `supabase/functions/send-interrupt-notifications/dueEstimate.ts` | Lower-bound estimate, clamp-to-[FLOOR,CAP], honest zero case — see 10.6 |
 | Dispatch observability | `supabase/functions/send-interrupt-notifications/types.ts`, `dispatch.ts` | `sentWithZeroEstimate` replaces `skippedNoCards` — see 10.6 |

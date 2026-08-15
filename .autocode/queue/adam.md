@@ -1,124 +1,106 @@
 ---
 status: done
 agent: adam
-stream: W3A
-wave: 3
+stream: W4A
+wave: 4
 ---
 
-# Adam — Stream W3A — Wave 3 — 2026-08-15
+# Adam — Stream W4A — Wave 4 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W3A | #562 #565 #566 #573 #574 #577
+— Adam | W4A | #563 #576 #584 #572
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
-This is Wave 3 of Batch 23's remediation — a re-audit found real gaps in Wave 1/2's own
-fixes. All six of your tasks live in `hooks/useStudySession.ts`'s mount-fill effect, and
-several are tightly coupled — read all six task definitions below FIRST before writing any
-code, since fixing #562 will likely change the shape of the code #565/#566/#574/#577 also
-touch.
+This is Wave 4 of Batch 23's remediation. Wave 3 (already merged to main) fixed the
+production bugs these tests are meant to guard — read the CURRENT state of
+`hooks/useStudySession.ts` and `store/srsStore.ts` (both off-limits to you this wave, but
+read-only inspection is fine and necessary) before writing any test, since the fixes changed
+shape from what the original findings described.
 
 ## Your Tasks (run in this exact order)
-1. /task #562  — Fix edge-case: flexIntroAllowed computed once per mount, daily cap can overshoot by up to 2 cards
-2. /task #565  — Fix code-quality: the never-empty backstop is dead code
-3. /task #566  — Fix code-quality: flexIntroAllowed conflates two distinct block reasons
-4. /task #573  — Fix async: useState(initialQueue) only consumes its initializer on first mount — cold-start freeze
-5. /task #574  — Fix tests: no seam test proves normal-cap intro + flex fill interaction
-6. /task #577  — Fix security: INTERRUPT_FLEX_DAILY_MAX has no cross-tab coordination
+1. /task #563  — Fix tests: no test can detect the daily-cap overshoot (#562's bug — now fixed in Wave 3, verify a regression test exists or is still needed)
+2. /task #576  — Fix tests: #538/#541 regression tests were never added — the backstop code they'd test was DELETED in Wave 3, not fixed
+3. /task #584  — Fix tests: near-due-card dedup test only proves the outer filter, not the inner loop check
+4. /task #572  — Fix tests: srsStore.test.ts's "respects the limit parameter" test uses a weak bound instead of an exact value
 
-RECOMMENDED APPROACH — read this before starting, it will save you rework:
-- #562 (the daily-cap overshoot) is the highest-leverage task. The current code computes
-  `flexIntroAllowed` ONCE via `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)` before
-  the while loop, then the loop introduces up to 3 cards against that single stale check.
-  The real fix is almost certainly to re-check inside the loop (e.g. call
-  `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)` again before each `introduceNext()`
-  call, not just once before the loop starts) so the daily ceiling is genuinely enforced
-  per-introduction, not per-session.
-- #565 and #566 are about the SAME backstop code (`if (sessionIds.size === 0 && flexIntroAllowed) introduceNext();`
-  at line 180) that #562 touches. Once #562 changes how `flexIntroAllowed`/the loop works,
-  re-evaluate whether the backstop is STILL dead code — it may or may not be, depending on
-  how you implement #562. If it's still unreachable after your #562 fix, the honest fix for
-  #565 is to delete the backstop entirely and update the doc comment (do NOT leave dead code
-  described as a safeguard — either make it reachable and real, or remove it). If you make it
-  reachable, keep it and update the comment for #566 to describe both block reasons accurately.
-- #573 (cold-start freeze) is a SEPARATE bug from #562/#565/#566 — it's about `useState(initialQueue)`
-  only consuming its initializer on true first mount, and the mount-fill effect's empty
-  dependency array closing over stale render-1 data. The real fix likely needs the effect (or
-  a new one) to re-run when the underlying data actually becomes available — consider whether
-  `initialQueue`/`allCardMap`/`cards`/`introductions` becoming non-empty after a pack finishes
-  loading should re-trigger the fill logic, not just re-trigger a `useMemo`. This is async/lifecycle
-  work — read `app/study/page.tsx`'s `packLoading` gate (READ-ONLY, that file is off-limits to you
-  this wave — Charles's stream owns it) to understand exactly when `useStudySession` gets called
-  before a pack is ready.
-- #574 is a pure test-addition task once #562 is fixed — write a seam test using the real
-  `store/srsStore.ts` actions (not mocks) proving a normal-cap introduction correctly consumes
-  1 of the 3 flex slots.
-- #577 is the lowest-priority (documented as low-stakes, accepted-tradeoff-adjacent) — a
-  one-paragraph comment addition acknowledging the cross-tab race is enough; do not over-engineer
-  a cross-tab locking mechanism for this.
+IMPORTANT CONTEXT FROM WAVE 3 (read `hooks/useStudySession.ts`'s current state, and Adam's
+own Wave 3 completion note reproduced below, before starting #563/#576):
+
+> #562 — the per-iteration daily-cap recheck: `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)`
+> is now called directly inside the `while` loop's condition (not once before it). The old
+> `flexIntroAllowed` local variable no longer exists.
+> #563 (Wave 3 stream's own note): "my #562 fix already ships with its own dedicated
+> regression test ('stops flexing new cards the moment canIntroduceNewCard flips false
+> mid-batch...') — #563 may already be satisfied; worth checking before writing a duplicate."
+> #565 — the never-empty backstop was DELETED entirely (not made reachable) — Wave 3 judged
+> it was still dead code after the #562 fix and removed it rather than leave misleading
+> "safety net" code in place.
+> #576 (Wave 3 stream's own note): "any #538/#541 regression test that asserted on the
+> backstop's behavior specifically needs updating to reflect it no longer exists as a
+> distinct code path (the near-due fill and flex loop are now the only fill mechanisms)."
+
+Given this: for #563, first check `hooks/useStudySession.test.ts` for the test Adam's Wave 3
+stream added for #562 — if it genuinely proves the daily cap is enforced per-iteration (not
+just per-session), #563 may already be closed; verify with a Deletion Test before deciding
+whether to add anything new. For #576, since the backstop no longer exists, a literal
+"stranded-pause-blocks-backstop" test doesn't make sense anymore — the #538 concern (does a
+stranded pause correctly block ALL new-card introduction during an interrupt session, not
+specifically "the backstop") is still valid and should be tested against the current code
+shape (the flex while-loop, since that's the only introduction path left). The #541
+(near-due-interleaving) concern is separate and still applies as originally described — check
+whether Wave 3's own new tests already cover it (Adam's Wave 3 stream mentioned adding tests
+for #562/#573/#574 but not explicitly #541's interleaving scenario).
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Adam — W3A
-[→] #562 — Fix edge-case: flexIntroAllowed computed once per mount   ← starting now
-[ ] #565 — Fix code-quality: never-empty backstop is dead code
-[ ] #566 — Fix code-quality: flexIntroAllowed conflates two block reasons
-[ ] #573 — Fix async: cold-start freeze
-[ ] #574 — Fix tests: normal-cap + flex interaction seam test
-[ ] #577 — Fix security: cross-tab daily cap coordination
+Adam — W4A
+[→] #563 — Fix tests: daily-cap overshoot test   ← starting now
+[ ] #576 — Fix tests: #538/#541 regression tests (backstop deleted, retarget)
+[ ] #584 — Fix tests: inner-loop dedup check untested
+[ ] #572 — Fix tests: weak bound instead of exact value
 
 ## Files You Own (edit ONLY these)
-hooks/useStudySession.ts
 hooks/useStudySession.test.ts
+tests/srsStore.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-components/InterruptHandler.tsx
-components/InterruptHandler.test.tsx
-store/srsStore.ts
-app/study/page.tsx
-app/study/page.test.tsx
-tests/seam_studyLoop.test.ts
-supabase/functions/send-interrupt-notifications/dueEstimate.ts
+CLAUDE.md
 lib/queue.ts
-hooks/useSync.ts
-
-Note: 8 more tasks are DEFERRED to Wave 4, waiting specifically on your work here — #563
-(a new test for the #562 overshoot), #568 (CLAUDE.md doc update), #575 (docs update for the
-#573 cold-start fix), #576 (regression tests for #538/#541 that depend on your #565 outcome),
-#581/#582 (lib/queue.ts and docs comment fixes describing the daily-cap mechanism). Whatever
-you actually implement for #562/#565/#573 will directly determine what those Wave 4 tasks
-need to say — write clear, accurate code comments as you go, since the next wave will read
-them to know what actually shipped.
+docs/INTERRUPT_ARCHITECTURE.md
+hooks/useStudySession.ts (read-only reference — production file, already fixed in Wave 3)
+store/srsStore.ts (read-only reference — production file, already fixed in Wave 3)
 
 ## Task Definitions
-[Full verbatim task blocks below]
 
-### Task #562: Fix edge-case: flexIntroAllowed is computed once via canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX) at line 142
+### Task #563: Fix tests: no test can detect the daily-cap overshoot
 
-**File:** hooks/useStudySession.ts
+**File:** hooks/useStudySession.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
-**Priority:** P2
+**Priority:** P3
 **Status:** OPEN
 
 **What:**
-flexIntroAllowed is computed once via canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX) at line 142, then the while loop at 143-149 introduces up to INTERRUPT_SESSION_MAX_NEW (3) cards against that single stale boolean with no per-iteration recheck. Across repeated interrupt sessions in one day this lets the daily flex ceiling of 9 be exceeded by up to 2 cards (concrete trace: normal-cap introduces 1, then three interrupt sessions each re-evaluate flexIntroAllowed against a count still under 9 at 1, 4, 7 and each is granted a full 3-card batch, landing the day total at 10). Consequence is a cognitive-load overshoot against BRAND.md's documented working-memory ceiling, not data loss.
+No test in the suite can detect the F001 overshoot. The canIntroduceNewCard mock (capUsedNotStranded) is a pure function of its own call arguments only and returns the same answer regardless of how many cards were already introduced earlier in the same render. INTERRUPT_FLEX_DAILY_MAX's actual value (9) is never asserted in any test file; a regression reverting the daily cap back to the pre-#551 Number.MAX_SAFE_INTEGER bug would pass every existing test unchanged.
+
+NOTE: Wave 3 already fixed the underlying #562 bug and its own stream reported adding a dedicated regression test. Check first whether that test already satisfies this finding (run a Deletion Test: temporarily revert the `while` loop's per-iteration check back to a single pre-loop check, confirm the existing test fails). Only add a new test if a real gap remains.
 
 **Acceptance Criteria:**
-- [ ] Fix edge-case issue at hooks/useStudySession.ts:mount-fill effect (flexIntroAllowed / while-loop introduction):142
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:capUsedNotStranded mock / flexes-past-daily-cap test:0
 - [ ] Audit passes: real Verification Gate (tsc, npm test, npm run lint) — `scripts/deep-audit.sh` does not exist in this repo
 
-**Source:** Audit finding F001 — severity 6 — edge-case
+**Source:** Audit finding F002 — severity 5 — tests
 
 ---
 
-### Task #565: Fix code-quality: the #533/#538 never-empty backstop is dead code
+### Task #576: Fix tests: #538/#541 regression tests never added
 
-**File:** hooks/useStudySession.ts
+**File:** hooks/useStudySession.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -126,19 +108,21 @@ flexIntroAllowed is computed once via canIntroduceNewCard(today, INTERRUPT_FLEX_
 **Status:** OPEN
 
 **What:**
-introduceNext() is a pure function of (allCardMap, cards, introductions, introducedIds), none of which change between the while loop's attempts (143-149) and the backstop call at line 180, so whenever the backstop's guard is true, the while loop already tried and failed with bit-identical arguments and the backstop is structurally guaranteed to fail again. The surrounding comment and docs/INTERRUPT_ARCHITECTURE.md section 10.4 both describe this as a working, distinct safeguard; it is a no-op.
+The regression tests explicitly requested for #538 (stranded-pause-blocks-backstop) and #541 (near-due-interleaving) were never added to hooks/useStudySession.test.ts, by either the Wave 1 remediation stream or Wave 2. No test in the current suite regresses either specific fix.
+
+NOTE: the "backstop" this originally referred to was DELETED in Wave 3 (see the context note above the task list) — do not write a test targeting code that no longer exists. Retarget: write a test proving a stranded pause correctly blocks ALL new-card introduction during an interrupt session via whatever mechanism currently implements that (the flex while-loop's `canIntroduceNewCard` check). For #541 (near-due-interleaving — a scenario where already-in-session cards are interleaved rather than clustered in the near-due pool, and the fill should still reach the floor), check whether Wave 3 already added equivalent coverage before writing a duplicate.
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:never-empty backstop (post-loop fallback):180
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:stranded-pause-blocks-backstop / near-due-interleaving regression tests:0
 - [ ] Audit passes: real Verification Gate
 
-**Source:** Audit finding F004 — severity 3 — code-quality
+**Source:** Audit finding F015 — severity 5 — tests
 
 ---
 
-### Task #566: Fix code-quality: flexIntroAllowed conflates two distinct block reasons
+### Task #584: Fix tests: near-due dedup test only proves the outer filter
 
-**File:** hooks/useStudySession.ts
+**File:** hooks/useStudySession.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -146,39 +130,21 @@ introduceNext() is a pure function of (allCardMap, cards, introductions, introdu
 **Status:** OPEN
 
 **What:**
-flexIntroAllowed is a single boolean that is false for two distinct, undistinguishable reasons -- the stranded-pause invariant and the daily-flex-ceiling being hit -- but the adjacent code comment and docs section 10.4 attribute 100% of the backstop's empty-session outcome to the stranded pause only.
+This pre-existing test only proves the outer setQueue dedup filter catches a duplicate; it does not exercise the inner loop-level check at all, a gap the test's own inline comment admits. A regression that removed the inner check would not be caught by this test.
+
+NOTE: Charles's Wave 3 stream (W3C) reported this may already be resolved — check `hooks/useStudySession.test.ts` for a test proving the inner loop-level check specifically (distinct from the outer setQueue filter) before writing a new one.
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:flexIntroAllowed / backstop comment:142
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:never duplicates a near-due card already in the queue test:0
 - [ ] Audit passes: real Verification Gate
 
-**Source:** Audit finding F005 — severity 3 — code-quality
+**Source:** Audit finding F023 — severity 4 — tests
 
 ---
 
-### Task #573: Fix async: useState(initialQueue) cold-start freeze
+### Task #572: Fix tests: weak bound instead of exact value
 
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-useState(initialQueue) only consumes its initializer on true first mount, and the mount-fill effect has an empty dependency array, so it runs once and closes over render-1's data. app/study/page.tsx calls useStudySession before the packLoading early-return, so any component that mounts while a pack is still loading -- es-language sessions, specialty-pack loads, cold push-tap launches -- permanently freezes the queue empty. This regresses the never-completely-empty guarantee for the exact task (#552) that was supposed to have closed this gap: the fix that shipped (adding allCards to a useMemo dependency array) does not address the stale-closure root cause. No test can catch it because every test touching this path mocks useStudySession away.
-
-**Acceptance Criteria:**
-- [ ] Fix async issue at hooks/useStudySession.ts:mount-time introduce effect (useState(initialQueue)):83
-- [ ] Audit passes: real Verification Gate
-
-**Source:** Audit finding F012 — severity 7 — async
-
----
-
-### Task #574: Fix tests: normal-cap + flex fill interaction untested
-
-**File:** hooks/useStudySession.ts
+**File:** tests/srsStore.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -186,49 +152,28 @@ useState(initialQueue) only consumes its initializer on true first mount, and th
 **Status:** OPEN
 
 **What:**
-No seam test proves the combined interaction where a normal-cap introduction on session mount consumes 1 of the 3 available flex slots on an interrupt session. The code looks correct by inspection but the interaction path itself is untested.
+Uses toBeLessThanOrEqual(3) instead of toBe(3) for a test named "respects the limit parameter". This passes even if the slice returned 0 or 1 cards instead of the correct 3.
+
+Charles's Wave 3 stream added a new `!introMap[card.id]` filter to `store/srsStore.ts`'s `getNewCards` (Task #567) — read the current implementation before changing this test's expected value, since the exact count of cards satisfying "limit parameter respected" may now differ depending on this test's fixture data (whether any of its fixture cards have `introductions` entries). Change `toBeLessThanOrEqual(3)` to `toBe(3)` (or whatever the genuinely correct exact count is, given the current getNewCards implementation and this test's specific fixture).
 
 **Acceptance Criteria:**
-- [ ] Fix tests issue at hooks/useStudySession.ts:mount effect (normal-cap intro + flex fill interaction):142
+- [ ] Fix tests issue at tests/srsStore.test.ts:respects the limit parameter test:351
 - [ ] Audit passes: real Verification Gate
 
-**Source:** Audit finding F013 — severity 3 — tests
-
----
-
-### Task #577: Fix security: INTERRUPT_FLEX_DAILY_MAX has no cross-tab coordination
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-INTERRUPT_FLEX_DAILY_MAX is enforced via a check-then-act read of in-memory Zustand state with no cross-tab or cross-window coordination -- two tabs of the same account can each independently pass canIntroduceNewCard and each flex up to 3 new cards, exceeding the intended daily ceiling beyond even the single-tab overshoot in F001. Real but low-stakes given the client-only honor-system entitlement model already documented in CLAUDE.md section 5 as an accepted, intentional trade-off.
-
-**Acceptance Criteria:**
-- [ ] Fix security issue at hooks/useStudySession.ts:flexIntroAllowed check-then-act:142
-- [ ] Audit passes: real Verification Gate
-
-**Source:** Audit finding F016 — severity 3 — security
+**Source:** Audit finding F011 — severity 5 — tests
 
 ---
 
 ## Agent Memories
 
-## Architect Agent Memory (relevant excerpt)
-Rule 22 (Whole-Operation Consistency): a fix to a shared gate/boolean must hold across every
-caller of that gate, and its own comment must accurately describe what it actually checks now
-— not what it checked before the fix. Rule 23: a fix must not recreate its own defect class —
-re-derive whether surrounding "safety net" code still does anything after you change the
-condition it depends on, rather than leaving it in place unexamined. This exact codebase has
-now hit this pattern twice in this file alone (the Task #533 backstop was originally added as
-a real safeguard, then Task #538's fix left it unreachable without anyone re-deriving that).
+## QA Agent Memory (relevant excerpt)
+Rule 18 (Deletion Test): before adding a test, check whether an existing test already
+satisfies the same falsifiability requirement — duplicating coverage is waste, but silently
+skipping a genuine gap because "it looks similar" is worse. When in doubt, run the Deletion
+Test on the existing test first.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W3A/completion.md. The file
+Write your completion summary to .autocode/stream-W4A/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
 CLOSED: #[NUM] #[NUM] #[NUM]
@@ -236,11 +181,9 @@ NOT_CLOSED: #[NUM] — [one-line reason]
 
 (If every assigned task closed: `NOT_CLOSED: none`. If none closed: `CLOSED: none`.)
 
-After those two lines, write whatever prose detail is useful — be SPECIFIC about exactly how
-you implemented #562's per-iteration recheck and what you decided about #565's backstop
-(deleted it, or made it genuinely reachable) — Wave 4 depends on this description to write
-accurate docs and tests.
+After those two lines, write whatever prose detail is useful — for each task, state explicitly
+whether you found existing Wave 3 coverage already sufficient or had to add something new.
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W3A | #562 #565 #566 #573 #574 #577
+— Adam | W4A | #563 #576 #584 #572

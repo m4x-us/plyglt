@@ -292,7 +292,10 @@ describe("getNearDueCards()", () => {
 
 describe("getNewCards() — prerequisite logic", () => {
   beforeEach(() => {
-    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null });
+    // Task #572: getNewCards (Task #567) also filters on `introductions` — reset it
+    // alongside `cards` so this describe's exact-count assertions can't be poisoned by
+    // introductions state a differently-ordered test run leaves behind.
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
   });
 
   function makeCard(
@@ -339,7 +342,7 @@ describe("getNewCards() — prerequisite logic", () => {
     expect(result.map((c) => c.id)).toContain("c2");
   });
 
-  it("respects the limit parameter — never returns more than limit cards", () => {
+  it("respects the limit parameter — returns exactly limit cards when more candidates qualify", () => {
     const cards = [
       makeCard("c1", 1),
       makeCard("c2", 1),
@@ -348,7 +351,13 @@ describe("getNewCards() — prerequisite logic", () => {
       makeCard("c5", 1),
     ];
     const result = useSRSStore.getState().getNewCards(cards, 3);
-    expect(result.length).toBeLessThanOrEqual(3);
+    // Task #572: toBeLessThanOrEqual(3) would still pass if the slice were broken and
+    // returned 0 or 1 cards — the Deletion Test failure this finding named. All 5 fixture
+    // cards have no progress, no introductions record, and no prerequisites, so all 5
+    // qualify before the limit=3 slice; exactly 3 (the first 3 in tier-then-original
+    // order) must come back.
+    expect(result.length).toBe(3);
+    expect(result.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
   });
 
   it("returns cards sorted by tier — tier 1 before tier 2", () => {

@@ -1,41 +1,48 @@
 # Stream W4B Task State
 
-### Task #235: Fix security: LANG_CONFIG_MAP's Object.freeze is shallow
+### Task #568: Fix code-quality: CLAUDE
 
-**File:** lib/langRegistry.ts, lib/language.ts
-**Complexity:** ⚡ Direct — 2 files
-**Owner:** Security Agent
+**File:** CLAUDE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
 **Blocked by:** Nothing
-**Priority:** P2
+**Priority:** P3
+**Status:** OPEN
 
 **What:**
-`Object.freeze(LANG_CONFIG_MAP)` (lib/langRegistry.ts:48-50, Task #186) only freezes the outer map object. The nested `LanguageConfig` objects (`ITALIAN`/`SPANISH` from lib/language.ts) and their `uiStrings`/`cardLabels` sub-objects remain fully mutable at runtime despite the `Readonly<>` type annotation implying full tamper-proofing — e.g. `LANG_CONFIG_MAP.it.articles = null` compiles and succeeds. Same class as the already-known F07 shallow-freeze gap. 4 of 8 auditors converged on this (S, A, B, Red R).
+CLAUDE.md's own Architecture section 1 entry for hooks/useStudySession.ts still describes the interrupt flex gate as canIntroduceNewCard(today, Number.MAX_SAFE_INTEGER) -- stale relative to the actual Task #551 implementation, which replaced that unbounded call with INTERRUPT_FLEX_DAILY_MAX. docs/INTERRUPT_ARCHITECTURE.md is accurate; this project-root doc is not. at CLAUDE.md:hooks/useStudySession.ts architecture entry:0.
+NEW
 
 **Acceptance Criteria:**
-- [ ] Deep-freeze `LANG_CONFIG_MAP`'s values (recursively freeze `ITALIAN`/`SPANISH` and their nested objects), or document explicitly why shallow freeze is an accepted trade-off given current low exploitability
-- [ ] Add a test asserting a nested-field mutation attempt (e.g. `LANG_CONFIG_MAP.it.articles = null`) either throws (strict mode) or has no effect
+- [ ] Fix code-quality issue at CLAUDE.md:hooks/useStudySession.ts architecture entry:0
+- [ ] Audit passes: bash scripts/deep-audit.sh CLAUDE.md
 
-**Done when:** A test attempts to mutate a nested field of `LANG_CONFIG_MAP.it` and asserts the original value is unchanged afterward. Verification gate green.
-
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — security — converged independently by Agents S, A, B, Red R.
+**Source:** Audit finding F007 — severity 2 — code-quality
 
 ---
 
-### Task #236: Fix security: activateLicense's instanceId guard checks truthiness, not type
+---
 
-**File:** lib/entitlement.ts
-**Complexity:** ⚡ Direct — 1 file
-**Owner:** Security Agent
+### Task #581: Fix code-quality: The comment on INTERRUPT_FLEX_DAILY_MAX claims it bounds total same-day flex introductions and gives
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
 **Blocked by:** Nothing
-**Priority:** P2
+**Priority:** P3
+**Status:** OPEN
 
 **What:**
-`activateLicense`'s guard `if (!res.instance?.id)` (lib/entitlement.ts:139, Task #185) checks truthiness only, not type. `res` is an untyped `raw as LsActivateBody` cast with no runtime schema validation. A response shaped like `instance: { id: 123 }` (a number, not a string) passes this guard, then gets assigned to the `instanceId: string` field of the returned `ActivateResult`, violating the function's own return type contract, and is persisted into the entitlement store and later passed back to `deactivateLicense` as if it were a real string. Found by Red Agent R.
+The comment on INTERRUPT_FLEX_DAILY_MAX claims it bounds total same-day flex introductions and gives a real cross-session ceiling with no store-layer change needed. This is false for the same reason described in F001: the value is checked once per session mount, not once per introduction, so it does not actually bound the total as claimed. at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX comment:0.
+NEW
 
 **Acceptance Criteria:**
-- [ ] Change the guard to `if (!res.instance?.id || typeof res.instance.id !== "string")` (or equivalent runtime type check)
-- [ ] Add a test asserting `activateLicense` rejects a response where `instance.id` is a number
+- [ ] Fix code-quality issue at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX comment:0
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
 
-**Done when:** A test with `instance: { id: 123 }` (number, not string) asserts `activateLicense` returns an error result, not a persisted numeric instanceId. Verification gate green.
+**Source:** Audit finding F020 — severity 3 — code-quality
 
-**Source:** Audit finding (Batch 18 batch-level audit, 2026-07-07) — severity 5 — security — found by Red Agent R.
+---
+
+---
+

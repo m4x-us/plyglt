@@ -8,7 +8,7 @@ import { useStudySession } from "./useStudySession";
 import type { Card, Tier } from "@/content/types";
 import { useSRSStore } from "@/store/srsStore";
 import type { CardProgress } from "@/lib/srs";
-import { INTERRUPT_SESSION_FLOOR } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
 import { ALL_UNITS } from "@/content/index";
 
 function makeCard(id: string, tier: Tier = 1, prerequisites?: string[]): Card {
@@ -360,6 +360,16 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
     expect(result.current.queue.map((c) => c.id)).toEqual(["d1", "d2", "d3", "d4", "n1", "n2"]);
   });
 
+  // Task #538 (Wave 4 confirms this test IS the regression test for that finding — no
+  // separate test needed): canIntroduceNewCard returning false unconditionally (for
+  // BOTH the normal-cap call shape and the flex call shape) is exactly how the real
+  // store's canIntroduceNewCard behaves when strandedAcrossDays is set — the same
+  // mock function backs both call sites in the mount effect, so this test proves the
+  // stranded pause blocks ALL new-card introduction during an interrupt session (not
+  // just the flex path specifically): if either the normal-cap `if (canIntroduceNewCard(today))
+  // introduceNext();` line or the flex while-loop's own `canIntroduceNewCard(...)`
+  // condition were removed/bypassed, introduceCard would fire against this 5-card
+  // catalog and this assertion would fail.
   it("falls back to near-due-only fill when the stranded pause blocks new introductions", () => {
     const introduceCard = vi.fn();
     const { result } = renderHook(() =>
@@ -376,6 +386,58 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
     );
     expect(introduceCard).not.toHaveBeenCalled();
     expect(result.current.queue.map((c) => c.id)).toEqual(["r1", "r2", "r3", "r4", "r5", "r6"]);
+  });
+
+  // Task #541 / #576 (Wave 4): the near-due fill requests the FULL near-due pool
+  // (getNearDueCards(Number.MAX_SAFE_INTEGER)) specifically because a smaller heuristic
+  // limit (the pre-#541 shape: INTERRUPT_SESSION_FLOOR + sessionIds.size) only over-
+  // fetches enough when already-in-session cards cluster at the front of the sorted
+  // pool — every OTHER test in this file that exercises near-due dedup places the
+  // duplicate card first (e.g. `[shared, ...nearDuePool]`), which would pass even
+  // against the old, smaller-limit heuristic. This test interleaves duplicates
+  // THROUGHOUT the pool and mirrors the real getNearDueCards contract (slicing to
+  // whatever limit is requested), so it fails if the fill regresses to a bounded
+  // request.
+  it("reaches the floor via near-due fill even when already-in-session duplicates are interleaved throughout the pool, not clustered at the front", () => {
+    const initial = ["d1", "d2", "d3", "d4"].map((id) => makeCard(id)); // 4 already in session
+    const freshR = ["r1", "r2"].map((id) => makeCard(id)); // exactly 2 fresh cards needed to reach floor 6
+    // 10 duplicates of already-in-session cards, THEN the 2 fresh cards — simulates the
+    // fresh cards sorting near the back of a real soonest-due-first pool instead of
+    // clustering at the front.
+    const interleavedPool = [
+      ...Array.from({ length: 10 }, (_, i) => initial[i % initial.length]!),
+      ...freshR,
+    ];
+    // Mirrors the real store/srsStore.ts getNearDueCards contract: slices its sorted
+    // pool to whatever limit is requested. A mock that ignores `limit` (like the
+    // sibling tests above use) can't distinguish an unbounded request from a bounded
+    // one — this mock must actually respect it for the Deletion Test to mean anything.
+    const getNearDueCards = vi.fn((limit: number) => interleavedPool.slice(0, limit));
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: initial,
+          allCardMap: Object.fromEntries([...initial, ...freshR].map((c) => [c.id, c])),
+          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])),
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => false), // isolates this test to the near-due path
+          introduceCard,
+          getNearDueCards,
+        }),
+      ),
+    );
+
+    expect(introduceCard).not.toHaveBeenCalled();
+    // Deletion Test: the pre-#541 heuristic (INTERRUPT_SESSION_FLOOR + sessionIds.size =
+    // 6 + 4 = 10) would request only 10 cards — interleavedPool.slice(0, 10) returns
+    // exactly the 10 duplicates, zero fresh cards, leaving the session 2 short of the
+    // floor. Requesting the full pool (Number.MAX_SAFE_INTEGER, the current fix) finds
+    // both fresh cards regardless of their position in the pool.
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR);
+    expect(result.current.queue.map((c) => c.id).sort()).toEqual(
+      [...initial, ...freshR].map((c) => c.id).sort(),
+    );
   });
 
   it("stops at the catalog's edge without padding duplicates when supply runs out below the floor", () => {
@@ -579,6 +641,41 @@ describe("useStudySession — interrupt flex loop per-iteration recheck (Task #5
     // The 3rd flex-shaped call (the one that returned false and stopped the loop) proves
     // the recheck genuinely happens as part of the loop condition, not just once beforehand.
     expect(flexCallCount).toBe(3);
+  });
+
+  // Task #563 (Wave 4): the test above proves the recheck happens PER ITERATION, but
+  // never pins the actual VALUE passed to canIntroduceNewCard's maxPerDay argument —
+  // every existing test only checks `maxPerDay !== undefined`. A regression that wired
+  // the flex loop back to an unbounded value (e.g. Number.MAX_SAFE_INTEGER, the exact
+  // pre-#551 bug this constant exists to fix) would still satisfy every prior test.
+  it("passes the real INTERRUPT_FLEX_DAILY_MAX constant to canIntroduceNewCard's maxPerDay, not an unbounded value", () => {
+    const introduceCard = vi.fn();
+    const catalog = ["g1"].map((id) => makeCard(id)); // exactly 1 card: 2 flex-shaped calls total (1 success, 1 exhaustion)
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+    const flexCallArgs: number[] = [];
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => {
+      if (maxPerDay === undefined) return false; // normal-cap call — not the flex path
+      flexCallArgs.push(maxPerDay);
+      return true;
+    });
+    renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard,
+          introduceCard,
+          getNearDueCards: vi.fn(() => []),
+        }),
+      ),
+    );
+
+    // Deletion Test: a regression back to Number.MAX_SAFE_INTEGER would still return
+    // `true` from this same mock (since it only branches on `undefined`), so the
+    // introduceCard-call-count assertions elsewhere in this file would not catch it —
+    // only pinning the exact argument value does.
+    expect(flexCallArgs).toEqual([INTERRUPT_FLEX_DAILY_MAX, INTERRUPT_FLEX_DAILY_MAX]);
   });
 });
 
