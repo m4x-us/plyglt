@@ -10770,9 +10770,9 @@ NEW
 **File:** app/study/page.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 2)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 No seam test wires the real app/study/page.tsx through the real useStudySession into the real store/srsStore.ts getNearDueCards/canIntroduceNewCard/introduceCard end-to-end; every layer of Batch 23's new fill pipeline is unit-tested in isolation only. Rule 13 seam-test gap.
@@ -10854,9 +10854,9 @@ NEW
 **File:** docs/INTERRUPT_ARCHITECTURE.md
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 2)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 docs/INTERRUPT_ARCHITECTURE.md was not updated to describe the new 6-card floor, 3-new-card cap, 8-card ceiling, or the removed `skippedNoCards` field, despite this batch materially changing the interrupt content-delivery contract the doc exists to describe.
@@ -11232,9 +11232,9 @@ NEW
 **File:** hooks/useInterruptConfig.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 2)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 This test does not actually exercise the near-due-mirror code path's presence; it passes identically with that code deleted, since nearDueIds defaults to [] regardless. Deletion-test failure, Rule 18.
@@ -11274,9 +11274,9 @@ NEW
 **File:** tests/pushDueEstimate.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 2)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 This test (cardCount:9) passes identically whether the Math.max floor logic exists or is deleted, since 9 is greater than 6 either way; it does not prove the floor exists, only re-exercises pre-existing plural-formatting coverage. Deletion-test failure, Rule 18, and the same test line that empirically demonstrates Task #544's overflow bug.

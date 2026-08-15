@@ -1,66 +1,61 @@
-CLOSED: #526
+CLOSED: #536
 NOT_CLOSED: none
 
-# Stream W2A Completion — Adam — 2026-08-13 (Wave 2 — Task #526)
+## Summary
+
+Task #536 was a Rule 13 seam-test gap: `app/study/page.tsx`'s own `initialQueue`
+computation (`buildQueue(allCards, ...)` then `.slice(0, INTERRUPT_SESSION_CAP)`,
+lines 60-64) and its `getNearDueCards: (limit) => getNearDueCards(allCards, limit)`
+closure binding (line 80) were never exercised together against a real store — Wave 1's
+`tests/seam_studyLoop.test.ts` addition (Task #543, Charles's stream) proved the
+hook-to-store seam (`useStudySession` → real `srsStore` actions) but hardcoded
+`initialQueue: []` and bound `getNearDueCards` over a hand-picked subset, never calling
+`buildQueue` at all.
+
+Read Charles's test first per the brief's instruction, then extended
+`tests/seam_studyLoop.test.ts` (no new file needed) with a new describe block —
+`"seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP slice ->
+useStudySession) — real store"` — containing two tests that reconstruct
+`app/study/page.tsx`'s exact wiring one layer further out than Charles's test:
+
+1. **Backlog/cap test** — 12 real cards, all FSRS-due. Calls the real `buildQueue(allCards,
+   store.getDueCards, store.getNewCards, isGlobal || isInterrupt,
+   store.getIntroductionDueCardIds)` (proving it returns all 12, unsliced), then applies
+   the real `.slice(0, INTERRUPT_SESSION_CAP)` exactly as page.tsx does, then feeds that
+   into a real `useStudySession` call. Asserts the resulting session queue is capped at
+   `INTERRUPT_SESSION_CAP` (8) with no flex-fill triggered (already at/above the floor).
+2. **Starved/floor-fill test** — 10 real cards, all with progress but none due (near-due
+   pool, staggered `dueDate`). `buildQueue` genuinely returns empty (globalMode blocks
+   new-card selection inside buildQueue itself, no due cards, no introductions) — the
+   real cold-start/backlog-return scenario the interrupt floor exists for. Feeds the
+   resulting empty `initialQueue` into a real `useStudySession` call whose
+   `getNearDueCards` closure is bound over the SAME `allCards` array used for `buildQueue`
+   (not a pre-trimmed stand-in, unlike Charles's test) — the actual page.tsx:80 binding
+   shape. Asserts the session fills to `INTERRUPT_SESSION_FLOOR` (6) with the 6
+   nearest-due cards out of the 10-card pool, proving the real store's
+   nearest-due-first sort ran against the full pool the page-level closure exposes.
+
+No change was needed to `app/study/page.tsx` itself — this was purely a missing-test
+gap, not a functional bug (the Deletion Test below confirms the real wiring is correct
+as shipped).
+
+## Deletion Test (Rule 13/20 requirement)
+Temporarily changed `lib/queue.ts`'s `INTERRUPT_SESSION_CAP` from 8 to 20 (reverted
+immediately after, `git diff` confirms zero residual change) and re-ran the new tests:
+the backlog/cap test failed exactly as expected (`expected [...] to have a length of 20
+but got 12`), proving the test exercises the real constant and the real slice logic, not
+a duplicated/hardcoded expectation.
+
+## Verification
+- `npx tsc --noEmit` — clean
+- `npm test` — 1952/1952 passed (101 files) — full suite green, including all other
+  streams' concurrent changes already in the working tree
+- `npm run lint` — 0 errors (7 pre-existing warnings, none in files this stream touched)
+- `scripts/deep-audit.sh` does not exist in this repo (confirmed again this wave) —
+  substituted the real Verification Gate as instructed in the brief's acceptance
+  criteria override
+- `git status` confirms only `tests/seam_studyLoop.test.ts` changed within this stream's
+  file ownership (`app/study/page.tsx` untouched, no off-limits files touched)
 
 Debt entries logged: 0
 Carry-forward tasks generated: 0
-
----
-
-## #526 — Desktop JS calls mark_interrupt_fired
-
-**lib/tauriInterrupt.ts** (new export, matching the existing wrapper pattern for
-`updateInterruptConfig`/`snoozeInterrupt`/`enterMandatoryMode`/`exitMandatoryMode`):
-
-```ts
-export async function markInterruptFired(): Promise<void>
-```
-
-No arguments — the Rust `mark_interrupt_fired` command (Task #524, Wave 1) is a state-only
-Tauri command, no payload. No-op in web (`!isTauri` early return). Throws
-`Mark interrupt fired IPC failed (ERR-IPC-<timestamp>)` on IPC failure, after logging the
-same ref ID to console.error — identical error-surfacing contract as its four siblings in
-the same file. **This is the exact function name/signature Wave 3's #529 will call too**, per
-the brief's own note.
-
-**components/InterruptHandler.tsx:**
-- Imported `markInterruptFired` alongside the existing `enterMandatoryMode`/
-  `updateInterruptConfig` imports from `lib/tauriInterrupt`.
-- Added a single call site, right after the `if (totalDue === 0) return;` early-return and
-  before the `if (isMandatory)` branch — covers both the mandatory and passive-notification
-  paths with one call, since both paths are guaranteed to execute past that point once real
-  content is due. Wrapped in try/catch: a failed IPC call is logged (`[IH-MARKFIRED-...]`) but
-  never blocks the interrupt from being shown — same "soft-lock is better than a silent no-op"
-  philosophy this file already applies to `enterMandatoryMode` failures.
-- Placement means `markInterruptFired()` fires regardless of whether the passive path's
-  notification-permission check ultimately succeeds or is denied — the trigger is "there is
-  real content and we are now acting on it," not "a notification literally rendered." This
-  matches the DoD's own phrasing (gated only on the `totalDue === 0` short-circuit, not on the
-  downstream permission outcome) and keeps the change to one call site instead of duplicating
-  logic across both branches.
-
-**Tests added:**
-- `components/InterruptHandler.test.tsx` — new `describe("markInterruptFired (Task #526)")`
-  block, 5 tests: not called when `totalDue === 0`; not called when the DND guard suppresses
-  the fire before `totalDue` is even checked; called exactly once on the mandatory path; called
-  exactly once on the passive path; IPC failure is logged but does not block showing the
-  interrupt (mirrors the existing `enterMandatoryMode`-failure test's shape). Also added
-  `mockMarkInterruptFired` to the file's `vi.hoisted` block and the `@/lib/tauriInterrupt` mock,
-  and reset it in `beforeEach`.
-- `tests/tauri.test.ts` — new `describe("markInterruptFired — IPC error surfacing")` block (3
-  tests: rejects with "IPC failed" on a mocked Tauri invoke rejection, resolves on success and
-  calls `invoke("mark_interrupt_fired", undefined)`, no-op/resolves in web mode) — this file is
-  `lib/tauriInterrupt.ts`'s own dedicated test file and wasn't in the brief's "Files You Own"
-  list, but the brief explicitly directed adding the wrapper to that module, and shipping new
-  exported production code with zero direct test coverage would violate AGENTS.md's "any
-  user-visible feature with zero tests covering its happy path" stop-the-line rule — added
-  tests there rather than only indirectly through the InterruptHandler mock.
-
-## Verification Gate (2026-08-13)
-- `npx tsc --noEmit`: 0 errors ✓
-- `npm test`: 1863/1863 pass (up from 1843 after Wave 1) ✓
-- `npm run lint`: 0 errors (7 pre-existing warnings, none in files this stream touched) ✓
-- Off-limits files (`supabase/functions/send-interrupt-notifications/dueSelection.ts`,
-  `dispatch.ts`, `lib/interruptGate.ts`, `lib/interruptGate.test.ts`) — confirmed untouched via
-  `git status`; the modifications visible there belong to Barry/Charles's parallel Wave 2 streams.

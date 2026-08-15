@@ -7,6 +7,12 @@ logged. See `.autocode/tasks.md` Batch 21 for the per-task implementation
 notes and `CLAUDE.md`'s Architecture §1 for the resulting module list
 (`lib/interruptGate.ts`, `hooks/useSnoozeAndExit.ts`, etc.).
 
+Sections 1–9 below describe Batch 21: **when** an interrupt is allowed to
+fire (the schedule/gate). §10 (added 2026-08-15) describes Batch 22/23, a
+separate but related question: once a fire is allowed, **what content** it's
+guaranteed to hold — the "6–10 interrupts a day, never fewer, never a
+1-card burst" content-supply floor.
+
 This document exists because live testing surfaced a real behavioral bug
 (desktop fires on every unlock, no spacing) that turned into a broader
 question this codebase had never actually settled: what should count as a
@@ -267,6 +273,159 @@ capability for mobile, not just "connect the existing thing."
 | Desktop gate check | New — desktop sync layer (Task #169 area) | Read/write the shared gate around firing decisions and snooze (§5, §6) |
 | Mobile dispatch | `supabase/functions/send-interrupt-notifications/dueSelection.ts`, `dispatch.ts` | Read/write `interrupt_gate_events` instead of per-token `last_sent_at` (§5) |
 | Settings reconciliation | `store/settingsStore.ts`, `push_tokens` schema | Unify interval default; decide DND vs. waking-hours (§7) |
+
+---
+
+## 10. Interrupt content-supply floor (Batch 22–23, remediated Wave 1 2026-08-15)
+
+Status: **IMPLEMENTED.** Batch 22 (`.autocode/tasks.md`, Task #533) closed a
+real gap live Windows testing surfaced: §2 above fixed `computeDue`
+undercounting what content exists, but a day where NO content of any kind
+existed yet (a caught-up user, or a brand-new signup with zero history) still
+made the interrupt engine go completely silent — contradicting BRAND.md's
+"6–10 interrupts every day, never fewer" as a hard floor, not an average.
+Batch 23 then found that "non-empty" alone wasn't enough either: a caught-up
+user's session could still land as a single card, a real, live-tested UX
+complaint ("way too small"). This section documents the current, live
+behavior after both batches plus Wave 1's audit remediation
+(`/audit 23`, Tasks #538/#539/#541/#544/#545/#550/#551) — not the original
+Batch 23 spec text, which has since been corrected in two places (noted
+below).
+
+### 10.1 The client-side content floor (`lib/queue.ts`)
+
+Every proactive interrupt session targets **45–90 seconds** of retrieval,
+which at 8–15s/card means a real, reasoned range of constants:
+
+| Constant | Value | Why |
+|---|---|---|
+| `INTERRUPT_SESSION_FLOOR` | 6 | The largest floor that fits the 45–90s target at 8–15s/card. Target, never fewer, when the catalog and pause state allow. |
+| `INTERRUPT_SESSION_MAX_NEW` | 3 | Hard per-session cap on never-seen items. Working memory holds ~4 chunks (Cowan 2001) — reviews aren't WM-bound, but brand-new items are. |
+| `INTERRUPT_SESSION_CAP` | 8 | 8 cards at 8–15s/card is 64–120s — up to 30s past the 90s target. Deliberate tradeoff: a slightly longer worst-case session beats truncating a heavy backlog day's content mid-session (BRAND.md: cards are ready, never overdue — no wall of debt). |
+| `INTERRUPT_FLEX_DAILY_MAX` | 9 (`INTERRUPT_SESSION_MAX_NEW * 3`) | **New in Wave 1 (Task #551).** A real cross-*session* daily ceiling on flex-introduced new cards — see 10.3. |
+
+`app/study/page.tsx` caps the built queue at `INTERRUPT_SESSION_CAP`.
+
+### 10.2 Fill order (`hooks/useStudySession.ts`'s mount effect, `isInterrupt` only)
+
+When the day's normal supply (FSRS-due + introduction-cadence-due + the
+one-per-day new card) falls short of the floor:
+
+1. **Flex-introduce more new cards** — up to `INTERRUPT_SESSION_MAX_NEW` (3)
+   per session. Deliberate fill-order choice: starvation is cold-start-shaped
+   (a brand-new account or a return from vacation), exactly when extra
+   introductions are pure ramp-up with no review load to compete against.
+2. **Pull near-due FSRS reviews slightly early** (soonest-due first,
+   `store/srsStore.ts`'s `getNearDueCards`).
+
+**The floor is a target, not an unconditional guarantee (Task #561).** A
+stranded introduction pause, or a genuinely exhausted catalog, can leave a
+session below 6 — even, in one rare combination, completely empty (10.4).
+
+### 10.3 The flex fill is gated, not unlimited (Task #538/#551 — corrects the original Batch 23 shipment)
+
+Step 1 above disables the *numeric* daily new-card cap
+(`store/srsStore.ts`'s `canIntroduceNewCard`'s `maxPerDay` default of 1) but
+must not disable two other things:
+
+- **The `strandedAcrossDays` pause.** BRAND.md: "Wrong across multiple days →
+  new card introductions pause until this one stabilizes." The original
+  Batch 23 shipment passed `Number.MAX_SAFE_INTEGER` as `maxPerDay`, which
+  correctly left the pause check intact (`canIntroduceNewCard` checks the
+  pause independently of the numeric cap) — this part was already right.
+- **A real cross-session daily ceiling.** This part was the actual bug: an
+  unbounded `maxPerDay` also disabled the numeric cap for the *rest of the
+  day*, not just the current session. Because `canIntroduceNewCard`'s
+  `introducedTodayCount` already counts every card introduced today across
+  ALL sessions (the `introductions` map is persisted store state, not
+  per-session), a persistently-starved catalog — the default state for any
+  brand-new user — could flex 3 new cards into *every* interrupt that day
+  with no ceiling, contradicting BRAND.md's "one new card introduced per day
+  at steady state" framing for exactly the population this flex path targets
+  first. **Fix:** pass `INTERRUPT_FLEX_DAILY_MAX` (9) instead of
+  `Number.MAX_SAFE_INTEGER`. No `store/srsStore.ts` change was needed — the
+  existing per-day counting logic already supports an arbitrary finite
+  ceiling.
+
+`hooks/useInterruptConfig.ts`'s `computeDue` mirrors this exact gate in its
+own zero-supply flex-fallback branch (Task #539) — before this fix,
+`computeDue` could count (and therefore fire an interrupt promising) an
+untouched card that the session's own flex fill would then refuse to
+introduce, a real fire-gate/session-content divergence of the same shape §2
+already closed once for the normal-cap case.
+
+### 10.4 The never-empty backstop now respects the pause (Task #538 — corrects the original Batch 23 shipment)
+
+A final backstop in the mount effect exists so an interrupt is never
+completely empty when the pipeline can actually supply something. The
+original Batch 23 shipment called it unconditionally — bypassing the
+stranded pause entirely, a direct contradiction of the invariant in 10.3.
+**Fixed:** the backstop now only fires when the same flex-gate from 10.3
+allows it. Net effect: when the stranded pause is active AND no near-due
+card exists either, the session is now genuinely allowed to be empty — a
+deliberate product decision that BRAND.md's named pause invariant takes
+priority over the "never completely empty" guarantee in this one rare
+combination, rather than the guarantee silently overriding a named rule.
+
+### 10.5 Near-due over-fetch is a proven bound, not a heuristic (Task #541)
+
+The near-due fill step originally requested
+`INTERRUPT_SESSION_FLOOR + sessionIds.size` cards from `getNearDueCards` — a
+heuristic that only over-fetches enough if cards already in the session
+cluster at the front of the sorted near-due pool. If they're interleaved
+instead, the slice could run out before the floor is reached even with
+enough near-due cards available. **Fixed:** request
+`Number.MAX_SAFE_INTEGER` instead. `store/srsStore.ts`'s `getNearDueCards`
+already filters and sorts the entire catalog before slicing to `limit`, so
+asking for everything adds no real cost — it's a mathematically sufficient
+bound instead of an unproven one.
+
+### 10.6 Server-side mirror (`supabase/functions/send-interrupt-notifications/dueEstimate.ts`)
+
+The server's due estimate is a documented **lower bound** over synced
+`review_events` only (§2 already established real due-ness needs client-side
+introduction-engine state the server never sees) and is never a
+send/no-send gate (Batch 23's original fix — `dispatch.ts` no longer
+`skippedNoCards`, closing the mobile-side version of §1/10.2's "silent day"
+bug). `buildNotificationPayload` announces a count derived from that
+estimate:
+
+- **Non-zero estimate:** clamped to `[INTERRUPT_SESSION_FLOOR,
+  INTERRUPT_SESSION_CAP]` (Task #544 — corrects the original Batch 23
+  shipment, which only floored the count with no ceiling; a real backlog day
+  could announce more cards than the session the tap opens can ever
+  deliver).
+- **Genuinely zero estimate** (Task #545 — corrects the original Batch 23
+  shipment, which always claimed the floor of 6 even here): the server
+  cannot distinguish "the client will fill this via flex-introduction" (the
+  common case for a brand-new Pro signup's first interrupt) from "catalog
+  and daily flex ceiling both exhausted, truly nothing to show." Claiming a
+  specific number in either case would be a promise the server can't back.
+  The body instead reads **"Cards ready"** with no number, and
+  `data.cardCount` reports the honest `0`.
+
+Keep `INTERRUPT_SESSION_FLOOR`/`INTERRUPT_SESSION_CAP` here in sync with
+`lib/queue.ts`'s copies — Deno Edge Functions can't import from `lib/`, so
+this is a comment-documented convention, mechanically enforced by
+`tests/interruptFloorSync.test.ts` (Task #535), not a shared import.
+
+`DispatchSummary` (`types.ts`) replaces the removed `skippedNoCards` counter
+with **`sentWithZeroEstimate`** (Task #550) — a subset of `sent`, not
+additional to it, counting sends whose announced count came entirely from
+the zero-case fabrication above rather than real synced review history, so
+observability into "how often are we sending on faith" isn't lost along with
+the old skip-gate.
+
+### 10.7 Summary of files touched
+
+| Area | File(s) | Current behavior |
+|---|---|---|
+| Client floor/cap/ceiling constants | `lib/queue.ts` | `INTERRUPT_SESSION_FLOOR`(6), `INTERRUPT_SESSION_MAX_NEW`(3), `INTERRUPT_SESSION_CAP`(8), `INTERRUPT_FLEX_DAILY_MAX`(9) — see 10.1 |
+| Session fill + pause/ceiling gating + never-empty backstop | `hooks/useStudySession.ts` | Mount-effect fill order, flex gate, backstop — see 10.2–10.5 |
+| Fire-gate mirror | `hooks/useInterruptConfig.ts` | `computeDue`'s flex-fallback, gated identically to the session fill — see 10.3 |
+| Server estimate + payload | `supabase/functions/send-interrupt-notifications/dueEstimate.ts` | Lower-bound estimate, clamp-to-[FLOOR,CAP], honest zero case — see 10.6 |
+| Dispatch observability | `supabase/functions/send-interrupt-notifications/types.ts`, `dispatch.ts` | `sentWithZeroEstimate` replaces `skippedNoCards` — see 10.6 |
+| Client/server constant sync guard | `tests/interruptFloorSync.test.ts` | Mechanical equality assertion, not a shared import — see 10.6 |
 
 ---
 

@@ -218,12 +218,24 @@ describe("useInterruptConfig — computeDue", () => {
     expect(result.current.computeDue([unit])).toBe(1);
   });
 
+  // Task #558: the original version of this test only asserted the final result was 0 — but
+  // that result is identical whether the near-due-mirror branch (computeDue's `getNearDueCards`
+  // check after the new-card flex check comes up empty) runs and finds nothing, OR is deleted
+  // entirely (nearDueIds defaults to [] either way, so a deleted branch also "returns" 0 by
+  // omission). A bare `toBe(0)` assertion can't tell those two cases apart — Rule 18. Spying on
+  // getNearDueCards and asserting it was actually called proves the branch executed, which the
+  // numeric result alone cannot. Deletion Test: commenting out computeDue's near-due-mirror
+  // loop (hooks/useInterruptConfig.ts lines ~92-99) leaves `toBe(0)` passing but makes the new
+  // `toHaveBeenCalledWith` assertion below fail, since the spy is never invoked.
   it("stays at 0 when the flex check also finds no untouched card AND no near-due card anywhere (truly nothing left)", () => {
     const card = makeCard("u1-c1");
     const unit = makeUnit("u1", [card]);
-    mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [] }));
+    const state = makeState({ canIntroduceNewCard: false, newCardIds: [], nearDueIds: [] });
+    const getNearDueCardsSpy = vi.fn(state.getNearDueCards);
+    mockGetState.mockReturnValue({ ...state, getNearDueCards: getNearDueCardsSpy });
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.computeDue([unit])).toBe(0);
+    expect(getNearDueCardsSpy).toHaveBeenCalledWith(unit.cards, 1);
   });
 
   // Task #539 (regression): the flex-fallback previously counted an untouched

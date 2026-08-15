@@ -1,104 +1,101 @@
-# Adam — Stream W2A — Wave 2 — 2026-08-13
+# Adam — Stream W2A — Wave 2 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W2A | #526
+— Adam | W2A | #536
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Your Tasks (run in this exact order)
-1. /task #526  — Desktop JS calls mark_interrupt_fired
+1. /task #536  — Fix tests: no seam test wires the real Batch 23 fill pipeline end-to-end
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Adam — W2A
-[→] #526 — Desktop JS calls mark_interrupt_fired   ← starting now
+[→] #536 — Fix tests: no seam test wires the real Batch 23 fill pipeline end-to-end   ← starting now
 
 Then proceed to the next task. This lets Max glance at any window and know
 exactly where you are.
 
 ## Files You Own (edit ONLY these)
-components/InterruptHandler.tsx
-components/InterruptHandler.test.tsx
+app/study/page.tsx
+tests/seam_studyLoop.test.ts (or a new seam test file if that one doesn't fit — your call)
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-supabase/functions/send-interrupt-notifications/dueSelection.ts
-supabase/functions/send-interrupt-notifications/dispatch.ts
-lib/interruptGate.ts
-lib/interruptGate.test.ts
+docs/INTERRUPT_ARCHITECTURE.md
+hooks/useInterruptConfig.test.ts
+tests/pushDueEstimate.test.ts
+
+## Prior Wave Changes — Read Before Starting
+Wave 1 (this same batch) already added a real seam test for part of this exact gap:
+`tests/seam_studyLoop.test.ts` gained a test wiring the REAL `useStudySession` hook against
+REAL `store/srsStore.ts` actions (no mocked `getNearDueCards`/`canIntroduceNewCard`) via
+`renderHook`, proving the interrupt floor-fill reaches `INTERRUPT_SESSION_FLOOR` (6) — added
+by Charles's stream (W1C) while closing Task #543. Read that test first (`git log -p -- tests/seam_studyLoop.test.ts`
+or just open the file) before writing anything new — your task's specific gap ("no seam test
+wires the real app/study/page.tsx through the real useStudySession into the real
+store/srsStore.ts... end-to-end") is narrower: Charles's test proves the hook-to-store seam;
+yours needs to prove the PAGE-to-hook seam is also real (i.e. `app/study/page.tsx`'s actual
+`getNearDueCards: (limit) => getNearDueCards(allCards, limit)` binding at line 73, and its
+`buildQueue`/`INTERRUPT_SESSION_CAP` slicing, are wired correctly into a real `useStudySession`
+call) — do not duplicate Charles's test, extend the seam coverage one layer further out.
 
 ## Task Definitions
 
-### Task #526 | feature | severity 5
-**What:** `components/InterruptHandler.tsx`'s `interrupt:fire` handler calls the new `mark_interrupt_fired` Tauri command (Task #524) at the exact point it decides to actually show content — after the `totalDue === 0` early-return, for both the mandatory and passive-notification paths.
-**Why:** Closes the loop Task #524 opens: the Rust side stops auto-advancing the clock on emit, so nothing advances it at all until this task wires up the confirmation. Both tasks are needed together for the desktop clock semantics to actually work end to end.
-**File:** `components/InterruptHandler.tsx`, `components/InterruptHandler.test.tsx`
-**Severity:** 5 | **DoD Tier:** 2
-**Complexity:** ⚡ Direct — 2 files, one new IPC call at an existing decision point
-**Blocked by:** #524 (COMPLETE, Wave 1) | **Blocks:** #529
-**Done when:** A test proves `mark_interrupt_fired` is called exactly when real content is shown (both mandatory and passive branches) and NOT called when `totalDue === 0` short-circuits. `npx tsc --noEmit`, full test suite, lint clean.
-**Owner:** Architecture Agent
+### Task #536: Fix tests: no seam test wires the real Batch 23 fill pipeline end-to-end
 
-## Prior Wave Changes — Read Before Starting
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing (was semantically blocked on Tasks #538/#551, both COMPLETE as of Wave 1)
+**Priority:** P3
+**Status:** OPEN
 
-These files/areas you depend on were modified in Wave 1. Read this before writing any
-code — your starting state is not what the repo looked like before Wave 1.
+**What:**
+No seam test wires the real app/study/page.tsx through the real useStudySession into the real store/srsStore.ts getNearDueCards/canIntroduceNewCard/introduceCard end-to-end; every layer of Batch 23's new fill pipeline is unit-tested in isolation only. Rule 13 seam-test gap.
 
-**#524 (completed by Adam, Wave 1) — the exact command you need to call:**
-Rust side added `mark_interrupt_fired` as a new Tauri command (registered in
-`src-tauri/src/lib.rs`'s `invoke_handler!` list, imported from `interrupt::{...,
-mark_interrupt_fired, ...}`). It takes no JS-side arguments (state is a Tauri-managed
-`State`, not something you pass in). It is now the *only* thing in the whole codebase
-that writes `last_triggered_secs` — before your change lands, the scheduled poll can
-still re-fire every ~30s once the interval elapses, since nothing calls this command
-yet (a known, scoped interim state Adam's completion.md documents — not a bug to
-"also fix," just context for why you might see repeated fires while testing before
-your own change is in). Look at `lib/tauriInterrupt.ts`'s existing wrapper pattern for
-`updateInterruptConfig`/`enterMandatoryMode`/`snoozeInterrupt` and add a same-shaped
-wrapper for `mark_interrupt_fired`, then call it from `InterruptHandler.tsx`.
+Given Wave 1 already added a hook-to-store seam test (see "Prior Wave Changes" above), your job
+is the outer layer: a test that renders (or at minimum invokes with real, non-mocked collaborators)
+`app/study/page.tsx`'s actual queue-construction logic — `buildQueue` + the `INTERRUPT_SESSION_CAP`
+slice + the real `getNearDueCards` binding — feeding into a real `useStudySession` call, proving the
+full page-to-store chain produces a correctly-floored interrupt session with no intermediate mock.
+If a full component render (via `@testing-library/react`) is impractical given existing mocks in
+`app/study/page.test.tsx`, a `renderHook`-style test that reconstructs the page's exact wiring
+(same function calls, same binding shape) against the real store is an acceptable equivalent — the
+point is proving the real functions are called with the real argument shapes, not adding another
+layer of mocks.
 
-**#523 (completed by Barry, Wave 1) — a file you own was already touched:**
-`components/InterruptHandler.test.tsx`'s `@/store/srsStore` mock now includes 3
-additional stubs (`getIntroductionDueCardIds: () => []`, `canIntroduceNewCard: () =>
-false`, `getNewCards: () => []`) alongside the original `getStats: () => ({ due: 1 })`
-— added because `hooks/useInterruptConfig.ts`'s `computeDue()` now calls those methods
-too. This is unrelated to your own task but means the mock in this file already has
-more surface area than a fresh read of an old version would suggest — don't remove
-those stubs, and be aware `computeDue`'s return value in tests now depends on all 4
-mocked methods, not just `getStats`.
+**Acceptance Criteria:**
+- [ ] Fix tests issue at app/study/page.tsx:StudyInner:73
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx (this script does not exist in
+      this repo — substitute the real Verification Gate: `npx tsc --noEmit`, `npm test`, `npm run lint`)
 
-**#532 (completed by Adam, Wave 1) — confirms no impact on you:**
-`store/settingsStore.ts`'s `dndStart`/`dndEnd` fields and `isInDnd()`'s signature were
-deliberately left unchanged despite the DND/waking-hours merge (only the default value
-and some new unrelated helper functions changed) — so `InterruptHandler.tsx`'s existing
-`isInDnd(dndStart, dndEnd)` call at its DND guard needs no changes because of this.
+**Source:** Audit finding F003 — severity 4 — tests
+
+---
 
 ## Agent Memories
 
-## Architect Agent Memory (first 150 lines)
-[Full first 150 lines of .autocode/agents/architect.md — layer structure, key
-files/blast radius. Relevant here: `components/` imports from `hooks/`/`lib/` only per
-CLAUDE.md's Layer Map — call the new Tauri command through a `lib/tauriInterrupt.ts`
-wrapper, never `invoke()` directly from the component (matches the file's own existing
-gateway pattern for every other Tauri command it already wraps).]
+## QA Agent Memory (relevant excerpt)
+Rule 13 (Test the Seams): when data flows across module boundaries, at least one test must trace
+real data through the full chain without mocking intermediate layers. Rule 20 (Spec-to-Runtime
+Traceability): the test must exercise the real production entry point, not an isolated pure function
+or state injected via setState. Before signing off: run the Deletion Test — would this test actually
+fail if the real wiring were broken?
 
 ## When You Finish
 Write your completion summary to .autocode/stream-W2A/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #526
-NOT_CLOSED: none
+CLOSED: #[NUM]
+NOT_CLOSED: #[NUM] — [one-line reason]
 
-(If not closed, list it with a one-line reason instead.)
+(If closed: `NOT_CLOSED: none`. If not: `CLOSED: none`.)
 
-After those two lines, write whatever prose detail is useful:
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
-  The exact function name/signature you added to lib/tauriInterrupt.ts (Wave 3's #529
-  will call it too)
+After those two lines, write whatever prose detail is useful.
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W2A | #526
+— Adam | W2A | #536
