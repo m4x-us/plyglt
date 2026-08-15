@@ -231,6 +231,37 @@ describe("useSync — download+merge path", () => {
     expect(mockSRSSetState).not.toHaveBeenCalled();
   });
 
+  it("skips merging a card with a pending, not-yet-uploaded event — other downloaded cards still merge (regression, Task #554)", async () => {
+    // Simulates a real review being recorded (enqueueReviewEvent) for c1 while
+    // this call's downloadReviewEvents is in flight. That review is correctly
+    // queued for the NEXT sync via pendingEvents — but without the fix, this
+    // sync's own merge would still overwrite c1's srsStore entry with the
+    // (now-stale) server-derived value below, silently regressing its FSRS
+    // state until the next sync corrects it.
+    mockDownloadReviewEvents.mockImplementation(async () => {
+      mockSyncState.pendingEvents = [...mockSyncState.pendingEvents, makeEvent({ id: "race-1", cardId: "c1" })];
+      return {
+        ok: true,
+        events: [
+          makeEvent({ id: "stale-c1", cardId: "c1", reviewedAt: 1000, rating: 3, stability: 10, difficulty: 5, dueDate: 2000 }),
+          makeEvent({ id: "fresh-c2", cardId: "c2", reviewedAt: 3000, rating: 4, stability: 15, difficulty: 3, dueDate: 8000 }),
+        ],
+      };
+    });
+    const { result } = renderHook(() => useSync());
+
+    await result.current.syncNow();
+
+    // c1 was never merged — its pending, not-yet-uploaded event wins by omission.
+    expect(mockSRSState.cards.c1).toBeUndefined();
+    // c2 has no pending event and merges normally, proving the skip is
+    // per-card, not a blanket "any pending events exist" bail-out.
+    expect(mockSRSState.cards.c2).toEqual({
+      cardId: "c2", state: "review", stability: 15, difficulty: 3,
+      retrievability: 1, dueDate: 8000, lapses: 0, reps: 1,
+    });
+  });
+
   it("a card that failed twice before ever graduating merges as state 'learning', not 'relearning' (regression, severity-7 audit finding)", async () => {
     mockDownloadReviewEvents.mockResolvedValue({
       ok: true,

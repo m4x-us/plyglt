@@ -95,9 +95,20 @@ async function runSyncNow(userId: string): Promise<SyncNowResult> {
   // runSyncNow() body ever executes at a time, so there is no second,
   // independently-snapshotted patch that could land afterward and overwrite
   // this one with staler data.
+  // Task #554: a review recorded via enqueueReviewEvent (hooks/useStudySession.ts)
+  // during the upload/download round trip just awaited above lands in
+  // pendingEvents queued for the NEXT sync — correctly. But without this
+  // check, the current call's merge below would still overwrite that card's
+  // srsStore entry with the (now-stale) server-derived value, silently
+  // regressing FSRS state until the next sync corrects it. Re-read
+  // pendingEvents fresh here (not the pre-await snapshot `pending` above) and
+  // skip merging any card still queued — trust local, not-yet-uploaded state
+  // over a server snapshot known to predate it.
+  const pendingCardIds = new Set(useSyncStore.getState().pendingEvents.map((e) => e.cardId));
   const merged = replayLatestEventPerCard(downloadResult.events);
   const patch: Record<string, CardProgress> = {};
   for (const cardId of Object.keys(merged)) {
+    if (pendingCardIds.has(cardId)) continue;
     patch[cardId] = syncedStateToCardProgress(merged[cardId]!);
   }
   if (Object.keys(patch).length > 0) {

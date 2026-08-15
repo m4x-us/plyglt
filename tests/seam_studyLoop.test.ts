@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { renderHook } from "@testing-library/react";
 import { useSRSStore } from "@/store/srsStore";
 import type { ActiveSession } from "@/store/srsStore";
-import { buildQueue } from "@/lib/queue";
+import type { CardProgress } from "@/lib/srs";
+import { buildQueue, INTERRUPT_SESSION_FLOOR } from "@/lib/queue";
 import { selectQualifyingNewCard } from "@/lib/srs";
 import { ALL_UNITS } from "@/content/index";
+import { useStudySession } from "@/hooks/useStudySession";
 
 // Three real Italian cards from the Greetings unit — imported directly
 // from content/index.ts with no mocks. Exercises the production data-format
@@ -127,5 +131,63 @@ describe("seam: content/index.ts cards → buildQueue → rateCardAndSaveSession
     const final = snapshots[snapshots.length - 1]!;
     expect(final.reps).toBe(1);
     expect(final.position).toBe(1);
+  });
+});
+
+// Task #543: neither app/study/page.tsx nor hooks/useStudySession.ts had a single test
+// exercising the REAL interrupt-floor fill pipeline end to end — app/study/page.test.tsx
+// mocks useStudySession entirely, and hooks/useStudySession.test.ts mocks getNearDueCards
+// entirely (both by design, for their own unit-level concerns). This seam test wires the
+// real useStudySession hook against real store/srsStore.ts actions (no mocked getNearDueCards,
+// no mocked canIntroduceNewCard/introduceCard) via a minimal renderHook harness, proving the
+// Batch 23 interrupt-session floor actually reaches INTERRUPT_SESSION_FLOOR (6) cards with no
+// intermediate layer faked (Rule 13/Rule 20).
+describe("seam: interrupt-session floor-fill — real useStudySession + real srsStore", () => {
+  it("fills an empty interrupt-mode initialQueue to the real INTERRUPT_SESSION_FLOOR via real near-due cards", () => {
+    const nearDueCards = UNIT.cards.slice(0, INTERRUPT_SESSION_FLOOR);
+    expect(nearDueCards).toHaveLength(INTERRUPT_SESSION_FLOOR);
+    const allCardMap = Object.fromEntries(nearDueCards.map((c) => [c.id, c]));
+
+    // Real progress for each: reps > 0 (already studied) and dueDate a day in the future
+    // (not yet due) — exactly what store/srsStore.ts's real getNearDueCards filters for.
+    // Every one of these cards also has progress, so lib/srs.ts's real
+    // selectQualifyingNewCard finds nothing to introduce (`!cards[c.id]` excludes them) —
+    // isolating this test to the near-due fill path specifically.
+    const progress: Record<string, CardProgress> = Object.fromEntries(
+      nearDueCards.map((c) => [c.id, {
+        cardId: c.id,
+        state: "review",
+        stability: 10,
+        difficulty: 5,
+        retrievability: 0.9,
+        dueDate: Date.now() + 24 * 60 * 60 * 1000,
+        lapses: 0,
+        reps: 1,
+      } satisfies CardProgress])
+    );
+    useSRSStore.setState({ cards: progress, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+
+    const store = useSRSStore.getState();
+    const { result } = renderHook(() =>
+      useStudySession({
+        initialQueue: [],
+        allCardMap,
+        isGlobal: false,
+        isInterrupt: true,
+        unitId: UNIT.id,
+        getResumableSession: store.getResumableSession,
+        clearActiveSession: store.clearActiveSession,
+        commitSession: store.commitSession,
+        canIntroduceNewCard: store.canIntroduceNewCard,
+        introduceCard: store.introduceCard,
+        getNearDueCards: (limit) => store.getNearDueCards(nearDueCards, limit),
+        cards: store.cards,
+        introductions: store.introductions,
+        enqueueReviewEvent: vi.fn(),
+      })
+    );
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR);
+    expect(result.current.queue.map((c) => c.id).sort()).toEqual(nearDueCards.map((c) => c.id).sort());
   });
 });

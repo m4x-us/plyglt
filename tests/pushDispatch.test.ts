@@ -57,19 +57,21 @@ describe("dispatchNotifications", () => {
     expect(deps.sendFcm).toHaveBeenCalledWith(androidToken, expect.objectContaining({ body: "6 cards ready" }));
   });
 
-  it("still claims and sends when the user has a zero due estimate — the client session floor fills the content (Batch 23)", async () => {
+  it("still claims and sends when the user has a zero due estimate — the client session floor fills the content (Batch 23), with an honest count-free body (Task #545)", async () => {
     const token = makeToken({ user_id: "u1" });
     const deps = makeDeps();
     // No events at all for u1 — computeDueEstimate returns cardCount 0. Pre-Batch-23
     // this was skipped entirely, the mobile-side version of the "6-10 interrupts every
-    // day, never fewer" gap Task #533 closed on desktop.
+    // day, never fewer" gap Task #533 closed on desktop. Task #545: a zero estimate no
+    // longer fabricates "6 cards ready" — the server cannot back that specific number.
     const summary = await dispatchNotifications([token], new Map(), NOW, deps);
 
     expect(deps.claimToken).toHaveBeenCalledTimes(1);
-    expect(deps.sendApns).toHaveBeenCalledWith(token, expect.objectContaining({ body: "6 cards ready" }));
+    expect(deps.sendApns).toHaveBeenCalledWith(token, expect.objectContaining({ body: "Cards ready" }));
     expect(summary).toEqual({
       sent: 1, failed: 0, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 1, total: 1,
     });
   });
 
@@ -83,7 +85,8 @@ describe("dispatchNotifications", () => {
     expect(deps.sendApns).not.toHaveBeenCalled();
     expect(summary).toEqual({
       sent: 0, failed: 0, skippedAlreadyClaimed: 1,
-      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 0, total: 1,
     });
   });
 
@@ -108,7 +111,8 @@ describe("dispatchNotifications", () => {
     expect(deps.deactivateToken).toHaveBeenCalledWith("dead-token");
     expect(summary).toEqual({
       sent: 0, failed: 0, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 0, deactivated: 1, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 0, deactivated: 1, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 0, total: 1,
     });
   });
 
@@ -122,7 +126,8 @@ describe("dispatchNotifications", () => {
     expect(deps.deactivateToken).not.toHaveBeenCalled();
     expect(summary).toEqual({
       sent: 0, failed: 1, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 0, total: 1,
     });
   });
 
@@ -139,7 +144,8 @@ describe("dispatchNotifications", () => {
     expect(deps.deactivateToken).toHaveBeenCalledWith("dead-token");
     expect(summary).toEqual({
       sent: 0, failed: 1, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 0, total: 1,
     });
   });
 
@@ -153,7 +159,8 @@ describe("dispatchNotifications", () => {
     expect(deps.deactivateToken).not.toHaveBeenCalled();
     expect(summary).toEqual({
       sent: 0, failed: 0, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 1, deactivated: 0, erroredUnexpectedly: 0, total: 1,
+      skippedNotConfigured: 1, deactivated: 0, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 0, total: 1,
     });
   });
 
@@ -178,7 +185,8 @@ describe("dispatchNotifications", () => {
     expect(deps.sendApns).toHaveBeenCalledWith(okToken, expect.anything());
     expect(summary).toEqual({
       sent: 1, failed: 0, skippedAlreadyClaimed: 0,
-      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 1, total: 2,
+      skippedNotConfigured: 0, deactivated: 0, erroredUnexpectedly: 1,
+      sentWithZeroEstimate: 0, total: 2,
     });
     expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-PUSH-DISPATCH-TOKEN-\d+\] unexpected error processing token t-throws:$/);
     consoleErrorSpy.mockRestore();
@@ -235,7 +243,7 @@ describe("dispatchNotifications", () => {
       ["u2", [readyEvent("u2")]],
       ["u3", [readyEvent("u3")]],
       ["u4", [readyEvent("u4")]],
-      // u5 has no events at all -> cardCount 0 -> Batch 23: sends anyway with the floored body.
+      // u5 has no events at all -> cardCount 0 -> Batch 23: sends anyway with the honestly-worded, count-free body (Task #545).
     ]);
 
     const summary = await dispatchNotifications(
@@ -247,7 +255,8 @@ describe("dispatchNotifications", () => {
 
     expect(summary).toEqual({
       sent: 2, failed: 1, skippedAlreadyClaimed: 1,
-      skippedNotConfigured: 0, deactivated: 1, erroredUnexpectedly: 0, total: 5,
+      skippedNotConfigured: 0, deactivated: 1, erroredUnexpectedly: 0,
+      sentWithZeroEstimate: 1, total: 5,
     });
   });
 
@@ -280,12 +289,13 @@ describe("dispatchNotifications", () => {
       expect(deps.recordGateFired).not.toHaveBeenCalled();
     });
 
-    it("records the gate after a zero-estimate send too — the floored session still spaces the next interrupt (Batch 23)", async () => {
+    it("records the gate after a zero-estimate send too — the honestly-worded session still spaces the next interrupt (Batch 23)", async () => {
       const token = makeToken({ user_id: "u1" });
       const deps = makeDeps();
 
       // No events → estimate 0 → pre-Batch-23 this skipped (no send, no gate);
-      // now the send happens and the 90-minute gate must still be written.
+      // now the send happens (with a count-free body, Task #545) and the
+      // 90-minute gate must still be written.
       await dispatchNotifications([token], new Map(), NOW, deps);
 
       expect(deps.recordGateFired).toHaveBeenCalledTimes(1);

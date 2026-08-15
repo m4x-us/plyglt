@@ -7,8 +7,14 @@
 // parallelize since Postgres serializes the underlying UPDATE regardless of
 // caller ordering, but processing sequentially also avoids one Edge Function
 // invocation bursting a large batch of simultaneous requests at APNs/FCM
-// or the Postgres connection pool. Revisit only if real dispatch volume
-// makes this a measured latency problem.
+// or the Postgres connection pool. Batch 23 (2026-08-14) removed the
+// zero-estimate skip, so this sequential loop now carries strictly MORE
+// send volume per invocation than when this rationale was first written —
+// every gated-eligible token proceeds through claimToken/send, with no
+// short-circuit for a zero due estimate. The rationale above still holds
+// (this remains a burst-control choice, not a correctness requirement); it
+// has simply not yet been measured against the higher real volume. Revisit
+// only if real dispatch volume makes this a measured latency problem.
 // ============================================================
 // DEPENDS ON: ./types.ts, ./dueEstimate.ts
 // USED BY: index.ts (the Deno entrypoint)
@@ -42,6 +48,7 @@ export interface DispatchDeps {
 async function sendAndRecord(
   token: PushTokenRow,
   payload: NotificationPayload,
+  estimateCardCount: number,
   deps: DispatchDeps,
   summary: DispatchSummary,
   now: Date
@@ -51,6 +58,9 @@ async function sendAndRecord(
 
   if (result.ok) {
     summary.sent++;
+    // Task #550: a subset of `sent`, not additional to it — see DispatchSummary's
+    // doc comment on this field for why the distinction matters.
+    if (estimateCardCount === 0) summary.sentWithZeroEstimate++;
     // Task #527 — write the shared gate event AFTER a confirmed send, using this
     // token's own interrupt_interval_minutes (the interval in effect for this send,
     // per docs/INTERRUPT_ARCHITECTURE.md §5 — effective_until is computed once at
@@ -113,6 +123,7 @@ export async function dispatchNotifications(
     skippedNotConfigured: 0,
     deactivated: 0,
     erroredUnexpectedly: 0,
+    sentWithZeroEstimate: 0,
     total: candidateTokens.length,
   };
 
@@ -135,7 +146,7 @@ export async function dispatchNotifications(
         continue;
       }
 
-      await sendAndRecord(token, payload, deps, summary, now);
+      await sendAndRecord(token, payload, estimate.cardCount, deps, summary, now);
     } catch (e) {
       // Defensive backstop only — every known throwing call in this chain
       // is already caught at its source. If something still slips through,

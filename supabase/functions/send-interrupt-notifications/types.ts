@@ -58,6 +58,15 @@ export interface DispatchSummary {
   // pipeline is now caught closer to its source) previously had no counter
   // of its own and no way to be distinguished from a normal outcome.
   erroredUnexpectedly: number;
+  // Task #550: Batch 23 removed the zero-estimate skip (and this field's
+  // predecessor, `skippedNoCards`) so every gated-eligible token now sends —
+  // but that also removed the only signal distinguishing a send backed by
+  // real synced review history from a send whose announced count came
+  // entirely from dueEstimate.ts's session-floor/zero-case fabrication (see
+  // buildNotificationPayload). Counted here (a subset of `sent`, not
+  // additional to it) so a future dispatch summary or dashboard can still
+  // tell the two apart.
+  sentWithZeroEstimate: number;
   total: number;
 }
 

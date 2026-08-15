@@ -15,7 +15,17 @@ import { render, screen, cleanup } from "@testing-library/react";
 
 // ── vi.hoisted: mutable state controlling mock return values ──────────────────
 
-const { mockRouterPush } = vi.hoisted(() => ({ mockRouterPush: vi.fn() }));
+const { mockRouterPush, mockUseStudySession, mockBuildQueue } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+  // Captures the exact args app/study/page.tsx passes into useStudySession() — lets tests
+  // assert on the real `initialQueue` value the page computed, not just sessionCfg's
+  // hardcoded return.
+  mockUseStudySession: vi.fn(),
+  // Captures/controls buildQueue's real input — the default beforeEach implementation
+  // below ignores it (matching the original hardcoded mock) for existing tests; specific
+  // tests (Task #552's cold-start regression) override this to be input-aware.
+  mockBuildQueue: vi.fn(),
+}));
 
 // Controls what useSearchParams' "mode" param returns — mutable so individual tests can
 // exercise isInterrupt/isGlobal branches without every other test needing to know about it.
@@ -75,22 +85,39 @@ const mockLangConfig = vi.hoisted(() => ({
     curriculumCredit: "Test",
   },
 }));
+// Mutable so tests can simulate a pack still loading (units/unitMap empty, loading:true)
+// transitioning to loaded (Task #553) — the real hook this mocks reflects live pack state,
+// not a value frozen for the component's whole lifetime.
+const langPackState = vi.hoisted(() => ({
+  units: [] as Array<{ id: string; cards: unknown[]; prerequisiteUnits?: string[] }>,
+  unitMap: {} as Record<string, unknown>,
+  loading: false,
+}));
 vi.mock("@/hooks/useLangPack", () => ({
-  useLangPack: () => ({ units: [], unitMap: {}, lang: mockLangConfig, loading: false }),
+  useLangPack: () => ({ units: langPackState.units, unitMap: langPackState.unitMap, lang: mockLangConfig, loading: langPackState.loading }),
 }));
 
-// ── @/lib/queue — buildQueue returns builtQueue.cards ────────────────────────
-vi.mock("@/lib/queue", () => ({
-  buildQueue: () => builtQueue.cards,
-  findUnitName: () => "Test Unit",
-  // Real value, not a stand-in: the page slices interrupt queues to this cap
-  // (Batch 23) — a fake number here would silently diverge from lib/queue.ts.
-  INTERRUPT_SESSION_CAP: 8,
-}));
+// ── @/lib/queue — buildQueue returns builtQueue.cards by default; input-aware override
+// available per-test via mockBuildQueue.mockImplementation(...) ─────────────────────
+vi.mock("@/lib/queue", async () => {
+  // Task #557: import the REAL INTERRUPT_SESSION_CAP rather than hardcoding a literal 8 —
+  // a future change to the real constant in lib/queue.ts must be caught by this test file,
+  // not silently diverge from it.
+  const actual = await vi.importActual<typeof import("@/lib/queue")>("@/lib/queue");
+  return {
+    buildQueue: (...args: unknown[]) => mockBuildQueue(...args),
+    findUnitName: () => "Test Unit",
+    INTERRUPT_SESSION_CAP: actual.INTERRUPT_SESSION_CAP,
+  };
+});
 
-// ── @/hooks/useStudySession — controlled per-test via sessionCfg ─────────────
+// ── @/hooks/useStudySession — controlled per-test via sessionCfg; args captured
+// via mockUseStudySession for tests that need to inspect the real initialQueue passed in ─
 vi.mock("@/hooks/useStudySession", () => ({
-  useStudySession: () => sessionCfg,
+  useStudySession: (...args: unknown[]) => {
+    mockUseStudySession(...args);
+    return sessionCfg;
+  },
 }));
 
 // ── @/lib/storage — no-op storage + useIsHydrated always true ─────────────────
@@ -184,11 +211,15 @@ function setCards(cards: typeof FAKE_CARD[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockBuildQueue.mockImplementation(() => builtQueue.cards);
   sessionCfg.pos = 0;
   sessionCfg.sessionCorrect = 0;
   sessionCfg.sessionTotal = 0;
   sessionCfg.resumeDecision = "declined";
   searchParamsState.mode = "global";
+  langPackState.units = [];
+  langPackState.unitMap = {};
+  langPackState.loading = false;
   setCards([]);
 });
 
@@ -279,5 +310,77 @@ describe("StudyPage — app/study/page.tsx", () => {
 
     expect(screen.getByTestId("study-done")).toBeInTheDocument();
     expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
+  });
+
+  // Task #552: initialQueue's useMemo previously omitted `allCards` from its dependency
+  // array — on a cold start where the pack (ALL_UNITS) is still loading when the page first
+  // renders, `initialQueue` could freeze at [] and never recompute once the pack finished
+  // loading, permanently defeating the never-empty-queue guarantee (most plausible via a
+  // push-tap cold start, hooks/usePushInterruptTap.ts). Deletion Test: removing `allCards`
+  // from the memo's deps (reverting the #552 fix) makes this test fail — the second render's
+  // captured initialQueue would still be [] instead of reflecting the newly loaded card.
+  it("recomputes initialQueue once the pack finishes loading after a cold-start render", () => {
+    // buildQueue pass-through (not the default builtQueue.cards stand-in) — echoing back
+    // its `allCards` input directly so the test can prove the memo actually re-ran with the
+    // new allCards value, not just that *some* recompute happened to occur.
+    mockBuildQueue.mockImplementation((cards: unknown[]) => cards);
+    langPackState.loading = true;
+    langPackState.units = []; // pack still loading — allCards is []
+
+    const { rerender } = render(<StudyPage />);
+
+    expect(mockUseStudySession).toHaveBeenCalledTimes(1);
+    expect(mockUseStudySession.mock.calls[0]![0].initialQueue).toEqual([]);
+
+    // Pack finishes loading — ALL_UNITS populates with a real card.
+    langPackState.loading = false;
+    langPackState.units = [{ id: "u1", cards: [FAKE_CARD] }];
+    rerender(<StudyPage />);
+
+    const lastCallArgs = mockUseStudySession.mock.calls[mockUseStudySession.mock.calls.length - 1]![0];
+    expect(lastCallArgs.initialQueue).toEqual([FAKE_CARD]);
+  });
+
+  // Task #553: the useLangPack mock previously hardcoded loading:false in every test, so no
+  // test in this file could catch a pack-loading-race regression (Task #552) at the rendered-
+  // output level — only at the internal initialQueue-value level (the test above). This test
+  // proves the page itself transitions correctly: it must show the loading screen (never
+  // "Nothing ready.", which would misleadingly suggest no cards will ever be available) while
+  // the pack is still loading, then render the real queue once loading completes.
+  it("shows the loading screen while the pack is still loading, then the real queue once it finishes", () => {
+    langPackState.loading = true;
+    setCards([FAKE_CARD]);
+    sessionCfg.pos = 0;
+
+    const { rerender } = render(<StudyPage />);
+
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing ready.")).not.toBeInTheDocument();
+
+    langPackState.loading = false;
+    rerender(<StudyPage />);
+
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    expect(screen.getByTestId("study-card")).toBeInTheDocument();
+  });
+
+  // Task #557: no prior test exercised the real INTERRUPT_SESSION_CAP=8 slicing behavior in
+  // app/study/page.tsx's initialQueue memo — only a mock constant existed, with nothing
+  // asserting the actual cap fires against an oversized queue. Deletion Test: removing the
+  // `full.slice(0, INTERRUPT_SESSION_CAP)` call (returning `full` uncapped instead) makes
+  // this test fail — initialQueue would be 10 cards, not 8.
+  it("caps an oversized interrupt-mode queue at exactly INTERRUPT_SESSION_CAP (8) cards", () => {
+    searchParamsState.mode = "interrupt";
+    const oversizedQueue = Array.from({ length: 10 }, (_, i) => ({ ...FAKE_CARD, id: `card-${i}` }));
+    mockBuildQueue.mockImplementation(() => oversizedQueue);
+    sessionCfg.pos = 0;
+
+    render(<StudyPage />);
+
+    expect(mockUseStudySession).toHaveBeenCalledTimes(1);
+    const initialQueue = mockUseStudySession.mock.calls[0]![0].initialQueue;
+    expect(initialQueue).toHaveLength(8);
+    expect(initialQueue).toEqual(oversizedQueue.slice(0, 8));
   });
 });

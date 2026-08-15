@@ -10705,7 +10705,7 @@ Dependency: Batch 21 complete (cross-device gate live). Theme: close a real gap 
 
 ---
 
-## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [COMPLETE — 2026-08-14, built same evening as the decision]
+## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [CURRENT SPRINT]
 Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522 live verification, 2026-08-14 evening) surfaced that Batch 22's floor guarantees a NON-EMPTY interrupt session but not a SUBSTANTIVE one — a caught-up user can get a 10-second, 1-card session, contradicting BRAND.md's "3-5 cards" framing and feeling broken (Max's words: "way too small"). Owner decision captured same evening via structured AskUserQuestion (three rounds, science-grounded — retrieval-count math, Cowan's ~4-chunk working-memory limit for new items, and the discovery that BRAND's own intro cadence table means 1 new card/day yields ~28 intro appearances/day at steady state, so starvation is a cold-start/post-vacation phenomenon):
 
 **The ratified spec — every INTERRUPT session:**
@@ -10716,6 +10716,598 @@ Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522
 - **Server dispatch floor:** `send-interrupt-notifications` must never `skippedNoCards` an active registered user — the client fills the session; the server's due estimate is a lower bound and must not be a send/no-send gate (closes the debt row logged 2026-08-14).
 
 **Status: COMPLETE — 2026-08-14, same evening.** Shipped: `lib/queue.ts` gains `INTERRUPT_SESSION_FLOOR` (6), `INTERRUPT_SESSION_MAX_NEW` (3), and `INTERRUPT_SESSION_CAP` (8 — replacing app/study/page.tsx's old `INTERRUPT_CARD_LIMIT` of 5, which sat BELOW the new floor); `lib/srs.ts`'s `selectQualifyingNewCard` gains an `excludeIds` param so one fill pass can pick several distinct new cards against a stale introductions snapshot; `store/srsStore.ts` gains `getNearDueCards(unitCards, limit)` (studied, not-yet-due, soonest-due first); `hooks/useStudySession.ts`'s mount effect is now a two-phase fill (normal 1/day intro for every session type, then interrupt-only fill: flex new cards ≤3/session gated on the stranded pause via `canIntroduceNewCard(today, MAX_SAFE_INTEGER)`, then near-due, then the #533 never-empty backstop); `hooks/useInterruptConfig.ts`'s computeDue mirrors the near-due fill so the fire-gate never stays silent in a servable scenario; server `buildNotificationPayload` floors the announced count at 6 and never returns null, `dispatch.ts`/`types.ts` drop `skippedNoCards` entirely (the zero-estimate skip was the mobile version of the exact gap #533 closed on desktop — closes the debt row logged earlier today); BRAND.md updated (6-8 cards / 45-90s, corrected working-memory science — Cowan ~4 chunks caps NEW items at 3/session, reviews are not WM-bound — and the daily-cap paragraph now describes the cold-start flex honestly). Verification gate green: tsc clean, 1937/1937 tests (23 new: 6 session-floor, 2 getNearDueCards, 1 computeDue near-due, server payload/dispatch rewrites), lint 0 errors, weak-assertion grep clean. Edge function redeployed to prod (config.toml's verify_jwt=false honored — no flag needed) and sanity-invoked: new summary shape live, `total: 0` correctly produced by the still-active 90-minute gate from the evening's real-device test.
+
+---
+
+**`/audit 23` — 2026-08-15, FAIL, severity 7 (2 critical, 4 major, 22 minor), 8-agent cycle (A, B, S, K, W, V, R + Agent N naive-reader lane).** Highest-convergence finding (independently found by 4 of 8 agents — A, B, W, R): `components/InterruptHandler.tsx`'s desktop passive notification still announces the raw, un-floored `computeDue()` count while the session that opens now always holds ≥6 cards — the exact defect this batch fixed on the server (`dueEstimate.ts`) but never touched on desktop; the sibling test file (`InterruptHandler.test.tsx`) actively pins the stale "1 card ready" text. Two severity-7 findings (F011/F012): the server push's floor-at-6 has no matching ceiling, so a backlog day announces MORE cards than the client's 8-card cap can ever deliver, and a genuinely-zero-history new Pro signup's very first interrupt gets a "6 cards ready" push while the real session (empty near-due pool, flex capped at 3) delivers at most 3. Full findings promoted below as Tasks #534-#561. Per this project's BATCH_REMEDIATION_GATE, Batch 23 is reopened as `[CURRENT SPRINT]` until a re-audit passes.
+
+<!-- BATCH_REMEDIATION_GATE: batch=23; paused_batch=none; paused_batch_old_tag="" -->
+
+### Task #534: Fix requirements: desktop passive notification never applies the session-floor treatment its mobile sibling now gets
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+Desktop passive notification body uses raw `computeDue()` (`totalDue`) verbatim, never floored to `INTERRUPT_SESSION_FLOOR` (6), unlike the server push this batch just fixed (`dueEstimate.ts:89`). `hooks/useInterruptConfig.ts`'s `computeDue` was not updated to mirror Batch 23's new floor-fill magnitude, so desktop undercounts true session size in the ordinary non-empty case. `components/InterruptHandler.test.tsx:550,564,694` assert the stale "1 card ready — 2 min study break?" text and actively pin the regression. Rule 19: sibling call site of the identical announce-card-count pattern the server side just fixed was left unhardened. Independently found by 4 auditors (A, B, W, R) — the audit's highest-convergence finding.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/InterruptHandler.tsx:notification body / computeDue:179
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F001 — severity 6 — requirements
+
+---
+
+### Task #535: Fix code-quality: two independent INTERRUPT_SESSION_FLOOR=6 literals have no mechanical sync guard
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Two independent `INTERRUPT_SESSION_FLOOR=6` literals exist (`lib/queue.ts:21` and `supabase/functions/send-interrupt-notifications/dueEstimate.ts:87`), synced only by a comment instruction, with no test asserting equality between them. AGENTS.md names a hardcoded value that should be derived from a single source of truth as a stop-the-line pattern; currently the values match so there is no live-today incorrect outcome.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/queue.ts:INTERRUPT_SESSION_FLOOR const:21
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
+
+**Source:** Audit finding F002 — severity 4 — code-quality
+
+---
+
+### Task #536: Fix tests: no seam test wires the real Batch 23 fill pipeline end-to-end
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+No seam test wires the real app/study/page.tsx through the real useStudySession into the real store/srsStore.ts getNearDueCards/canIntroduceNewCard/introduceCard end-to-end; every layer of Batch 23's new fill pipeline is unit-tested in isolation only. Rule 13 seam-test gap.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at app/study/page.tsx:StudyInner:73
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F003 — severity 4 — tests
+
+---
+
+### Task #537: Fix tests: stale test title now describes a false general rule
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Test titled "does not flex when isInterrupt is true but queue is non-empty" now describes a false general rule since Batch 23 deliberately does fill non-empty queues in the very next describe block; it only still passes because of specific default mocks, misleading for future maintainers reading the test name as documentation.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:describe block:249
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F004 — severity 2 — tests
+
+---
+
+### Task #538: Fix requirements: #533 never-empty backstop bypasses the stranded-pause invariant
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The final never-completely-empty backstop calls `introduceNext()` with no `canIntroduceNewCard` check of any kind, bypassing `strandedAcrossDays` entirely; contradicts BRAND.md's wrong-answer-rules table (new-card introductions pause until the stranded card stabilizes). Confirmed pre-existing from Task #533, not newly introduced by this diff, but Batch 23's wider interrupt fill surface makes this path newly more reachable in production, and no test covers the stranded+empty-near-due combination. Independently found by A, V (validator-coverage), R.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useStudySession.ts:mount effect Task #533 backstop:159
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F005 — severity 6 — requirements
+
+---
+
+### Task #539: Fix requirements: computeDue's flex-fallback can promise a stranded-blocked new card
+
+**File:** hooks/useInterruptConfig.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+computeDue's zero-supply flex-fallback (lines 60-73) sets `newCardDue=1` via a raw `getNewCards()` check with no `canIntroduceNewCard`/`strandedAcrossDays` check at all; `getNewCards` (store/srsStore.ts:180-187) only filters on FSRS progress and prerequisites, never on introduction-pause state. This lets computeDue fire an interrupt promising new-card content during a stranded pause that useStudySession's own normal-cap path (line 129, `canIntroduceNewCard(today)`) would refuse to honor. CLAUDE.md's own documentation ("gated on the stranded-pause check") is accurate only for the useStudySession while-loop, not this caller. Independently found by V and R.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useInterruptConfig.ts:computeDue flex-fallback branch:60
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
+
+**Source:** Audit finding F006 — severity 5 — requirements
+
+---
+
+### Task #540: Fix code-quality: INTERRUPT_ARCHITECTURE.md not updated for Batch 23's contract change
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+docs/INTERRUPT_ARCHITECTURE.md was not updated to describe the new 6-card floor, 3-new-card cap, 8-card ceiling, or the removed `skippedNoCards` field, despite this batch materially changing the interrupt content-delivery contract the doc exists to describe.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:n/a:0
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F007 — severity 2 — code-quality
+
+---
+
+### Task #541: Fix edge-case: near-due over-fetch heuristic is not a mathematically proven bound
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The near-due over-fetch heuristic (`INTERRUPT_SESSION_FLOOR + sessionIds.size`) is not a mathematically proven bound if already-included cards are interleaved rather than clustered at the front of getNearDueCards' sorted pool; untested edge case, low real-world likelihood.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useStudySession.ts:mount effect near-due fill:147
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F008 — severity 3 — edge-case
+
+---
+
+### Task #542: Fix performance: full-catalog scan on every interrupt mount has no documented budget
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The getNearDueCards binding passed into useStudySession scans the full ~30,609-card catalog (`allCards`) via a synchronous filter+sort on every interrupt mount, up to 4 times across the fill pipeline. Unbounded-growth perf debt with no documented budget, not yet a measured real problem.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix performance issue at app/study/page.tsx:getNearDueCards binding:73
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F009 — severity 3 — performance
+
+---
+
+### Task #543: Fix tests: four compounding seam-test gaps around the interrupt fill pipeline
+
+**File:** components/InterruptHandler.test.tsx, app/study/page.test.tsx, hooks/useStudySession.test.ts
+**Complexity:** 🔧 Full — 3 files (seam gaps span InterruptHandler.test.tsx's srsStore mock, page.test.tsx's useStudySession mock, and useStudySession.test.ts's getNearDueCards mock)
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Four compounding seam-test gaps: app/study/page.test.tsx mocks useStudySession entirely, useStudySession.test.ts mocks getNearDueCards entirely, the page.tsx:73 binding itself is asserted by zero tests, and InterruptHandler.test.tsx's srsStore mock does not implement getNearDueCards at all — currently silently safe only because the getStats stub always returns non-zero due, an incidental (not designed) protection that could break on an unrelated future change. Rule 13.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at components/InterruptHandler.test.tsx:srsStore mock:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.test.tsx
+
+**Source:** Audit finding F010 — severity 4 — tests
+
+---
+
+### Task #544: Fix requirements: server push floor has no matching ceiling — overstates card count on backlog days
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+buildNotificationPayload floors the announced count at INTERRUPT_SESSION_FLOOR(6) via Math.max but applies no ceiling; on any backlog day where cardCount exceeds INTERRUPT_SESSION_CAP(8), the push announces more cards than the client session (capped at 8 in app/study/page.tsx) can ever deliver. Empirically demonstrated by the shipped test tests/pushDueEstimate.test.ts:107-112 (cardCount:9 producing body "9 cards ready"), reachable by any real user with a backlog above 8, including the vacation-return scenario BRAND.md explicitly names.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:89
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F011 — severity 7 — requirements
+
+---
+
+### Task #545: Fix requirements: server push overstates card count on a brand-new user's first interrupt
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+For a genuinely zero-history new Pro signup (near-due pool empty by definition, no FSRS reviews yet), buildNotificationPayload still announces "6 cards ready" unconditionally, but the real session (useStudySession.ts mount effect) delivers at most INTERRUPT_SESSION_MAX_NEW(3) cards via flex-introduction, or 0 in a fully-exhausted edge case — reachable on 100% of new Pro users' first interrupt, the exact opposite-direction divergence from Task #544.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:89
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F012 — severity 7 — requirements
+
+---
+
+### Task #546: Fix code-quality: doc comment overclaims the client's floor as an unconditional guarantee
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Doc comment states as settled fact "the client guarantees every interrupt session holds at least INTERRUPT_SESSION_FLOOR cards", contradicted by the client's own test (hooks/useStudySession.test.ts, "stops at the catalog's edge without padding duplicates when supply runs out below the floor") which proves the client itself accepts sub-floor sessions as correct. Doc-comment overclaim, root cause distinct from the functional defects in F011/F012.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:module doc comment:71
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F013 — severity 3 — code-quality
+
+---
+
+### Task #547: Fix code-quality: 8-card ceiling comment's arithmetic is wrong
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Comment claims the 8-card ceiling is "approximately the top of the 45-90s window at 8-15s/card", which is arithmetically false by the file's own numbers: 8 cards times 15s/card equals 120 seconds, 33% beyond the stated 90-second ceiling; only true at roughly 11.25s/card, a figure never stated.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/queue.ts:INTERRUPT_SESSION_CAP comment:23
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
+
+**Source:** Audit finding F014 — severity 2 — code-quality
+
+---
+
+### Task #548: Fix code-quality: doc comment hedges the exhaustion case but not the overflow case
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The doc comment's "the session the tap opens genuinely holds at least that many cards (catalog permitting)" hedges only the too-few (exhaustion) case; it never acknowledges the too-many (overflow) case documented in Task #544, a second distinct doc-accuracy gap in the same paragraph.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:module doc comment:79
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F015 — severity 3 — code-quality
+
+---
+
+### Task #549: Fix code-quality: dispatch.ts header comment not revisited despite increased send volume
+
+**File:** supabase/functions/send-interrupt-notifications/dispatch.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+dispatch.ts's sequential-processing header comment was not revisited despite this diff structurally increasing dispatch volume by removing the zero-estimate skip.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at supabase/functions/send-interrupt-notifications/dispatch.ts:module header comment:0
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dispatch.ts
+
+**Source:** Audit finding F016 — severity 2 — code-quality
+
+---
+
+### Task #550: Fix code-quality: removed skippedNoCards field loses observability into fabricated-floor sends
+
+**File:** supabase/functions/send-interrupt-notifications/types.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Removing the zero-estimate skip (and the skippedNoCards field) removes the only signal distinguishing "sent because of real content" from "sent because the floor fabricated a number"; the two materially different `sent` outcomes can no longer be distinguished in any future dispatch summary or observability dashboard, and the only kill switch (PUSH_DISPATCH_ENABLED) is all-or-nothing.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at supabase/functions/send-interrupt-notifications/types.ts:skippedNoCards field removal:0
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/types.ts
+
+**Source:** Audit finding F017 — severity 3 — code-quality
+
+---
+
+### Task #551: Fix requirements: no daily ceiling on flex-introduced new cards across multiple same-day interrupts
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+`canIntroduceNewCard(today, Number.MAX_SAFE_INTEGER)` disables the daily aggregate new-card cap for the rest of the day (store/srsStore.ts:312-319's `introducedTodayCount>=maxPerDay` check effectively never trips), not just for the current session; across multiple interrupt sessions in one day with a persistently empty near-due pool (the default state for any new user with zero FSRS reviews), up to INTERRUPT_SESSION_MAX_NEW(3) new cards can be flex-introduced in every session that day with no cross-session ceiling, directly contradicting BRAND.md's "one new card introduced per day at steady state" framing for the exact new-user population this feature targets first.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useStudySession.ts:mount effect isInterrupt fill loop:135
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F018 — severity 6 — requirements
+
+---
+
+### Task #552: Fix edge-case: initialQueue useMemo missing allCards dependency (pre-existing, flagged for cold-start interaction with this batch's guarantee)
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+initialQueue's useMemo references `allCards` in its body but omits it from the dependency array (react-hooks/exhaustive-deps disabled); verified via `git show f5f1305 -- app/study/page.tsx` that this dependency array and eslint-disable predate Batch 23 (only the INTERRUPT_CARD_LIMIT to INTERRUPT_SESSION_CAP constant swap touched this block) — pre-existing and out of scope for this batch's verdict. Noted because a cold-start pack-loading race on this exact line could freeze initialQueue at `[]` before ALL_UNITS populates, permanently defeating the never-empty guarantee this batch exists to deliver, most plausibly via the push-tap cold-start path.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at app/study/page.tsx:initialQueue useMemo:60
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F019 — severity 3 — edge-case
+
+---
+
+### Task #553: Fix tests: useLangPack mock cannot catch a pack-loading-race regression
+
+**File:** app/study/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+useLangPack mock hardcodes `loading:false` in every test case; structurally cannot catch Task #552's issue even if that pre-existing issue is real, a genuine test-coverage gap regardless of Task #552's in-scope status.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at app/study/page.test.tsx:useLangPack mock:78
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.test.tsx
+
+**Source:** Audit finding F020 — severity 2 — tests
+
+---
+
+### Task #554: Fix edge-case: sync cards merge can silently overwrite a just-recorded local review (pre-existing, out of Batch 23 scope)
+
+**File:** hooks/useSync.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Cards merge can silently overwrite a just-recorded local review with stale server data in a specific race window; file not touched by Batch 23's diff and unrelated caller-context code, flagged as informational only, out of scope for this batch's verdict.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useSync.ts:cards merge:104
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useSync.ts
+
+**Source:** Audit finding F021 — severity 2 — edge-case
+
+---
+
+### Task #555: Fix tests: weak greater-than-or-equal assertion where an exact value is provable
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Test uses `toBeGreaterThanOrEqual(1)` where an exact `toBe(1)` is provable given the test's own setup; weak but self-consistent with the test's stated intent, not full pseudocode. Rule 18 nit.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:n/a:144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F022 — severity 2 — tests
+
+---
+
+### Task #556: Fix tests: 4-card-to-6 top-up test only asserts queue length, not exact contents
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+This test only asserts `toHaveLength(6)` on the final queue rather than the exact array of ids; a wrong or duplicate id landing at length 6 would slip through this specific assertion undetected, weaker than sibling tests in the same file. A separate exact-array assertion on introduceCard's call arguments still catches ordering, but not the queue's own final contents.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:"tops up a 4-card interrupt queue to 6":0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F023 — severity 3 — tests
+
+---
+
+### Task #557: Fix tests: no test exercises the real INTERRUPT_SESSION_CAP=8 slicing behavior
+
+**File:** app/study/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+No test exercises the actual INTERRUPT_SESSION_CAP=8 slicing behavior in app/study/page.tsx's initialQueue memo; only a mock constant was added to the test file, with nothing asserting the real 8-card cap fires against a real oversized queue.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at app/study/page.test.tsx:INTERRUPT_SESSION_CAP mock:0
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.test.tsx
+
+**Source:** Audit finding F024 — severity 3 — tests
+
+---
+
+### Task #558: Fix tests: "truly nothing left" test doesn't exercise the near-due-mirror code path
+
+**File:** hooks/useInterruptConfig.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+This test does not actually exercise the near-due-mirror code path's presence; it passes identically with that code deleted, since nearDueIds defaults to [] regardless. Deletion-test failure, Rule 18.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useInterruptConfig.test.ts:"stays at 0 (truly nothing left)" test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.test.ts
+
+**Source:** Audit finding F025 — severity 3 — tests
+
+---
+
+### Task #559: Fix tests: "never duplicates a near-due card" test doesn't prove the loop-level dedup check is load-bearing
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+This test passes even with the loop-level dedup check (`if (sessionIds.has(card.id)) continue;`) deleted, because an outer setQueue filter independently re-deduplicates; the test proves the composite pipeline is duplicate-free but does not prove the loop-level check itself is load-bearing. Deletion-test failure, Rule 18.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:"never duplicates a near-due card" test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F026 — severity 3 — tests
+
+---
+
+### Task #560: Fix tests: "keeps an estimate above the floor exact" test doesn't prove the floor exists
+
+**File:** tests/pushDueEstimate.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+This test (cardCount:9) passes identically whether the Math.max floor logic exists or is deleted, since 9 is greater than 6 either way; it does not prove the floor exists, only re-exercises pre-existing plural-formatting coverage. Deletion-test failure, Rule 18, and the same test line that empirically demonstrates Task #544's overflow bug.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/pushDueEstimate.test.ts:"keeps an estimate above the floor exact":107
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/pushDueEstimate.test.ts
+
+**Source:** Audit finding F027 — severity 3 — tests
+
+---
+
+### Task #561: Fix code-quality: 6-card floor is not an unconditional guarantee when the near-due pool is empty (expectation-alignment note, matches ratified spec)
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 1)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The 6-card floor is not an unconditional guarantee: when the near-due pool is empty and INTERRUPT_SESSION_MAX_NEW(3) is hit, a session ships with exactly 3 cards, not 6. Confirmed by Contract Verifier K to match BRAND.md's own ratified hedge ("never more than 3 per session... until the pipeline refills") — not a functional defect, included per the low-severity preservation rule as an expectation-alignment note rather than a bug.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount effect isInterrupt fill loop:136
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F028 — severity 2 — code-quality
 
 ---
 

@@ -121,7 +121,7 @@ describe("useStudySession — handleRate", () => {
     );
   });
 
-  it("final card: commitSession receives correct unitId, queueIds, and sessionTotal ≥ 1", () => {
+  it("final card: commitSession receives correct unitId, queueIds, and sessionTotal === 1", () => {
     const solo = makeCard("solo");
     const commitSession = vi.fn();
     const params = defaultParams({ initialQueue: [solo], allCardMap: { solo }, commitSession });
@@ -141,7 +141,9 @@ describe("useStudySession — handleRate", () => {
     expect(cardId).toBe("solo");
     expect(grade).toBe("easy");
     expect((session as { unitId: string }).unitId).toBe("it-a1u01");
-    expect((session as { sessionTotal: number }).sessionTotal).toBeGreaterThanOrEqual(1);
+    // A single-card queue with handleRate called exactly once — sessionTotal starts at 0
+    // and increments by 1 per call, so the exact value is provable, not just a lower bound.
+    expect((session as { sessionTotal: number }).sessionTotal).toBe(1);
     expect((session as { queueIds: string[] }).queueIds).toContain("solo");
   });
 });
@@ -216,19 +218,28 @@ describe("useStudySession — introduction auto-selection", () => {
 describe("useStudySession — interrupt-floor flex fallback", () => {
   it("flexes past the daily cap when isInterrupt and the session would otherwise be empty", () => {
     const introduceCard = vi.fn();
+    // Discriminates the normal daily-cap check (called with no maxPerDay — the store
+    // default of 1) from the flex check (called with an explicit maxPerDay, Task #551's
+    // INTERRUPT_FLEX_DAILY_MAX): today's plain 1/day cap is already used, but the card is
+    // NOT stranded, so the flex check must still permit the fill.
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => maxPerDay !== undefined);
     const { result } = renderHook(() =>
       useStudySession(
         defaultParams({
           initialQueue: [], // empty — no FSRS-due or introduction-due cards this interrupt
           isInterrupt: true,
-          canIntroduceNewCard: vi.fn(() => false), // today's normal 1/day cap already used
+          canIntroduceNewCard,
           introduceCard,
         }),
       ),
     );
-    expect(introduceCard).toHaveBeenCalledTimes(1);
+    // The flex loop keeps introducing until it hits whichever bound comes first — here,
+    // CARD_MAP only has 3 untouched cards (c1-c3), so it exhausts the pool (introduceNext()
+    // returns false on the 4th call) before either INTERRUPT_SESSION_FLOOR (6) or
+    // INTERRUPT_SESSION_MAX_NEW (3) would otherwise stop it.
+    expect(introduceCard).toHaveBeenCalledTimes(3);
     expect(introduceCard).toHaveBeenCalledWith("c1", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
-    expect(result.current.queue.map((c) => c.id)).toContain("c1");
+    expect(result.current.queue.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
   });
 
   it("does not flex when isInterrupt is false, even with an empty queue", () => {
@@ -246,7 +257,14 @@ describe("useStudySession — interrupt-floor flex fallback", () => {
     expect(introduceCard).not.toHaveBeenCalled();
   });
 
-  it("does not flex when isInterrupt is true but the queue is non-empty (a review is already due)", () => {
+  // Task #537: previously titled "does not flex when isInterrupt is true but the queue is
+  // non-empty" — a false general rule, since Batch 23 deliberately DOES fill non-empty
+  // interrupt queues up to the floor (see the "tops up a 4-card interrupt queue to 6" test
+  // below). This test only still passes because BOTH fill sources are stubbed to produce
+  // nothing here: canIntroduceNewCard denies the flex check (stranded/exhausted), and
+  // defaultParams' getNearDueCards returns [] by default — the queue's non-emptiness itself
+  // isn't what blocks the flex.
+  it("does not introduce a new card via the flex path when canIntroduceNewCard denies it and no near-due card is available, even with a non-empty under-floor queue", () => {
     const introduceCard = vi.fn();
     renderHook(() =>
       useStudySession(
@@ -332,7 +350,10 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
       ),
     );
     expect(introduceCard.mock.calls.map((c) => c[0])).toEqual(["n1", "n2"]);
-    expect(result.current.queue).toHaveLength(6);
+    // Exact contents, not just length 6 (Task #556) — mirrors the sibling "fills an empty
+    // interrupt session to exactly 6" test above: a wrong or duplicate id landing at length
+    // 6 would slip through a bare toHaveLength(6) undetected.
+    expect(result.current.queue.map((c) => c.id)).toEqual(["d1", "d2", "d3", "d4", "n1", "n2"]);
   });
 
   it("falls back to near-due-only fill when the stranded pause blocks new introductions", () => {
@@ -388,6 +409,42 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
       ),
     );
     expect(result.current.queue.map((c) => c.id)).toEqual(["shared", "r1", "r2", "r3", "r4", "r5"]);
+  });
+
+  // Task #559: the test above passes even with the loop-level dedup check
+  // (`if (sessionIds.has(card.id)) continue;`) deleted, because the outer setQueue filter
+  // independently re-dedupes `added` against `prev` (the queue state BEFORE this effect
+  // ran) — and in that test, "shared" was already in `prev` (initialQueue), so the outer
+  // filter alone would have caught it regardless of the loop-level check (Deletion Test
+  // failure, Rule 18).
+  //
+  // This test isolates the one case the outer filter structurally CANNOT catch: a card
+  // introduced via the flex-new-card path EARLIER IN THE SAME EFFECT PASS (added to
+  // `sessionIds`/`added` in memory, but not yet part of `prev` — `prev` is still the OLD
+  // queue state when the near-due loop runs) that then also appears in getNearDueCards's
+  // return. Only the loop-level `sessionIds.has(card.id)` check can catch this, since the
+  // outer filter only knows about `prev`, never about `added`'s own contents.
+  it("never duplicates a card introduced via the flex-new path in the same pass, even when getNearDueCards also returns it", () => {
+    const dual = makeCard("dual"); // untouched — qualifies for flex-new introduction
+    const introduceCard = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [], // empty prev — the outer filter has nothing to dedupe against
+          allCardMap: { dual }, // the ONLY flex-new candidate — introduced first
+          isInterrupt: true,
+          canIntroduceNewCard: capUsedNotStranded(),
+          introduceCard,
+          // "dual" is deliberately included here too — the near-due loop must skip it via
+          // sessionIds, not rely on the (structurally blind, in this exact scenario) outer filter.
+          getNearDueCards: vi.fn(() => [dual, ...nearDuePool]),
+        }),
+      ),
+    );
+    const ids = result.current.queue.map((c) => c.id);
+    expect(ids).toEqual(["dual", "r1", "r2", "r3", "r4", "r5"]);
+    // Explicit: "dual" appears exactly once, not twice.
+    expect(ids.filter((id) => id === "dual")).toHaveLength(1);
   });
 
   it("does not fill a short NON-interrupt session — unit and global sessions keep their natural size", () => {

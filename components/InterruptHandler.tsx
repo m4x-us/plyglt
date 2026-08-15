@@ -14,6 +14,7 @@ import { usePushInterruptTap } from "@/hooks/usePushInterruptTap";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useLangPack } from "@/hooks/useLangPack";
 import { getFeatureFlags } from "@/lib/featureFlags";
+import { INTERRUPT_SESSION_FLOOR } from "@/lib/queue";
 
 /** Mounted in the root layout. Returns null immediately when the interrupt engine flag is off. */
 export function InterruptHandler() {
@@ -174,9 +175,15 @@ function InterruptHandlerCore() {
             granted = (await requestNotificationPermission()) === "granted";
           }
           if (granted) {
+            // Batch 23: floor the announced count to INTERRUPT_SESSION_FLOOR (6) — a
+            // session that opens with fewer ready cards fills with new/near-due material
+            // (hooks/useStudySession.ts's mount effect), so the notification must never
+            // undersell what the session will actually contain. Mirrors the server push
+            // path's identical floor in supabase/functions/send-interrupt-notifications.
+            const announcedDue = Math.max(totalDue, INTERRUPT_SESSION_FLOOR);
             await sendNativeNotification(
               "plyglt",
-              `${totalDue} card${totalDue === 1 ? "" : "s"} ready — 2 min study break?`
+              `${announcedDue} card${announcedDue === 1 ? "" : "s"} ready — 2 min study break?`
             );
           }
         } catch (err) {

@@ -7,7 +7,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import type { Card } from "@/content/types";
 import type { IntroductionRecord } from "@/content/types";
 import { selectQualifyingNewCard, type Grade, type CardProgress } from "@/lib/srs";
-import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_MAX_NEW } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_MAX_NEW, INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
 import type { ActiveSession } from "@/store/srsStore";
 import { localDateStr } from "@/lib/utils";
 
@@ -93,15 +93,17 @@ export function useStudySession({
   //   1. more NEW cards (Max's ratified fill choice — starvation is cold-start-
   //      shaped, exactly when extra intros are pure ramp-up), hard-capped at
   //      INTERRUPT_SESSION_MAX_NEW (3) per session — the working-memory limit —
-  //      and gated on the introduction engine's strandedAcrossDays pause
-  //      (canIntroduceNewCard with an unbounded maxPerDay checks ONLY that
-  //      pause; the numeric daily cap deliberately flexes here, Task #533).
+  //      and gated on both the introduction engine's strandedAcrossDays pause
+  //      AND lib/queue.ts's INTERRUPT_FLEX_DAILY_MAX, a real cross-session
+  //      daily ceiling (Task #551 — the numeric per-session cap deliberately
+  //      flexes here, Task #533, but the flex itself is bounded, not unlimited).
   //   2. near-due FSRS reviews pulled slightly early (soonest-due first).
-  // A final Task #533 backstop preserves the original never-completely-empty
-  // guarantee even when the stranded pause blocks step 1 and no near-due card
-  // exists. Non-interrupt sessions keep the original one-new-card behavior;
-  // hooks/useInterruptConfig.ts's computeDue mirrors this supply logic when
-  // deciding whether an interrupt fires at all.
+  // The floor is a target, not an unconditional guarantee (Task #561): a
+  // stranded pause or an exhausted catalog can leave a session below 6, or
+  // even empty — the Task #533/#538 backstop below only fires when the
+  // pipeline can actually supply something. Non-interrupt sessions keep the
+  // original one-new-card behavior; hooks/useInterruptConfig.ts's computeDue
+  // mirrors this supply logic when deciding whether an interrupt fires at all.
   useEffect(() => {
     const today = localDateStr();
     // sessionIds tracks the full session content (initial queue + everything this
@@ -129,12 +131,17 @@ export function useStudySession({
     if (canIntroduceNewCard(today)) introduceNext();
 
     if (isInterrupt) {
-      // strandedAcrossDays check only — an unbounded maxPerDay disables the
-      // numeric daily cap without bypassing the stranded pause (BRAND.md:
-      // introductions stay paused until a struggling card stabilizes).
-      const strandedPauseClear = canIntroduceNewCard(today, Number.MAX_SAFE_INTEGER);
+      // strandedAcrossDays check AND a real cross-session daily ceiling (Task
+      // #551): canIntroduceNewCard's maxPerDay counts every card introduced
+      // today across ALL of today's sessions (the introductions map is
+      // persisted, not per-session-scoped), so passing INTERRUPT_FLEX_DAILY_MAX
+      // — instead of the old Number.MAX_SAFE_INTEGER, which disabled the
+      // numeric cap for the rest of the day — bounds total same-day flex
+      // introductions while still letting the stranded pause block
+      // independently of the count.
+      const flexIntroAllowed = canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX);
       while (
-        strandedPauseClear &&
+        flexIntroAllowed &&
         sessionIds.size < INTERRUPT_SESSION_FLOOR &&
         introducedIds.size < INTERRUPT_SESSION_MAX_NEW
       ) {
@@ -142,9 +149,16 @@ export function useStudySession({
       }
 
       if (sessionIds.size < INTERRUPT_SESSION_FLOOR) {
-        // Over-fetch by the session size so cards already present don't shrink
-        // the effective fill below the shortfall.
-        for (const card of getNearDueCards(INTERRUPT_SESSION_FLOOR + sessionIds.size)) {
+        // Task #541: request the full near-due pool rather than a
+        // INTERRUPT_SESSION_FLOOR + sessionIds.size heuristic. That heuristic
+        // only over-fetches enough if cards already in the session cluster at
+        // the front of the sorted pool — if they're interleaved instead, the
+        // slice can run out before the floor is reached even though enough
+        // near-due cards exist. getNearDueCards already filters+sorts the
+        // ENTIRE catalog before slicing to `limit` (store/srsStore.ts), so
+        // asking for everything adds no real cost — it's a mathematically
+        // sufficient bound instead of an unproven one.
+        for (const card of getNearDueCards(Number.MAX_SAFE_INTEGER)) {
           if (sessionIds.size >= INTERRUPT_SESSION_FLOOR) break;
           if (sessionIds.has(card.id)) continue;
           sessionIds.add(card.id);
@@ -152,11 +166,18 @@ export function useStudySession({
         }
       }
 
-      // Task #533 backstop: a proactive interrupt must never be completely
-      // empty. Only reachable when the stranded pause blocked the fill loop AND
-      // no near-due card exists — introduce one card anyway, matching the
-      // original pre-floor behavior.
-      if (sessionIds.size === 0) introduceNext();
+      // Task #533/#538 backstop: a proactive interrupt should never be
+      // completely empty when the pipeline can actually supply something —
+      // but it must not bypass the stranded pause to get there. Gated on the
+      // same flexIntroAllowed check as the fill loop above (the prior
+      // unconditional introduceNext() call here ignored strandedAcrossDays
+      // entirely, contradicting BRAND.md's "introductions pause until the
+      // stranded card stabilizes" rule). When the pause is active and no
+      // near-due card exists either, the session is genuinely empty — the
+      // pause invariant takes priority over the never-empty guarantee in
+      // this specific, rare combination, matching every other gate in this
+      // effect rather than silently overriding it.
+      if (sessionIds.size === 0 && flexIntroAllowed) introduceNext();
     }
 
     if (added.length > 0) {

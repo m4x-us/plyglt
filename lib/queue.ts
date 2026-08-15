@@ -20,11 +20,29 @@ const SESSION_NEW_LIMIT = 15;
 // two `6` values in sync.
 export const INTERRUPT_SESSION_FLOOR = 6;
 export const INTERRUPT_SESSION_MAX_NEW = 3;
-// Ceiling: 8 cards ≈ the top of the 45-90s window at 8-15s/card. Replaces the
-// old app/study/page.tsx INTERRUPT_CARD_LIMIT of 5, which sat BELOW the new
-// floor. On a heavy backlog day the session shows 8 and the rest wait for the
-// next interrupt — BRAND.md: cards are ready, never overdue; no wall of debt.
+// Ceiling: 8 cards at 8-15s/card is 64-120s — the worst case runs up to 30s
+// past the 90s target, a deliberate tradeoff (Batch 23, owner-ratified): a
+// slightly longer worst-case session beats truncating a heavy backlog day's
+// content mid-fill. Replaces the old app/study/page.tsx INTERRUPT_CARD_LIMIT
+// of 5, which sat BELOW the new floor. On a heavy backlog day the session
+// shows 8 and the rest wait for the next interrupt — BRAND.md: cards are
+// ready, never overdue; no wall of debt.
 export const INTERRUPT_SESSION_CAP = 8;
+// Cross-session daily ceiling for flex-introduced new cards (Task #551): the
+// per-session INTERRUPT_SESSION_MAX_NEW (3) cap alone doesn't bound a whole
+// day — a persistently-starved catalog (the default state for any brand-new
+// user with zero FSRS reviews) could otherwise flex 3 new cards into EVERY
+// interrupt session that day with no ceiling, contradicting BRAND.md's "one
+// new card introduced per day at steady state" framing for exactly the
+// cold-start population this flex path targets first. Set to 3x the
+// per-session cap — enough ramp-up room across a 6-10-interrupt day to
+// meaningfully refill an empty pipeline without letting one bad day
+// introduce dozens of new cards. Passed as canIntroduceNewCard's maxPerDay
+// (store/srsStore.ts) — that function already counts introductions across
+// ALL of today's sessions (the introductions map is persisted, not
+// per-session), so this constant alone gives a real cross-session ceiling
+// with no store-layer change needed.
+export const INTERRUPT_FLEX_DAILY_MAX = INTERRUPT_SESSION_MAX_NEW * 3;
 
 export function buildQueue(
   cards: Card[],

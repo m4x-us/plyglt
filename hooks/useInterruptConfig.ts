@@ -9,6 +9,7 @@ import { useSRSStore } from "@/store/srsStore";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { localDateStr } from "@/lib/utils";
+import { INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
 
 export { isInDnd };
 
@@ -65,10 +66,21 @@ export function useInterruptConfig() {
     // matching flexed introduction on open — see hooks/useStudySession.ts's mount effect, which
     // uses the identical "would this interrupt session otherwise be empty" trigger.
     if (reviewDue === 0 && introDue === 0 && newCardDue === 0) {
-      for (const u of units) {
-        if (state.getNewCards(u.cards, 1).length > 0) {
-          newCardDue = 1;
-          break;
+      // Task #539: the same strandedAcrossDays pause AND cross-session daily
+      // ceiling (INTERRUPT_FLEX_DAILY_MAX) that gates hooks/useStudySession.ts's
+      // mount-effect flex fill (Task #538/#551) must gate this fire-gate too —
+      // getNewCards alone only filters on FSRS progress and prerequisites, never
+      // on introduction-pause state, so without this check computeDue could fire
+      // an interrupt promising new-card content that the session's own flex
+      // fill would refuse to honor (a stranded pause, or today's flex ceiling
+      // already reached by earlier sessions).
+      const flexIntroAllowed = state.canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX);
+      if (flexIntroAllowed) {
+        for (const u of units) {
+          if (state.getNewCards(u.cards, 1).length > 0) {
+            newCardDue = 1;
+            break;
+          }
         }
       }
       // Batch 23 — the session-floor fill can also pull a near-due review slightly

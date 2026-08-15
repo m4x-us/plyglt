@@ -87,34 +87,51 @@ describe("computeDueEstimate", () => {
   });
 });
 
-describe("buildNotificationPayload — Batch 23 session floor", () => {
-  // The client fills every interrupt session to at least INTERRUPT_SESSION_FLOOR (6)
-  // cards (lib/queue.ts), so the payload floors the announced count at 6 and a zero
-  // estimate no longer suppresses the send. Deletion Test: the pre-floor code
-  // returned null for 0 and "1 card ready" for 1.
-  it("floors a zero estimate at 6 — never returns null, never suppresses the send", () => {
+describe("buildNotificationPayload — Batch 23 session floor, Tasks #544/#545 clamp+zero-case fix", () => {
+  // A genuinely zero estimate is honestly worded, not floored to a number the server
+  // cannot back — Deletion Test: the pre-fix code claimed "6 cards ready" here.
+  it("uses an honest, count-free body for a zero estimate — never suppresses the send, never fabricates a number", () => {
     expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" })).toEqual({
       title: "plyglt",
-      body: "6 cards ready",
-      data: { cardCount: 6, sessionType: "review" },
+      body: "Cards ready",
+      data: { cardCount: 0, sessionType: "review" },
     });
   });
 
-  it("floors a small positive estimate (1) at 6 — the session the tap opens holds at least 6", () => {
+  it("floors a small positive estimate (1) at 6 — the session the tap opens targets at least 6", () => {
     expect(buildNotificationPayload({ cardCount: 1, sessionType: "review" }).body).toBe("6 cards ready");
   });
 
-  it("keeps an estimate above the floor exact", () => {
+  it("keeps an estimate within the floor..cap range exact", () => {
+    const payload = buildNotificationPayload({ cardCount: 7, sessionType: "review" });
+    expect(payload).toEqual({
+      title: "plyglt",
+      body: "7 cards ready",
+      data: { cardCount: 7, sessionType: "review" },
+    });
+  });
+
+  // Deletion Test: the pre-clamp code returned "9 cards ready" here, overstating what
+  // app/study/page.tsx's INTERRUPT_SESSION_CAP(8)-capped queue can ever deliver.
+  it("clamps a backlog estimate above the cap (9) down to 8 — never announces more than the session can hold", () => {
     const payload = buildNotificationPayload({ cardCount: 9, sessionType: "review" });
     expect(payload).toEqual({
       title: "plyglt",
-      body: "9 cards ready",
-      data: { cardCount: 9, sessionType: "review" },
+      body: "8 cards ready",
+      data: { cardCount: 8, sessionType: "review" },
     });
+  });
+
+  it("clamps a large vacation-return backlog (40) down to the cap (8)", () => {
+    expect(buildNotificationPayload({ cardCount: 40, sessionType: "review" }).body).toBe("8 cards ready");
   });
 
   it("never uses forbidden terminology ('due' or 'overdue') in the body", () => {
     const payload = buildNotificationPayload({ cardCount: 3, sessionType: "review" });
     expect(payload.body).not.toMatch(/due|overdue/i);
+  });
+
+  it("never uses forbidden terminology in the zero-estimate body either", () => {
+    expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" }).body).not.toMatch(/due|overdue/i);
   });
 });

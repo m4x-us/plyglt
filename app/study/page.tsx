@@ -61,14 +61,21 @@ function StudyInner() {
     if (!prereqsMet) return [];
     const full = buildQueue(allCards, getDueCards, getNewCards, isGlobal || isInterrupt, getIntroductionDueCardIds);
     return isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unitId, isGlobal, isInterrupt, prereqsMet]);
+  }, [isGlobal, isInterrupt, prereqsMet, allCards, getDueCards, getNewCards, getIntroductionDueCardIds]);
 
   const allCardMap = useMemo(
     () => Object.fromEntries(allCards.map((c) => [c.id, c])),
     [allCards]
   );
 
+  // Task #542: getNearDueCards filters+sorts the full `allCards` catalog (interrupt/global
+  // mode: every card across every unit — ~30,609 cards corpuswide as of CURRICULUM.md's
+  // 2026-08-03 count) on every call, and useStudySession's interrupt fill pipeline can call
+  // it up to 4x per mount. O(n log n) per call, no memoization/index — an accepted cost at
+  // the current curriculum scale (each call is a few ms at most), not yet a measured
+  // real-world problem. Revisit (e.g. pre-sort allCards by dueDate once instead of
+  // re-filtering+re-sorting per call) if the curriculum grows past ~100K cards or this
+  // measurably shows up in profiling.
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
     useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 

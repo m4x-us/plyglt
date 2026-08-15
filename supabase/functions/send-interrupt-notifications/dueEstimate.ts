@@ -68,26 +68,50 @@ export function computeDueEstimate(
 }
 
 /**
- * Batch 23 (owner-ratified 2026-08-14): the client guarantees every interrupt
- * session holds at least INTERRUPT_SESSION_FLOOR cards (lib/queue.ts — filled
- * with flexed new-card introductions and near-due reviews when the FSRS-due
- * count alone falls short), so the server-side estimate — a documented lower
- * bound over synced review_events only — must never be a send/no-send gate.
- * A zero estimate simply means "the client will fill the session"; skipping
- * the push entirely was the mobile-side version of the exact "6-10 interrupts
- * every day, never fewer" gap Task #533 closed on desktop. The body floors the
- * announced count at the session floor for the same reason: the session the
- * tap opens genuinely holds at least that many cards (catalog permitting).
- * Keep this `6` in sync with lib/queue.ts's INTERRUPT_SESSION_FLOOR (Deno
+ * Batch 23 (owner-ratified 2026-08-14), corrected by Tasks #544/#545/#546/#548
+ * (2026-08-15): the client TARGETS an interrupt session of
+ * INTERRUPT_SESSION_FLOOR..INTERRUPT_SESSION_CAP cards (lib/queue.ts fills a
+ * shortfall with flexed new-card introductions and near-due reviews;
+ * app/study/page.tsx caps the queue at INTERRUPT_SESSION_CAP) — this is a
+ * target, not an unconditional guarantee in either direction:
+ *   - Too few: a fully exhausted catalog, or a paused (stranded) introduction
+ *     pipeline, can still deliver a sub-floor session — see
+ *     hooks/useStudySession.test.ts, "stops at the catalog's edge without
+ *     padding duplicates when supply runs out below the floor".
+ *   - Too many: the server-side estimate is a documented lower bound over
+ *     synced review_events only (see computeDueEstimate) and is never a
+ *     send/no-send gate, but a real backlog above CAP (e.g. a vacation-return
+ *     user with 40 ready cards) must not be announced verbatim — the session
+ *     the tap opens holds at most CAP cards.
+ * buildNotificationPayload below clamps the announced count to this whole
+ * range rather than only flooring it.
+ *
+ * A genuinely zero estimate is handled separately, not just floored: the
+ * server cannot tell "will fill via flex-introduction" (the common case for a
+ * brand-new Pro signup's first interrupt) apart from "catalog/daily-cap
+ * exhausted, truly empty" — claiming "6 cards ready" in either case would be
+ * a number the server cannot back. The body instead reads "Cards ready" with
+ * no specific count, and `data.cardCount` reports the honest 0.
+ *
+ * Keep INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP here in sync with
+ * lib/queue.ts's INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP (Deno
  * functions cannot import from lib/).
  *
  * Body text uses canonical terminology ("ready", never "due"/"overdue") and
  * carries no exclamation mark, per BRAND.md's voice rules.
  */
 export const INTERRUPT_SESSION_FLOOR = 6;
+export const INTERRUPT_SESSION_CAP = 8;
 
 export function buildNotificationPayload(estimate: { cardCount: number; sessionType: "review" }): NotificationPayload {
-  const announced = Math.max(estimate.cardCount, INTERRUPT_SESSION_FLOOR);
+  if (estimate.cardCount === 0) {
+    return {
+      title: "plyglt",
+      body: "Cards ready",
+      data: { cardCount: 0, sessionType: estimate.sessionType },
+    };
+  }
+  const announced = Math.min(Math.max(estimate.cardCount, INTERRUPT_SESSION_FLOOR), INTERRUPT_SESSION_CAP);
   return {
     title: "plyglt",
     body: `${announced} cards ready`,

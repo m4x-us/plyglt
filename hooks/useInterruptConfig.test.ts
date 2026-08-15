@@ -51,10 +51,26 @@ function makeState(overrides: Partial<{
   dueCardIds: string[];
   introductionDueIds: string[];
   canIntroduceNewCard: boolean;
+  // Task #539: the flex-fallback now calls canIntroduceNewCard with a large
+  // maxPerDay (INTERRUPT_FLEX_DAILY_MAX) rather than the normal-path default
+  // of 1 — this stub distinguishes the two calls the same way the real
+  // store/srsStore.ts implementation does (a stranded pause or an exhausted
+  // daily flex ceiling can block the flex call even when the normal-path
+  // call is already false for an unrelated reason, i.e. the cap being used).
+  // Defaults to true so existing tests that don't care about this
+  // distinction keep exercising the flex-fallback unaffected.
+  flexIntroAllowed: boolean;
   newCardIds: string[];
   nearDueIds: string[];
 }> = {}) {
-  const { dueCardIds = [], introductionDueIds = [], canIntroduceNewCard = false, newCardIds = [], nearDueIds = [] } = overrides;
+  const {
+    dueCardIds = [],
+    introductionDueIds = [],
+    canIntroduceNewCard = false,
+    flexIntroAllowed = true,
+    newCardIds = [],
+    nearDueIds = [],
+  } = overrides;
   return {
     getStats: (unitCards: Card[]) => ({
       due: unitCards.filter((c) => dueCardIds.includes(c.id)).length,
@@ -64,7 +80,7 @@ function makeState(overrides: Partial<{
       masteryPct: 0,
     }),
     getIntroductionDueCardIds: () => introductionDueIds,
-    canIntroduceNewCard: () => canIntroduceNewCard,
+    canIntroduceNewCard: (_today: string, maxPerDay = 1) => (maxPerDay > 1 ? flexIntroAllowed : canIntroduceNewCard),
     getNewCards: (unitCards: Card[], limit = 20) =>
       unitCards.filter((c) => newCardIds.includes(c.id)).slice(0, limit),
     getNearDueCards: (unitCards: Card[], limit: number) =>
@@ -208,6 +224,39 @@ describe("useInterruptConfig — computeDue", () => {
     mockGetState.mockReturnValue(makeState({ canIntroduceNewCard: false, newCardIds: [] }));
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.computeDue([unit])).toBe(0);
+  });
+
+  // Task #539 (regression): the flex-fallback previously counted an untouched
+  // card via a raw getNewCards check with no stranded-pause/daily-ceiling gate
+  // at all — computeDue could promise new-card content that
+  // hooks/useStudySession.ts's own flex fill (gated on the identical check)
+  // would refuse to honor. Deletion Test: without the gate, this scenario
+  // (an untouched card exists, but the flex introduction is blocked) still
+  // returns 1 — the fix must make it return 0.
+  it("does not flex-introduce an untouched card when the flex introduction itself is blocked (stranded pause or daily flex ceiling)", () => {
+    const newCard = makeCard("u1-c1");
+    const unit = makeUnit("u1", [newCard]);
+    mockGetState.mockReturnValue(
+      makeState({ canIntroduceNewCard: false, flexIntroAllowed: false, newCardIds: [newCard.id] })
+    );
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(0);
+  });
+
+  it("falls through to a near-due card when the flex introduction is blocked but a near-due card exists", () => {
+    const newCard = makeCard("u1-c1");
+    const nearDueCard = makeCard("u1-c2");
+    const unit = makeUnit("u1", [newCard, nearDueCard]);
+    mockGetState.mockReturnValue(
+      makeState({
+        canIntroduceNewCard: false,
+        flexIntroAllowed: false,
+        newCardIds: [newCard.id],
+        nearDueIds: [nearDueCard.id],
+      })
+    );
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(1);
   });
 });
 

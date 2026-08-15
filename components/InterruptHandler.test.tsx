@@ -112,6 +112,10 @@ vi.mock("@/hooks/useLangPack", () => ({
 // Task #523: computeDue (hooks/useInterruptConfig.ts) now also reads
 // getIntroductionDueCardIds/canIntroduceNewCard/getNewCards — stubbed here to their
 // "nothing extra due" defaults so existing due-count-only assertions are unaffected.
+// Task #543: getNearDueCards added — this file's silent safety against a missing stub was
+// previously incidental (getStats always returning non-zero due), not designed; a real stub
+// here (even a simple no-op) closes that gap so an unrelated future change can't silently
+// break this mock again.
 vi.mock("@/store/srsStore", () => ({
   useSRSStore: {
     getState: () => ({
@@ -119,6 +123,7 @@ vi.mock("@/store/srsStore", () => ({
       getIntroductionDueCardIds: () => [],
       canIntroduceNewCard: () => false,
       getNewCards: () => [],
+      getNearDueCards: () => [],
     }),
   },
 }));
@@ -547,7 +552,9 @@ describe("InterruptHandler", () => {
       await act(async () => { if (callback) await callback(false); }); // mandatory=false
 
       expect(mockRequestNotificationPermission).not.toHaveBeenCalled();
-      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+      // Batch 23: raw due count (1) is floored to INTERRUPT_SESSION_FLOOR (6) — the
+      // notification must never undersell what the session will actually contain.
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "6 cards ready — 2 min study break?");
     });
 
     it("requests permission first when not yet granted, then sends on grant", async () => {
@@ -561,7 +568,7 @@ describe("InterruptHandler", () => {
       await act(async () => { if (callback) await callback(false); });
 
       expect(mockRequestNotificationPermission).toHaveBeenCalledTimes(1);
-      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "6 cards ready — 2 min study break?");
     });
 
     it("does not send a notification when permission is refused", async () => {
@@ -691,7 +698,7 @@ describe("InterruptHandler", () => {
       navState.pathname = "/";
       await act(async () => { rerender(<InterruptHandler />); });
       if (callback) await act(async () => { callback(false); });
-      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "1 card ready — 2 min study break?");
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "6 cards ready — 2 min study break?");
     });
   });
 });
