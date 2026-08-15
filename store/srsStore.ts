@@ -179,8 +179,18 @@ export const useSRSStore = create<SRSState>()(
 
       getNewCards: (unitCards, limit = 20) => {
         const progressMap = get().cards;
+        const introMap = get().introductions;
+        // Task #567: a card mid-intensive-phase (has an IntroductionRecord) but not yet
+        // graduated to FSRS (no CardProgress entry) previously still qualified as "new"
+        // here — unlike lib/srs.ts's selectQualifyingNewCard, the real session-open fill
+        // logic actually uses, which explicitly excludes any card with an existing
+        // introductions[card.id] record. That divergence let hooks/useInterruptConfig.ts's
+        // computeDue (which calls this function directly) promise "new card" content for a
+        // card the real fill would refuse to introduce a second time outside the intensive
+        // cadence's own schedule.
         return unitCards
           .filter((card) => !progressMap[card.id])
+          .filter((card) => !introMap[card.id])
           .filter((card) => prerequisitesMet(card, progressMap))
           .sort((a, b) => a.tier - b.tier)
           .slice(0, limit);

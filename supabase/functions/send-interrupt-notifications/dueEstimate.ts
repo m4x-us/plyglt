@@ -111,6 +111,12 @@ export function buildNotificationPayload(estimate: { cardCount: number; sessionT
       data: { cardCount: 0, sessionType: estimate.sessionType },
     };
   }
+  if (estimate.cardCount < 0) {
+    // Not reachable today — computeDueEstimate only ever increments a counter from 0 — but a
+    // future upstream bug producing a negative value must leave a trace instead of silently
+    // masquerading as a legitimate floor case via the Math.max clamp below.
+    console.error(`[ERR-DUE-ESTIMATE-NEGATIVE-${Date.now()}] negative cardCount ${estimate.cardCount} clamped to floor`);
+  }
   const announced = Math.min(Math.max(estimate.cardCount, INTERRUPT_SESSION_FLOOR), INTERRUPT_SESSION_CAP);
   return {
     title: "plyglt",

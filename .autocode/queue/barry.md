@@ -1,109 +1,139 @@
 ---
 status: done
 agent: barry
-stream: W2B
-wave: 2
+stream: W3B
+wave: 3
 ---
 
-# Barry — Stream W2B — Wave 2 — 2026-08-15
+# Barry — Stream W3B — Wave 3 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W2B | #540
+— Barry | W3B | #564 #570 #580
 
 You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
+Your #570 is the single highest-severity finding (severity 8) in this whole remediation wave —
+do it first.
+
 ## Your Tasks (run in this exact order)
-1. /task #540  — Fix code-quality: INTERRUPT_ARCHITECTURE.md not updated for Batch 23's contract change
+1. /task #570  — Fix requirements: markInterruptFired/recordInterruptGateEvent fire before the permission check (severity 8, do this first)
+2. /task #564  — Fix requirements: desktop notification never caps its announced count
+3. /task #580  — Fix code-quality: notification body overclaims content is ready
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Barry — W2B
-[→] #540 — Fix code-quality: INTERRUPT_ARCHITECTURE.md not updated for Batch 23's contract change   ← starting now
+Barry — W3B
+[→] #570 — Fix requirements: fired-before-permission-check bug   ← starting now
+[ ] #564 — Fix requirements: notification has no ceiling
+[ ] #580 — Fix code-quality: notification body overclaims readiness
 
 ## Files You Own (edit ONLY these)
-docs/INTERRUPT_ARCHITECTURE.md
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
+hooks/useStudySession.ts
+hooks/useStudySession.test.ts
+store/srsStore.ts
 app/study/page.tsx
+app/study/page.test.tsx
 tests/seam_studyLoop.test.ts
-hooks/useInterruptConfig.test.ts
-tests/pushDueEstimate.test.ts
-
-## Prior Wave Changes — Read Before Starting
-Wave 1 (this same batch) landed the exact contract change this doc needs to describe. Read the
-real diffs before writing anything — do not describe the batch from tasks.md's summary alone,
-the summary is now stale relative to Wave 1's fixes:
-
-- `lib/queue.ts` — INTERRUPT_SESSION_FLOOR=6, INTERRUPT_SESSION_MAX_NEW=3, INTERRUPT_SESSION_CAP=8,
-  and (new in Wave 1) INTERRUPT_FLEX_DAILY_MAX = INTERRUPT_SESSION_MAX_NEW * 3 = 9 (Task #551 — a
-  real cross-session daily ceiling on flex-introduced new cards, replacing the old unbounded
-  Number.MAX_SAFE_INTEGER).
-- `supabase/functions/send-interrupt-notifications/dueEstimate.ts` — buildNotificationPayload now
-  clamps to [FLOOR, CAP] (Task #544, was floor-only before), and handles a genuinely zero estimate
-  with an honest "Cards ready" (no fabricated number) body instead of always claiming 6 (Task #545).
-  Also exports INTERRUPT_SESSION_CAP=8 now (previously only FLOOR existed there).
-- `supabase/functions/send-interrupt-notifications/types.ts` — DispatchSummary gained
-  `sentWithZeroEstimate: number` (Task #550), restoring the observability the removed
-  `skippedNoCards` field used to provide — describe what field REPLACED skippedNoCards, not just
-  that it was removed.
-- `hooks/useStudySession.ts` — the Task #533 never-empty backstop is now gated on the same
-  stranded-pause check as the rest of the fill loop (Task #538) — a stranded pause + empty
-  near-due pool can now leave a session genuinely empty, a deliberate product decision (BRAND.md's
-  pause invariant takes priority). Document this explicitly — it's a real behavior change from
-  what the batch originally shipped.
-- `hooks/useInterruptConfig.ts` — computeDue's flex-fallback is now gated the same way (Task #539).
-
-Read `git log --oneline -5` and `git show <wave-1-commit-sha> --stat` to see the exact commit if
-useful — Wave 1 committed as "/advance wave 1: close 24 tasks, 3 streams (Batch 23)".
+supabase/functions/send-interrupt-notifications/dueEstimate.ts
+lib/queue.ts
+hooks/useSync.ts
 
 ## Task Definitions
 
-### Task #540: Fix code-quality: INTERRUPT_ARCHITECTURE.md not updated for Batch 23's contract change
+### Task #570: Fix requirements: markInterruptFired/recordInterruptGateEvent fire before permission is checked
 
-**File:** docs/INTERRUPT_ARCHITECTURE.md
+**File:** components/InterruptHandler.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
-**Blocked by:** Nothing (was semantically blocked on Task #550, COMPLETE as of Wave 1)
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+markInterruptFired() (around line 134) and recordInterruptGateEvent({eventType: fired, ...}) (around line 145) are both called unconditionally in the passive (non-mandatory) branch, BEFORE the notification-permission check (lines 172-191) determines whether a notification is actually shown. If permission is denied or never granted, sendNativeNotification is never invoked, yet the Rust cooldown clock has already been advanced and a fired event has already been written to the shared cross-device interrupt_gate_events table -- suppressing or delaying future interrupts on this and every other device the user owns, for a fire the user never actually saw. Any user who has denied notification permission is affected today, and the effect is silent -- the interrupt feature can stop firing entirely for that user with no error surfaced anywhere.
+
+Fix: move the permission check (and the actual send) to happen BEFORE markInterruptFired()/recordInterruptGateEvent() are called in the passive branch — only mark the interrupt as genuinely fired once you know a notification will actually reach the user (i.e. after `granted` is confirmed true, right before or right after the actual `sendNativeNotification` call succeeds). The mandatory branch (which always shows content via the study session itself, not a native notification) is unaffected by this bug and should keep its current unconditional fire-marking. Add a regression test to `components/InterruptHandler.test.tsx`'s existing "does not send a notification when permission is refused" test (or a new test) that asserts `markInterruptFired`/`recordInterruptGateEvent` are NOT called when permission is refused — this is the exact gap the current test has (it only checks `sendNativeNotification` was not called).
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/InterruptHandler.tsx:passive interrupt-fire branch:134
+- [ ] Audit passes: real Verification Gate (tsc, npm test, npm run lint) — `scripts/deep-audit.sh` does not exist in this repo
+
+**Source:** Audit finding F009 — severity 8 — requirements
+
+---
+
+### Task #564: Fix requirements: desktop notification never caps its announced count
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+announcedDue = Math.max(totalDue, INTERRUPT_SESSION_FLOOR) floors the desktop notification count but never caps it at INTERRUPT_SESSION_CAP (8). totalDue sums FSRS-due cards across the whole catalog and is genuinely unbounded, so on a backlog day the notification can announce e.g. 40 cards ready while the session that actually opens is capped at 8 -- the exact defect class Task #544 already fixed on the server side, left unfixed on this client sibling. No test in InterruptHandler.test.tsx exercises totalDue greater than CAP.
+
+Fix: import INTERRUPT_SESSION_CAP from lib/queue.ts (you may import read-only from files you don't own) and clamp announcedDue the same way dueEstimate.ts's buildNotificationPayload does: `Math.min(Math.max(totalDue, INTERRUPT_SESSION_FLOOR), INTERRUPT_SESSION_CAP)`. Add a test with totalDue well above CAP (e.g. 40) asserting the notification reads "8 cards ready", not "40 cards ready".
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/InterruptHandler.tsx:passive-notification body construction:183
+- [ ] Audit passes: real Verification Gate
+
+**Source:** Audit finding F003 — severity 7 — requirements
+
+---
+
+### Task #580: Fix code-quality: notification body overclaims content is ready
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
 **Priority:** P3
 **Status:** OPEN
 
 **What:**
-docs/INTERRUPT_ARCHITECTURE.md was not updated to describe the new 6-card floor, 3-new-card cap,
-8-card ceiling, or the removed skippedNoCards field, despite this batch materially changing the
-interrupt content-delivery contract the doc exists to describe.
+The notification body ("Cards ready") unconditionally implies content is ready, but docs/INTERRUPT_ARCHITECTURE.md section 10.4 documents a case (stranded pause combined with an empty near-due pool) where the session opened by the notification may genuinely be empty. Pre-existing limitation, not newly introduced by this batch, but still a live, undocumented-in-code gap between the notification copy and the actual guarantee.
 
-Add a section (or extend the existing one covering the interrupt content-supply floor) describing,
-accurately, the CURRENT state after both Wave 1 and the original Batch 23 shipment (see "Prior Wave
-Changes" above for what actually changed — describe reality, not the original ratified spec text
-verbatim, since two things changed since that spec was written): the client-side floor/cap/daily-cap
-system in lib/queue.ts and hooks/useStudySession.ts, the server-side clamp+honest-zero-case in
-dueEstimate.ts, and the sentWithZeroEstimate observability field in types.ts/dispatch.ts. Keep it
-consistent in tone with the rest of the document (this repo already has real architecture docs for
-comparison — read the existing file's own style before writing).
+This is a minor, low-severity task — a one-line code comment near the notification body acknowledging this edge case is sufficient (do not attempt to make the desktop notification aware of client-side introduction-engine pause state just for this; that's a bigger architectural change out of scope here). If, after fixing #570 above, you judge the fired-before-permission-check fix also changes this calculus, note that in your completion.md.
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:n/a:0
-- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md (this script does not
-      exist in this repo — substitute the real Verification Gate: `npx tsc --noEmit`, `npm test`, `npm run lint`)
+- [ ] Fix code-quality issue at components/InterruptHandler.tsx:native notification body text:0
+- [ ] Audit passes: real Verification Gate
 
-**Source:** Audit finding F007 — severity 2 — code-quality
+**Source:** Audit finding F019 — severity 2 — code-quality
 
 ---
 
+## Agent Memories
+
+## Architect Agent Memory (relevant excerpt)
+Rule 19 (symmetric hardening): when a floor/cap/guard is added to one code path, grep for
+every sibling path doing the same job and confirm the identical treatment landed there too —
+this project's own history shows this exact class of gap (a fix on one call site, an
+identical unfixed sibling) recurring repeatedly. Rule 8: every catch block needs a
+[ERR-{CODE}-{TIMESTAMP}] ref id; this file already has good examples (`[ERR-NOTIF-...]`,
+`[IH-MARKFIRED-...]`) — follow the same convention if you add any new error handling.
+
 ## When You Finish
-Write your completion summary to .autocode/stream-W2B/completion.md. The file
+Write your completion summary to .autocode/stream-W3B/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
-CLOSED: #[NUM]
+CLOSED: #[NUM] #[NUM] #[NUM]
 NOT_CLOSED: #[NUM] — [one-line reason]
 
-(If closed: `NOT_CLOSED: none`. If not: `CLOSED: none`.)
+(If every assigned task closed: `NOT_CLOSED: none`. If none closed: `CLOSED: none`.)
 
 After those two lines, write whatever prose detail is useful.
 
 Then tell Max in this window: "Barry is done." (or describe what's incomplete).
 
-— Barry | W2B | #540
+— Barry | W3B | #564 #570 #580

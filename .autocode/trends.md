@@ -28,3 +28,4 @@
 | 2026-07-28 | Batch 19 — first-ever audit (8-agent: A/B/S/N/K/W/V/Red-R) | 1 | 7 | FAIL |
 | 2026-07-28 | Batch 19 re-audit cycle 2 (3-agent: A/K/Red-R, verifying Task #506) | 2 | 3 | PASS |
 | 2026-08-15 | batch 23 -- Interrupt Session Size Floor (6 cards) + Server Push Cont | 1 | 7 | FAIL |
+| 2026-08-15 | batch 23 -- re-audit round 2 (8-agent, post Wave 1+2 remediation) | 1 | 8 | FAIL |

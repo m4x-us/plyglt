@@ -39,7 +39,18 @@ const TRIGGER_SYNC_DEBOUNCE_MS = 2000;
 // shared in-flight promise (every concurrent caller awaits the SAME
 // execution rather than starting a second one) removes the race at its root
 // rather than trying to order the individual setState calls.
-let inFlightSyncPromise: Promise<SyncNowResult> | null = null;
+//
+// Keyed by userId (Task #586), not a single shared promise: a sign-out
+// followed immediately by sign-in as a different user can leave the FIRST
+// user's runSyncNow(userId) still in flight (its own upload/download calls
+// already captured that userId in closure) at the exact moment the SECOND
+// user's syncNow() call fires. A single unkeyed promise would hand the
+// second user's caller the first user's in-flight result — a real
+// misattribution risk, not just a stale-guard leak. Keying by userId means
+// concurrent calls for the SAME user still join one shared execution (the
+// original race this guard exists for), while a different user's call
+// always starts its own, independently-tracked promise.
+const inFlightSyncPromises = new Map<string, Promise<SyncNowResult>>();
 
 // Reads store state via getState() at call time rather than closing over reactive
 // values — this can run from a periodic timer long after the component last
@@ -134,13 +145,15 @@ export function useSync() {
       return { ok: false, error: "Not signed in." };
     }
 
-    // Join the already-running sync instead of starting a second, concurrent
-    // one — see the in-flight guard's own comment above for why this matters.
-    if (inFlightSyncPromise) return inFlightSyncPromise;
+    // Join this user's already-running sync instead of starting a second,
+    // concurrent one — see the in-flight guard's own comment above for why
+    // this is keyed by userId rather than a single shared promise.
+    const existing = inFlightSyncPromises.get(userId);
+    if (existing) return existing;
     const promise = runSyncNow(userId).finally(() => {
-      inFlightSyncPromise = null;
+      inFlightSyncPromises.delete(userId);
     });
-    inFlightSyncPromise = promise;
+    inFlightSyncPromises.set(userId, promise);
     return promise;
   }, [status, userId]);
 

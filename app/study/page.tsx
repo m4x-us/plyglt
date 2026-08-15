@@ -68,12 +68,17 @@ function StudyInner() {
     [allCards]
   );
 
-  // Task #542: getNearDueCards filters+sorts the full `allCards` catalog (interrupt/global
-  // mode: every card across every unit — ~30,609 cards corpuswide as of CURRICULUM.md's
-  // 2026-08-03 count) on every call, and useStudySession's interrupt fill pipeline can call
-  // it up to 4x per mount. O(n log n) per call, no memoization/index — an accepted cost at
-  // the current curriculum scale (each call is a few ms at most), not yet a measured
-  // real-world problem. Revisit (e.g. pre-sort allCards by dueDate once instead of
+  // Task #542 (corrected by Task #583): getNearDueCards filters+sorts the full `allCards`
+  // catalog (interrupt/global mode: every card across every unit — ~30,609 cards corpuswide
+  // as of CURRICULUM.md's 2026-08-03 count) on every call. This specific binding is called
+  // exactly ONCE per useStudySession mount — hooks/useStudySession.ts's interrupt near-due
+  // fill loop calls it a single time and iterates the returned array, it does not call the
+  // function itself repeatedly. A separate, unrelated per-unit-loop call pattern exists in
+  // hooks/useInterruptConfig.ts's computeDue, which calls the real store's getNearDueCards
+  // directly (not through this binding) once per unit passed to it — that count scales with
+  // the number of units, not a fixed "4x." O(n log n) per call, no memoization/index — an
+  // accepted cost at the current curriculum scale (each call is a few ms at most), not yet a
+  // measured real-world problem. Revisit (e.g. pre-sort allCards by dueDate once instead of
   // re-filtering+re-sorting per call) if the curriculum grows past ~100K cards or this
   // measurably shows up in profiling.
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
@@ -113,7 +118,15 @@ function StudyInner() {
         sessionCorrect={sessionCorrect} sessionTotal={sessionTotal} pct={pct}
         stillDue={getDueCards(unitCards).length}
         onHome={() => router.push("/learn")}
-        onStudyMore={!isGlobal ? () => resetToQueue(buildQueue(allCards, getDueCards, getNewCards, false)) : null}
+        // Task #569: disabled for interrupt sessions too, not just global ones. An interrupt
+        // session's `allCards` is the full cross-unit catalog, and this rebuild calls
+        // buildQueue with globalMode=false (interleaving up to SESSION_NEW_LIMIT new cards)
+        // with no INTERRUPT_SESSION_CAP slice applied — unlike initialQueue's construction
+        // above, which does slice interrupt queues to the cap. "Study more" doesn't fit an
+        // interrupt's own framing anyway (BRAND.md: a short, bounded burst, not an open-ended
+        // session) — the fix is to not offer it here, matching every other interrupt-specific
+        // cap this file already enforces.
+        onStudyMore={!isGlobal && !isInterrupt ? () => resetToQueue(buildQueue(allCards, getDueCards, getNewCards, false)) : null}
         onExitInterrupt={exitMandatoryMode}
       />
     );

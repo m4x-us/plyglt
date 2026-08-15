@@ -14,7 +14,7 @@ import { usePushInterruptTap } from "@/hooks/usePushInterruptTap";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useLangPack } from "@/hooks/useLangPack";
 import { getFeatureFlags } from "@/lib/featureFlags";
-import { INTERRUPT_SESSION_FLOOR } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 
 /** Mounted in the root layout. Returns null immediately when the interrupt engine flag is off. */
 export function InterruptHandler() {
@@ -124,37 +124,43 @@ function InterruptHandlerCore() {
         }
       }
 
-      // Task #526: this is the exact point a real fire with content is decided — confirm it
-      // to Rust so src-tauri/src/interrupt.rs's last_triggered_secs clock advances (Task #524
-      // stopped advancing it automatically on every check-in). A failed confirmation must not
-      // block the interrupt from being shown — it only means the Rust clock won't advance for
-      // this fire, a soft degradation (the next check-in may re-offer sooner than intended),
-      // not a reason to skip showing real content.
-      try {
-        await markInterruptFired();
-      } catch (e) {
-        console.error(`[IH-MARKFIRED-${Date.now()}] markInterruptFired failed — Rust clock not advanced for this fire`, e);
-      }
+      // Task #526/#529, moved by Task #570: confirms a real fire to Rust (advances
+      // interrupt.rs's last_triggered_secs clock) and records it on the shared
+      // cross-device gate. Both are best-effort — a failed write only means the
+      // Rust clock won't advance or this fire won't be visible to other devices,
+      // never a reason to block content already decided. Deliberately NOT called
+      // until each branch below actually knows content will reach the user: the
+      // mandatory branch always shows content (the study session itself), so it
+      // calls this unconditionally; the passive branch only calls it once a native
+      // notification permission is confirmed AND the notification is actually sent
+      // — calling it earlier (the pre-#570 bug) advanced the shared cooldown clock
+      // and suppressed future interrupts on every device even when permission was
+      // denied and the user never saw anything.
+      const markFired = async () => {
+        try {
+          await markInterruptFired();
+        } catch (e) {
+          console.error(`[IH-MARKFIRED-${Date.now()}] markInterruptFired failed — Rust clock not advanced for this fire`, e);
+        }
 
-      // Task #529: record this fire on the shared gate so other devices see it. Best-effort,
-      // fire-and-forget (not awaited) — a failed or skipped write only means cross-device
-      // suppression won't apply to THIS fire; it must never delay or block content that's
-      // already been decided. deviceId can be null on a device that has never committed a
-      // review yet (store/syncStore.ts generates it lazily) — skip the write rather than
-      // invent a device id for this unrelated purpose.
-      if (userId && deviceId) {
-        recordInterruptGateEvent({
-          userId,
-          deviceId,
-          eventType: "fired",
-          occurredAt: Date.now(),
-          minutesUntilEligible: intervalHours * 60,
-        }).catch((e) => {
-          console.error(`[IH-GATE-WRITE-${Date.now()}] recordInterruptGateEvent failed — this fire won't be visible to other devices`, e);
-        });
-      }
+        // deviceId can be null on a device that has never committed a review yet
+        // (store/syncStore.ts generates it lazily) — skip the write rather than
+        // invent a device id for this unrelated purpose.
+        if (userId && deviceId) {
+          recordInterruptGateEvent({
+            userId,
+            deviceId,
+            eventType: "fired",
+            occurredAt: Date.now(),
+            minutesUntilEligible: intervalHours * 60,
+          }).catch((e) => {
+            console.error(`[IH-GATE-WRITE-${Date.now()}] recordInterruptGateEvent failed — this fire won't be visible to other devices`, e);
+          });
+        }
+      };
 
       if (isMandatory) {
+        await markFired();
         try {
           await enterMandatoryMode();
         } catch (e) {
@@ -180,11 +186,24 @@ function InterruptHandlerCore() {
             // (hooks/useStudySession.ts's mount effect), so the notification must never
             // undersell what the session will actually contain. Mirrors the server push
             // path's identical floor in supabase/functions/send-interrupt-notifications.
-            const announcedDue = Math.max(totalDue, INTERRUPT_SESSION_FLOOR);
+            // Task #564: also cap at INTERRUPT_SESSION_CAP (8) — totalDue sums FSRS-due
+            // cards across the whole catalog and is genuinely unbounded, but
+            // app/study/page.tsx slices the opened queue at the same cap, so a backlog
+            // day must not announce more cards than the session can ever deliver. Same
+            // clamp shape as dueEstimate.ts's buildNotificationPayload (server sibling).
+            // docs/INTERRUPT_ARCHITECTURE.md §10.4: a stranded introduction pause combined
+            // with an empty near-due pool can leave the opened session below this count,
+            // even empty — a pre-existing, documented limitation (Task #580); not worth
+            // wiring client-side introduction-engine pause state into this notification
+            // just to cover that rare edge case.
+            const announcedDue = Math.min(Math.max(totalDue, INTERRUPT_SESSION_FLOOR), INTERRUPT_SESSION_CAP);
             await sendNativeNotification(
               "plyglt",
               `${announcedDue} card${announcedDue === 1 ? "" : "s"} ready — 2 min study break?`
             );
+            // Task #570: only mark the interrupt as genuinely fired now that the
+            // notification has actually been sent — see markFired's own comment above.
+            await markFired();
           }
         } catch (err) {
           console.error(`[ERR-NOTIF-${Date.now()}] Notification plugin error:`, err);

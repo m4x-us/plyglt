@@ -1,10 +1,3 @@
----
-status: done
-agent: charles
-stream: W3C
-wave: 3
----
-
 # Charles — Stream W3C — Wave 3 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions

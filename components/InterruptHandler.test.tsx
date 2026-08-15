@@ -34,6 +34,7 @@ const {
   mockIsNotificationPermissionGranted,
   mockRequestNotificationPermission,
   mockSendNativeNotification,
+  srsStoreState,
 } = vi.hoisted(() => ({
   tauriState: {
     isTauri: false as boolean,
@@ -56,6 +57,10 @@ const {
   mockIsNotificationPermissionGranted: vi.fn().mockResolvedValue(true),
   mockRequestNotificationPermission: vi.fn().mockResolvedValue("granted"),
   mockSendNativeNotification: vi.fn().mockResolvedValue(undefined),
+  // Task #564: mutable so individual tests can push totalDue above INTERRUPT_SESSION_CAP
+  // without redefining the whole srsStore mock. Reset to the original default (1) in
+  // beforeEach.
+  srsStoreState: { due: 1 },
 }));
 
 // ── tauri mock ────────────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ vi.mock("@/hooks/useLangPack", () => ({
 vi.mock("@/store/srsStore", () => ({
   useSRSStore: {
     getState: () => ({
-      getStats: () => ({ due: 1 }),
+      getStats: () => ({ due: srsStoreState.due }),
       getIntroductionDueCardIds: () => [],
       canIntroduceNewCard: () => false,
       getNewCards: () => [],
@@ -168,6 +173,7 @@ beforeEach(() => {
   mockIsNotificationPermissionGranted.mockResolvedValue(true);
   mockRequestNotificationPermission.mockResolvedValue("granted");
   mockSendNativeNotification.mockResolvedValue(undefined);
+  srsStoreState.due = 1;
   // Reset settings to deterministic defaults
   useSettingsStore.setState({
     interruptEnabled: true,
@@ -571,7 +577,7 @@ describe("InterruptHandler", () => {
       expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "6 cards ready — 2 min study break?");
     });
 
-    it("does not send a notification when permission is refused", async () => {
+    it("does not send a notification when permission is refused, and does not mark the interrupt as fired either (regression, Task #570)", async () => {
       setupDueUnit();
       mockIsNotificationPermissionGranted.mockResolvedValue(false);
       mockRequestNotificationPermission.mockResolvedValue("denied");
@@ -582,6 +588,28 @@ describe("InterruptHandler", () => {
       await act(async () => { if (callback) await callback(false); });
 
       expect(mockSendNativeNotification).not.toHaveBeenCalled();
+      // Task #570: pre-fix, markInterruptFired/recordInterruptGateEvent fired
+      // unconditionally BEFORE this permission check, silently advancing the
+      // shared cross-device cooldown clock for a fire the user never saw.
+      expect(mockMarkInterruptFired).not.toHaveBeenCalled();
+      expect(mockRecordInterruptGateEvent).not.toHaveBeenCalled();
+    });
+
+    // Task #564: totalDue is a genuinely unbounded sum of FSRS-due cards across the
+    // whole catalog, but app/study/page.tsx slices the opened session at
+    // INTERRUPT_SESSION_CAP (8) — the notification must never announce more than
+    // the session can actually deliver.
+    it("caps the announced count at INTERRUPT_SESSION_CAP on a heavy backlog day (regression, Task #564)", async () => {
+      setupDueUnit();
+      srsStoreState.due = 40; // far above INTERRUPT_SESSION_CAP(8)
+      mockIsNotificationPermissionGranted.mockResolvedValue(true);
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "8 cards ready — 2 min study break?");
     });
   });
 

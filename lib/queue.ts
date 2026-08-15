@@ -55,7 +55,18 @@ export function buildQueue(
   const dueIds = getDueCards(cards);
   const newCards = globalMode ? [] : getNewCards(cards, SESSION_NEW_LIMIT);
 
-  const dueCards = dueIds.map((id) => cardMap[id]).filter((c): c is Card => !!c);
+  // A dropped id here (present in the FSRS/introduction stores but absent from the loaded
+  // pack) can mean a stale reference surviving a pack update, or a real store/pack mismatch —
+  // logged rather than silently vanishing the card, so the latter leaves a trace (Task #585).
+  const dueCards = dueIds
+    .map((id) => {
+      const c = cardMap[id];
+      if (!c) {
+        console.warn(`[ERR-QUEUE-STALE-DUE-ID-${Date.now()}] getDueCards returned id "${id}" with no matching card in the loaded pack — dropped from queue`);
+      }
+      return c;
+    })
+    .filter((c): c is Card => !!c);
 
   // Introduction cards sit after all FSRS due reviews but before remaining new cards.
   // Deduplication below handles the case where a card appears in both lists.
@@ -64,7 +75,11 @@ export function buildQueue(
     const today = localDateStr();
     for (const id of getIntroductionDueCardIds(today)) {
       const c = cardMap[id];
-      if (c) introCards.push(c);
+      if (c) {
+        introCards.push(c);
+      } else {
+        console.warn(`[ERR-QUEUE-STALE-INTRO-ID-${Date.now()}] getIntroductionDueCardIds returned id "${id}" with no matching card in the loaded pack — dropped from queue`);
+      }
     }
   }
 

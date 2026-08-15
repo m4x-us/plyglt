@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildQueue, findUnitName } from "@/lib/queue";
+import {
+  buildQueue,
+  findUnitName,
+  INTERRUPT_FLEX_DAILY_MAX,
+  INTERRUPT_SESSION_MAX_NEW,
+} from "@/lib/queue";
 import type { Card, Unit } from "@/content/types";
 
 function card(id: string): Card {
@@ -75,6 +80,26 @@ describe("buildQueue", () => {
     const result = buildQueue(cards, () => ["c3", "c1", "c2"], () => []);
     expect(result.map((c) => c.id)).toEqual(["c3", "c1", "c2"]);
   });
+
+  // Task #585: a due id with no matching card in the loaded pack (stale FSRS reference,
+  // or a store/pack mismatch) is dropped, but must leave a diagnostic trace rather than
+  // vanishing silently — see lib/queue.ts's buildQueue.
+  it("drops a due id with no matching card and logs a diagnostic warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const c1 = card("c1");
+    const result = buildQueue([c1], () => ["c1", "ghost-id"], () => []);
+    expect(result.map((c) => c.id)).toEqual(["c1"]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-QUEUE-STALE-DUE-ID-\d+\] getDueCards returned id "ghost-id"/);
+    warnSpy.mockRestore();
+  });
+
+  it("does not log anything when every due id resolves to a real card", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    buildQueue([card("c1")], () => ["c1"], () => []);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });
 
 describe("buildQueue — introduction cards", () => {
@@ -144,6 +169,24 @@ describe("buildQueue — introduction cards", () => {
     expect(newSpy).not.toHaveBeenCalled();
     expect(result.map((c) => c.id)).toContain("intro-1");
   });
+
+  // Task #585: same diagnostic-trace requirement as the due-id case above, for the
+  // introduction-engine lookup path.
+  it("drops an introduction id with no matching card and logs a diagnostic warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const intro = card("intro-1");
+    const result = buildQueueExt(
+      [intro],
+      () => [],
+      () => [],
+      false,
+      () => ["intro-1", "ghost-intro-id"],
+    );
+    expect(result.map((c) => c.id)).toEqual(["intro-1"]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-QUEUE-STALE-INTRO-ID-\d+\] getIntroductionDueCardIds returned id "ghost-intro-id"/);
+    warnSpy.mockRestore();
+  });
 });
 
 describe("findUnitName", () => {
@@ -154,5 +197,18 @@ describe("findUnitName", () => {
 
   it("returns empty string for an unrecognised card ID", () => {
     expect(findUnitName("unknown", [])).toBe("");
+  });
+});
+
+// Task #579: docs/INTERRUPT_ARCHITECTURE.md §10.1 documents INTERRUPT_FLEX_DAILY_MAX as
+// "INTERRUPT_SESSION_MAX_NEW * 3" but a markdown table can't be mechanically checked — this
+// guards the FORMULA (not just today's value) against silent drift between the two constants.
+describe("INTERRUPT_FLEX_DAILY_MAX derivation", () => {
+  it("stays 3x INTERRUPT_SESSION_MAX_NEW — matches docs/INTERRUPT_ARCHITECTURE.md §10.1's documented formula", () => {
+    expect(INTERRUPT_FLEX_DAILY_MAX).toBe(INTERRUPT_SESSION_MAX_NEW * 3);
+  });
+
+  it("is exactly 9 today (INTERRUPT_SESSION_MAX_NEW=3 x 3) — matches the doc's literal value", () => {
+    expect(INTERRUPT_FLEX_DAILY_MAX).toBe(9);
   });
 });

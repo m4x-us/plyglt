@@ -170,10 +170,15 @@ vi.mock("@/components/StudyCard", () => ({
 }));
 
 // ── @/components/StudyDoneScreen — test double ───────────────────────────────
+// Renders onStudyMore's presence (not just invokes it) so tests can assert whether the
+// page offered a "Study more" callback at all — Task #569's regression is specifically
+// that this was truthy in interrupt mode when it should be null.
 vi.mock("@/components/StudyDoneScreen", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  default: ({ sessionCorrect, sessionTotal }: any) => (
-    <div data-testid="study-done">Done:{sessionCorrect}/{sessionTotal}</div>
+  default: ({ sessionCorrect, sessionTotal, onStudyMore }: any) => (
+    <div data-testid="study-done" data-has-study-more={onStudyMore != null}>
+      Done:{sessionCorrect}/{sessionTotal}
+    </div>
   ),
 }));
 
@@ -310,6 +315,24 @@ describe("StudyPage — app/study/page.tsx", () => {
 
     expect(screen.getByTestId("study-done")).toBeInTheDocument();
     expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
+  });
+
+  // Task #569: onStudyMore was previously gated only on !isGlobal, which is also true for
+  // isInterrupt sessions — an interrupt session's `allCards` is the full cross-unit catalog,
+  // and the rebuilt queue this callback triggers had no INTERRUPT_SESSION_CAP slice applied,
+  // unlike initialQueue's own construction. Deletion Test: reverting the `!isGlobal &&
+  // !isInterrupt` guard back to `!isGlobal` alone makes this test fail (onStudyMore would be
+  // present, not null, for an interrupt-mode done screen) — global mode already correctly got
+  // null before this fix (proved by the sibling "renders StudyDoneScreen when pos is at or
+  // past the end of the queue" test above, run with the default mode="global"), so interrupt
+  // mode not matching that same behavior was exactly the gap.
+  it("does not offer 'Study more' when an interrupt-mode session completes", () => {
+    searchParamsState.mode = "interrupt";
+    setCards([FAKE_CARD]);
+    sessionCfg.pos = 1; // done
+
+    render(<StudyPage />);
+    expect(screen.getByTestId("study-done")).toHaveAttribute("data-has-study-more", "false");
   });
 
   // Task #552: initialQueue's useMemo previously omitted `allCards` from its dependency

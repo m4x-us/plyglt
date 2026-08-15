@@ -2,10 +2,14 @@
 // ============================================================
 // hooks/useStudySession.test.ts — behavioral tests for useStudySession hook
 // ============================================================
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useStudySession } from "./useStudySession";
 import type { Card, Tier } from "@/content/types";
+import { useSRSStore } from "@/store/srsStore";
+import type { CardProgress } from "@/lib/srs";
+import { INTERRUPT_SESSION_FLOOR } from "@/lib/queue";
+import { ALL_UNITS } from "@/content/index";
 
 function makeCard(id: string, tier: Tier = 1, prerequisites?: string[]): Card {
   return { id, type: "recognize", prompt: `Prompt ${id}`, accepted: [`Answer ${id}`], tags: [], tier, ...(prerequisites ? { prerequisites } : {}) };
@@ -532,5 +536,205 @@ describe("useStudySession — introduce-on-mount effect respects Card.prerequisi
     );
     // B7: catches a missing `if (!first) return;` guard interaction.
     expect(introduceCard).not.toHaveBeenCalled();
+  });
+});
+
+// ── interrupt flex loop: per-iteration daily-cap recheck (Task #562, Wave 3) ──────
+// Deletion Test: a version that computes canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)
+// once before the loop (the pre-#562 shape) would call it exactly once, see true, and then
+// introduce the loop's full INTERRUPT_SESSION_MAX_NEW (3) batch regardless of the mock
+// flipping to false on a later call — only a genuine per-iteration recheck stops the loop
+// after 2 introductions here.
+
+describe("useStudySession — interrupt flex loop per-iteration recheck (Task #562)", () => {
+  it("stops flexing new cards the moment canIntroduceNewCard flips false mid-batch, not after the full per-session batch", () => {
+    const catalog = ["f1", "f2", "f3", "f4", "f5"].map((id) => makeCard(id));
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+    const introduceCard = vi.fn();
+    let flexCallCount = 0;
+    // Normal daily cap: already used (false). Flex checks: true for the first 2 calls,
+    // false from the 3rd onward — simulates INTERRUPT_FLEX_DAILY_MAX being reached
+    // mid-batch (e.g. by other same-day sessions' introductions), not before the loop starts.
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => {
+      if (maxPerDay === undefined) return false;
+      flexCallCount++;
+      return flexCallCount <= 2;
+    });
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard,
+          introduceCard,
+          getNearDueCards: vi.fn(() => []),
+        }),
+      ),
+    );
+
+    expect(introduceCard).toHaveBeenCalledTimes(2);
+    expect(introduceCard.mock.calls.map((c) => c[0])).toEqual(["f1", "f2"]);
+    expect(result.current.queue.map((c) => c.id)).toEqual(["f1", "f2"]);
+    // The 3rd flex-shaped call (the one that returned false and stopped the loop) proves
+    // the recheck genuinely happens as part of the loop condition, not just once beforehand.
+    expect(flexCallCount).toBe(3);
+  });
+});
+
+// ── cold-start freeze fix (Task #573, Wave 3) ──────────────────────────────────────
+// app/study/page.tsx calls useStudySession unconditionally, before its own packLoading
+// early return — any session whose FIRST render happens while the pack is still loading
+// (still-loading es-language pack, specialty-pack load, cold push-tap launch) previously
+// froze the queue permanently empty: useState(initialQueue) only consumes its initializer
+// on that first render, and the mount effect's empty `[]` dependency array meant it ran
+// exactly once, against that same empty snapshot, and never got a second chance once real
+// pack data actually arrived.
+
+describe("useStudySession — cold-start freeze fix (Task #573)", () => {
+  it("does not run the fill pass against an empty allCardMap on the first render, then re-syncs the queue once real pack data arrives on a later render", () => {
+    const introduceCard = vi.fn();
+    const canIntroduceNewCard = vi.fn(() => false); // isolates this test to the resync itself
+    const realCards = ["p1", "p2", "p3"].map((id) => makeCard(id));
+    const realCardMap = Object.fromEntries(realCards.map((c) => [c.id, c]));
+
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useStudySession>[0]) => useStudySession(props),
+      {
+        initialProps: defaultParams({
+          initialQueue: [],
+          allCardMap: {}, // app/study/page.tsx's real shape while packLoading is true
+          canIntroduceNewCard,
+          introduceCard,
+        }),
+      },
+    );
+
+    expect(result.current.queue).toHaveLength(0);
+
+    // Pack finishes loading — the caller re-renders useStudySession with the real
+    // initialQueue/allCardMap. Pre-#573, useState's initializer and the mount effect's
+    // `[]` deps were both already "spent" on the first render above, permanently
+    // freezing the queue empty regardless of what arrives here.
+    rerender(
+      defaultParams({
+        initialQueue: realCards,
+        allCardMap: realCardMap,
+        canIntroduceNewCard,
+        introduceCard,
+      }),
+    );
+
+    expect(result.current.queue.map((c) => c.id)).toEqual(["p1", "p2", "p3"]);
+  });
+
+  it("runs the real fill pass exactly once, even if allCardMap keeps changing reference after real data first arrives", () => {
+    const introduceCard = vi.fn();
+    const canIntroduceNewCard = vi.fn(() => true); // normal daily cap open on every render
+    const catalogA = ["a1", "a2"].map((id) => makeCard(id));
+    const catalogB = ["b1", "b2"].map((id) => makeCard(id)); // a distinct later allCardMap reference
+
+    const { rerender } = renderHook(
+      (props: Parameters<typeof useStudySession>[0]) => useStudySession(props),
+      {
+        initialProps: defaultParams({
+          initialQueue: catalogA,
+          allCardMap: Object.fromEntries(catalogA.map((c) => [c.id, c])),
+          canIntroduceNewCard,
+          introduceCard,
+        }),
+      },
+    );
+    // Real mount, real data available immediately — fills normally, exactly once.
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+
+    // A later, unrelated allCardMap reference change (e.g. navigating to a different
+    // unit's catalog without a full remount) must NOT re-trigger the fill pass a second
+    // time — mountFillDoneRef must hold once the real pass has already run.
+    rerender(
+      defaultParams({
+        initialQueue: catalogA,
+        allCardMap: Object.fromEntries(catalogB.map((c) => [c.id, c])),
+        canIntroduceNewCard,
+        introduceCard,
+      }),
+    );
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── seam: normal-cap intro + interrupt flex fill interaction, real store (Task #574) ──
+// Rule 13 (Test the Seams): app/study/page.tsx's mount effect calls introduceNext() via
+// BOTH the normal daily-cap path and (for interrupt sessions) the flex loop, sharing a
+// single `introducedIds` Set — a normal-cap introduction counts as one of the flex loop's
+// INTERRUPT_SESSION_MAX_NEW (3) slots, it is not additive with them. That interaction was
+// correct by inspection but untested; this test wires the real store/srsStore.ts actions
+// (no mocked canIntroduceNewCard/introduceCard/getNearDueCards) so a real regression in
+// either cap actually fails a test, not just a code-review read.
+
+describe("useStudySession — seam: normal-cap intro consumes 1 of the 3 flex slots (real store, Task #574)", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+  });
+
+  it("a normal-cap introduction on mount consumes 1 of the 3 per-session flex slots — the flex loop introduces only 2 more, not 3", () => {
+    const UNIT = ALL_UNITS[0]!;
+    const noPrereq = UNIT.cards.filter((c) => !c.prerequisites || c.prerequisites.length === 0);
+    expect(noPrereq.length).toBeGreaterThanOrEqual(11);
+    // Untouched (no progress) — candidates for normal-cap + flex introduction.
+    const untouchedCards = noPrereq.slice(0, 5);
+    // Already-studied, not-yet-due — candidates for the near-due floor fill.
+    const nearDueSourceCards = noPrereq.slice(5, 11);
+    const allCardMap = Object.fromEntries([...untouchedCards, ...nearDueSourceCards].map((c) => [c.id, c]));
+
+    const progress: Record<string, CardProgress> = Object.fromEntries(
+      nearDueSourceCards.map((c) => [c.id, {
+        cardId: c.id,
+        state: "review",
+        stability: 10,
+        difficulty: 5,
+        retrievability: 0.9,
+        dueDate: Date.now() + 24 * 60 * 60 * 1000, // studied, not yet due
+        lapses: 0,
+        reps: 1,
+      } satisfies CardProgress])
+    );
+    useSRSStore.setState({ cards: progress, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+    const store = useSRSStore.getState();
+
+    const { result } = renderHook(() =>
+      useStudySession({
+        initialQueue: [],
+        allCardMap,
+        isGlobal: false,
+        isInterrupt: true,
+        unitId: UNIT.id,
+        getResumableSession: store.getResumableSession,
+        clearActiveSession: store.clearActiveSession,
+        commitSession: store.commitSession,
+        canIntroduceNewCard: store.canIntroduceNewCard,
+        introduceCard: store.introduceCard,
+        getNearDueCards: (limit) => store.getNearDueCards(nearDueSourceCards, limit),
+        cards: store.cards,
+        introductions: store.introductions,
+        enqueueReviewEvent: vi.fn(),
+      })
+    );
+
+    const queueIds = result.current.queue.map((c) => c.id);
+    expect(queueIds).toHaveLength(INTERRUPT_SESSION_FLOOR); // 6
+
+    const untouchedIdSet = new Set(untouchedCards.map((c) => c.id));
+    const nearDueIdSet = new Set(nearDueSourceCards.map((c) => c.id));
+    const introducedInQueue = queueIds.filter((id) => untouchedIdSet.has(id));
+    const nearDueInQueue = queueIds.filter((id) => nearDueIdSet.has(id));
+    // 1 normal-cap + 2 flex = 3 total introductions, not 1 + 3 = 4 — the shared
+    // introducedIds Set means the normal-cap pick consumes one of the flex loop's
+    // own 3 slots rather than being additive with it.
+    expect(introducedInQueue).toHaveLength(3);
+    expect(nearDueInQueue).toHaveLength(3); // floor(6) - 3 introduced = 3
+    // Real store: exactly 3 introduction records exist today, confirming the count
+    // above isn't an artifact of queue dedup — 3 distinct cards were actually introduced.
+    expect(Object.keys(useSRSStore.getState().introductions)).toHaveLength(3);
   });
 });

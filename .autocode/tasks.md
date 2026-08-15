@@ -11311,6 +11311,533 @@ NEW
 
 ---
 
+**`/audit batch 23` — 2026-08-15, re-audit round 2 (after Wave 1+2 remediation), FAIL, severity 8 (4 critical, 6 major, 15 minor), 8-agent cycle (A, B, S, K, W, V, R + Agent N naive-reader lane).** All 10 headline claims from round 1's remediation verified holding (notification floor, stranded-pause gating, server clamp+honest-zero, daily-cap constant swap, sync guard test, near-due over-fetch, sentWithZeroEstimate, useSync fix, docs). But the fixes themselves introduced or left open real gaps, several found independently by 3-4+ agents: (1) severity 8 — `components/InterruptHandler.tsx`'s passive branch calls `markInterruptFired()`/`recordInterruptGateEvent` unconditionally BEFORE checking notification permission, so a user who denied permission gets the cross-device fired gate written and the cooldown clock advanced for a fire they never saw, silently suppressing future interrupts (found only by the naive-reader lane); (2) severity 7 — the desktop notification's floor-Wave-1 fix (`InterruptHandler.tsx:183`) still never caps, the exact defect class fixed server-side in the SAME wave (Task #544) never propagated to this sibling; (3) severity 7 — `app/study/page.tsx`'s "Study more" button is gated only on `!isGlobal`, also true for interrupt sessions, letting a post-interrupt tap build an uncapped 15-card queue; (4) severity 7 — Task #552's own fix (adding a dependency to a useMemo) does not close the cold-start freeze it was meant to fix, since `useStudySession`'s `useState(initialQueue)` only consumes its initializer on true first mount; (5) severity 6 — the new `INTERRUPT_FLEX_DAILY_MAX` daily ceiling (Task #551) is checked once per session mount, not once per introduction, so it can overshoot by up to 2 cards/day (independently found via trace by W, via contract analysis by V, and by N). Full findings promoted below as Tasks #562-#586. Per this project's BATCH_REMEDIATION_GATE, Batch 23 remains `[CURRENT SPRINT]` until a clean re-audit passes.
+
+### Task #562: Fix edge-case: flexIntroAllowed is computed once via canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX) at line 1
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+flexIntroAllowed is computed once via canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX) at line 142, then the while loop at 143-149 introduces up to INTERRUPT_SESSION_MAX_NEW (3) cards against that single stale boolean with no per-iteration recheck. Across repeated interrupt sessions in one day this lets the daily flex ceiling of 9 be exceeded by up to 2 cards (concrete trace: normal-cap introduces 1, then three interrupt sessions each re-evaluate flexIntroAllowed against a count still under 9 at 1, 4, 7 and each is granted a full 3-card batch, landing the day total at 10). Consequence is a cognitive-load overshoot against BRAND.md's documented working-memory ceiling, not data loss. Confirmed independently by World-Class Reviewer W (trace), Claim Verifier V (contract analysis), and Naive Reader N. at hooks/useStudySession.ts:mount-fill effect (flexIntroAllowed / while-loop introduction):142.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useStudySession.ts:mount-fill effect (flexIntroAllowed / while-loop introduction):142
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F001 — severity 6 — edge-case
+
+---
+
+### Task #563: Fix tests: No test in the suite can detect the F001 overshoot
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+No test in the suite can detect the F001 overshoot. The canIntroduceNewCard mock (capUsedNotStranded) is a pure function of its own call arguments only and returns the same answer regardless of how many cards were already introduced earlier in the same render. INTERRUPT_FLEX_DAILY_MAX's actual value (9) is never asserted in any test file; a regression reverting the daily cap back to the pre-#551 Number.MAX_SAFE_INTEGER bug would pass every existing test unchanged. at hooks/useStudySession.test.ts:capUsedNotStranded mock / flexes-past-daily-cap test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:capUsedNotStranded mock / flexes-past-daily-cap test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F002 — severity 5 — tests
+
+---
+
+### Task #564: Fix requirements: announcedDue = Math
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+announcedDue = Math.max(totalDue, INTERRUPT_SESSION_FLOOR) floors the desktop notification count but never caps it at INTERRUPT_SESSION_CAP (8). totalDue sums FSRS-due cards across the whole catalog and is genuinely unbounded, so on a backlog day the notification can announce e.g. 40 cards ready while the session that actually opens is capped at 8 -- the exact defect class Task #544 already fixed on the server side, left unfixed on this client sibling. No test in InterruptHandler.test.tsx exercises totalDue greater than CAP. at components/InterruptHandler.tsx:passive-notification body construction:183.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/InterruptHandler.tsx:passive-notification body construction:183
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F003 — severity 7 — requirements
+
+---
+
+### Task #565: Fix code-quality: The #533/#538 never-empty backstop is dead code: introduceNext() is a pure function of (allCardMap, 
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The #533/#538 never-empty backstop is dead code: introduceNext() is a pure function of (allCardMap, cards, introductions, introducedIds), none of which change between the while loop's attempts (143-149) and the backstop call, so whenever the backstop's guard is true, the while loop already tried and failed with bit-identical arguments and the backstop is structurally guaranteed to fail again. The surrounding comment and docs/INTERRUPT_ARCHITECTURE.md section 10.4 both describe this as a working, distinct safeguard; it is a no-op. at hooks/useStudySession.ts:never-empty backstop (post-loop fallback):180.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:never-empty backstop (post-loop fallback):180
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F004 — severity 3 — code-quality
+
+---
+
+### Task #566: Fix code-quality: flexIntroAllowed is a single boolean that is false for two distinct, undistinguishable reasons -- th
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+flexIntroAllowed is a single boolean that is false for two distinct, undistinguishable reasons -- the stranded-pause invariant and the daily-flex-ceiling being hit -- but the adjacent code comment and docs section 10.4 attribute 100% of the backstop's empty-session outcome to the stranded pause only. Moot in practice given F004, but the comment/doc framing remains factually wrong on its own terms. at hooks/useStudySession.ts:flexIntroAllowed / backstop comment:142.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:flexIntroAllowed / backstop comment:142
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F005 — severity 3 — code-quality
+
+---
+
+### Task #567: Fix edge-case: getNewCards filters only on FSRS progress and prerequisites, never checking introductions[card
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+getNewCards filters only on FSRS progress and prerequisites, never checking introductions[card.id] -- unlike lib/srs.ts's selectQualifyingNewCard, which the real session-open fill logic actually uses and which explicitly excludes cards with an existing IntroductionRecord. hooks/useInterruptConfig.ts's computeDue reads getNewCards at both the normal-cap and flex-fallback checks: a card mid-intensive-phase that already met today's appearance quota but has no FSRS progress yet still satisfies getNewCards, so computeDue can fire an interrupt for content the real fill logic will refuse to introduce. at store/srsStore.ts:getNewCards:180.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at store/srsStore.ts:getNewCards:180
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
+
+**Source:** Audit finding F006 — severity 5 — edge-case
+
+---
+
+### Task #568: Fix code-quality: CLAUDE
+
+**File:** CLAUDE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+CLAUDE.md's own Architecture section 1 entry for hooks/useStudySession.ts still describes the interrupt flex gate as canIntroduceNewCard(today, Number.MAX_SAFE_INTEGER) -- stale relative to the actual Task #551 implementation, which replaced that unbounded call with INTERRUPT_FLEX_DAILY_MAX. docs/INTERRUPT_ARCHITECTURE.md is accurate; this project-root doc is not. at CLAUDE.md:hooks/useStudySession.ts architecture entry:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at CLAUDE.md:hooks/useStudySession.ts architecture entry:0
+- [ ] Audit passes: bash scripts/deep-audit.sh CLAUDE.md
+
+**Source:** Audit finding F007 — severity 2 — code-quality
+
+---
+
+### Task #569: Fix edge-case: onStudyMore is gated only on !isGlobal, which is also true for isInterrupt sessions
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+onStudyMore is gated only on !isGlobal, which is also true for isInterrupt sessions. For an interrupt session allCards is the full cross-unit catalog and buildQueue is called with globalMode=false (interleaving up to SESSION_NEW_LIMIT=15 brand-new cards) with no INTERRUPT_SESSION_CAP slice applied to the result, unlike the initialQueue construction which does slice. A user finishing a normal 6-8 card interrupt session and tapping Study more can get a session of 15+ new cards with no interrupt-specific limit applied. No test in app/study/page.test.tsx exercises onStudyMore or asserts on buildQueue's call arguments. at app/study/page.tsx:onStudyMore handler:116.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at app/study/page.tsx:onStudyMore handler:116
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F008 — severity 7 — edge-case
+
+---
+
+### Task #570: Fix requirements: markInterruptFired() and recordInterruptGateEvent({eventType: fired, 
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+markInterruptFired() and recordInterruptGateEvent({eventType: fired, ...}) are both called unconditionally in the passive (non-mandatory) branch, before the notification-permission check determines whether a notification is actually shown. If permission is denied or never granted, sendNativeNotification is never invoked, yet the Rust cooldown clock has already been advanced and a fired event has already been written to the shared cross-device interrupt_gate_events table -- suppressing or delaying future interrupts on this and every other device the user owns, for a fire the user never actually saw. Any user who has denied notification permission is affected today, and the effect is silent. InterruptHandler.test.tsx's does-not-send-when-permission-refused test only asserts sendNativeNotification was not called, never asserting on markInterruptFired or recordInterruptGateEvent. at components/InterruptHandler.tsx:passive interrupt-fire branch:134.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at components/InterruptHandler.tsx:passive interrupt-fire branch:134
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F009 — severity 8 — requirements
+
+---
+
+### Task #571: Fix tests: Uses toBeGreaterThanOrEqual(1) instead of toBe(1) for a test named introduces exactly one new card
+
+**File:** tests/seam_studyLoop.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Uses toBeGreaterThanOrEqual(1) instead of toBe(1) for a test named introduces exactly one new card. This passes even if multiple cards were introduced in a single mount, which would violate the one-new-card-per-day cap the feature exists to enforce. at tests/seam_studyLoop.test.ts:introduces exactly one new card test:44.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/seam_studyLoop.test.ts:introduces exactly one new card test:44
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/seam_studyLoop.test.ts
+
+**Source:** Audit finding F010 — severity 5 — tests
+
+---
+
+### Task #572: Fix tests: Uses toBeLessThanOrEqual(3) instead of toBe(3) for a test named respects the limit parameter
+
+**File:** tests/srsStore.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Uses toBeLessThanOrEqual(3) instead of toBe(3) for a test named respects the limit parameter. This passes even if the slice returned 0 or 1 cards instead of the correct 3. at tests/srsStore.test.ts:respects the limit parameter test:351.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/srsStore.test.ts:respects the limit parameter test:351
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/srsStore.test.ts
+
+**Source:** Audit finding F011 — severity 5 — tests
+
+---
+
+### Task #573: Fix async: useState(initialQueue) only consumes its initializer on true first mount, and the mount-fill effect 
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+useState(initialQueue) only consumes its initializer on true first mount, and the mount-fill effect has an empty dependency array, so it runs once and closes over render-1's data. app/study/page.tsx calls useStudySession before the packLoading early-return, so any component that mounts while a pack is still loading -- es-language sessions, specialty-pack loads, cold push-tap launches -- permanently freezes the queue empty. This regresses the never-completely-empty guarantee for the exact task (#552) that was supposed to have closed this gap: the fix that shipped (adding allCards to a useMemo dependency array) does not address the stale-closure root cause. No test can catch it because every test touching this path mocks useStudySession away. at hooks/useStudySession.ts:mount-time introduce effect (useState(initialQueue)):83.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useStudySession.ts:mount-time introduce effect (useState(initialQueue)):83
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F012 — severity 7 — async
+
+---
+
+### Task #574: Fix tests: No seam test proves the combined interaction where a normal-cap introduction on session mount consum
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+No seam test proves the combined interaction where a normal-cap introduction on session mount consumes 1 of the 3 available flex slots on an interrupt session. The code looks correct by inspection but the interaction path itself is untested. at hooks/useStudySession.ts:mount effect (normal-cap intro + flex fill interaction):142.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.ts:mount effect (normal-cap intro + flex fill interaction):142
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F013 — severity 3 — tests
+
+---
+
+### Task #575: Fix code-quality: docs/INTERRUPT_ARCHITECTURE
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+docs/INTERRUPT_ARCHITECTURE.md section 10 does not mention the #552 residual gap described in F012, leaving the documented state of that fix inaccurate. at docs/INTERRUPT_ARCHITECTURE.md:section 10:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:section 10:0
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F014 — severity 2 — code-quality
+
+---
+
+### Task #576: Fix tests: The regression tests explicitly requested for #538 (stranded-pause-blocks-backstop) and #541 (near-d
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The regression tests explicitly requested for #538 (stranded-pause-blocks-backstop) and #541 (near-due-interleaving) were never added to hooks/useStudySession.test.ts, by either the Wave 1 remediation stream or Wave 2. No test in the current suite regresses either specific fix. at hooks/useStudySession.test.ts:stranded-pause-blocks-backstop / near-due-interleaving regression tests:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:stranded-pause-blocks-backstop / near-due-interleaving regression tests:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F015 — severity 5 — tests
+
+---
+
+### Task #577: Fix security: INTERRUPT_FLEX_DAILY_MAX is enforced via a check-then-act read of in-memory Zustand state with no cr
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+INTERRUPT_FLEX_DAILY_MAX is enforced via a check-then-act read of in-memory Zustand state with no cross-tab or cross-window coordination -- two tabs of the same account can each independently pass canIntroduceNewCard and each flex up to 3 new cards, exceeding the intended daily ceiling beyond even the single-tab overshoot in F001. Real but low-stakes given the client-only honor-system entitlement model already documented in CLAUDE.md section 5 as an accepted, intentional trade-off. at hooks/useStudySession.ts:flexIntroAllowed check-then-act:142.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at hooks/useStudySession.ts:flexIntroAllowed check-then-act:142
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F016 — severity 3 — security
+
+---
+
+### Task #578: Fix error-handling: A negative cardCount (malformed upstream data) fails the ===0 branch and silently clamps to FLOOR (6
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+A negative cardCount (malformed upstream data) fails the ===0 branch and silently clamps to FLOOR (6) via Math.max with no logging of the anomaly. Latent, not currently reachable: computeDueEstimate only increments a counter and never produces a negative value today. at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:0
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F017 — severity 2 — error-handling
+
+---
+
+### Task #579: Fix tests: docs section 10
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+docs section 10.1's INTERRUPT_FLEX_DAILY_MAX=9 table entry has no mechanical cross-check against lib/queue.ts's real derivation, unlike FLOOR and CAP which tests/interruptFloorSync.test.ts does mechanically verify. A third place the constant is documented with no automated guard against drift. at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX:0
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
+
+**Source:** Audit finding F018 — severity 4 — tests
+
+---
+
+### Task #580: Fix code-quality: The notification body (Cards ready) unconditionally implies content is ready, but docs section 10
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The notification body (Cards ready) unconditionally implies content is ready, but docs section 10.4 documents a case (stranded pause combined with an empty near-due pool) where the session opened by the notification may genuinely be empty. Pre-existing limitation, not newly introduced by this batch, but still a live, undocumented-in-code gap between the notification copy and the actual guarantee. at components/InterruptHandler.tsx:native notification body text:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at components/InterruptHandler.tsx:native notification body text:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F019 — severity 2 — code-quality
+
+---
+
+### Task #581: Fix code-quality: The comment on INTERRUPT_FLEX_DAILY_MAX claims it bounds total same-day flex introductions and gives
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+The comment on INTERRUPT_FLEX_DAILY_MAX claims it bounds total same-day flex introductions and gives a real cross-session ceiling with no store-layer change needed. This is false for the same reason described in F001: the value is checked once per session mount, not once per introduction, so it does not actually bound the total as claimed. at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX comment:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/queue.ts:INTERRUPT_FLEX_DAILY_MAX comment:0
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
+
+**Source:** Audit finding F020 — severity 3 — code-quality
+
+---
+
+### Task #582: Fix code-quality: docs/INTERRUPT_ARCHITECTURE
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+docs/INTERRUPT_ARCHITECTURE.md section 10.3 restates the same false per-introduction-ceiling claim as F020 verbatim from the original completion note, never independently verified against the while loop's actual call pattern before being written down. at docs/INTERRUPT_ARCHITECTURE.md:section 10.3:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:section 10.3:0
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F021 — severity 2 — code-quality
+
+---
+
+### Task #583: Fix code-quality: A code comment claims getNearDueCards is called up to 4x per mount
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+A code comment claims getNearDueCards is called up to 4x per mount. This is false: it is called exactly once per useStudySession mount. The 4x figure conflates a different function entirely, computeDue's per-unit loop in hooks/useInterruptConfig.ts, with a number that matches neither function's actual call count. at app/study/page.tsx:Task #542 comment on getNearDueCards:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/study/page.tsx:Task #542 comment on getNearDueCards:0
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F022 — severity 3 — code-quality
+
+---
+
+### Task #584: Fix tests: This pre-existing test only proves the outer setQueue dedup filter catches a duplicate; it does not 
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+This pre-existing test only proves the outer setQueue dedup filter catches a duplicate; it does not exercise the inner loop-level check at all, a gap the test's own inline comment admits. A regression that removed the inner check would not be caught by this test. at hooks/useStudySession.test.ts:never duplicates a near-due card already in the queue test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:never duplicates a near-due card already in the queue test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F023 — severity 4 — tests
+
+---
+
+### Task #585: Fix error-handling: lib/queue
+
+**File:** lib/queue.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+lib/queue.ts silently drops stale or mismatched card ids with no logging. Low severity, pre-existing pattern not introduced by this batch. at lib/queue.ts:buildQueue (stale/mismatched id handling):0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at lib/queue.ts:buildQueue (stale/mismatched id handling):0
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/queue.ts
+
+**Source:** Audit finding F024 — severity 2 — error-handling
+
+---
+
+### Task #586: Fix async: inFlightSyncPromise is not keyed by userId
+
+**File:** hooks/useSync.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 3)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+inFlightSyncPromise is not keyed by userId. A sign-out followed immediately by sign-in as a different user could misattribute an in-flight sync's result to the wrong account. Low probability, informational; the surrounding comment does not discuss this case. at hooks/useSync.ts:inFlightSyncPromise:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useSync.ts:inFlightSyncPromise:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useSync.ts
+
+**Source:** Audit finding F025 — severity 3 — async
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|

@@ -41,7 +41,12 @@ describe("seam: session-start → auto-introduction", () => {
     // via getIntroductionDueCardIds — the existing wiring in app/study/page.tsx.
     buildQueue(SAMPLE_CARDS, getDueCards, getNewCards, false, getIntroductionDueCardIds);
 
-    expect(Object.keys(useSRSStore.getState().introductions).length).toBeGreaterThanOrEqual(1);
+    // Task #571: introduceCard() is called at most once above (guarded by `if (first)`), and
+    // the store started with introductions:{} (beforeEach) — the exact count is provable, not
+    // just a lower bound. A subtly wrong implementation that introduced multiple cards per
+    // mount (violating the one-new-card-per-day cap this feature exists to enforce) would
+    // still pass a >= 1 assertion but must fail an exact one.
+    expect(Object.keys(useSRSStore.getState().introductions).length).toBe(1);
   });
 });
 

@@ -299,6 +299,34 @@ describe("useSync — concurrency guard (Task #520 audit finding: SyncTrigger's 
 
     expect(mockDownloadReviewEvents).toHaveBeenCalledTimes(2);
   });
+
+  // Task #586: a sign-out immediately followed by sign-in as a different user must not let
+  // the second user's syncNow() join the first user's still-in-flight promise — that would
+  // misattribute the first user's result (and, upstream, their sync) to the second account.
+  it("keys the in-flight guard by userId — a user switch mid-sync starts an independent second execution, not a join into the first user's result", async () => {
+    let resolveUser1Download!: (v: { ok: true; events: ReviewEvent[] }) => void;
+    const user1DownloadPromise = new Promise<{ ok: true; events: ReviewEvent[] }>((res) => {
+      resolveUser1Download = res;
+    });
+    mockDownloadReviewEvents.mockImplementation((userId: string) =>
+      userId === "user-1" ? user1DownloadPromise : Promise.resolve({ ok: true, events: [] })
+    );
+
+    const { result, rerender } = renderHook(() => useSync());
+    const user1SyncPromise = result.current.syncNow(); // user-1's sync starts, hangs on download
+
+    mockAuthState.userId = "user-2";
+    rerender();
+    const user2Result = await result.current.syncNow(); // must resolve independently, not hang
+
+    expect(user2Result).toEqual({ ok: true });
+    expect(mockDownloadReviewEvents).toHaveBeenCalledWith("user-2");
+
+    resolveUser1Download({ ok: true, events: [] });
+    const user1Result = await user1SyncPromise;
+    expect(user1Result).toEqual({ ok: true });
+    expect(mockDownloadReviewEvents).toHaveBeenCalledWith("user-1");
+  });
 });
 
 describe("useSync — triggerSyncSoon (Task #518: sync a review quickly, not on the 5-minute timer)", () => {

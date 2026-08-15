@@ -1,75 +1,108 @@
-CLOSED: #530
+CLOSED: #570 #564 #580
 NOT_CLOSED: none
 
-## Task #530 — Snooze writes a shared event
+## Wave 3, Stream W3B — components/InterruptHandler.tsx audit remediation (2026-08-15)
 
-**What changed:** Desktop's snooze action now additionally writes a `snoozed` event to
-the shared, cross-device gate (`interrupt_gate_events`, via Task #528's
-`lib/interruptGate.ts`), so a snooze on one device is visible to every other of that
-user's devices (including a future mobile client) — not just the local in-memory Rust
-state it already touched.
+### #570 (severity 8) — markInterruptFired/recordInterruptGateEvent fired before the permission check
+`components/InterruptHandler.tsx`'s `interrupt:fire` handler previously called
+`markInterruptFired()` and `recordInterruptGateEvent({eventType: "fired", ...})`
+unconditionally, before branching into the mandatory/passive paths — so a
+passive interrupt with notification permission denied still advanced the
+Rust cooldown clock and wrote a "fired" event to the shared cross-device
+`interrupt_gate_events` table, silently suppressing future interrupts on
+every device the user owns for a fire the user never saw.
 
-- `lib/tauriInterrupt.ts`'s `snoozeInterrupt` gained a second, optional parameter:
-  `gateContext?: { userId: string; deviceId: string }`. The existing local IPC call
-  (`invoke("snooze_interrupt", { minutes })`) runs first, unchanged, with its existing
-  throw-on-failure contract fully intact. Only after that succeeds, if `gateContext` is
-  supplied, it calls `recordInterruptGateEvent({ userId, deviceId, eventType: "snoozed",
-  occurredAt: Date.now(), minutesUntilEligible: minutes })` — purely additive, and a
-  write failure there is logged (`[ERR-INTERRUPT-GATE-SNOOZE-...]`) but never thrown,
-  since the local snooze the user actually experiences already fully succeeded by that
-  point.
-- `app/study/page.tsx`'s "Snooze X min" button now calls `snoozeInterrupt` with a
-  resolved `gateContext` (or `undefined` if either `userId` or `deviceId` is unavailable
-  — e.g. signed out, or a brand-new device that has never enqueued a review event yet
-  and so has no persisted `deviceId`). Per the brief: a null `userId` (signed out) skips
-  the shared-gate write entirely; I extended the same "skip if missing" treatment to a
-  null `deviceId` too, since `recordInterruptGateEvent`'s `deviceId` parameter is
-  non-nullable and `store/syncStore.ts`'s `deviceId` is genuinely `null` until a user's
-  first review event.
+**Fix:** extracted the two calls into a local `markFired()` closure and moved
+its call site into each branch:
+- **Mandatory branch:** calls `markFired()` unconditionally, same as before —
+  this branch always shows real content (the study session itself), so the
+  original guarantee is correct and unaffected.
+- **Passive branch:** `markFired()` now only runs after `granted` is
+  confirmed `true` AND `sendNativeNotification` has actually been awaited —
+  inside the same `try` block, so a `sendNativeNotification` throw (caught by
+  the existing `[ERR-NOTIF-...]` handler) also skips marking, matching "only
+  mark fired once the notification genuinely reached the user."
 
-**New file, not in the original "Files You Own" list — `hooks/useSnoozeAndExit.ts`
-(+ its test):** `app/study/page.tsx` was already at 149 of its ~150-line CLAUDE.md route
-cap before this task; reading `userId`/`deviceId` inline would have pushed it over. The
-architect memory note attached to this brief explicitly anticipated this and named the
-correct fix ("follow the project's existing extraction-to-a-hook pattern"), so I
-extracted the whole snooze-button click handler (resolve identity via each store's
-`.getState()` — a one-time snapshot read, not a reactive subscription, since the value
-is only needed at click-time — call `snoozeInterrupt`, then `exitMandatoryMode`, then
-navigate) into `hooks/useSnoozeAndExit.ts`. Net effect: `app/study/page.tsx` shrank from
-149 to **148 lines** (removed more than it added — the 4-line inline `onClick` body
-collapsed to a 1-line reference) while gaining the new behavior. `lib/tauriInterrupt.ts`
-also gained one new import (`@/lib/interruptGate` — a sibling `lib/` module, legal under
-CLAUDE.md's Layer Map, confirmed by the same architect memory note).
+**Test:** extended the existing `"does not send a notification when
+permission is refused"` test (its own name already matched the task's
+suggested target) to also assert `mockMarkInterruptFired` and
+`mockRecordInterruptGateEvent` are NOT called — this is the exact gap the
+brief named. Renamed it to flag it as the Task #570 regression test. All 9
+pre-existing `markInterruptFired`/gate tests in the file still pass
+unmodified (mandatory-path unconditional marking, passive-path marking on
+grant, IPC-failure logging, cross-device gate suppression, etc.) — none of
+them depended on call *order* relative to the permission check, only on the
+final call count/args, so the reorder is invisible to them.
 
-**Verification gate — all green:**
-- `npx tsc --noEmit` — clean
-- `npm test` — 1902/1902 passed (98 files, up from 1880/97 pre-task — 22 new tests: 12
-  in `tests/tauri.test.ts` covering `snoozeInterrupt`'s new gate-write behavior plus one
-  end-to-end cross-device test, and 7 in the new `hooks/useSnoozeAndExit.test.ts`)
-- `npm run lint` — 0 errors (7 pre-existing warnings elsewhere, unrelated)
-- Acceptance criterion 1 ("clicking Snooze writes a `snoozed` event with the correct
-  `effective_until`") — directly tested: `tests/tauri.test.ts`'s
-  `"calls recordInterruptGateEvent with eventType 'snoozed' and the exact given fields
-  when gateContext is supplied"` asserts the exact call shape.
-- Acceptance criterion 2 ("a test proves a device checking the gate shortly after
-  respects a snooze event it didn't itself create, simulated as if from another
-  device") — directly tested end-to-end: `"a snooze written by device-A is read back by
-  a caller that never supplied any device id"` runs the REAL `lib/interruptGate.ts`
-  (both `recordInterruptGateEvent` and `readInterruptGateState`, not mocked) against a
-  fake in-memory Supabase client, snoozes as `device-A`, then reads the gate via
-  `readInterruptGateState("user-1")` — a call with no device concept at all, simulating
-  any other device's check-in — and asserts the exact resulting `effectiveUntil`
-  (pinned via `vi.useFakeTimers`, not a loose `toBeGreaterThan` check) reflects
-  device-A's write. Also asserts a different user's gate is unaffected (per-user
-  scoping, not global).
+### #564 (severity 7) — desktop notification never capped its announced count
+`announcedDue` floored to `INTERRUPT_SESSION_FLOOR` (6) but had no ceiling —
+`totalDue` sums FSRS-due cards across the whole catalog and is genuinely
+unbounded, so a backlog day could announce e.g. "40 cards ready" while
+`app/study/page.tsx` caps the opened session at `INTERRUPT_SESSION_CAP` (8).
+Same defect class Task #544 already fixed on the server (`dueEstimate.ts`),
+left unfixed on this client sibling (Rule 19 — symmetric hardening gap).
+
+**Fix:** imported `INTERRUPT_SESSION_CAP` from `lib/queue.ts` (read-only
+import from a file I don't own this wave, per the brief) and changed
+`announcedDue` to `Math.min(Math.max(totalDue, INTERRUPT_SESSION_FLOOR),
+INTERRUPT_SESSION_CAP)` — identical clamp shape to `dueEstimate.ts`'s
+`buildNotificationPayload`.
+
+**Test:** made the srsStore mock's due count test-overridable (added a
+hoisted mutable `srsStoreState = { due: 1 }`, reset to `1` in `beforeEach`,
+referenced from the mock's `getStats` — previously hardcoded to a static
+`{ due: 1 }` with no way for an individual test to raise it). New test sets
+`srsStoreState.due = 40` and asserts the notification reads exactly `"8
+cards ready — 2 min study break?"`, not `"40 cards ready..."`.
+
+### #580 (severity 2) — notification body overclaims content is ready
+Pre-existing, low-severity gap: the notification body ("N cards ready")
+doesn't account for `docs/INTERRUPT_ARCHITECTURE.md` §10.4's documented case
+(a stranded introduction pause combined with an empty near-due pool can
+leave the opened session genuinely empty). Per the brief, this is
+comment-only — added a one-line note directly above `announcedDue`
+cross-referencing §10.4 and explicitly recording the "not worth wiring
+client-side pause state into this notification for this rare edge case"
+scoping decision, so a future reader doesn't rediscover the gap and treat it
+as unaddressed.
+
+**Does #570 change this calculus?** No — I checked. #570 only changes *when*
+`markFired()` runs relative to the permission check; it doesn't touch
+whether the opened session itself can be empty (that's the
+introduction-engine pause state `hooks/useStudySession.ts`'s mount effect
+reads, §10.4's actual subject). The two are orthogonal: #570 is about the
+gate-event bookkeeping being honest about whether a notification was shown;
+#580 is about the notification's own copy being honest about what the
+session behind it will contain. Fixing #570 doesn't close #580's gap or make
+it worse.
+
+---
+
+## Verification gate
+
+- `npx tsc --noEmit` — **3 pre-existing errors, none in my files or caused by
+  my changes** — `tests/pushDueEstimate.test.ts:150`, `tests/queue.test.ts:93`,
+  `tests/queue.test.ts:187`, all `TS2532: Object is possibly 'undefined'`.
+  Confirmed via `git status` that `lib/queue.ts` and both those test files
+  are modified by a concurrent window this wave (not in my Files You Own or
+  Off-Limits list conflict — `lib/queue.ts` is explicitly off-limits to me).
+  `npx eslint components/InterruptHandler.tsx components/InterruptHandler.test.tsx`
+  and a filtered `tsc` grep both confirm zero errors in either file I touched.
+- `npx eslint components/InterruptHandler.tsx components/InterruptHandler.test.tsx` — 0 errors
+- `npx vitest run components/InterruptHandler.test.tsx` — **24/24 passed**
+  (22 pre-existing + 2 new regression tests)
+- Full `npm test` — **1960/1960 passed, 101 files.** (`vitest` doesn't do
+  full TypeScript type-checking, so the 3 `tsc` errors above — in
+  another stream's in-progress, off-limits files — don't show up as test
+  failures here; confirmed nothing in `components/InterruptHandler.*`
+  regressed.)
 
 Debt entries logged: 0
 Carry-forward tasks generated: 0
 
-This closes out Batch 21 (`docs/INTERRUPT_ARCHITECTURE.md`) for my stream — #529
-(Adam, W3A) is the other Wave 3 stream; once both report done, the whole batch is
-complete per the brief.
+No files outside `components/InterruptHandler.tsx` and
+`components/InterruptHandler.test.tsx` were touched.
 
 Barry is done.
 
-— Barry | W3B | #530
+— Barry | W3B | #564 #570 #580

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   groupReviewEventsByUserId,
   computeDueEstimate,
@@ -133,5 +133,28 @@ describe("buildNotificationPayload — Batch 23 session floor, Tasks #544/#545 c
 
   it("never uses forbidden terminology in the zero-estimate body either", () => {
     expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" }).body).not.toMatch(/due|overdue/i);
+  });
+
+  // Task #578: a negative cardCount (malformed upstream data, not reachable via
+  // computeDueEstimate today) still clamps to a sane floored value, but must leave a
+  // diagnostic trace rather than silently masquerading as a legitimate floor case.
+  it("logs a diagnostic error for a negative cardCount while still clamping the output to the floor", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const payload = buildNotificationPayload({ cardCount: -3, sessionType: "review" });
+    expect(payload).toEqual({
+      title: "plyglt",
+      body: "6 cards ready",
+      data: { cardCount: 6, sessionType: "review" },
+    });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-DUE-ESTIMATE-NEGATIVE-\d+\] negative cardCount -3 clamped to floor$/);
+    errorSpy.mockRestore();
+  });
+
+  it("does not log anything for a non-negative cardCount", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    buildNotificationPayload({ cardCount: 7, sessionType: "review" });
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
