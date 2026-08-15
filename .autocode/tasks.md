@@ -10705,6 +10705,20 @@ Dependency: Batch 21 complete (cross-device gate live). Theme: close a real gap 
 
 ---
 
+## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [PLANNED — 2026-08-14, PRE-LAUNCH BLOCKER]
+Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522 live verification, 2026-08-14 evening) surfaced that Batch 22's floor guarantees a NON-EMPTY interrupt session but not a SUBSTANTIVE one — a caught-up user can get a 10-second, 1-card session, contradicting BRAND.md's "3-5 cards" framing and feeling broken (Max's words: "way too small"). Owner decision captured same evening via structured AskUserQuestion (three rounds, science-grounded — retrieval-count math, Cowan's ~4-chunk working-memory limit for new items, and the discovery that BRAND's own intro cadence table means 1 new card/day yields ~28 intro appearances/day at steady state, so starvation is a cold-start/post-vacation phenomenon):
+
+**The ratified spec — every INTERRUPT session:**
+- **Floor: 6 cards** (the largest floor that fits the ratified 45-90-second target at 8-15s/card). Target 6, never fewer when the catalog allows.
+- **Duration target: 45-90 seconds** (BRAND.md's "under a minute" ceiling framing becomes a 45-90s target range — minor BRAND.md wording update).
+- **Fill order when the day's normal supply falls short:** (1) intro-engine appearances already owed today, (2) flex-introduce NEW cards — **hard cap 3 new per session** (working-memory limit, non-negotiable), (3) pull near-due FSRS reviews slightly early. "More new cards" as primary fill is deliberate (Max's choice): starvation is cold-start-shaped, exactly when extra intros are pure ramp-up with no review load to compete.
+- **90-minute interval and 6-10/day cadence: unchanged.** (The "5-6 minute" push in the live test was manual test-forcing — the gate was verified working.)
+- **Server dispatch floor:** `send-interrupt-notifications` must never `skippedNoCards` an active registered user — the client fills the session; the server's due estimate is a lower bound and must not be a send/no-send gate (closes the debt row logged 2026-08-14).
+
+Tasks to be scoped via /task or /meet: client queue floor (lib/queue.ts / hooks/useStudySession.ts / hooks/useInterruptConfig.ts computeDue alignment + srsStore near-due selection), server dueSelection change, BRAND.md wording, tests for each. Not yet started — decision recorded the evening it was made so it survives the session boundary.
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|
