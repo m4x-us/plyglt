@@ -30,3 +30,4 @@
 | 2026-08-15 | batch 23 -- Interrupt Session Size Floor (6 cards) + Server Push Cont | 1 | 7 | FAIL |
 | 2026-08-15 | batch 23 -- re-audit round 2 (8-agent, post Wave 1+2 remediation) | 1 | 8 | FAIL |
 | 2026-08-15 | batch 23 -- re-audit round 3 (8-agent, post Wave 3+4 remediation) | 1 | 8 | FAIL |
+| 2026-08-15 | batch 23 -- re-audit round 4 (8-agent, post Wave 5 remediation) | 1 | 9 | FAIL |

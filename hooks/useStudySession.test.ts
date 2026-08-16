@@ -26,6 +26,8 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     isInterrupt: false,
     unitId: "it-a1u01",
     getResumableSession: vi.fn(() => null),
+    peekResumableSession: vi.fn(() => null),
+    clearExpiredResumableSession: vi.fn(),
     clearActiveSession: vi.fn(),
     commitSession: vi.fn(),
     canIntroduceNewCard: vi.fn(() => false),
@@ -59,7 +61,10 @@ describe("useStudySession — resume path", () => {
       startedAt: Date.now(),
     };
     const { result } = renderHook(() =>
-      useStudySession(defaultParams({ getResumableSession: vi.fn(() => savedSession) })),
+      useStudySession(defaultParams({
+        getResumableSession: vi.fn(() => savedSession),
+        peekResumableSession: vi.fn(() => savedSession),
+      })),
     );
     expect(result.current.resumeDecision).toBe("pending");
   });
@@ -74,7 +79,10 @@ describe("useStudySession — resume path", () => {
       startedAt: Date.now(),
     };
     const { result } = renderHook(() =>
-      useStudySession(defaultParams({ getResumableSession: vi.fn(() => savedSession) })),
+      useStudySession(defaultParams({
+        getResumableSession: vi.fn(() => savedSession),
+        peekResumableSession: vi.fn(() => savedSession),
+      })),
     );
 
     act(() => {
@@ -84,6 +92,51 @@ describe("useStudySession — resume path", () => {
     expect(result.current.pos).toBe(2);
     expect(result.current.sessionCorrect).toBe(2);
     expect(result.current.sessionTotal).toBe(2);
+  });
+});
+
+// ── resume decision hydration gating (Task #608/#609, Wave 6) ─────────────────────
+// resumeDecision now resolves via a useEffect gated on `hydrated`, using the
+// render-safe peekResumableSession, instead of a useState lazy initializer calling
+// the mutating getResumableSession. A slow Tauri cold start must not resolve
+// resumeDecision from pre-hydration defaults before the real persisted session loads.
+
+describe("useStudySession — resume decision hydration gating (Task #608/#609)", () => {
+  it("does not resolve resumeDecision before hydration completes, even when a resumable session already exists, then resolves it once hydration finishes", () => {
+    const savedSession = {
+      unitId: "it-a1u01",
+      queueIds: ["c1", "c2", "c3"],
+      position: 1,
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const hasHydratedSpy = vi.spyOn(useSRSStore.persist, "hasHydrated").mockReturnValue(false);
+    const clearExpiredResumableSession = vi.fn();
+    const peekResumableSession = vi.fn(() => savedSession);
+
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useStudySession>[0]) => useStudySession(props),
+      {
+        initialProps: defaultParams({
+          peekResumableSession,
+          clearExpiredResumableSession,
+        }),
+      },
+    );
+
+    // Deletion Test: the pre-#608 useState lazy initializer would have resolved
+    // resumeDecision to "pending" synchronously on this very first render,
+    // regardless of hydration — this assertion only holds with the hydration gate.
+    expect(result.current.resumeDecision).toBeNull();
+    expect(clearExpiredResumableSession).not.toHaveBeenCalled();
+
+    hasHydratedSpy.mockReturnValue(true);
+    rerender(defaultParams({ peekResumableSession, clearExpiredResumableSession }));
+
+    expect(result.current.resumeDecision).toBe("pending");
+    expect(clearExpiredResumableSession).toHaveBeenCalledTimes(1);
+    hasHydratedSpy.mockRestore();
   });
 });
 
@@ -807,6 +860,8 @@ describe("useStudySession — seam: normal-cap intro consumes 1 of the 3 flex sl
         isInterrupt: true,
         unitId: UNIT.id,
         getResumableSession: store.getResumableSession,
+        peekResumableSession: store.peekResumableSession,
+        clearExpiredResumableSession: store.clearExpiredResumableSession,
         clearActiveSession: store.clearActiveSession,
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,
@@ -981,6 +1036,37 @@ describe("useStudySession — mount-fill effect error containment (Tasks #592/#5
     // not silently discard a partial success on top of the failure.
     expect(introduceCard).toHaveBeenCalledTimes(1);
     expect(result.current.queue.map((c) => c.id)).toEqual(["e1"]);
+    consoleErrorSpy.mockRestore();
+  });
+
+  // Task #615 (Wave 6): #592/#593's try/catch originally started AFTER
+  // mountFillStartedRef's claim, the queue resync, and the sessionIds/introducedIds
+  // construction — so a throw from any of THOSE statements (e.g. a malformed
+  // initialQueue entry crashing `.map((c) => c.id)`) was NOT contained, propagating
+  // uncaught exactly like the pre-#592/#593 code. This test targets that specific gap.
+  it("contains a throw from the sessionIds construction itself (a malformed initialQueue entry), not just the fill logic that follows it", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const introduceCard = vi.fn();
+    // `null` in place of a real Card — sessionIds construction's `.map((c) => c.id)`
+    // throws reading `.id` of null before any fill logic even runs.
+    const malformedQueue = [null] as unknown as Card[];
+
+    expect(() => {
+      renderHook(() =>
+        useStudySession(
+          defaultParams({
+            initialQueue: malformedQueue,
+            canIntroduceNewCard: vi.fn(() => false),
+            introduceCard,
+          }),
+        ),
+      );
+    }).not.toThrow();
+
+    expect(introduceCard).not.toHaveBeenCalled();
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
+      /^\[ERR-STUDY-SESSION-FILL-\d+\] mount-fill effect threw mid-pass/,
+    );
     consoleErrorSpy.mockRestore();
   });
 });

@@ -32,6 +32,50 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue(mockTauriStore),
 }));
 
+// A minimal but faithful Zustand-persist-shaped store: setState triggers subscribe
+// listeners, and __simulateLateHydration mirrors persist's hydrate() exactly —
+// set(merge(persisted, live)) THEN hasHydrated=true THEN notify finish listeners
+// (see node_modules/zustand/esm/middleware.mjs) — before firing onFinishHydration.
+// Hoisted to module scope (Task #606) so both the original scalar-field reconciliation
+// describe block below and the new map-shaped-field one can share it.
+function makeFullStore<T extends object>(initial: T) {
+  let state = initial;
+  let hydrated = false;
+  const listeners = new Set<(s: T) => void>();
+  const finishListeners = new Set<() => void>();
+  return {
+    getState: () => state,
+    setState: (partial: Partial<T>) => {
+      state = { ...state, ...partial };
+      listeners.forEach((l) => l(state));
+    },
+    subscribe: (listener: (s: T) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    persist: {
+      hasHydrated: () => hydrated,
+      onFinishHydration: (fn: () => void) => {
+        finishListeners.add(fn);
+        return () => finishListeners.delete(fn);
+      },
+    },
+    __simulateLateHydration: (persisted: Partial<T>) => {
+      state = { ...state, ...persisted };
+      listeners.forEach((l) => l(state));
+      hydrated = true;
+      finishListeners.forEach((fn) => fn());
+    },
+    // Test-only introspection (#452): the Set's SIZE, unlike a call-count spy on
+    // onFinishHydration, is immune to React's per-render base-subscription churn
+    // (useSyncExternalStore recreates its subscribe closure every render since this
+    // hook doesn't memoize it, causing an unsub+resub pair — net zero size change —
+    // on any unrelated re-render). A genuinely new registration (the failsafe's own
+    // late-reconciliation listener) is the only thing that changes the net size.
+    __finishListenerCount: () => finishListeners.size,
+  };
+}
+
 // ── SSR guard ─────────────────────────────────────────────────────────────────
 // In jsdom, window is defined. Simulate SSR by deleting localStorage.
 
@@ -307,48 +351,6 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
     beforeEach(() => { vi.useFakeTimers(); });
     afterEach(() => { vi.useRealTimers(); });
 
-    // A minimal but faithful Zustand-persist-shaped store: setState triggers subscribe
-    // listeners, and __simulateLateHydration mirrors persist's hydrate() exactly —
-    // set(merge(persisted, live)) THEN hasHydrated=true THEN notify finish listeners
-    // (see node_modules/zustand/esm/middleware.mjs) — before firing onFinishHydration.
-    function makeFullStore<T extends object>(initial: T) {
-      let state = initial;
-      let hydrated = false;
-      const listeners = new Set<(s: T) => void>();
-      const finishListeners = new Set<() => void>();
-      return {
-        getState: () => state,
-        setState: (partial: Partial<T>) => {
-          state = { ...state, ...partial };
-          listeners.forEach((l) => l(state));
-        },
-        subscribe: (listener: (s: T) => void) => {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
-        },
-        persist: {
-          hasHydrated: () => hydrated,
-          onFinishHydration: (fn: () => void) => {
-            finishListeners.add(fn);
-            return () => finishListeners.delete(fn);
-          },
-        },
-        __simulateLateHydration: (persisted: Partial<T>) => {
-          state = { ...state, ...persisted };
-          listeners.forEach((l) => l(state));
-          hydrated = true;
-          finishListeners.forEach((fn) => fn());
-        },
-        // Test-only introspection (#452): the Set's SIZE, unlike a call-count spy on
-        // onFinishHydration, is immune to React's per-render base-subscription churn
-        // (useSyncExternalStore recreates its subscribe closure every render since this
-        // hook doesn't memoize it, causing an unsub+resub pair — net zero size change —
-        // on any unrelated re-render). A genuinely new registration (the failsafe's own
-        // late-reconciliation listener) is the only thing that changes the net size.
-        __finishListenerCount: () => finishListeners.size,
-      };
-    }
-
     it("restores a live write that a late real-hydration merge would otherwise silently clobber", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const store = makeFullStore({ count: 0, theme: "light" });
@@ -416,6 +418,89 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
       act(() => { store.__simulateLateHydration({ count: 3 }); });
 
       expect(store.getState().count).toBe(3);
+      expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      errorSpy.mockRestore();
+    });
+  });
+
+  describe("late real-hydration merge reconciliation — map-shaped fields (Task #606, severity-9 data-loss regression)", () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    // The real bug: srsStore's `introductions` map starts empty pre-hydration. A write
+    // during the failsafe window (e.g. hooks/useStudySession.ts's mount-fill effect
+    // calling introduceCard()) adds one record. Real hydration then finishes late with
+    // the user's actual persisted history — accumulated across many real sessions,
+    // correctly NOT containing the live write's card (the disk read predates it). The
+    // pre-fix reconciliation replaced the WHOLE `introductions` field with the
+    // single-record live-write snapshot, discarding every real persisted entry. Deletion
+    // Test: reverting the per-subkey merge back to a blanket `clobbered[key] = preMerge[key]`
+    // makes this test fail — `introductions` would equal only `{cardA: ...}`, losing
+    // cardX/cardY entirely.
+    it("preserves the real persisted map's other entries AND the live write made during the failsafe window", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      // Starts empty — mirrors a real persisted store's pre-hydration default.
+      const store = makeFullStore({ introductions: {} as Record<string, string> });
+
+      const { result } = renderHook(() => useIsHydrated(store));
+      expect(result.current).toBe(false);
+
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+      expect(result.current).toBe(true); // app proceeds on the failsafe
+
+      // A real write lands during the failsafe-to-real-hydration window.
+      act(() => {
+        store.setState({ introductions: { cardA: "recordA-from-live-write" } });
+      });
+      expect(store.getState().introductions).toEqual({ cardA: "recordA-from-live-write" });
+
+      // Real hydration finishes late with the user's actual, larger persisted history.
+      act(() => {
+        store.__simulateLateHydration({
+          introductions: { cardX: "recordX-real-history", cardY: "recordY-real-history" },
+        });
+      });
+
+      // Both the real persisted history AND the live write must survive.
+      expect(store.getState().introductions).toEqual({
+        cardX: "recordX-real-history",
+        cardY: "recordY-real-history",
+        cardA: "recordA-from-live-write",
+      });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      errorSpy.mockRestore();
+    });
+
+    it("still restores a live write on a scalar field exactly as before — the map-field diff branch does not regress the existing scalar path", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ count: 0, introductions: {} as Record<string, string> });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+
+      act(() => { store.setState({ count: 5 }); });
+      act(() => {
+        store.__simulateLateHydration({ count: 1, introductions: { cardX: "recordX" } });
+      });
+
+      expect(store.getState().count).toBe(5); // scalar path: whole-field replace, unchanged
+      // introductions was never touched during the window — no clobber, no reconciliation.
+      expect(store.getState().introductions).toEqual({ cardX: "recordX" });
+      errorSpy.mockRestore();
+    });
+
+    it("does not touch a map-shaped field the user never wrote to during the window", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ introductions: {} as Record<string, string> });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+
+      act(() => {
+        store.__simulateLateHydration({ introductions: { cardX: "recordX", cardY: "recordY" } });
+      });
+
+      expect(store.getState().introductions).toEqual({ cardX: "recordX", cardY: "recordY" });
       expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
       errorSpy.mockRestore();
     });

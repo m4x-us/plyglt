@@ -10706,6 +10706,7 @@ Dependency: Batch 21 complete (cross-device gate live). Theme: close a real gap 
 ---
 
 ## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [CURRENT SPRINT]
+<!-- BATCH_REMEDIATION_GATE: batch=23; paused_batch=none; paused_batch_old_tag="" -->
 Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522 live verification, 2026-08-14 evening) surfaced that Batch 22's floor guarantees a NON-EMPTY interrupt session but not a SUBSTANTIVE one — a caught-up user can get a 10-second, 1-card session, contradicting BRAND.md's "3-5 cards" framing and feeling broken (Max's words: "way too small"). Owner decision captured same evening via structured AskUserQuestion (three rounds, science-grounded — retrieval-count math, Cowan's ~4-chunk working-memory limit for new items, and the discovery that BRAND's own intro cadence table means 1 new card/day yields ~28 intro appearances/day at steady state, so starvation is a cold-start/post-vacation phenomenon):
 
 **The ratified spec — every INTERRUPT session:**
@@ -10721,7 +10722,6 @@ Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522
 
 **`/audit 23` — 2026-08-15, FAIL, severity 7 (2 critical, 4 major, 22 minor), 8-agent cycle (A, B, S, K, W, V, R + Agent N naive-reader lane).** Highest-convergence finding (independently found by 4 of 8 agents — A, B, W, R): `components/InterruptHandler.tsx`'s desktop passive notification still announces the raw, un-floored `computeDue()` count while the session that opens now always holds ≥6 cards — the exact defect this batch fixed on the server (`dueEstimate.ts`) but never touched on desktop; the sibling test file (`InterruptHandler.test.tsx`) actively pins the stale "1 card ready" text. Two severity-7 findings (F011/F012): the server push's floor-at-6 has no matching ceiling, so a backlog day announces MORE cards than the client's 8-card cap can ever deliver, and a genuinely-zero-history new Pro signup's very first interrupt gets a "6 cards ready" push while the real session (empty near-due pool, flex capped at 3) delivers at most 3. Full findings promoted below as Tasks #534-#561. Per this project's BATCH_REMEDIATION_GATE, Batch 23 is reopened as `[CURRENT SPRINT]` until a re-audit passes.
 
-<!-- BATCH_REMEDIATION_GATE: batch=23; paused_batch=none; paused_batch_old_tag="" -->
 
 ### Task #534: Fix requirements: desktop passive notification never applies the session-floor treatment its mobile sibling now gets
 
@@ -12236,6 +12236,447 @@ NEW
 - [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
 
 **Source:** Audit finding F019 — severity 4 — async
+
+---
+
+### Task #606: Fix data-loss: lib/storage.ts's useIsHydrated failsafe-plus-late-merge reconciliation (lines ~141-207) combined with hooks/useStudySess
+
+**File:** lib/storage.ts
+**Complexity:** 🔧 Full — shared by 3 persisted stores (srsStore/settingsStore/entitlementStore); fixing correctly requires redesigning the late-merge reconciliation to be per-key-aware for map-shaped fields, not a single-scope tweak
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+lib/storage.ts's useIsHydrated failsafe-plus-late-merge reconciliation (lines ~141-207) combined with hooks/useStudySession.ts's Task #587 hydration gate (lines ~143-231): when HYDRATION_FAILSAFE_MS (3000ms) elapses before real Tauri file-store hydration completes, the mount-fill effect's hydrated gate opens early and introduceCard() writes a fresh Day-1 introductions record against an empty pre-hydration map. Zustand's setState({introductions: X}) performs a shallow top-level merge, so when storage.ts's late-merge reconciliation later runs setState({introductions: preMerge.introductions}) to restore the just-written record, it replaces the ENTIRE introductions map with the single-record snapshot captured moments before real hydration merged in the user's full persisted history, silently discarding every other real introduction record the user has ever accumulated. Reachable today on any device where hydration exceeds 3000ms (cold launch, disk contention, large store). Outcome is silent, unrecoverable loss of persisted learning-history data for a real user. tests/storage.test.ts's reconciliation tests only exercise scalar fields (count:number, theme:string) where restore-the-field and restore-the-edit are identical, and hooks/useStudySession.test.ts's Task #587 tests mock persist.hasHydrated() directly, never letting the failsafe actually elapse - no test in the suite would catch this. at lib/storage.ts:useIsHydrated (failsafe + late-merge reconciliation):170.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at lib/storage.ts:useIsHydrated (failsafe + late-merge reconciliation):170
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F001 — severity 9 — data-loss
+
+---
+
+### Task #607: Fix code-quality: Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later si
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later silently overwrite' the introduction - false, per the F001 trace: the code path does run against pre-hydration defaults and the eventual reconciliation does silently overwrite, just not the one key the comment focuses on (it destroys sibling keys instead). Rule 23b: a fix's own new comment must not make a fresh false claim about the defect class it closes; this one does. at hooks/useStudySession.ts:mount-fill effect (Task #587 comment):170.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #587 comment):170
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F002 — severity 3 — code-quality
+
+---
+
+### Task #608: Fix requirements: store/srsStore.ts:88-96 (peekResumableSession) and :189-201 (clearExpiredResumableSession) were built specifically to re
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+store/srsStore.ts:88-96 (peekResumableSession) and :189-201 (clearExpiredResumableSession) were built specifically to replace getResumableSession's unsafe render-phase set() call, but have zero production callers (confirmed via repeated grep passes). The unsafe original remains live at every real call site: hooks/useStudySession.ts:59 (useState lazy initializer), hooks/useStudySession.ts:71-72 and 79-80 (useMemo bodies), and app/study/page.tsx:103-104 - a fourth site the original fix's own diagnostic comment does not mention (Rule 23a: a fix must generalize to every member of the defect class, not just the ones named). Task #597 is marked COMPLETE in tasks.md while its own acceptance-criterion checkbox is unchecked. Rule 20b's orphan-caller check, required before marking COMPLETE, was not enforced. at store/srsStore.ts:peekResumableSession / clearExpiredResumableSession (orphaned):88.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at store/srsStore.ts:peekResumableSession / clearExpiredResumableSession (orphaned):88
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
+
+**Source:** Audit finding F003 — severity 6 — requirements
+
+---
+
+### Task #609: Fix async: hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos) call getResumableSession() and read the same store's activeSession field with no hydrated guard, unlike the mount-fill effect's own guard block at lines 166-174. A useState lazy initializer runs exactly once, on first render, so it never re-evaluates once real hydration completes later. On a Tauri cold start where real hydration takes longer than the first render, activeSession reads as the pre-hydration null default, resumeDecision locks to null, and a genuine mid-mandatory-interrupt resumable session (ActiveSession exists specifically to survive 'a crash or forced interruption') is silently missed - the session restarts from scratch instead of prompting the user to resume. No test exercises real hydration timing here; all tests inject getResumableSession as a plain stub. at hooks/useStudySession.ts:resumeDecision (useState lazy initializer) / resumedQueue / resumedPos:58.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useStudySession.ts:resumeDecision (useState lazy initializer) / resumedQueue / resumedPos:58
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F004 — severity 7 — async
+
+---
+
+### Task #610: Fix async: hooks/useInterruptConfig.ts:52-115 (computeDue) reads live SRS-store state with no hydration gate, and is called from co
+
+**File:** hooks/useInterruptConfig.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useInterruptConfig.ts:52-115 (computeDue) reads live SRS-store state with no hydration gate, and is called from components/InterruptHandler.tsx's interrupt:fire listener (line 115), which has no useIsHydrated check anywhere in that file. On the same slow-hydration window as F001/F004, computeDue can decide whether to fire an interrupt based on pre-hydration empty data, producing an incorrect fire/no-fire decision for that one cycle. Impact is bounded - hydration typically completes well within the 90-minute interrupt interval, so the next cycle recomputes against real data. at hooks/useInterruptConfig.ts:computeDue:52.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useInterruptConfig.ts:computeDue:52
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
+
+**Source:** Audit finding F005 — severity 4 — async
+
+---
+
+### Task #611: Fix code-quality: hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as n
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as narrowly scoped, but sits directly beside the actual open cross-effect hydration race (F001/F004) in a way a future maintainer could mistake as addressing it. Documentation-precision gap, not a functional defect on its own. at hooks/useStudySession.ts:mount-fill effect (Task #605 comment):189.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #605 comment):189
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F006 — severity 2 — code-quality
+
+---
+
+### Task #612: Fix code-quality: app/study/page.tsx is 181 lines against CLAUDE.md's documented 150-line cap for this exact route (confirmed by hooks/use
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+app/study/page.tsx is 181 lines against CLAUDE.md's documented 150-line cap for this exact route (confirmed by hooks/useSnoozeAndExit.ts's own prior extraction history for the same file). Batch 23 added getNearDueCards wiring, the INTERRUPT_SESSION_CAP import, and Task #569/#599 comments with no compensating extraction - 31 lines over cap. Rule 1 (Small Files, routes <=150). at app/study/page.tsx:module-level (whole file):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/study/page.tsx:module-level (whole file):1
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F007 — severity 3 — code-quality
+
+---
+
+### Task #613: Fix code-quality: store/srsStore.ts is 405 lines against the 400-line services cap (Rule 1). Batch 23's getNearDueCards action plus interf
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+store/srsStore.ts is 405 lines against the 400-line services cap (Rule 1). Batch 23's getNearDueCards action plus interface/JSDoc additions pushed the file 5 lines over with no compensating extraction. Independently confirmed by three separate auditors, a 4-way convergence. at store/srsStore.ts:module-level (whole file):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/srsStore.ts:module-level (whole file):1
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
+
+**Source:** Audit finding F008 — severity 3 — code-quality
+
+---
+
+### Task #614: Fix edge-case: components/InterruptHandler.tsx:138-143 (comment) and :167-176 (mandatory-path call) claim 'the mandatory branch always
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+components/InterruptHandler.tsx:138-143 (comment) and :167-176 (mandatory-path call) claim 'the mandatory branch always shows content... so it calls this unconditionally' - contradicted by docs/INTERRUPT_ARCHITECTURE.md's own SS10.2/SS10.4 statement that the session floor 'is a target, not an unconditional guarantee... can leave a session below 6 - even, in one rare combination, completely empty,' and by components/StudyEmptyQueue.tsx existing precisely for that outcome. A real sequence exists: computeDue returns non-zero via the near-due/flex fallback, mandatory mode locks and navigates, the mount-fill effect's fill pass fails to reach the floor (stranded pause plus exhausted near-due pool), the user sees 'Nothing ready,' and the shared cross-device interrupt gate clock has already been advanced for the full interval - silently suppressing future interrupts on every device for that interval. No test in InterruptHandler.test.tsx covers the mandatory-plus-ultimately-empty interaction. at components/InterruptHandler.tsx:mandatory-mode branch:167.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at components/InterruptHandler.tsx:mandatory-mode branch:167
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F009 — severity 5 — edge-case
+
+---
+
+### Task #615: Fix error-handling: hooks/useStudySession.ts:173-201 - mountFillStartedRef.current=true (174), setQueue(initialQueue) (181), and the session
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useStudySession.ts:173-201 - mountFillStartedRef.current=true (174), setQueue(initialQueue) (181), and the sessionIds/added/introducedIds construction (200-202) all execute before the try block Tasks #592/#593 added specifically so a throw in the fill pass cannot escape uncaught or strand a partial introduction. A throw from any of these three statements both permanently skips the fill pass (the ref is already latched) and propagates uncaught - the exact failure mode #592/#593 claims to prevent. Low likelihood given today's actual card contents, but a real gap in an error-containment fix whose own dedicated test describe block claims to cover 'a throw here.' at hooks/useStudySession.ts:mount-fill effect:174.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at hooks/useStudySession.ts:mount-fill effect:174
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F010 — severity 3 — error-handling
+
+---
+
+### Task #616: Fix tests: tests/seam_studyLoop.test.ts's two page.tsx wiring tests (lines 211, 270) fail Rule 18's B7 test: despite docstrings cla
+
+**File:** tests/seam_studyLoop.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+tests/seam_studyLoop.test.ts's two page.tsx wiring tests (lines 211, 270) fail Rule 18's B7 test: despite docstrings claiming to 'reconstruct that exact page-level sequence,' both hand-copy the slice expression (isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full) inline into the test body instead of importing/exercising app/study/page.tsx's real source. Deleting the real page.tsx line does not fail either test. Real coverage for that specific line exists separately in app/study/page.test.tsx's 'caps an oversized interrupt-mode queue' test, but these two specific tests are pseudocode per Rule 18. at tests/seam_studyLoop.test.ts:page.tsx wiring tests:211.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/seam_studyLoop.test.ts:page.tsx wiring tests:211
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/seam_studyLoop.test.ts
+
+**Source:** Audit finding F011 — severity 4 — tests
+
+---
+
+### Task #617: Fix requirements: hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path)
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path) runs unconditionally for every session type including isInterrupt, with no awareness of sessionIds.size or INTERRUPT_SESSION_CAP, unlike the flex loop and near-due loop which both correctly stop at INTERRUPT_SESSION_FLOOR. Concrete sequence: app/study/page.tsx slices initialQueue to CAP (8) when the day's backlog is >=8 (common for any active or returning user), the mount effect seeds sessionIds with those 8, no card has been introduced yet that day (true most days, system-wide cap is 1/day), introduceNext() searches the entire ~30K-card cross-unit catalog with no knowledge of sessionIds, finds a candidate for almost any non-completionist user, and appends it - the session is now 9 cards. This directly contradicts BRAND.md's ratified '6-8 cards' framing and both the client (InterruptHandler.tsx:204) and server (dueEstimate.ts:120) notification clamps, which announce 'at most 8' while the session that actually opens can show 9. tests/seam_studyLoop.test.ts's closest existing test cannot catch this: its fixture seeds CardProgress for all 12 cards in allCardMap, so selectQualifyingNewCard's !cards[c.id] filter excludes every one of them, making introduceNext() structurally unable to succeed in that fixture regardless of whether a CAP guard exists. Also stated as fact, incorrectly, in docs/INTERRUPT_ARCHITECTURE.md SS10.1/SS10.7 and tests/pushDueEstimate.test.ts:115. at hooks/useStudySession.ts:mount-fill effect (normal daily-cap path):231.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useStudySession.ts:mount-fill effect (normal daily-cap path):231
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F012 — severity 7 — requirements
+
+---
+
+### Task #618: Fix code-quality: hooks/useInterruptConfig.ts's computeDue and hooks/useStudySession.ts's mount-fill effect hand-duplicate the identical 3
+
+**File:** hooks/useInterruptConfig.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useInterruptConfig.ts's computeDue and hooks/useStudySession.ts's mount-fill effect hand-duplicate the identical 3-tier 'will this session have content' decision across two files with no shared function. The code's own comments admit this exact duplication already caused two real divergence bugs in this project's history (Task #523, Task #539). Batch 23 adds a third tier to both copies independently rather than factoring out a shared predicate - the same defect class underlying F012's cap-overshoot bug (the daily-cap path in one copy has no CAP awareness that the other copy's flex/near-due tiers have). Rule 6 (duplicated logic must be extracted to a shared function) violation with a proven recurring cost. at hooks/useInterruptConfig.ts:computeDue / mount-fill effect (duplicated decision logic):52.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useInterruptConfig.ts:computeDue / mount-fill effect (duplicated decision logic):52
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
+
+**Source:** Audit finding F013 — severity 5 — code-quality
+
+---
+
+### Task #619: Fix async: hooks/useStudySession.ts's mount-fill effect - up to 3 sequential introduceCard() calls within one effect pass each trig
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useStudySession.ts's mount-fill effect - up to 3 sequential introduceCard() calls within one effect pass each trigger an independent async persist write to Tauri's file store. If those writes resolve out of order (plausible under Tauri's async IPC), a stale earlier snapshot can silently overwrite a newer one on disk. Distinct from F001: this does not depend on the 3-second hydration failsafe firing, only on ordinary async write-ordering across multiple synchronous set() calls in the same render pass. Not concretely traced to an actual out-of-order resolution in this codebase, unlike F001's fully-traced mechanism - a real risk, unconfirmed occurrence. at hooks/useStudySession.ts:mount-fill effect (multiple introduceCard persist writes):173.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useStudySession.ts:mount-fill effect (multiple introduceCard persist writes):173
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F014 — severity 5 — async
+
+---
+
+### Task #620: Fix performance: hooks/useStudySession.ts's near-due fill step calls getNearDueCards(Number.MAX_SAFE_INTEGER), forcing an O(n log n) filt
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useStudySession.ts's near-due fill step calls getNearDueCards(Number.MAX_SAFE_INTEGER), forcing an O(n log n) filter-and-sort over the entire ~30K-card catalog synchronously inside a mount effect on every interrupt-session open. The code's own comment admits this is 'not yet a measured real-world problem.' Performance concern, not a correctness bug, at the current catalog size. at hooks/useStudySession.ts:mount-fill effect (getNearDueCards call):200.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix performance issue at hooks/useStudySession.ts:mount-fill effect (getNearDueCards call):200
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F015 — severity 3 — performance
+
+---
+
+### Task #621: Fix performance: supabase/functions/send-interrupt-notifications' dispatch.ts - removing the zero-estimate skip means every gated-eligibl
+
+**File:** supabase/functions/send-interrupt-notifications/dispatch.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+supabase/functions/send-interrupt-notifications' dispatch.ts - removing the zero-estimate skip means every gated-eligible token proceeds through claimToken+send on every cron tick with no new throttle added to compensate. The file's own comment admits this 'has simply not yet been measured against higher real volume.' Performance/scale concern, not a correctness bug at current volume. at supabase/functions/send-interrupt-notifications/dispatch.ts:dispatch (zero-estimate skip removed):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix performance issue at supabase/functions/send-interrupt-notifications/dispatch.ts:dispatch (zero-estimate skip removed):1
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dispatch.ts
+
+**Source:** Audit finding F016 — severity 3 — performance
+
+---
+
+### Task #622: Fix edge-case: hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3 new cards, those introductions are permanently recorded (consuming that day's flex-daily-ceiling) even though the queue the user ultimately sees may end up smaller than the flex effort spent. Edge case gated behind getNearDueCards actually throwing, which does not occur under current inputs. at hooks/useStudySession.ts:mount-fill effect (flex loop + getNearDueCards throw):200.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useStudySession.ts:mount-fill effect (flex loop + getNearDueCards throw):200
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F017 — severity 3 — edge-case
+
+---
+
+### Task #623: Fix requirements: supabase/functions/send-interrupt-notifications - removing the server's zero-card skip (Batch 23 removed skippedNoCards
+
+**File:** supabase/functions/send-interrupt-notifications
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+supabase/functions/send-interrupt-notifications - removing the server's zero-card skip (Batch 23 removed skippedNoCards per this session's own documentation) means a genuinely fully-caught-up Pro user now receives a recurring, contentless 'Cards ready' push every interval indefinitely. This directly contradicts BRAND.md's stress-free/no-pressure principle and creates real notification-fatigue and uninstall risk for real users who have nothing to review - reachable today for any Pro user who reaches zero due content, an expected steady-state outcome of the product working correctly. at supabase/functions/send-interrupt-notifications:dispatch (zero-card skip removed, server side):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at supabase/functions/send-interrupt-notifications:dispatch (zero-card skip removed, server side):1
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications
+
+**Source:** Audit finding F018 — severity 5 — requirements
+
+---
+
+### Task #624: Fix code-quality: FLOOR/CAP constants (INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP equivalents) are duplicated between the Node client c
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+FLOOR/CAP constants (INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP equivalents) are duplicated between the Node client codebase and the Deno edge function, guarded against drift only by a test-suite assertion, not a deploy-time guard. If the edge function is ever deployed independently of a full test-suite run, the two copies can silently diverge with no build-time signal. at supabase/functions/send-interrupt-notifications/dueEstimate.ts:FLOOR/CAP constants (Node/Deno duplication):120.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:FLOOR/CAP constants (Node/Deno duplication):120
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F019 — severity 4 — code-quality
+
+---
+
+### Task #625: Fix code-quality: docs/INTERRUPT_ARCHITECTURE.md SS10.2 documents the mount-fill guard as mountFillDoneRef with dependency array [allCardM
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+docs/INTERRUPT_ARCHITECTURE.md SS10.2 documents the mount-fill guard as mountFillDoneRef with dependency array [allCardMap], while the actual shipped code in the same diff uses mountFillStartedRef with dependency array [allCardMap, hydrated]. The doc was never updated for this same-diff's own Wave 5 rename. The old name also survives in a test-file comment. at docs/INTERRUPT_ARCHITECTURE.md:SS10.2 (mount-fill guard documentation):357.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:SS10.2 (mount-fill guard documentation):357
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F020 — severity 2 — code-quality
+
+---
+
+### Task #626: Fix security: interrupt_gate_events' RLS policies (auth.uid() = user_id) are correctly written and verified enforced, but this batch a
+
+**File:** supabase/migrations/20260813000000_interrupt_gate_events.sql
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 6)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+interrupt_gate_events' RLS policies (auth.uid() = user_id) are correctly written and verified enforced, but this batch adds no contract test asserting non-owner denial for that table, per Rule 19a (every write path requires a deny test regardless of whether the rules diff changed). Not a live gap: the policy predates this batch and was independently re-verified correct by Agent S. at supabase/migrations/20260813000000_interrupt_gate_events.sql:RLS policies (interrupt_gate_events):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix security issue at supabase/migrations/20260813000000_interrupt_gate_events.sql:RLS policies (interrupt_gate_events):1
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/migrations/20260813000000_interrupt_gate_events.sql
+
+**Source:** Audit finding F021 — severity 2 — security
 
 ---
 

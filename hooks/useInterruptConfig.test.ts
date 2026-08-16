@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Unit, Card } from "@/content/types";
 
-const { mockUseSettingsStore, mockGetState, mockUseAuthStore, mockUseSyncStore } = vi.hoisted(() => ({
+const { mockUseSettingsStore, mockGetState, mockUseAuthStore, mockUseSyncStore, mockHasHydrated } = vi.hoisted(() => ({
   mockUseSettingsStore: vi.fn(),
   mockGetState: vi.fn(),
   // Task #529: selector-style mocks — call the selector against a fixed default state
@@ -15,6 +15,11 @@ const { mockUseSettingsStore, mockGetState, mockUseAuthStore, mockUseSyncStore }
   // live Supabase onAuthStateChange listener at module load) or store/syncStore.ts.
   mockUseAuthStore: vi.fn((selector: (s: { userId: string | null }) => unknown) => selector({ userId: null })),
   mockUseSyncStore: vi.fn((selector: (s: { deviceId: string | null }) => unknown) => selector({ deviceId: null })),
+  // Task #610 (Wave 6): useInterruptConfig now calls useIsHydrated(useSRSStore) —
+  // defaults to true (hydrated) so every existing test in this file, written
+  // before hydration mattered to computeDue, is unaffected; the dedicated
+  // hydration-gate describe block below overrides this per-test.
+  mockHasHydrated: vi.fn(() => true),
 }));
 
 vi.mock("@/store/settingsStore", () => ({
@@ -23,7 +28,16 @@ vi.mock("@/store/settingsStore", () => ({
 }));
 
 vi.mock("@/store/srsStore", () => ({
-  useSRSStore: { getState: mockGetState },
+  useSRSStore: {
+    getState: mockGetState,
+    // Task #610 (Wave 6): useIsHydrated's useSyncExternalStore reads
+    // store.persist.hasHydrated()/onFinishHydration() directly — this mock must
+    // provide both or useInterruptConfig() throws on render.
+    persist: {
+      hasHydrated: mockHasHydrated,
+      onFinishHydration: () => () => {},
+    },
+  },
 }));
 
 vi.mock("@/store/authStore", () => ({
@@ -102,6 +116,7 @@ beforeEach(() => {
     idleThresholdMinutes: 15,
   });
   mockGetState.mockReturnValue(makeState());
+  mockHasHydrated.mockReturnValue(true);
 });
 
 describe("useInterruptConfig — computeDue", () => {
@@ -290,5 +305,35 @@ describe("useInterruptConfig — userId / deviceId", () => {
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.userId).toBe("user-123");
     expect(result.current.deviceId).toBe("device-abc");
+  });
+});
+
+// Task #610 (Wave 6): computeDue reads live SRS-store state with no hydration gate,
+// and is called from components/InterruptHandler.tsx's interrupt:fire listener, which
+// has no useIsHydrated check of its own. computeDue must return 0 (never a false-
+// positive fire) whenever the store has not finished hydrating, regardless of what the
+// live (possibly pre-hydration-default) state would otherwise report.
+
+describe("useInterruptConfig — computeDue hydration gate (Task #610)", () => {
+  it("returns 0 while the SRS store has not finished hydrating, even though the live state has real due content", () => {
+    mockHasHydrated.mockReturnValue(false);
+    const unit = makeUnit("u1", [makeCard("u1-c1")]);
+    mockGetState.mockReturnValue(makeState({ dueCardIds: ["u1-c1"] }));
+
+    const { result } = renderHook(() => useInterruptConfig());
+
+    // Deletion Test: without the hydration gate, this would return 1 (the due card),
+    // exactly the pre-#610 behavior — a fire decision made from a store state that
+    // has not actually finished hydrating yet.
+    expect(result.current.computeDue([unit])).toBe(0);
+  });
+
+  it("computes the real due count once hydration completes", () => {
+    mockHasHydrated.mockReturnValue(true);
+    const unit = makeUnit("u1", [makeCard("u1-c1")]);
+    mockGetState.mockReturnValue(makeState({ dueCardIds: ["u1-c1"] }));
+
+    const { result } = renderHook(() => useInterruptConfig());
+    expect(result.current.computeDue([unit])).toBe(1);
   });
 });

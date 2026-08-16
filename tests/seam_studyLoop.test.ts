@@ -181,6 +181,10 @@ describe("seam: interrupt-session floor-fill — real useStudySession + real srs
         isInterrupt: true,
         unitId: UNIT.id,
         getResumableSession: store.getResumableSession,
+        // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
+        // migrating resume-decision resolution to the render-safe pair.
+        peekResumableSession: store.peekResumableSession,
+        clearExpiredResumableSession: store.clearExpiredResumableSession,
         clearActiveSession: store.clearActiveSession,
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,
@@ -248,6 +252,10 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         isInterrupt,
         unitId: "",
         getResumableSession: store.getResumableSession,
+        // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
+        // migrating resume-decision resolution to the render-safe pair.
+        peekResumableSession: store.peekResumableSession,
+        clearExpiredResumableSession: store.clearExpiredResumableSession,
         clearActiveSession: store.clearActiveSession,
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,
@@ -311,6 +319,10 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         isInterrupt,
         unitId: "",
         getResumableSession: store.getResumableSession,
+        // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
+        // migrating resume-decision resolution to the render-safe pair.
+        peekResumableSession: store.peekResumableSession,
+        clearExpiredResumableSession: store.clearExpiredResumableSession,
         clearActiveSession: store.clearActiveSession,
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,

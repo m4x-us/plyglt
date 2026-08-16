@@ -295,10 +295,57 @@ describe("dispatchNotifications", () => {
 
       // No events → estimate 0 → pre-Batch-23 this skipped (no send, no gate);
       // now the send happens (with a count-free body, Task #545) and the
-      // 90-minute gate must still be written.
+      // gate must still be written.
       await dispatchNotifications([token], new Map(), NOW, deps);
 
       expect(deps.recordGateFired).toHaveBeenCalledTimes(1);
+    });
+
+    // Task #623: a zero server-side estimate no longer uses the token's own (short) normal
+    // interval for the gate — it widens to ZERO_ESTIMATE_GATE_MINUTES (24h) instead, so a
+    // genuinely caught-up user gets at most one contentless push per day rather than one
+    // every interrupt_interval_minutes indefinitely. Deletion Test: reverting dispatch.ts's
+    // gateMinutes ternary back to always using token.interrupt_interval_minutes makes this
+    // fail (effective_until would be "2026-06-15T11:30:00.000Z", 90 min out, not 24h).
+    it("widens the gate to 24 hours (not the token's normal 90-minute interval) after a zero-estimate send", async () => {
+      const token = makeToken({ user_id: "u1", device_id: "device-a", interrupt_interval_minutes: 90 });
+      const deps = makeDeps();
+
+      await dispatchNotifications([token], new Map(), NOW, deps);
+
+      expect(deps.recordGateFired).toHaveBeenCalledWith(
+        "u1",
+        "device-a",
+        "2026-06-15T10:00:00.000Z", // NOW
+        "2026-06-16T10:00:00.000Z" // NOW + 24 hours, not NOW + 90 minutes
+      );
+    });
+
+    // A non-zero estimate must keep using the token's own normal interval — the 24h backoff
+    // is scoped strictly to the zero-estimate case, never a real send.
+    it("still uses the token's own normal interval (not the 24h backoff) when the estimate is non-zero", async () => {
+      const token = makeToken({ user_id: "u1", device_id: "device-a", interrupt_interval_minutes: 90 });
+      const deps = makeDeps();
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(deps.recordGateFired).toHaveBeenCalledWith(
+        "u1", "device-a", "2026-06-15T10:00:00.000Z", "2026-06-15T11:30:00.000Z"
+      );
+    });
+
+    // A user whose OWN configured interval already exceeds the daily backoff must not have
+    // their gate shrunk to 24h — Math.max keeps whichever is longer.
+    it("does not shrink the gate below a token's own interval when that interval already exceeds 24 hours", async () => {
+      const token = makeToken({ user_id: "u1", device_id: "device-a", interrupt_interval_minutes: 60 * 40 }); // 40h
+      const deps = makeDeps();
+
+      await dispatchNotifications([token], new Map(), NOW, deps);
+
+      expect(deps.recordGateFired).toHaveBeenCalledWith(
+        "u1", "device-a", "2026-06-15T10:00:00.000Z", "2026-06-17T02:00:00.000Z" // NOW + 40h
+      );
     });
 
     it("does not call recordGateFired when claimToken loses the race (never sent)", async () => {

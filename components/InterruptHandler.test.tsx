@@ -308,6 +308,21 @@ describe("InterruptHandler", () => {
       expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
     });
 
+    // Task #614: this component navigates to /study?mode=interrupt and has no visibility
+    // into whether the mount-fill effect on the other side of that navigation actually
+    // reaches the session floor — that fill logic lives entirely in
+    // hooks/useStudySession.ts, which this test file does not render. The assertion above
+    // ("is called exactly once when real content is shown on the mandatory path") already
+    // demonstrates the real, documented behavior this task addresses: markFired() fires as
+    // soon as computeDue(units) > 0 and isMandatory is true — unconditionally, before
+    // navigation, with no downstream confirmation that the opened session ends up non-empty.
+    // A synthetic "mandatory + ultimately empty" test cannot be written meaningfully at this
+    // layer without either rendering the real study route (out of this file's scope) or
+    // faking a signal InterruptHandler.tsx does not currently receive from anywhere — see
+    // this file's own comment above the `markFired` definition (Task #614) for why closing
+    // this gap for real requires a change in app/study/page.tsx or useStudySession.ts,
+    // both owned by a different stream this wave.
+
     it("is called exactly once when real content is shown on the passive (notification) path", async () => {
       useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
       mockUseLangPack.mockReturnValueOnce({

@@ -13,6 +13,40 @@ import { INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
 
 export { isInDnd };
 
+/**
+ * Task #618 (Wave 6): the shared "is the flex (past-normal-daily-cap) new-card
+ * introduction gate open today" check. This exact condition was previously
+ * hand-duplicated between this file's computeDue and hooks/useStudySession.ts's
+ * mount-fill effect with no shared function — a duplication this project's own
+ * history already blames for two real divergence bugs: Task #523 (the near-due
+ * fallback tier existed in one file and not the other) and Task #539 (this
+ * flex gate — stranded-pause + INTERRUPT_FLEX_DAILY_MAX ceiling — existed in one
+ * file and not the other). Both call sites now import this single function
+ * instead of each independently calling
+ * `canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX)`, so a future change to
+ * what "flex is allowed" means (e.g. Wave 7's #617, adding
+ * lib/queue.ts's INTERRUPT_SESSION_CAP-awareness) only needs to happen in one
+ * place and cannot miss the sibling call site by construction.
+ *
+ * Deliberately narrow — this is the ONE condition that has actually drifted
+ * before, not an attempt to unify the two files' entire 3-tier decision. The
+ * "does a qualifying card exist" search itself legitimately differs in scope
+ * between the two callers (computeDue probes per-unit via getNewCards;
+ * useStudySession probes the whole session's allCardMap via
+ * selectQualifyingNewCard) and is left in each file — forcing those together
+ * would trade real, working code for a forced abstraction. Natural long-term
+ * home is probably lib/queue.ts, pure, alongside INTERRUPT_FLEX_DAILY_MAX
+ * itself (or a new small lib/ module) — kept here for now since lib/queue.ts
+ * was outside this stream's file ownership this wave; relocating it later is a
+ * pure move, not a behavior change.
+ */
+export function canFlexIntroduceToday(
+  canIntroduceNewCard: (today: string, maxPerDay?: number) => boolean,
+  today: string
+): boolean {
+  return canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX);
+}
+
 export function useInterruptConfig() {
   const {
     interruptEnabled,
@@ -51,6 +85,24 @@ export function useInterruptConfig() {
   // "yes" here never introduces a card without a fresh, same-tick recheck at consumption time.
   function computeDue(units: Unit[]): number {
     if (units.length === 0) return 0;
+    // Task #610 (Wave 6): computeDue reads live SRS-store state with no hydration
+    // gate, and is called from components/InterruptHandler.tsx's interrupt:fire
+    // event-handler closure — NOT render output — so this checks the store's own
+    // live hydration flag directly at call time (a plain method call, not a React
+    // hook), the same style as the `useSRSStore.getState()` read immediately
+    // below, rather than a React-reactive value captured at last render (which
+    // would need a new hook call in useInterruptConfig() purely to serve one
+    // event-time check). On the same slow-hydration window hooks/useStudySession.ts's
+    // Task #587 fix addresses (Tauri's async file-store IPC), this stops
+    // computeDue from deciding fire/no-fire off pre-hydration {} defaults for one
+    // cycle. Returning 0 is the safe direction: it can only cause a missed/
+    // delayed fire this one cycle, never a false-positive fire promising content
+    // that isn't really there — the next cycle (well within BRAND.md's 90-minute
+    // interval) recomputes against real, hydrated data regardless. Optional
+    // chaining on `.persist` is defense against a test double that stubs
+    // useSRSStore without the real persist() wrapper (a genuine Zustand
+    // persist-created store always has it) — never undefined in production.
+    if (useSRSStore.persist?.hasHydrated() === false) return 0;
     const state = useSRSStore.getState();
     const today = localDateStr();
 
@@ -78,15 +130,18 @@ export function useInterruptConfig() {
     // matching flexed introduction on open — see hooks/useStudySession.ts's mount effect, which
     // uses the identical "would this interrupt session otherwise be empty" trigger.
     if (reviewDue === 0 && introDue === 0 && hasQualifyingContent === 0) {
-      // Task #539: the same strandedAcrossDays pause AND cross-session daily
-      // ceiling (INTERRUPT_FLEX_DAILY_MAX) that gates hooks/useStudySession.ts's
+      // Task #539 (shared via canFlexIntroduceToday, Task #618/Wave 6): the same
+      // strandedAcrossDays pause AND cross-session daily ceiling
+      // (INTERRUPT_FLEX_DAILY_MAX) that gates hooks/useStudySession.ts's
       // mount-effect flex fill (Task #538/#551) must gate this fire-gate too —
       // getNewCards alone only filters on FSRS progress and prerequisites, never
       // on introduction-pause state, so without this check computeDue could fire
       // an interrupt promising new-card content that the session's own flex
       // fill would refuse to honor (a stranded pause, or today's flex ceiling
-      // already reached by earlier sessions).
-      const flexIntroAllowed = state.canIntroduceNewCard(today, INTERRUPT_FLEX_DAILY_MAX);
+      // already reached by earlier sessions). Both files now call the same
+      // canFlexIntroduceToday (defined above) instead of hand-rolling this
+      // condition — see its own doc comment for why that matters.
+      const flexIntroAllowed = canFlexIntroduceToday(state.canIntroduceNewCard, today);
       if (flexIntroAllowed) {
         for (const u of units) {
           if (state.getNewCards(u.cards, 1).length > 0) {
@@ -100,7 +155,12 @@ export function useInterruptConfig() {
       // introductions AND nothing is due can still hold a real session. Without
       // this mirror, the fire-gate would stay silent in a scenario the session
       // itself can serve — the exact computeDue/buildQueue divergence Task #523
-      // existed to close.
+      // existed to close. This "tier 3" search is NOT extracted into a shared
+      // function like canFlexIntroduceToday above — it legitimately searches a
+      // different shape (per-unit here vs. the session's whole allCardMap in
+      // hooks/useStudySession.ts's near-due loop) — but if you change WHAT counts
+      // as near-due-fallback-worthy here, check that mount-fill effect's matching
+      // "Task #541" block too, and vice versa (Task #618).
       if (hasQualifyingContent === 0) {
         for (const u of units) {
           if (state.getNearDueCards(u.cards, 1).length > 0) {

@@ -4,8 +4,8 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useMemo } from "react";
-import { useSRSStore, unitMasteryPct, MASTERY_GATE, localDateStr } from "@/store/srsStore";
+import { Suspense } from "react";
+import { useSRSStore, localDateStr } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSyncStore } from "@/store/syncStore";
@@ -16,79 +16,46 @@ import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
 import { exitMandatoryMode } from "@/lib/tauriInterrupt";
-import { buildQueue, findUnitName, INTERRUPT_SESSION_CAP } from "@/lib/queue";
+import { findUnitName } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
+import { useStudyQueueSetup } from "@/hooks/useStudyQueueSetup";
+import { computeStudyDoneScreenProps } from "@/hooks/studyDoneScreenProps";
 import { useSnoozeAndExit } from "@/hooks/useSnoozeAndExit";
 import { useSync } from "@/hooks/useSync";
 import { tierLabel } from "@/lib/cardLabels";
-
 
 function StudyInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const unitId = searchParams.get("unit") ?? "";
-  // Task #595: `mode` (and by extension isInterrupt/isGlobal below) is read directly
-  // from the URL with no entitlement/Pro check gating access to interrupt or global
-  // sessions — intentional, not a gap. CLAUDE.md §5: entitlement in this app is a
-  // client-only, owner-confirmed honor-system trade-off; a user who wants to bypass
-  // it already can, the same way they could edit their own persisted entitlement
-  // store directly. Do not add a gate here.
+  // Task #595: `mode` (isInterrupt/isGlobal below) has no entitlement/Pro gate —
+  // intentional (CLAUDE.md §5's client-only honor-system model), not a gap.
   const mode = searchParams.get("mode");
   const isGlobal = mode === "global";
   const isInterrupt = mode === "interrupt";
 
-  const { getDueCards, getNewCards, getNearDueCards, commitSession, cards, clearActiveSession, getResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
+  const { getDueCards, getNewCards, getNearDueCards, commitSession, cards, clearActiveSession, getResumableSession, peekResumableSession, clearExpiredResumableSession, recordIntroductionResult, introductions, getIntroductionDueCardIds, canIntroduceNewCard, introduceCard } = useSRSStore();
   const enqueueReviewEventRaw = useSyncStore((s) => s.enqueueReviewEvent);
   const { triggerSyncSoon } = useSync();
-  // Nudges a sync soon after every review (hooks/useSync.ts's debounce) instead of
-  // waiting for the periodic timer — Task #518's live test showed a review sitting
-  // unsynced for minutes reads as broken.
+  // Task #518: nudges a sync soon after every review instead of waiting for the periodic timer.
   const enqueueReviewEvent: typeof enqueueReviewEventRaw = (...args) => { enqueueReviewEventRaw(...args); triggerSyncSoon(); };
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
   const handleSnooze = useSnoozeAndExit(snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
-  const allCards = useMemo(
-    () => (isGlobal || isInterrupt ? ALL_UNITS.flatMap((u) => u.cards) : UNIT_MAP[unitId]?.cards ?? []),
-    [isGlobal, isInterrupt, unitId, ALL_UNITS, UNIT_MAP]
-  );
+  // Task #612 (Wave 6): card-scope/prerequisite/initial-queue computation extracted to
+  // hooks/useStudyQueueSetup.ts to keep this route under CLAUDE.md's 150-line cap —
+  // see that file's own header for the extraction rationale (same pattern as
+  // hooks/useSnoozeAndExit.ts's earlier extraction from this file).
+  const { allCards, unit, initialQueue, allCardMap } = useStudyQueueSetup({
+    isGlobal, isInterrupt, unitId, allUnits: ALL_UNITS, unitMap: UNIT_MAP, cards,
+    getDueCards, getNewCards, getIntroductionDueCardIds,
+  });
 
-  const unit = isGlobal || isInterrupt ? null : (UNIT_MAP[unitId] ?? null);
-
-  const prereqsMet = useMemo(() => {
-    if (isGlobal || isInterrupt || !unit) return true;
-    return unit.prerequisiteUnits.every((uid) => {
-      const prereqUnit = UNIT_MAP[uid];
-      return prereqUnit ? unitMasteryPct(prereqUnit, cards) >= MASTERY_GATE : true;
-    });
-  }, [isGlobal, isInterrupt, unit, cards, UNIT_MAP]);
-
-  const initialQueue = useMemo(() => {
-    if (!prereqsMet) return [];
-    const full = buildQueue(allCards, getDueCards, getNewCards, isGlobal || isInterrupt, getIntroductionDueCardIds);
-    return isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full;
-  }, [isGlobal, isInterrupt, prereqsMet, allCards, getDueCards, getNewCards, getIntroductionDueCardIds]);
-
-  const allCardMap = useMemo(
-    () => Object.fromEntries(allCards.map((c) => [c.id, c])),
-    [allCards]
-  );
-
-  // Task #542 (corrected by Task #583): getNearDueCards filters+sorts the full `allCards`
-  // catalog (interrupt/global mode: every card across every unit — ~30,609 cards corpuswide
-  // as of CURRICULUM.md's 2026-08-03 count) on every call. This specific binding is called
-  // exactly ONCE per useStudySession mount — hooks/useStudySession.ts's interrupt near-due
-  // fill loop calls it a single time and iterates the returned array, it does not call the
-  // function itself repeatedly. A separate, unrelated per-unit-loop call pattern exists in
-  // hooks/useInterruptConfig.ts's computeDue, which calls the real store's getNearDueCards
-  // directly (not through this binding) once per unit passed to it — that count scales with
-  // the number of units, not a fixed "4x." O(n log n) per call, no memoization/index — an
-  // accepted cost at the current curriculum scale (each call is a few ms at most), not yet a
-  // measured real-world problem. Revisit (e.g. pre-sort allCards by dueDate once instead of
-  // re-filtering+re-sorting per call) if the curriculum grows past ~100K cards or this
-  // measurably shows up in profiling.
+  // Task #542/#583/#620: this binding scans+sorts the full allCards catalog once per mount —
+  // see hooks/useStudySession.ts's near-due fill step for the cost/accepted-debt analysis.
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
+    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
   const hydrated = useIsHydrated(useSRSStore);
   if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
@@ -101,7 +68,11 @@ function StudyInner() {
   if (queue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
   if (resumeDecision === "pending") {
-    const saved = getResumableSession();
+    // Task #608 (Wave 6): peekResumableSession (store/srsStore.ts, Task #597) is the
+    // render-phase-safe read — getResumableSession's set() side effect on an
+    // expired session is unsafe to call during render (StrictMode/concurrent
+    // rendering can run this twice or discard it).
+    const saved = peekResumableSession();
     return (
       <StudyResumePrompt
         resumePos={saved?.position ?? 0}
@@ -115,23 +86,20 @@ function StudyInner() {
   const isDone = pos >= queue.length;
 
   if (isDone) {
-    const pct = sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0;
-    const unitCards = isGlobal || isInterrupt ? ALL_UNITS.flatMap((u) => u.cards) : unit!.cards;
+    // Task #612 (Wave 6): derived-props computation extracted to
+    // hooks/studyDoneScreenProps.ts (a plain function, not a hook — see its own
+    // header for why) to keep this route under CLAUDE.md's 150-line cap.
+    const { pct, stillDue, onStudyMore } = computeStudyDoneScreenProps({
+      isGlobal, isInterrupt, unit, allUnits: ALL_UNITS, allCards,
+      sessionCorrect, sessionTotal, getDueCards, getNewCards, getIntroductionDueCardIds, resetToQueue,
+    });
     return (
       <StudyDoneScreen
         isInterrupt={isInterrupt} isGlobal={isGlobal} unit={unit}
         sessionCorrect={sessionCorrect} sessionTotal={sessionTotal} pct={pct}
-        stillDue={getDueCards(unitCards).length}
+        stillDue={stillDue}
         onHome={() => router.push("/learn")}
-        // Task #569: disabled for interrupt sessions too, not just global ones. An interrupt
-        // session's `allCards` is the full cross-unit catalog, and this rebuild calls
-        // buildQueue with globalMode=false (interleaving up to SESSION_NEW_LIMIT new cards)
-        // with no INTERRUPT_SESSION_CAP slice applied — unlike initialQueue's construction
-        // above, which does slice interrupt queues to the cap. "Study more" doesn't fit an
-        // interrupt's own framing anyway (BRAND.md: a short, bounded burst, not an open-ended
-        // session) — the fix is to not offer it here, matching every other interrupt-specific
-        // cap this file already enforces.
-        onStudyMore={!isGlobal && !isInterrupt ? () => resetToQueue(buildQueue(allCards, getDueCards, getNewCards, false, getIntroductionDueCardIds)) : null}
+        onStudyMore={onStudyMore}
         onExitInterrupt={exitMandatoryMode}
       />
     );

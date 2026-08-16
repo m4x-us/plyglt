@@ -88,6 +88,14 @@ export function createPlatformStorage(storeName: string): StateStorage<Promise<v
 
 // ── Hydration helper ──────────────────────────────────────────────────────────
 
+// Task #606: identifies a map-shaped top-level field (e.g. srsStore's `introductions`)
+// so the late-merge reconciliation below can diff it per-subkey instead of replacing it
+// wholesale. Deliberately excludes arrays and null — this app's persisted stores only
+// ever use plain `Record<string, X>` objects for map-shaped fields.
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 type PersistApi<T = unknown> = {
   // getState/setState/subscribe are the plain Zustand store API (present on every real
   // store hook); optional here only so existing minimal test doubles that supply just
@@ -124,19 +132,52 @@ export const HYDRATION_FAILSAFE_MS = 3000;
  * Usage: const hydrated = useIsHydrated(useSRSStore);
  *        if (!hydrated) return <LoadingScreen />;
  */
-export function useIsHydrated<T extends object = Record<string, unknown>>(store: PersistApi<T>): boolean {
-  // useSyncExternalStore (not useState+useEffect) is the correct primitive here: it
-  // re-reads getSnapshot() itself immediately after subscribing and forces a re-render
-  // if the value changed in the window between the initial render and the subscribe
-  // call — exactly the render/effect race that stranded hydrated=false forever when
-  // hydration finished in that window (#406). Mirroring that re-check by hand with a
-  // synchronous setState call in the effect body is also a react-hooks/set-state-in-effect
-  // violation; useSyncExternalStore has no such call.
-  const hydrated = useSyncExternalStore(
+// useSyncExternalStore (not useState+useEffect) is the correct primitive here: it
+// re-reads getSnapshot() itself immediately after subscribing and forces a re-render
+// if the value changed in the window between the initial render and the subscribe
+// call — exactly the render/effect race that stranded hydrated=false forever when
+// hydration finished in that window (#406). Mirroring that re-check by hand with a
+// synchronous setState call in the effect body is also a react-hooks/set-state-in-effect
+// violation; useSyncExternalStore has no such call. Shared by useIsHydrated (below) and
+// useIsHydratedStrict (Task #606) so both track the exact same real hydration signal.
+function useRealHydrated<T extends object>(store: PersistApi<T>): boolean {
+  return useSyncExternalStore(
     (onStoreChange) => store.persist.onFinishHydration(onStoreChange),
     () => store.persist.hasHydrated(),
     () => false // getServerSnapshot: no persisted storage exists during SSR
   );
+}
+
+/**
+ * Task #606 (severity 9 data-loss fix): the STRICT hydration signal — reflects ONLY
+ * real `persist.hasHydrated()`, NEVER useIsHydrated's HYDRATION_FAILSAFE_MS fallback.
+ *
+ * useIsHydrated's failsafe exists to unblock READS: don't leave the user staring at a
+ * loading screen forever if storage is stuck. That is a reasonable trade-off for reads.
+ * It is NOT a reasonable trade-off for a consumer that WRITES new persisted state —
+ * e.g. hooks/useStudySession.ts's mount-fill effect calling introduceCard(), which does
+ * `set((s) => ({introductions: {...s.introductions, [cardId]: record}}))`. If that write
+ * fires against the pre-hydration empty default (because the failsafe opened the gate
+ * before real hydration finished), the late-merge reconciliation below is the only thing
+ * standing between that write and silently losing it — and for a top-level scalar field
+ * that reconciliation is exact, but it used to blanket-replace a map-shaped field
+ * (like `introductions`) with the single-record pre-hydration snapshot, discarding every
+ * other real persisted entry. The per-subkey merge added below closes that specific hole,
+ * but the root-cause fix is to never let a write race ahead of real hydration in the
+ * first place: a consumer that creates/mutates persisted state should gate on THIS
+ * export, not the lenient `useIsHydrated()`, so it waits for the genuine thing instead of
+ * leaning on reconciliation-after-the-fact as its only safety net.
+ *
+ * Wiring this into hooks/useStudySession.ts's mount-fill effect is a coordination item
+ * for whichever stream owns that file next — this task ships the strict signal itself,
+ * not every call site that should switch to it (see completion.md).
+ */
+export function useIsHydratedStrict<T extends object = Record<string, unknown>>(store: PersistApi<T>): boolean {
+  return useRealHydrated(store);
+}
+
+export function useIsHydrated<T extends object = Record<string, unknown>>(store: PersistApi<T>): boolean {
+  const hydrated = useRealHydrated(store);
 
   // Bounded fallback for a hydration that never finishes (see HYDRATION_FAILSAFE_MS
   // above). setFailsafeExpired is only ever called from the setTimeout callback below,
@@ -183,9 +224,41 @@ export function useIsHydrated<T extends object = Record<string, unknown>>(store:
           const clobbered: Partial<T> = {};
           for (const key of Object.keys(snapshotAtExpiry as object) as (keyof T)[]) {
             const userTouched = !Object.is(preMerge[key], snapshotAtExpiry[key]);
-            if (userTouched && !Object.is(postMerge[key], preMerge[key])) {
-              clobbered[key] = preMerge[key];
+            if (!userTouched || Object.is(postMerge[key], preMerge[key])) continue;
+
+            // Task #606 (severity 9 data-loss fix): a top-level field whose value is a
+            // plain object (e.g. srsStore's `introductions` map) must NOT be restored
+            // with a blanket whole-field replace the way a scalar field safely can be.
+            // `preMerge[key]` here is only the single-record snapshot from the instant
+            // before real hydration's merge — it does not contain the user's full
+            // persisted history the way `postMerge[key]` (the real, fully-hydrated
+            // value) does. Replacing postMerge[key] outright with preMerge[key] would
+            // restore the live write while silently discarding every other real
+            // persisted entry — exactly the bug this task exists to close. Instead:
+            // keep postMerge[key] as the base and overlay only the specific sub-keys
+            // that actually changed between snapshotAtExpiry[key] and preMerge[key] —
+            // i.e. what the live write during the failsafe window actually added or
+            // changed — preserving both the real persisted history and the write.
+            // Scoped to one level of nesting and additive/changed sub-keys only (not
+            // sub-key deletions) — the only shape this app's persisted stores actually
+            // use for map-shaped fields, and the exact shape of the reported bug.
+            const snapVal = snapshotAtExpiry[key];
+            const preVal = preMerge[key];
+            const postVal = postMerge[key];
+            if (isPlainObject(snapVal) && isPlainObject(preVal) && isPlainObject(postVal)) {
+              const subDiff: Record<string, unknown> = {};
+              for (const subKey of Object.keys(preVal)) {
+                if (!Object.is(preVal[subKey], snapVal[subKey])) {
+                  subDiff[subKey] = preVal[subKey];
+                }
+              }
+              if (Object.keys(subDiff).length > 0) {
+                clobbered[key] = { ...postVal, ...subDiff } as T[typeof key];
+              }
+              continue;
             }
+
+            clobbered[key] = preVal;
           }
           if (Object.keys(clobbered).length > 0) {
             console.error(

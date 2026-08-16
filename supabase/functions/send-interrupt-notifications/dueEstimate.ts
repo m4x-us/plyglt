@@ -95,13 +95,65 @@ export function computeDueEstimate(
  *
  * Keep INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP here in sync with
  * lib/queue.ts's INTERRUPT_SESSION_FLOOR/INTERRUPT_SESSION_CAP (Deno
- * functions cannot import from lib/).
+ * functions cannot import from lib/). Mechanically enforced by
+ * tests/interruptFloorSync.test.ts, which fails the moment either copy
+ * changes without the other being updated to match.
+ *
+ * Task #624 — that guard is test-suite-only, not a deploy-time one, and
+ * this repo has no automated hook that could make it one: as of this
+ * writing there is no CI workflow or package.json script that deploys this
+ * function (checked .github/workflows/ci.yml, release.yml, and
+ * package.json's scripts — none reference `supabase functions deploy` or
+ * any Supabase CLI invocation at all). supabase/config.toml's own comment
+ * on this function ("hit live on the first real deploy, 2026-08-14")
+ * confirms deploys happen by a human running the Supabase CLI directly,
+ * outside this repo's CI entirely — there is no build step in that path
+ * this project's tooling could hook a pre-deploy check into. If deploys
+ * are ever automated into a CI workflow, that workflow should run `npm
+ * test` (or at minimum `npx vitest run tests/interruptFloorSync.test.ts`)
+ * before invoking `supabase functions deploy`, gating the deploy on it.
+ * Until then, this is an accepted, documented risk, not a silent gap: a
+ * human deploying this function via the CLI without first running the
+ * test suite is the one remaining way these two copies can drift.
  *
  * Body text uses canonical terminology ("ready", never "due"/"overdue") and
  * carries no exclamation mark, per BRAND.md's voice rules.
  */
 export const INTERRUPT_SESSION_FLOOR = 6;
 export const INTERRUPT_SESSION_CAP = 8;
+
+/**
+ * Task #623: Batch 23 (above) deliberately removed the zero-estimate SEND skip — a naive
+ * skip on `cardCount === 0` silently dropped real interrupts for the exact "client-only
+ * content the server's review-events-only estimate can't see" scenario this whole module
+ * exists to serve (client-side introduction-cadence cards, near-due reviews, and
+ * flex-introducible new cards are all invisible to `computeDueEstimate`). That fix, however,
+ * introduced a real regression of its own: a genuinely, fully caught-up user — zero due
+ * anywhere, client included, an expected steady-state outcome of the product working
+ * correctly — now receives a recurring, content-free "Cards ready" push every normal
+ * `interrupt_interval_minutes` interval indefinitely. That directly contradicts BRAND.md's
+ * stress-free/no-pressure principle and is a real notification-fatigue/uninstall risk.
+ *
+ * The server cannot reliably tell "genuinely nothing anywhere" apart from "nothing synced
+ * yet, client will fill it" — so this does NOT reintroduce a skip. Every gated-eligible token
+ * still receives its scheduled push (dispatch.ts's `sendAndRecord` is unconditional on
+ * estimate), so the client's flex-fill mechanism is never denied a chance to run. Instead,
+ * dispatch.ts widens the shared cross-device gate (`interrupt_gate_events.effective_until`,
+ * Task #527) for the user's NEXT proactive check-in specifically when THIS send's estimate
+ * was zero, using this constant instead of the token's own `interrupt_interval_minutes`. Net
+ * effect: a truly caught-up user still gets today's push, but isn't re-pinged again until a
+ * full day has passed rather than every interval — "one contentless push per day" instead of
+ * "every interval, indefinitely." Documented tradeoff: a user who resumes studying shortly
+ * after a zero-estimate push won't receive ANOTHER proactive server nudge until this window
+ * elapses, even if they've since accumulated real due content — they can always open the app
+ * manually in the meantime, and proactive pushes have always been a best-effort supplement,
+ * never the only path to studying (docs/INTERRUPT_ARCHITECTURE.md). This is a flat backoff
+ * (every zero-estimate send widens the gate the same amount), not a consecutive-count-aware
+ * one — tracking "how many zero-estimate sends in a row" would require new persisted per-user
+ * state (a DB column/migration) beyond this module's scope; flagged for a future task if a
+ * smarter, consecutive-aware backoff is ever wanted.
+ */
+export const ZERO_ESTIMATE_GATE_MINUTES = 24 * 60; // 24 hours — "at most once per day"
 
 export function buildNotificationPayload(estimate: { cardCount: number; sessionType: "review" }): NotificationPayload {
   if (estimate.cardCount === 0) {

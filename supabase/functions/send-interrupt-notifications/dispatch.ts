@@ -21,7 +21,7 @@
 // ============================================================
 
 import type { PushTokenRow, ReviewEventRow, DispatchSummary, NotificationPayload, PushSendResult } from "./types.ts";
-import { computeDueEstimate, buildNotificationPayload } from "./dueEstimate.ts";
+import { computeDueEstimate, buildNotificationPayload, ZERO_ESTIMATE_GATE_MINUTES } from "./dueEstimate.ts";
 
 export interface DispatchDeps {
   sendApns: (token: PushTokenRow, payload: NotificationPayload) => Promise<PushSendResult>;
@@ -69,8 +69,17 @@ async function sendAndRecord(
     // here does not downgrade an already-successful send; it only means the next
     // dispatch run's gate read may re-select this user sooner than intended, logged
     // as its own distinct concern rather than folded into `failed`.
+    // Task #623: a zero-estimate send (see dueEstimate.ts's ZERO_ESTIMATE_GATE_MINUTES
+    // doc comment for the full reasoning) widens this gate to the longer daily backoff
+    // instead of the token's own normal interval, so a genuinely caught-up user isn't
+    // re-pinged every interval indefinitely. Math.max guards the rare case of a user
+    // whose own configured interval already exceeds the daily backoff — never SHRINK
+    // the gate below whichever is longer.
+    const gateMinutes = estimateCardCount === 0
+      ? Math.max(ZERO_ESTIMATE_GATE_MINUTES, token.interrupt_interval_minutes)
+      : token.interrupt_interval_minutes;
     const occurredAt = now.toISOString();
-    const effectiveUntil = new Date(now.getTime() + token.interrupt_interval_minutes * 60_000).toISOString();
+    const effectiveUntil = new Date(now.getTime() + gateMinutes * 60_000).toISOString();
     const recorded = await deps.recordGateFired(token.user_id, token.device_id, occurredAt, effectiveUntil);
     if (!recorded) {
       console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${token.user_id} after a successful send`);

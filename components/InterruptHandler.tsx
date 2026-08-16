@@ -134,13 +134,33 @@ function InterruptHandlerCore() {
         // cross-device gate. Both are best-effort — a failed write only means the
         // Rust clock won't advance or this fire won't be visible to other devices,
         // never a reason to block content already decided. Deliberately NOT called
-        // until each branch below actually knows content will reach the user: the
-        // mandatory branch always shows content (the study session itself), so it
-        // calls this unconditionally; the passive branch only calls it once a native
+        // until each branch below has as much confidence as it can get that content
+        // will reach the user: the passive branch only calls it once a native
         // notification permission is confirmed AND the notification is actually sent
         // — calling it earlier (the pre-#570 bug) advanced the shared cooldown clock
         // and suppressed future interrupts on every device even when permission was
         // denied and the user never saw anything.
+        //
+        // Task #614: the mandatory branch below calls markFired() unconditionally —
+        // NOT because the study session is guaranteed to show content (it is not; see
+        // docs/INTERRUPT_ARCHITECTURE.md §10.2/§10.4: the session floor "is a target,
+        // not an unconditional guarantee ... can leave a session below 6 — even, in
+        // one rare combination, completely empty," and components/StudyEmptyQueue.tsx
+        // exists precisely for that outcome). A real sequence exists where computeDue
+        // returns non-zero via the near-due/flex fallback, this branch locks the
+        // window and navigates to /study?mode=interrupt, and the mount-fill effect's
+        // fill pass still comes up empty (a stranded introduction pause combined with
+        // an exhausted near-due pool) — the user sees "Nothing ready," yet the shared
+        // gate clock has already advanced for the full interval on every device.
+        // This is an accepted, explicitly-documented trade-off, not an oversight: a
+        // correct fix requires a signal back from the opened session confirming it
+        // actually has content, which only app/study/page.tsx / useStudySession.ts
+        // (mount-fill effect, owned by a different stream) can produce — closing this
+        // gap for real needs a change in one of those files, out of this file's scope.
+        // Until that lands, the accepted risk is bounded to the rare stranded-pause
+        // (docs/INTERRUPT_ARCHITECTURE.md §10.3) + exhausted-near-due-pool combination,
+        // and its blast radius is one skipped interrupt interval, not data loss or a
+        // permanent stuck state.
         const markFired = async () => {
           try {
             await markInterruptFired();
@@ -165,6 +185,8 @@ function InterruptHandlerCore() {
         };
 
         if (isMandatory) {
+          // Task #614: fires speculatively — see markFired's own comment above for why
+          // this is an accepted trade-off rather than a guarantee.
           await markFired();
           try {
             await enterMandatoryMode();
