@@ -1,87 +1,54 @@
----
-status: done
-stream: W5B
-wave: 5
----
-
-# Barry — Stream W5B — Wave 5 — 2026-08-15
+# Charles — Stream W5C — Wave 5 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Barry | W5B | #600 #590 #599 #595
+— Charles | W5C | #597 #589 #603
 
-You are Barry, a CTO working on a specific set of tasks in parallel with other windows.
+You are Charles, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Context
 
-All 4 of your tasks touch app/study/page.tsx (and its test file). Read the whole current file first, including both the `initialQueue` useMemo (around line 62, which passes `getIntroductionDueCardIds`) and the Study More handler (around line 129, which currently does not) before starting #600.
+Your 3 tasks span store/srsStore.ts and tests/srsStore.test.ts.
 
-**#600 is the highest-severity task in this stream (6) — do it first.** The Study More handler's `buildQueue` call is missing the `getIntroductionDueCardIds` parameter that `initialQueue`'s construction passes. Add the matching parameter to the Study More handler's `buildQueue` call so a card mid-intensive-introduction phase due today is not silently excluded from a rebuilt queue when it would have been included in the session's initial load. Write a real test proving this (mock `getIntroductionDueCardIds` to return a card id, trigger Study More, assert the rebuilt queue includes it) — a Deletion Test: the test must fail if the parameter is reverted to omitted.
+**#597 first** (real production code fix, severity 5): `getResumableSession` silently mutates store state via `set({activeSession: null})` as a side effect of what its name presents as a pure getter. It's called from hooks/useStudySession.ts's `useState` lazy initializer and two `useMemo` bodies during React's render phase — React strongly discourages side effects during render (they can run twice in StrictMode/concurrent rendering, or be discarded if the render is thrown away). hooks/useStudySession.ts is READ-ONLY reference for you this wave (Adam's stream owns it) — do not edit it. Fix this at the store layer: either rename the function to make the mutation explicit (e.g. `consumeResumableSession()`) and update its own doc comment, or split it into a pure `peekResumableSession()` getter plus a separate explicit clear action, whichever requires the smaller change to the existing call sites you can see (without editing useStudySession.ts itself — if the real fix requires changing how the hook calls this function, note that as a carry-forward/coordination item in your completion.md rather than editing Adam's file).
 
-**#590** is a related test-integrity fix: a comment in app/study/page.test.tsx claims a cited sibling test already proves global-mode sessions get a null `onStudyMore` handler, but that sibling test never actually checks the `has-study-more`/onStudyMore-related attribute. Add real, direct test coverage for both cases (global mode → null handler, unit mode → non-null handler) and either fix or remove the inaccurate comment.
-
-#599 and #595 are minor, independent code-quality/documentation items in the same file — #599's non-null assertion ordering issue is currently harmless (fix it for correctness, e.g. move the `isDone` check before the assertion, or note why the current order is actually safe if you determine it is); #595 (mode read with no entitlement check) is explicitly NOT a bug per CLAUDE.md section 5's documented client-only honor-system entitlement model — the correct fix is a clarifying code comment acknowledging this is intentional, not a code change that adds an entitlement gate.
+**#589 and #603 are the same underlying gap — do them together.** `getNewCards`' introductions-filter fix (Task #567, the `.filter((card) => !introMap[card.id])` line) has zero direct or regression test coverage anywhere in the repo. Separately, Stream W3C's historical completion report (.autocode/stream-W3C/completion.md — NOT a file to edit, it's a historical record) overclaimed that this fix was verified with a manual Deletion Test, when its own text for #567 only claims 'verified no existing test broke.' The fix for both: add one real regression test to tests/srsStore.test.ts for `getNewCards`' introductions filter — assert that a card with an existing IntroductionRecord is excluded from `getNewCards`' return value even though it would otherwise qualify. Run the Deletion Test yourself: temporarily revert the `!introMap[card.id]` filter and confirm your new test fails, then restore it and confirm it passes. Do not edit the historical completion.md file itself — the fix is closing the actual test gap, which retroactively makes the report's broader claim true for this case.
 
 ## Your Tasks (run in this exact order)
-1. /task #600  — Fix requirements: The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQ
-2. /task #590  — Fix tests: A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, bu
-3. /task #599  — Fix code-quality: const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a val
-4. /task #595  — Fix auth: mode is read directly from useSearchParams with no entitlement or Pro check anywhere
+1. /task #597  — Fix code-quality: getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of w
+2. /task #589  — Fix tests: getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the re
+3. /task #603  — Fix tests: Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the r
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Barry — W5B
-[→] #600 — Fix requirements: The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQ   ← starting now
-[ ] #590 — Fix tests: A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, bu
-[ ] #599 — Fix code-quality: const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a val
-[ ] #595 — Fix auth: mode is read directly from useSearchParams with no entitlement or Pro check anywhere
+Charles — W5C
+[→] #597 — Fix code-quality: getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of w   ← starting now
+[ ] #589 — Fix tests: getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the re
+[ ] #603 — Fix tests: Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the r
 
 ## Files You Own (edit ONLY these)
-app/study/page.tsx
-app/study/page.test.tsx
+store/srsStore.ts
+tests/srsStore.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
+app/study/page.test.tsx
+app/study/page.tsx
 components/InterruptHandler.test.tsx
 components/InterruptHandler.tsx
 hooks/useInterruptConfig.test.ts
 hooks/useInterruptConfig.ts
 hooks/useStudySession.test.ts
 hooks/useStudySession.ts  (read-only reference — Adam's stream is fixing this in Wave 5)
-store/srsStore.ts
-tests/srsStore.test.ts
 
 ## Task Definitions
 
-### Task #600
+### Task #597
 
-### Task #600: Fix requirements: The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQ
+### Task #597: Fix code-quality: getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of w
 
-**File:** app/study/page.tsx
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQueue's construction at line 62 does pass. A card mid-intensive-introduction-phase due today would be silently excluded from a rebuilt Study more queue, even though the same unit's initial session load would have included it. at app/study/page.tsx:Study more handler vs initialQueue construction:129.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix requirements issue at app/study/page.tsx:Study more handler vs initialQueue construction:129
-- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
-
-**Source:** Audit finding F014 — severity 6 — requirements
-
----
-
-### Task #590
-
-### Task #590: Fix tests: A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, bu
-
-**File:** app/study/page.test.tsx
+**File:** store/srsStore.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -89,22 +56,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, but that sibling test never checks the has-study-more attribute at all. Neither the global-mode-null case nor the unit-mode-non-null case for onStudyMore has any real test coverage. at app/study/page.test.tsx:comment near lines 326-328:326.
+getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of what its name presents as a pure getter. Called from hooks/useStudySession.ts's useState lazy initializer and two useMemo bodies during React's render phase. at store/srsStore.ts:getResumableSession():0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix tests issue at app/study/page.test.tsx:comment near lines 326-328:326
-- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.test.tsx
+- [ ] Fix code-quality issue at store/srsStore.ts:getResumableSession():0
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
 
-**Source:** Audit finding F004 — severity 3 — tests
+**Source:** Audit finding F011 — severity 5 — code-quality
 
 ---
 
-### Task #599
+### Task #589
 
-### Task #599: Fix code-quality: const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a val
+### Task #589: Fix tests: getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the re
 
-**File:** app/study/page.tsx
+**File:** store/srsStore.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -112,22 +79,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a valid index. Currently harmless but the non-null assertion's precondition is checked after the assertion is made rather than before. at app/study/page.tsx:render body:109.
+getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the repo. The fix itself reads correctly on inspection, so there is no live user-facing defect, but nothing would catch a future regression reverting it. at store/srsStore.ts:getNewCards (introductions filter, Task #567):0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at app/study/page.tsx:render body:109
-- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+- [ ] Fix tests issue at store/srsStore.ts:getNewCards (introductions filter, Task #567):0
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
 
-**Source:** Audit finding F013 — severity 2 — code-quality
+**Source:** Audit finding F003 — severity 4 — tests
 
 ---
 
-### Task #595
+### Task #603
 
-### Task #595: Fix auth: mode is read directly from useSearchParams with no entitlement or Pro check anywhere
+### Task #603: Fix tests: Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the r
 
-**File:** app/study/page.tsx
+**File:** Wave 4 completion report (stream W3C)
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -135,14 +102,14 @@ NEW
 **Status:** OPEN
 
 **What:**
-mode is read directly from useSearchParams with no entitlement or Pro check anywhere. This predates Batch 23 entirely and CLAUDE.md section 5 explicitly documents entitlement as an intentional, owner-confirmed client-only honor-system trade-off, not a bug to fix. at app/study/page.tsx:mode=interrupt query param handling:0.
+Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the report's own #567 section only claims verified no existing test broke, a materially weaker and for #567 specifically unfulfilled claim than the blanket closing statement asserts. at Wave 4 completion report (stream W3C):blanket verification claim:0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix auth issue at app/study/page.tsx:mode=interrupt query param handling:0
-- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+- [ ] Fix tests issue at Wave 4 completion report (stream W3C):blanket verification claim:0
+- [ ] Audit passes: bash scripts/deep-audit.sh Wave 4 completion report (stream W3C)
 
-**Source:** Audit finding F009 — severity 2 — auth
+**Source:** Audit finding F017 — severity 3 — tests
 
 ---
 
@@ -268,7 +235,7 @@ yourself with a repo-wide command — a prior wave (B2 audit round 1) lost 8 uni
 agent's uncommitted work this exact way.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W5B/completion.md. The file
+Write your completion summary to .autocode/stream-W5C/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
 CLOSED: #[NUM] #[NUM] ...
@@ -278,6 +245,6 @@ NOT_CLOSED: #[NUM] — [one-line reason]
 
 After those two lines, write whatever prose detail is useful.
 
-Then tell Max in this window: "Barry is done." (or describe what's incomplete).
+Then tell Max in this window: "Charles is done." (or describe what's incomplete).
 
-— Barry | W5B | #600 #590 #599 #595
+— Charles | W5C | #597 #589 #603

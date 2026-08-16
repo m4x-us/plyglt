@@ -37,6 +37,18 @@ export function useInterruptConfig() {
   // reviews, introduction-cadence cards due for their next appearance, and (capped at
   // one, matching the daily introduction cap) a qualifying new card — not just FSRS due
   // reviews. Docs: docs/INTERRUPT_ARCHITECTURE.md §2.
+  //
+  // Task #604 — staleness window: canIntroduceNewCard's true/false result is only a live
+  // guarantee for a caller that checks-then-acts in the same tick, which is what both
+  // hooks/useStudySession.ts mount-effect call sites do (Adam's stream). This estimate is
+  // different in kind: it is computed here, then handed to the native OS notification layer
+  // (components/InterruptHandler.tsx), and the real consumption only happens whenever the
+  // user eventually taps that notification — seconds, minutes, or never. Store state (what's
+  // introduced, what's due, today's flex ceiling) can change arbitrarily in that gap. This is
+  // a structural property of push-notification timing, not a bug this function can close —
+  // the estimate is deliberately allowed to go stale; hooks/useStudySession.ts's own mount
+  // effect re-checks canIntroduceNewCard fresh when the session actually opens, so a stale
+  // "yes" here never introduces a card without a fresh, same-tick recheck at consumption time.
   function computeDue(units: Unit[]): number {
     if (units.length === 0) return 0;
     const state = useSRSStore.getState();
@@ -49,11 +61,11 @@ export function useInterruptConfig() {
 
     // Only one new card is ever introduced per day under the normal cap — count at most 1,
     // not the full pool of untouched cards, however large.
-    let newCardDue = 0;
+    let hasQualifyingContent = 0;
     if (state.canIntroduceNewCard(today)) {
       for (const u of units) {
         if (state.getNewCards(u.cards, 1).length > 0) {
-          newCardDue = 1;
+          hasQualifyingContent = 1;
           break;
         }
       }
@@ -65,7 +77,7 @@ export function useInterruptConfig() {
     // untouched, prerequisite-met card anywhere in the catalog. The session itself performs the
     // matching flexed introduction on open — see hooks/useStudySession.ts's mount effect, which
     // uses the identical "would this interrupt session otherwise be empty" trigger.
-    if (reviewDue === 0 && introDue === 0 && newCardDue === 0) {
+    if (reviewDue === 0 && introDue === 0 && hasQualifyingContent === 0) {
       // Task #539: the same strandedAcrossDays pause AND cross-session daily
       // ceiling (INTERRUPT_FLEX_DAILY_MAX) that gates hooks/useStudySession.ts's
       // mount-effect flex fill (Task #538/#551) must gate this fire-gate too —
@@ -78,7 +90,7 @@ export function useInterruptConfig() {
       if (flexIntroAllowed) {
         for (const u of units) {
           if (state.getNewCards(u.cards, 1).length > 0) {
-            newCardDue = 1;
+            hasQualifyingContent = 1;
             break;
           }
         }
@@ -89,17 +101,17 @@ export function useInterruptConfig() {
       // this mirror, the fire-gate would stay silent in a scenario the session
       // itself can serve — the exact computeDue/buildQueue divergence Task #523
       // existed to close.
-      if (newCardDue === 0) {
+      if (hasQualifyingContent === 0) {
         for (const u of units) {
           if (state.getNearDueCards(u.cards, 1).length > 0) {
-            newCardDue = 1;
+            hasQualifyingContent = 1;
             break;
           }
         }
       }
     }
 
-    return reviewDue + introDue + newCardDue;
+    return reviewDue + introDue + hasQualifyingContent;
   }
 
   return {

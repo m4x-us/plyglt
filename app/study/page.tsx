@@ -27,6 +27,12 @@ function StudyInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const unitId = searchParams.get("unit") ?? "";
+  // Task #595: `mode` (and by extension isInterrupt/isGlobal below) is read directly
+  // from the URL with no entitlement/Pro check gating access to interrupt or global
+  // sessions — intentional, not a gap. CLAUDE.md §5: entitlement in this app is a
+  // client-only, owner-confirmed honor-system trade-off; a user who wants to bypass
+  // it already can, the same way they could edit their own persisted entitlement
+  // store directly. Do not add a gate here.
   const mode = searchParams.get("mode");
   const isGlobal = mode === "global";
   const isInterrupt = mode === "interrupt";
@@ -107,7 +113,6 @@ function StudyInner() {
   }
 
   const isDone = pos >= queue.length;
-  const currentCard = queue[pos]!;
 
   if (isDone) {
     const pct = sessionTotal > 0 ? Math.round((sessionCorrect / sessionTotal) * 100) : 0;
@@ -126,12 +131,17 @@ function StudyInner() {
         // interrupt's own framing anyway (BRAND.md: a short, bounded burst, not an open-ended
         // session) — the fix is to not offer it here, matching every other interrupt-specific
         // cap this file already enforces.
-        onStudyMore={!isGlobal && !isInterrupt ? () => resetToQueue(buildQueue(allCards, getDueCards, getNewCards, false)) : null}
+        onStudyMore={!isGlobal && !isInterrupt ? () => resetToQueue(buildQueue(allCards, getDueCards, getNewCards, false, getIntroductionDueCardIds)) : null}
         onExitInterrupt={exitMandatoryMode}
       />
     );
   }
 
+  // Task #599: only asserted non-null after the isDone branch above has already
+  // returned — pos < queue.length is guaranteed here, whereas evaluating this
+  // before that branch (the prior ordering) asserted non-null before its own
+  // precondition was confirmed, even though isDone's own branch never read it.
+  const currentCard = queue[pos]!;
   const unitName = isGlobal || isInterrupt ? findUnitName(currentCard.id, ALL_UNITS) : unit!.name;
   const headerTitle = isInterrupt ? "Quick review" : isGlobal ? "Global Review" : `${unit!.emoji} ${unit!.name}`;
 

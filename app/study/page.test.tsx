@@ -11,7 +11,8 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { useSRSStore } from "@/store/srsStore";
 
 // ── vi.hoisted: mutable state controlling mock return values ──────────────────
 
@@ -172,12 +173,15 @@ vi.mock("@/components/StudyCard", () => ({
 // ── @/components/StudyDoneScreen — test double ───────────────────────────────
 // Renders onStudyMore's presence (not just invokes it) so tests can assert whether the
 // page offered a "Study more" callback at all — Task #569's regression is specifically
-// that this was truthy in interrupt mode when it should be null.
+// that this was truthy in interrupt mode when it should be null. Also renders a real
+// button wired to onStudyMore (Task #600) so tests can actually trigger the callback,
+// not just observe its presence/absence.
 vi.mock("@/components/StudyDoneScreen", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: ({ sessionCorrect, sessionTotal, onStudyMore }: any) => (
     <div data-testid="study-done" data-has-study-more={onStudyMore != null}>
       Done:{sessionCorrect}/{sessionTotal}
+      {onStudyMore && <button onClick={onStudyMore}>Study more</button>}
     </div>
   ),
 }));
@@ -205,6 +209,18 @@ const FAKE_CARD = {
   tags: ["greeting"],
   tier: 1 as const,
   deprecated: false,
+};
+
+// Task #590/#600: exercises real "unit" mode (mode=null, neither global nor interrupt) —
+// no prior test in this file did. The useSearchParams mock above only special-cases the
+// "mode" key and always returns null for "unit", so unitId is always "" — this fixture is
+// keyed under langPackState.unitMap[""] to match.
+const FAKE_UNIT = {
+  id: "",
+  name: "Fake Unit",
+  emoji: "📘",
+  cards: [FAKE_CARD],
+  prerequisiteUnits: [] as string[],
 };
 
 // ── Reset helpers ─────────────────────────────────────────────────────────────
@@ -322,10 +338,11 @@ describe("StudyPage — app/study/page.tsx", () => {
   // and the rebuilt queue this callback triggers had no INTERRUPT_SESSION_CAP slice applied,
   // unlike initialQueue's own construction. Deletion Test: reverting the `!isGlobal &&
   // !isInterrupt` guard back to `!isGlobal` alone makes this test fail (onStudyMore would be
-  // present, not null, for an interrupt-mode done screen) — global mode already correctly got
-  // null before this fix (proved by the sibling "renders StudyDoneScreen when pos is at or
-  // past the end of the queue" test above, run with the default mode="global"), so interrupt
-  // mode not matching that same behavior was exactly the gap.
+  // present, not null, for an interrupt-mode done screen). See the dedicated "onStudyMore
+  // gating (Task #590)" describe block below for direct coverage of the global-mode-null and
+  // unit-mode-non-null cases this comment used to (incorrectly) claim were already proven by
+  // the sibling "renders StudyDoneScreen..." test above — that test never checked the
+  // has-study-more attribute at all.
   it("does not offer 'Study more' when an interrupt-mode session completes", () => {
     searchParamsState.mode = "interrupt";
     setCards([FAKE_CARD]);
@@ -333,6 +350,69 @@ describe("StudyPage — app/study/page.tsx", () => {
 
     render(<StudyPage />);
     expect(screen.getByTestId("study-done")).toHaveAttribute("data-has-study-more", "false");
+  });
+
+  // Task #590: neither the global-mode-null nor the unit-mode-non-null case for onStudyMore
+  // had any direct test coverage — a comment near the interrupt-mode test above incorrectly
+  // claimed the global case was already proven by a sibling test that never checked the
+  // has-study-more attribute. These two tests close that gap directly.
+  describe("onStudyMore gating (Task #590)", () => {
+    it("does not offer 'Study more' when a global session completes", () => {
+      searchParamsState.mode = "global";
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 1; // done
+
+      render(<StudyPage />);
+      expect(screen.getByTestId("study-done")).toHaveAttribute("data-has-study-more", "false");
+    });
+
+    it("offers 'Study more' when a unit-mode session completes", () => {
+      searchParamsState.mode = null; // neither global nor interrupt
+      langPackState.unitMap = { "": FAKE_UNIT };
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 1; // done
+
+      render(<StudyPage />);
+      expect(screen.getByTestId("study-done")).toHaveAttribute("data-has-study-more", "true");
+    });
+  });
+
+  // Task #600 (severity 6): the Study More handler's buildQueue call omitted the
+  // getIntroductionDueCardIds parameter that initialQueue's own construction passes — a card
+  // mid-intensive-introduction-phase due today would be silently excluded from a rebuilt
+  // Study More queue even though the same unit's initial session load would have included it.
+  // Deletion Test: reverting the fix (dropping the 5th buildQueue argument in the Study More
+  // handler) makes this test fail — resetToQueue would be called with an empty array instead
+  // of the introduction-due card, since only getIntroductionDueCardIds (overridden below)
+  // supplies it in this test's setup.
+  it("includes an introduction-cadence-due card when Study More rebuilds the queue (regression, Task #600)", () => {
+    const originalGetIntroductionDueCardIds = useSRSStore.getState().getIntroductionDueCardIds;
+    const introDueCard = { ...FAKE_CARD, id: "intro-due-card-001" };
+    try {
+      searchParamsState.mode = null; // unit mode — required for onStudyMore to be offered
+      langPackState.unitMap = { "": FAKE_UNIT };
+      // Real srsStore is used in this file (see header comment) — overriding just this one
+      // action mirrors the brief's "mock getIntroductionDueCardIds to return a card id"
+      // instruction without reconstructing real introduction-engine timing state.
+      useSRSStore.setState({ getIntroductionDueCardIds: () => [introDueCard.id] });
+      // Pass-through implementation (not the default builtQueue.cards stand-in) — echoes
+      // back whichever ids the REAL getIntroductionDueCardIds reference resolves to, so the
+      // test proves the function was actually passed through to buildQueue, not merely that
+      // resetToQueue was called with some hardcoded value.
+      mockBuildQueue.mockImplementation((_cards, _getDueCards, _getNewCards, _globalMode, getIntroductionDueCardIds) => {
+        const ids: string[] = getIntroductionDueCardIds ? getIntroductionDueCardIds("2026-08-15") : [];
+        return ids.includes(introDueCard.id) ? [introDueCard] : [];
+      });
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 1; // done — StudyDoneScreen renders with onStudyMore
+
+      render(<StudyPage />);
+      fireEvent.click(screen.getByText("Study more"));
+
+      expect(sessionCfg.resetToQueue).toHaveBeenCalledWith([introDueCard]);
+    } finally {
+      useSRSStore.setState({ getIntroductionDueCardIds: originalGetIntroductionDueCardIds });
+    }
   });
 
   // Task #552: initialQueue's useMemo previously omitted `allCards` from its dependency

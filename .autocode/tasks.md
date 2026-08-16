@@ -11838,6 +11838,407 @@ NEW
 
 ---
 
+**`/audit batch 23` — 2026-08-15, re-audit round 3 (after Wave 3+4 remediation), FAIL, severity 8 (1 critical, 6 major, 12 minor), 8-agent cycle (A, B, S, K, W, V, R + Agent N naive-reader lane).** All targeted claims from round 2's remediation verified holding. But three independent auditors (A, B, W), via three different traces (effect-level, hook-level, zustand-source-level), converged on a new, more severe finding: `hooks/useStudySession.ts`'s mount-fill effect gates readiness only on the language pack loading (`allCardMap`), never on SRS-store hydration — on a cold push-tap launch where Tauri's async file-store hydration hasn't finished before the (synchronously-bundled Italian) pack has, the one real fill pass runs against a pre-hydration empty snapshot, and `introduceCard`'s freshly-written `IntroductionRecord` gets silently discarded when zustand's default merge replaces `introductions` wholesale once hydration completes — permanently and silently skipping BRAND.md's 22-day intensive cadence for that card, with no error anywhere (AGENTS.md's explicit "silently corrupt persisted user data" zero-tolerance category). This is the identical defect class Task #573 already fixed for pack-loading readiness, left unaddressed for the sibling SRS-store readiness signal. 18 more findings promoted alongside it, including a related error-handling gap (the fill effect's completion-ref is set before the fill logic runs, with no try/catch), a Study-more/initialQueue parameter-omission divergence, and a notification-fired-before-OS-delivery-confirmed gap. Full findings promoted below as Tasks #587-#605. Per this project's BATCH_REMEDIATION_GATE, Batch 23 remains `[CURRENT SPRINT]` until a clean re-audit passes.
+
+### Task #587: Fix data-loss: The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydrat
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydration readiness. app/study/page.tsx destructures cards/introductions from useSRSStore() before its own useIsHydrated() check and calls useStudySession unconditionally. Italian's pack loads synchronously via STATIC_PACKS while Tauri SRS-store hydration is an async file-store IPC round trip, so on a cold push-tap launch into /study?mode=interrupt, allCardMap is populated before cards/introductions hydrate from their {} defaults. mountFillDoneRef latches true on this first render and cards/introductions are not in the dependency array, so the one real fill pass runs against stale pre-hydration state: selectQualifyingNewCard treats every card as untouched and introduceCard writes a new IntroductionRecord into the still-empty in-memory introductions map. When hydration completes moments later, zustand persist's default merge behavior fully replaces top-level introductions with the persisted value, silently discarding the just-created record while the card's FSRS progress from the unconditional commitSession/handleRate path is kept. The card permanently and silently skips BRAND.md's 22-day intensive introduction cadence with no error or log anywhere. at hooks/useStudySession.ts:mount-time introduce/fill effect (isInterrupt fill pass):144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at hooks/useStudySession.ts:mount-time introduce/fill effect (isInterrupt fill pass):144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F001 — severity 8 — data-loss
+
+---
+
+### Task #588: Fix edge-case: mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real 
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real fill pass, e.g. a specialty-pack merge completing after session mount. No specialty pack is registered ready:true today, so this path has no real caller today. at hooks/useStudySession.ts:mountFillDoneRef exactly-once guard:144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useStudySession.ts:mountFillDoneRef exactly-once guard:144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F002 — severity 2 — edge-case
+
+---
+
+### Task #589: Fix tests: getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the re
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+getNewCards' introductions-filter fix has zero direct or regression test coverage anywhere in the repo. The fix itself reads correctly on inspection, so there is no live user-facing defect, but nothing would catch a future regression reverting it. at store/srsStore.ts:getNewCards (introductions filter, Task #567):0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at store/srsStore.ts:getNewCards (introductions filter, Task #567):0
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
+
+**Source:** Audit finding F003 — severity 4 — tests
+
+---
+
+### Task #590: Fix tests: A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, bu
+
+**File:** app/study/page.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+A comment claims a cited sibling test already proves global mode gets a null onStudyMore handler, but that sibling test never checks the has-study-more attribute at all. Neither the global-mode-null case nor the unit-mode-non-null case for onStudyMore has any real test coverage. at app/study/page.test.tsx:comment near lines 326-328:326.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at app/study/page.test.tsx:comment near lines 326-328:326
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.test.tsx
+
+**Source:** Audit finding F004 — severity 3 — tests
+
+---
+
+### Task #591: Fix error-handling: sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the OS actually displayed the notification. markFired() still fires unconditionally after the resolved promise, advancing the shared cross-device gate for the full interval even when the notification was silently dropped at the OS level. at components/InterruptHandler.tsx:passive notification branch:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at components/InterruptHandler.tsx:passive notification branch:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F005 — severity 5 — error-handling
+
+---
+
+### Task #592: Fix error-handling: mountFillDoneRef
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+mountFillDoneRef.current is set to true before any fill logic executes, and the entire effect body has no try/catch. If anything throws mid-fill, cards already committed via introduceCard remain permanently recorded as introduced today, consuming the daily cap, but never reach the visible queue via the final setQueue call. This session instance never retries since the ref already reads true. at hooks/useStudySession.ts:mount-fill effect body:144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at hooks/useStudySession.ts:mount-fill effect body:144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F006 — severity 6 — error-handling
+
+---
+
+### Task #593: Fix error-handling: An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the 
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the useEffect callback entirely. No error boundary exists around the /study route, so a genuine throw here crashes the whole route to Next.js's default error UI instead of degrading gracefully. at hooks/useStudySession.ts:mount-fill effect body; /study route:144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at hooks/useStudySession.ts:mount-fill effect body; /study route:144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F007 — severity 5 — error-handling
+
+---
+
+### Task #594: Fix code-quality: mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually 
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually set at the start of the fill body before any of it can fail. The name and comment overclaim a stronger guarantee than the code delivers, directly compounding F006. at hooks/useStudySession.ts:mountFillDoneRef:144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mountFillDoneRef:144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F008 — severity 3 — code-quality
+
+---
+
+### Task #595: Fix auth: mode is read directly from useSearchParams with no entitlement or Pro check anywhere
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+mode is read directly from useSearchParams with no entitlement or Pro check anywhere. This predates Batch 23 entirely and CLAUDE.md section 5 explicitly documents entitlement as an intentional, owner-confirmed client-only honor-system trade-off, not a bug to fix. at app/study/page.tsx:mode=interrupt query param handling:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix auth issue at app/study/page.tsx:mode=interrupt query param handling:0
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F009 — severity 2 — auth
+
+---
+
+### Task #596: Fix async: A cross-tab race exists on the flex daily-new-card maximum
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+A cross-tab race exists on the flex daily-new-card maximum. Already self-documented and accepted under CLAUDE.md section 5's client-only entitlement model; no new exploitation surface added by this round. at hooks/useStudySession.ts:INTERRUPT_FLEX_DAILY_MAX cross-tab check:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useStudySession.ts:INTERRUPT_FLEX_DAILY_MAX cross-tab check:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F010 — severity 1 — async
+
+---
+
+### Task #597: Fix code-quality: getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of w
+
+**File:** store/srsStore.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+getResumableSession silently mutates store state via set({activeSession:null}) as a side effect of what its name presents as a pure getter. Called from hooks/useStudySession.ts's useState lazy initializer and two useMemo bodies during React's render phase. at store/srsStore.ts:getResumableSession():0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at store/srsStore.ts:getResumableSession():0
+- [ ] Audit passes: bash scripts/deep-audit.sh store/srsStore.ts
+
+**Source:** Audit finding F011 — severity 5 — code-quality
+
+---
+
+### Task #598: Fix code-quality: The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a ne
+
+**File:** hooks/useInterruptConfig.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a near-due review rather than a new card is the actual reason the interrupt can fire. The final return value is arithmetically correct, but the variable's name misleads a future reader. at hooks/useInterruptConfig.ts:computeDue:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useInterruptConfig.ts:computeDue:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
+
+**Source:** Audit finding F012 — severity 2 — code-quality
+
+---
+
+### Task #599: Fix code-quality: const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a val
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+const currentCard = queue[pos]! is evaluated before the if (isDone) branch that would make pos a valid index. Currently harmless but the non-null assertion's precondition is checked after the assertion is made rather than before. at app/study/page.tsx:render body:109.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at app/study/page.tsx:render body:109
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F013 — severity 2 — code-quality
+
+---
+
+### Task #600: Fix requirements: The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQ
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The Study more handler's buildQueue call omits the getIntroductionDueCardIds parameter that initialQueue's construction at line 62 does pass. A card mid-intensive-introduction-phase due today would be silently excluded from a rebuilt Study more queue, even though the same unit's initial session load would have included it. at app/study/page.tsx:Study more handler vs initialQueue construction:129.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at app/study/page.tsx:Study more handler vs initialQueue construction:129
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F014 — severity 6 — requirements
+
+---
+
+### Task #601: Fix error-handling: The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually gua
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually guarded. If computeDue(units) or readInterruptGateState(userId) throws, the resulting promise rejection is unhandled and the interrupt fire is silently dropped with no console.error trace. at components/InterruptHandler.tsx:interrupt:fire listener callback:102.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix error-handling issue at components/InterruptHandler.tsx:interrupt:fire listener callback:102
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F015 — severity 5 — error-handling
+
+---
+
+### Task #602: Fix code-quality: The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachab
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachable scenarios: a pack-load error leaves allCardMap permanently empty, and an invalid unitId makes allCards permanently an empty array. Both are currently harmless since the effect's guard correctly no-ops in both cases. at hooks/useStudySession.ts:mount-fill readiness invariant:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill readiness invariant:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F016 — severity 3 — code-quality
+
+---
+
+### Task #603: Fix tests: Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the r
+
+**File:** Wave 4 completion report (stream W3C)
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Stream W3C's completion report asserts every fix was verified with a manual Deletion Test, but the report's own #567 section only claims verified no existing test broke, a materially weaker and for #567 specifically unfulfilled claim than the blanket closing statement asserts. at Wave 4 completion report (stream W3C):blanket verification claim:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at Wave 4 completion report (stream W3C):blanket verification claim:0
+- [ ] Audit passes: bash scripts/deep-audit.sh Wave 4 completion report (stream W3C)
+
+**Source:** Audit finding F017 — severity 3 — tests
+
+---
+
+### Task #604: Fix requirements: canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites
+
+**File:** hooks/useInterruptConfig.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites. The two useStudySession.ts sites get an atomic same-tick check-then-act guarantee; computeDue's estimate is consumed only much later when the user taps a notification, an unbounded gap during which the real state can change entirely. at hooks/useInterruptConfig.ts:computeDue vs useStudySession.ts's canIntroduceNewCard call sites:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useInterruptConfig.ts:computeDue vs useStudySession.ts's canIntroduceNewCard call sites:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
+
+**Source:** Audit finding F018 — severity 4 — requirements
+
+---
+
+### Task #605: Fix async: Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live stor
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-15 (Wave 5)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live store state via get() while selectQualifyingNewCard reads parameters captured from the render closure. This mixed live-read/stale-snapshot pattern could let sync-triggered background patches to cards desync from what canIntroduceNewCard sees. at hooks/useStudySession.ts:mount-fill effect (live get() reads vs closure-captured params):144.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at hooks/useStudySession.ts:mount-fill effect (live get() reads vs closure-captured params):144
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F019 — severity 4 — async
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|

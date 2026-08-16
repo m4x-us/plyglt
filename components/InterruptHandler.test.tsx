@@ -500,6 +500,42 @@ describe("InterruptHandler", () => {
     });
   });
 
+  // ── Task #601: a throw from an unguarded step (readInterruptGateState) must not become
+  // an unhandled rejection — the top-level try/catch logs it instead of dropping it silently.
+  describe("top-level error handling (Task #601)", () => {
+    it("logs the failure and does not crash when readInterruptGateState rejects", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      useAuthStore.setState({ status: "signed-in", userId: "user-1", email: null });
+      useSyncStore.setState({ deviceId: "device-1" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      mockReadInterruptGateState.mockRejectedValueOnce(new Error("network down"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      // Prior to the #601 fix, this rejection propagated out of the async listener
+      // callback uncaught — this call would otherwise leave an unhandled rejection.
+      await act(async () => { if (callback) await callback(false); });
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("ERR-INTERRUPT-FIRE"),
+        expect.any(Error)
+      );
+      // The throw happened before any fire was confirmed — nothing downstream ran.
+      expect(mockMarkInterruptFired).not.toHaveBeenCalled();
+      expect(mockSendNativeNotification).not.toHaveBeenCalled();
+
+      errorSpy.mockRestore();
+    });
+  });
+
   // ── Test 4: enterMandatoryMode IPC failure is caught — navigation still proceeds ─
   it("logs error and still navigates when enterMandatoryMode rejects", async () => {
     // Disable DnD explicitly — beforeEach sets dndStart=22:00/dndEnd=08:00 which would

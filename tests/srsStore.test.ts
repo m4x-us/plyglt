@@ -342,6 +342,35 @@ describe("getNewCards() — prerequisite logic", () => {
     expect(result.map((c) => c.id)).toContain("c2");
   });
 
+  // Task #589: getNewCards' introductions filter (Task #567, store/srsStore.ts:227) had zero
+  // direct or regression test coverage anywhere in the repo — every existing test in this
+  // describe block exercises only the prerequisite/progress filters, never the introductions
+  // one. Deletion Test: removing the `.filter((card) => !introMap[card.id])` line makes this
+  // test fail (manually verified — see completion.md for the exact revert/restore steps).
+  it("excludes a card with an existing IntroductionRecord, even though it has no progress and no prerequisites (Task #567)", () => {
+    const midPhase = makeCard("mid-phase", 1); // no prerequisites — would otherwise qualify
+    const untouched = makeCard("untouched", 1);
+    useSRSStore.setState({
+      introductions: {
+        "mid-phase": {
+          cardId: "mid-phase",
+          introducedDate: "2026-08-01",
+          phaseStartDate: "2026-08-01",
+          dayOfPhase: 3,
+          consecutiveCorrect: 2,
+          totalEncounters: 4,
+          lastSeenDate: "2026-08-10",
+          appearancesToday: 1,
+          consecutiveWrongToday: 0,
+          lastSeenType: null,
+          graduated: false,
+        },
+      },
+    });
+    const result = useSRSStore.getState().getNewCards([midPhase, untouched]);
+    expect(result.map((c) => c.id)).toEqual(["untouched"]);
+  });
+
   it("respects the limit parameter — returns exactly limit cards when more candidates qualify", () => {
     const cards = [
       makeCard("c1", 1),
@@ -901,5 +930,86 @@ describe("getDayOfPhase — #231 calendar-invalid date detection", () => {
 
   it("throws [ERR-INTRO-DATE] when today is a day-of-month rollover '2026-02-30'", () => {
     expect(() => getDayOfPhase("2026-07-01", "2026-02-30")).toThrow("[ERR-INTRO-DATE]");
+  });
+});
+
+// ── peekResumableSession / clearExpiredResumableSession — Task #597 ──────────
+// getResumableSession (tests/session.test.ts, not touched here) mutates store state as a side
+// effect during what its name presents as a pure getter — unsafe during React's render phase.
+// These two are the render-safe split: a pure read + a separate explicit clear action.
+const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+function makeActiveSession(overrides: Partial<ActiveSession> = {}): ActiveSession {
+  return {
+    unitId: "a1-unit-01",
+    queueIds: ["c1", "c2", "c3"],
+    position: 0,
+    sessionCorrect: 0,
+    sessionTotal: 0,
+    startedAt: Date.now(),
+    ...overrides,
+  };
+}
+
+describe("peekResumableSession — pure read, no mutation (Task #597)", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+  });
+
+  it("returns null when there is no active session", () => {
+    expect(useSRSStore.getState().peekResumableSession()).toBeNull();
+  });
+
+  it("returns the session unmodified when it has not expired", () => {
+    const session = makeActiveSession({ position: 2 });
+    useSRSStore.setState({ activeSession: session });
+    expect(useSRSStore.getState().peekResumableSession()).toEqual(session);
+  });
+
+  it("returns null for an expired session but does NOT clear it from state — the defining difference from getResumableSession", () => {
+    const expired = makeActiveSession({ startedAt: Date.now() - SESSION_EXPIRY_MS - 1000 });
+    useSRSStore.setState({ activeSession: expired });
+
+    expect(useSRSStore.getState().peekResumableSession()).toBeNull();
+    // Deletion Test: if peekResumableSession were implemented by delegating to
+    // getResumableSession (reintroducing the mutation this split exists to avoid), this
+    // assertion fails — activeSession would be null here instead of the original session.
+    expect(useSRSStore.getState().activeSession).toEqual(expired);
+  });
+
+  it("calling it repeatedly never changes store state, even across multiple calls on an expired session", () => {
+    const expired = makeActiveSession({ startedAt: Date.now() - SESSION_EXPIRY_MS - 1000 });
+    useSRSStore.setState({ activeSession: expired });
+
+    useSRSStore.getState().peekResumableSession();
+    useSRSStore.getState().peekResumableSession();
+    useSRSStore.getState().peekResumableSession();
+
+    expect(useSRSStore.getState().activeSession).toEqual(expired);
+  });
+});
+
+describe("clearExpiredResumableSession — explicit purge action (Task #597)", () => {
+  beforeEach(() => {
+    useSRSStore.setState({ cards: {}, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
+  });
+
+  it("is a no-op when there is no active session", () => {
+    useSRSStore.getState().clearExpiredResumableSession();
+    expect(useSRSStore.getState().activeSession).toBeNull();
+  });
+
+  it("does NOT clear a session that has not expired", () => {
+    const session = makeActiveSession();
+    useSRSStore.setState({ activeSession: session });
+    useSRSStore.getState().clearExpiredResumableSession();
+    expect(useSRSStore.getState().activeSession).toEqual(session);
+  });
+
+  it("clears a session that has expired", () => {
+    const expired = makeActiveSession({ startedAt: Date.now() - SESSION_EXPIRY_MS - 1000 });
+    useSRSStore.setState({ activeSession: expired });
+    useSRSStore.getState().clearExpiredResumableSession();
+    expect(useSRSStore.getState().activeSession).toBeNull();
   });
 });

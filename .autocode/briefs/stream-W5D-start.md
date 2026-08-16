@@ -1,119 +1,60 @@
----
-status: done
-stream: W5A
-wave: 5
----
-
-# Adam — Stream W5A — Wave 5 — 2026-08-15
+# Derek — Stream W5D — Wave 5 — 2026-08-15
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W5A | #587 #592 #593 #594 #602 #605 #588 #596
+— Derek | W5D | #591 #601 #604 #598
 
-You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
+You are Derek, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Context
 
-All 8 of your tasks live in the SAME mount-fill effect inside hooks/useStudySession.ts. Read the entire current file first — not just the effect — before touching anything, since #587 (the critical severity-8 finding) requires understanding how app/study/page.tsx calls this hook relative to useIsHydrated().
+Your 4 tasks span two files: components/InterruptHandler.tsx (2 error-handling gaps) and hooks/useInterruptConfig.ts (2 code-quality/requirements gaps). Read both files in full before starting.
 
-**#587 is the priority task — fix it first, fully, before touching anything else.**
-Root cause: app/study/page.tsx destructures `cards`/`introductions` from `useSRSStore()` before its own `useIsHydrated()` check, and calls `useStudySession` unconditionally. Italian's pack loads synchronously via STATIC_PACKS, so `allCardMap` (the current sole readiness signal, from Task #573) is non-empty almost immediately — but on Tauri, SRS-store hydration is an async `@tauri-apps/plugin-store` file-IPC round trip that can still be in flight. On a cold launch, the mount-fill effect can fire once `allCardMap` is ready but while `introductions`/`cards` are still pre-hydration (empty/default) state. If the fill pass introduces a new card via `introduceCard` during that window, it writes against a store snapshot that then gets overwritten wholesale when Zustand's persist middleware finishes hydrating (a full top-level state replace — see lib/storage.ts and store/srsStore.ts's persist config) — silently discarding the just-created IntroductionRecord. This is the SAME defect class Task #573 already fixed for pack-loading readiness (allCardMap-as-ready-signal + mountFillDoneRef), left open for the sibling SRS-store hydration signal.
+**#591 first** (severity 5): `sendNativeNotification` resolving successfully only proves the Tauri IPC call succeeded, not that the OS actually displayed the notification. `markFired()` still fires unconditionally after the resolved promise in the passive-notification branch, advancing the shared cross-device gate for the full interval even when the notification was silently dropped at the OS level. Recall from CLAUDE.md: `markFired()` already IS conditional in the mandatory-overlay branch (fires unconditionally there, correctly, since a mandatory overlay is always genuinely shown) — Task #570 already made the passive branch call `markFired()` only inside `if (granted)`. This finding is one level deeper: even with permission granted, the IPC call resolving isn't proof of actual OS display. Decide whether Tauri's notification plugin exposes any stronger delivery signal; if not, the honest fix may be a code comment documenting this as an accepted best-effort limitation (matching this project's honor-system-style trade-offs elsewhere) rather than inventing an unverifiable check — use your judgment on which is the correct fix after reading the actual plugin API surface available via lib/tauri.ts.
 
-Design the fix around a second readiness signal, analogous to #573's pattern: `app/study/page.tsx` already has a `useIsHydrated()` gate (check how it's used there today — it likely early-returns before rendering the study UI, but `useStudySession` may still be called before that return). The cleanest fix is almost certainly to thread hydration-readiness into `useStudySession`'s own gating — either accept a `hydrated: boolean` param and add it to the mount-fill effect's guard (alongside the existing `allCardMap` emptiness check), or gate the call site in page.tsx so the hook only fires its fill logic once both pack AND store are ready. Prefer extending the hook's own readiness check over changing the call site, consistent with how #573 was solved (the hook owns its own readiness invariant) — but read the actual current code before deciding; if page.tsx already fully gates on `useIsHydrated()` before calling the hook at all, the story may be different than assumed here. Verify your fix with a real test that reproduces the race (mount the hook / render the page with pack ready but store not yet hydrated, assert no premature fill) — this is exactly the kind of defect a Deletion Test must catch.
+**#601 next** (severity 5, same file): the `interrupt:fire` listener has no top-level try/catch; only specific sub-calls are individually guarded. If `computeDue(units)` or `readInterruptGateState(userId)` throws, the resulting promise rejection is unhandled and the interrupt fire is silently dropped with no `console.error` trace. Wrap the listener callback body in a top-level try/catch that logs the error explicitly (per AGENTS.md's stop-the-line rule: 'every catch block must surface the error to the user or log it explicitly').
 
-After #587, the remaining 7 tasks are smaller, related error-handling and code-quality items in the SAME effect — fix them in the listed order so each one builds on the last (try/catch first, then the error-boundary question, then update the ref's name/comment and the readiness-invariant comment to describe the final, corrected state, not the pre-fix state).
+**#604** (severity 4, hooks/useInterruptConfig.ts): `canIntroduceNewCard`'s true/false guarantee is not delivered equally to all three real call sites — the two hooks/useStudySession.ts sites (READ-ONLY reference for you, owned by Adam's stream) get an atomic same-tick check-then-act guarantee, but `computeDue`'s estimate is consumed only much later when the user taps a notification — an unbounded gap during which the real state can change entirely. Since this is a structural staleness gap inherent to push-notification timing (not something a small code change eliminates), the correct fix is very likely a doc comment on `computeDue` making this staleness window explicit for future readers — read the function and use judgment on whether any small correctness improvement is also possible without redesigning the notification pipeline.
+
+**#598** (severity 2, same file): the local variable `newCardDue` is named to mean 'a qualifying new card is due,' but gets reassigned when a near-due review (not a new card) is the actual reason the interrupt can fire. Rename it to something accurate (e.g. `hasQualifyingContent` or similar) — the arithmetic is already correct, this is purely a misleading-name fix.
 
 ## Your Tasks (run in this exact order)
-1. /task #587  — Fix data-loss: The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydrat
-2. /task #592  — Fix error-handling: mountFillDoneRef
-3. /task #593  — Fix error-handling: An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the 
-4. /task #594  — Fix code-quality: mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually 
-5. /task #602  — Fix code-quality: The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachab
-6. /task #605  — Fix async: Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live stor
-7. /task #588  — Fix edge-case: mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real 
-8. /task #596  — Fix async: A cross-tab race exists on the flex daily-new-card maximum
+1. /task #591  — Fix error-handling: sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the
+2. /task #601  — Fix error-handling: The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually gua
+3. /task #604  — Fix requirements: canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites
+4. /task #598  — Fix code-quality: The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a ne
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Adam — W5A
-[→] #587 — Fix data-loss: The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydrat   ← starting now
-[ ] #592 — Fix error-handling: mountFillDoneRef
-[ ] #593 — Fix error-handling: An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the 
-[ ] #594 — Fix code-quality: mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually 
-[ ] #602 — Fix code-quality: The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachab
-[ ] #605 — Fix async: Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live stor
-[ ] #588 — Fix edge-case: mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real 
-[ ] #596 — Fix async: A cross-tab race exists on the flex daily-new-card maximum
+Derek — W5D
+[→] #591 — Fix error-handling: sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the   ← starting now
+[ ] #601 — Fix error-handling: The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually gua
+[ ] #604 — Fix requirements: canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites
+[ ] #598 — Fix code-quality: The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a ne
 
 ## Files You Own (edit ONLY these)
-hooks/useStudySession.ts
-hooks/useStudySession.test.ts
+components/InterruptHandler.tsx
+components/InterruptHandler.test.tsx
+hooks/useInterruptConfig.ts
+hooks/useInterruptConfig.test.ts
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
 app/study/page.test.tsx
 app/study/page.tsx
-components/InterruptHandler.test.tsx
-components/InterruptHandler.tsx
-hooks/useInterruptConfig.test.ts
-hooks/useInterruptConfig.ts
+hooks/useStudySession.test.ts
+hooks/useStudySession.ts  (read-only reference — Adam's stream is fixing this in Wave 5)
 store/srsStore.ts
 tests/srsStore.test.ts
 
 ## Task Definitions
 
-### Task #587
+### Task #591
 
-### Task #587: Fix data-loss: The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydrat
+### Task #591: Fix error-handling: sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the
 
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P1
-**Status:** OPEN
-
-**What:**
-The mount-fill effect gates readiness only on allCardMap (pack-loading) and ignores SRS-store hydration readiness. app/study/page.tsx destructures cards/introductions from useSRSStore() before its own useIsHydrated() check and calls useStudySession unconditionally. Italian's pack loads synchronously via STATIC_PACKS while Tauri SRS-store hydration is an async file-store IPC round trip, so on a cold push-tap launch into /study?mode=interrupt, allCardMap is populated before cards/introductions hydrate from their {} defaults. mountFillDoneRef latches true on this first render and cards/introductions are not in the dependency array, so the one real fill pass runs against stale pre-hydration state: selectQualifyingNewCard treats every card as untouched and introduceCard writes a new IntroductionRecord into the still-empty in-memory introductions map. When hydration completes moments later, zustand persist's default merge behavior fully replaces top-level introductions with the persisted value, silently discarding the just-created record while the card's FSRS progress from the unconditional commitSession/handleRate path is kept. The card permanently and silently skips BRAND.md's 22-day intensive introduction cadence with no error or log anywhere. at hooks/useStudySession.ts:mount-time introduce/fill effect (isInterrupt fill pass):144.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix data-loss issue at hooks/useStudySession.ts:mount-time introduce/fill effect (isInterrupt fill pass):144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F001 — severity 8 — data-loss
-
----
-
-### Task #592
-
-### Task #592: Fix error-handling: mountFillDoneRef
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-mountFillDoneRef.current is set to true before any fill logic executes, and the entire effect body has no try/catch. If anything throws mid-fill, cards already committed via introduceCard remain permanently recorded as introduced today, consuming the daily cap, but never reach the visible queue via the final setQueue call. This session instance never retries since the ref already reads true. at hooks/useStudySession.ts:mount-fill effect body:144.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix error-handling issue at hooks/useStudySession.ts:mount-fill effect body:144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F006 — severity 6 — error-handling
-
----
-
-### Task #593
-
-### Task #593: Fix error-handling: An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the 
-
-**File:** hooks/useStudySession.ts
+**File:** components/InterruptHandler.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -121,22 +62,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-An uncaught exception from the mount-fill effect body (same location as F006) propagates out of the useEffect callback entirely. No error boundary exists around the /study route, so a genuine throw here crashes the whole route to Next.js's default error UI instead of degrading gracefully. at hooks/useStudySession.ts:mount-fill effect body; /study route:144.
+sendNativeNotification resolving successfully only proves the Tauri IPC call succeeded, not that the OS actually displayed the notification. markFired() still fires unconditionally after the resolved promise, advancing the shared cross-device gate for the full interval even when the notification was silently dropped at the OS level. at components/InterruptHandler.tsx:passive notification branch:0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix error-handling issue at hooks/useStudySession.ts:mount-fill effect body; /study route:144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix error-handling issue at components/InterruptHandler.tsx:passive notification branch:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
 
-**Source:** Audit finding F007 — severity 5 — error-handling
+**Source:** Audit finding F005 — severity 5 — error-handling
 
 ---
 
-### Task #594
+### Task #601
 
-### Task #594: Fix code-quality: mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually 
+### Task #601: Fix error-handling: The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually gua
 
-**File:** hooks/useStudySession.ts
+**File:** components/InterruptHandler.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -144,22 +85,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-mountFillDoneRef's name and its own comment describe post-completion state, but the ref is actually set at the start of the fill body before any of it can fail. The name and comment overclaim a stronger guarantee than the code delivers, directly compounding F006. at hooks/useStudySession.ts:mountFillDoneRef:144.
+The interrupt:fire listener has no top-level try/catch; only specific sub-calls are individually guarded. If computeDue(units) or readInterruptGateState(userId) throws, the resulting promise rejection is unhandled and the interrupt fire is silently dropped with no console.error trace. at components/InterruptHandler.tsx:interrupt:fire listener callback:102.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:mountFillDoneRef:144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix error-handling issue at components/InterruptHandler.tsx:interrupt:fire listener callback:102
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
 
-**Source:** Audit finding F008 — severity 3 — code-quality
+**Source:** Audit finding F015 — severity 5 — error-handling
 
 ---
 
-### Task #602
+### Task #604
 
-### Task #602: Fix code-quality: The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachab
+### Task #604: Fix requirements: canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites
 
-**File:** hooks/useStudySession.ts
+**File:** hooks/useInterruptConfig.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -167,22 +108,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-The claim that allCardMap-emptiness can only mean not-loaded-yet is technically false in two reachable scenarios: a pack-load error leaves allCardMap permanently empty, and an invalid unitId makes allCards permanently an empty array. Both are currently harmless since the effect's guard correctly no-ops in both cases. at hooks/useStudySession.ts:mount-fill readiness invariant:0.
+canIntroduceNewCard's true/false guarantee is not delivered equally to all three real call sites. The two useStudySession.ts sites get an atomic same-tick check-then-act guarantee; computeDue's estimate is consumed only much later when the user taps a notification, an unbounded gap during which the real state can change entirely. at hooks/useInterruptConfig.ts:computeDue vs useStudySession.ts's canIntroduceNewCard call sites:0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill readiness invariant:0
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix requirements issue at hooks/useInterruptConfig.ts:computeDue vs useStudySession.ts's canIntroduceNewCard call sites:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
 
-**Source:** Audit finding F016 — severity 3 — code-quality
+**Source:** Audit finding F018 — severity 4 — requirements
 
 ---
 
-### Task #605
+### Task #598
 
-### Task #605: Fix async: Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live stor
+### Task #598: Fix code-quality: The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a ne
 
-**File:** hooks/useStudySession.ts
+**File:** hooks/useInterruptConfig.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -190,60 +131,14 @@ NEW
 **Status:** OPEN
 
 **What:**
-Within the mount-fill effect, canIntroduceNewCard, introduceCard, and getNearDueCards read live store state via get() while selectQualifyingNewCard reads parameters captured from the render closure. This mixed live-read/stale-snapshot pattern could let sync-triggered background patches to cards desync from what canIntroduceNewCard sees. at hooks/useStudySession.ts:mount-fill effect (live get() reads vs closure-captured params):144.
+The local variable newCardDue, named to mean a qualifying new card is due, gets reassigned when a near-due review rather than a new card is the actual reason the interrupt can fire. The final return value is arithmetically correct, but the variable's name misleads a future reader. at hooks/useInterruptConfig.ts:computeDue:0.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix async issue at hooks/useStudySession.ts:mount-fill effect (live get() reads vs closure-captured params):144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix code-quality issue at hooks/useInterruptConfig.ts:computeDue:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.ts
 
-**Source:** Audit finding F019 — severity 4 — async
-
----
-
-### Task #588
-
-### Task #588: Fix edge-case: mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real 
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-mountFillDoneRef permanently suppresses re-fill if allCardMap legitimately grows after the one real fill pass, e.g. a specialty-pack merge completing after session mount. No specialty pack is registered ready:true today, so this path has no real caller today. at hooks/useStudySession.ts:mountFillDoneRef exactly-once guard:144.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix edge-case issue at hooks/useStudySession.ts:mountFillDoneRef exactly-once guard:144
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F002 — severity 2 — edge-case
-
----
-
-### Task #596
-
-### Task #596: Fix async: A cross-tab race exists on the flex daily-new-card maximum
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-A cross-tab race exists on the flex daily-new-card maximum. Already self-documented and accepted under CLAUDE.md section 5's client-only entitlement model; no new exploitation surface added by this round. at hooks/useStudySession.ts:INTERRUPT_FLEX_DAILY_MAX cross-tab check:0.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix async issue at hooks/useStudySession.ts:INTERRUPT_FLEX_DAILY_MAX cross-tab check:0
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F010 — severity 1 — async
+**Source:** Audit finding F012 — severity 2 — code-quality
 
 ---
 
@@ -369,7 +264,7 @@ yourself with a repo-wide command — a prior wave (B2 audit round 1) lost 8 uni
 agent's uncommitted work this exact way.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W5A/completion.md. The file
+Write your completion summary to .autocode/stream-W5D/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
 CLOSED: #[NUM] #[NUM] ...
@@ -379,6 +274,6 @@ NOT_CLOSED: #[NUM] — [one-line reason]
 
 After those two lines, write whatever prose detail is useful.
 
-Then tell Max in this window: "Adam is done." (or describe what's incomplete).
+Then tell Max in this window: "Derek is done." (or describe what's incomplete).
 
-— Adam | W5A | #587 #592 #593 #594 #602 #605 #588 #596
+— Derek | W5D | #591 #601 #604 #598

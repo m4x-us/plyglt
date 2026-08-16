@@ -835,3 +835,152 @@ describe("useStudySession — seam: normal-cap intro consumes 1 of the 3 flex sl
     expect(Object.keys(useSRSStore.getState().introductions)).toHaveLength(3);
   });
 });
+
+// ── SRS-store hydration gating (Task #587, Wave 5) ─────────────────────────────────
+// Root cause: app/study/page.tsx destructures cards/introductions from useSRSStore()
+// and calls useStudySession unconditionally, BEFORE its own useIsHydrated() gate. On
+// Tauri (async file-store IPC hydration), a cold launch can render this hook with
+// allCardMap already populated (Italian's pack loads synchronously) while cards/
+// introductions are still pre-hydration {} defaults — introducing a card in that
+// window writes into an introductions map that persist's hydrate() then silently
+// overwrites moments later, discarding the record.
+
+describe("useStudySession — SRS-store hydration gating (Task #587)", () => {
+  it("does not run the fill pass while allCardMap is ready but the SRS store has not finished hydrating, then runs it once hydration completes", () => {
+    // Simulates the Tauri cold-launch race: pack ready, store still hydrating.
+    // Spying on persist.hasHydrated() (the plain function useIsHydrated's
+    // useSyncExternalStore calls internally as its getSnapshot) — rather than
+    // mocking useIsHydrated itself — keeps the exact same hooks called in the exact
+    // same order on every render; only the returned VALUE differs. Swapping out the
+    // whole hook for a plain mock function instead broke React's Rules of Hooks
+    // (the mocked call skipped useSyncExternalStore/useState/useEffect entirely on
+    // the first render, then the real implementation invoked them on rerender).
+    // Uses mockReturnValue (not "once"): React's useSyncExternalStore calls
+    // getSnapshot multiple times per render to check for tearing — a "once" override
+    // answers only the first of those calls, so React sees an inconsistent snapshot
+    // and resolves to the real (already-hydrated) value anyway.
+    const hasHydratedSpy = vi.spyOn(useSRSStore.persist, "hasHydrated").mockReturnValue(false);
+    const introduceCard = vi.fn();
+    const canIntroduceNewCard = vi.fn(() => true);
+    const catalog = ["h1"].map((id) => makeCard(id));
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useStudySession>[0]) => useStudySession(props),
+      {
+        initialProps: defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap, // pack IS ready
+          canIntroduceNewCard,
+          introduceCard,
+        }),
+      },
+    );
+
+    // Deletion Test: the pre-#587 code gates only on allCardMap-emptiness, so with a
+    // non-empty allCardMap it would run the fill pass immediately here regardless of
+    // hydration — introduceCard would already have been called, and the ref would
+    // latch true, permanently discarding the chance to retry once hydration (and the
+    // real store's pre-hydration introductions default) finishes.
+    expect(introduceCard).not.toHaveBeenCalled();
+    expect(result.current.queue).toHaveLength(0);
+
+    // Hydration finishes.
+    hasHydratedSpy.mockReturnValue(true);
+    rerender(
+      defaultParams({
+        initialQueue: [],
+        allCardMap: catalogMap,
+        canIntroduceNewCard,
+        introduceCard,
+      }),
+    );
+
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(result.current.queue).toHaveLength(1);
+    hasHydratedSpy.mockRestore();
+  });
+
+  it("runs the fill pass immediately on a normal mount where the store is already hydrated (the common case is unaffected)", () => {
+    const introduceCard = vi.fn();
+    const canIntroduceNewCard = vi.fn(() => true);
+    renderHook(() => useStudySession(defaultParams({ canIntroduceNewCard, introduceCard })));
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── mount-fill effect error containment (Tasks #592/#593, Wave 5) ──────────────────
+// mountFillStartedRef is claimed BEFORE any of the fill logic that can throw runs, and
+// this session instance never retries. Without a try/catch, a throw here would (a)
+// permanently strand any card already committed via introduceCard — recorded in the
+// store, consuming today's cap, but never reaching the visible queue — and (b)
+// propagate out of the effect uncaught, with no error boundary around the /study route
+// to catch it.
+
+describe("useStudySession — mount-fill effect error containment (Tasks #592/#593)", () => {
+  it("does not let a mid-pass throw escape the effect, and logs the failure explicitly", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const introduceCard = vi.fn();
+    const getNearDueCards = vi.fn(() => {
+      throw new Error("getNearDueCards boom");
+    });
+    // Normal-cap path open (maxPerDay undefined -> true), flex path denied
+    // (maxPerDay defined -> false) so the throw is isolated to the near-due branch.
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => maxPerDay === undefined);
+    const catalog = ["e1"].map((id) => makeCard(id));
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+
+    // Deletion Test: without the try/catch, this throw propagates out of the effect
+    // uncaught — renderHook itself would throw during the initial render.
+    expect(() => {
+      renderHook(() =>
+        useStudySession(
+          defaultParams({
+            initialQueue: [],
+            allCardMap: catalogMap,
+            isInterrupt: true,
+            canIntroduceNewCard,
+            introduceCard,
+            getNearDueCards,
+          }),
+        ),
+      );
+    }).not.toThrow();
+
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
+      /^\[ERR-STUDY-SESSION-FILL-\d+\] mount-fill effect threw mid-pass/,
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("still shows a card successfully introduced before a mid-pass throw, in the visible queue (finally-flush)", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const introduceCard = vi.fn();
+    const getNearDueCards = vi.fn(() => {
+      throw new Error("getNearDueCards boom");
+    });
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => maxPerDay === undefined);
+    const catalog = ["e1"].map((id) => makeCard(id));
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard,
+          introduceCard,
+          getNearDueCards,
+        }),
+      ),
+    );
+
+    // "e1" was introduced via the normal-cap path (which ran and succeeded) BEFORE
+    // getNearDueCards threw — the finally block must still flush it into the queue,
+    // not silently discard a partial success on top of the failure.
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(result.current.queue.map((c) => c.id)).toEqual(["e1"]);
+    consoleErrorSpy.mockRestore();
+  });
+});
