@@ -899,7 +899,7 @@ describe("useStudySession — cold-start freeze fix (Task #573)", () => {
 
     // A later, unrelated allCardMap reference change (e.g. navigating to a different
     // unit's catalog without a full remount) must NOT re-trigger the fill pass a second
-    // time — mountFillDoneRef must hold once the real pass has already run.
+    // time — mountFillStartedRef must hold once the real pass has already run.
     rerender(
       defaultParams({
         initialQueue: catalogA,

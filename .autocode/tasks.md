@@ -12643,9 +12643,9 @@ NEW
 **File:** docs/INTERRUPT_ARCHITECTURE.md
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (direct fix, orchestrator)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 docs/INTERRUPT_ARCHITECTURE.md SS10.2 documents the mount-fill guard as mountFillDoneRef with dependency array [allCardMap], while the actual shipped code in the same diff uses mountFillStartedRef with dependency array [allCardMap, hydrated]. The doc was never updated for this same-diff's own Wave 5 rename. The old name also survives in a test-file comment. at docs/INTERRUPT_ARCHITECTURE.md:SS10.2 (mount-fill guard documentation):357.

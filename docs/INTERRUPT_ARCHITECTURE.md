@@ -360,6 +360,26 @@ potentially re-firing several times: the guard is set only once the fill
 logic actually runs, on whichever render is the first to see real pack
 data, so every other re-fire — before or after that point — is a no-op.
 
+**Extended in Wave 5 (Task #587) and Wave 6 (Task #606) — a second,
+independent readiness signal.** `allCardMap` is a pack-loading signal only;
+it says nothing about whether the SRS store itself (`cards`/`introductions`,
+async file-store IPC on Tauri) has finished hydrating. A cold launch could
+have the pack ready while the store was still hydrating, letting the fill
+pass write a new `introduceCard` record against pre-hydration `{}`
+defaults that a moment later got silently discarded. Task #587 added a
+second guard value, `hydrated`, to the dependency array — now
+`[allCardMap, hydrated]` — and Task #606 tightened what `hydrated` itself
+means: it is `useIsHydratedStrict` (`lib/storage.ts`), which reflects only
+real `persist.hasHydrated()` and never the plain `useIsHydrated`'s
+`HYDRATION_FAILSAFE_MS` fallback, since this effect *writes* new persisted
+state and must not race ahead of real hydration on the failsafe's say-so.
+The one-shot guard itself was also renamed in Wave 5 (Task #592/#594),
+from `mountFillDoneRef` to `mountFillStartedRef` — the old name implied
+the fill pass had *completed*, but the ref is actually claimed at the
+start of the guarded block, before any of the fill logic that can throw
+runs (see the effect's own try/catch/finally, added the same wave, for
+what happens if a claimed attempt fails partway through).
+
 ### 10.3 The flex fill's daily ceiling is enforced per introduction attempt, not once per mount (Task #562 — corrects Wave 1's original #538/#551 fix)
 
 Step 1 above disables the *numeric* daily new-card cap
