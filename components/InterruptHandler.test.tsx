@@ -684,7 +684,7 @@ describe("InterruptHandler", () => {
     });
 
     // Task #564: totalDue is a genuinely unbounded sum of FSRS-due cards across the
-    // whole catalog, but app/study/page.tsx slices the opened session at
+    // whole catalog, but hooks/useStudyQueueSetup.ts slices the opened session at
     // INTERRUPT_SESSION_CAP (8) — the notification must never announce more than
     // the session can actually deliver.
     it("caps the announced count at INTERRUPT_SESSION_CAP on a heavy backlog day (regression, Task #564)", async () => {

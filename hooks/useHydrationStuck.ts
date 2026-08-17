@@ -24,28 +24,42 @@
 // before calling in, so the "caller has stopped reading this value once the
 // gate opens" invariant below is true by construction. Verified safe against a
 // re-triggering `blocked` (true→false→true within one mount): `packLoading`
-// (hooks/useLangPack.ts) only ever transitions true→false, exactly once per
+// (hooks/useLangPack.ts) only ever transitions true→false, at most once per
 // mount, same as `hydratedStrict` — a language switch reloads the whole page
 // (CLAUDE.md) rather than re-triggering loading on an already-mounted hook.
 //
-// Round-8 audit finding (Red Agent R, CHAOS, severity 7): widening the input to
-// include `packLoading` also widened what "stuck" has to mean. The original
-// 15000ms was tuned for HYDRATION_FAILSAFE_MS-adjacent local storage stalls —
-// no network dependency, should resolve near-instantly or never. `packLoading`
-// is a network fetch of `public/packs/{lang}.json` (~8.6MB uncompressed for
-// `it`, and CURRICULUM.md documents the curriculum still actively growing) —
-// on an ordinary (not even "slow") 3G connection, downloading that much data
-// can legitimately take well over 15s, even accounting for gzip/brotli
-// compression on JSON. The old threshold would show "Couldn't load your
-// progress" — and its Retry button would restart the identical slow fetch —
-// for users who are simply on a slow connection with a load that's genuinely
-// still progressing. Fixed: widened to accommodate a realistic slow-connection
-// pack download while still bounding a truly dead connection under a minute.
+// Round-8 audit finding (Red Agent R, CHAOS): widening the input to include
+// `packLoading` also widened what "stuck" has to mean, and round 8 widened
+// 15000ms -> 45000ms reasoning that a slow-connection download of the ~8.6MB
+// `it.json` pack could legitimately exceed 15s. Round-9 audit finding (Red
+// Agent R / Agent B / Agent A, 3-way convergent, severity 7): that reasoning
+// was wrong on two independent counts, and the widening was REVERTED. (1)
+// `it` — the only READY:true, currently-selectable language (lib/langRegistry.ts)
+// — is bundled into the JS as static TypeScript content (hooks/useLangPack.ts's
+// STATIC_PACKS), never fetched as `it.json` over the network at runtime at
+// all; `packLoading` for it resolves to `false` synchronously. (2) even for a
+// genuinely network-loaded pack (today only reachable once a non-static
+// language ships ready:true), `lib/fetchWithTimeout.ts` hard-bounds every pack
+// fetch to `FETCH_TIMEOUT_MS` (20000ms, lib/constants.ts) via an
+// AbortController AND an independent Promise.race backstop — `packLoading`
+// is therefore GUARANTEED to resolve to `false` (success or `download_failed`)
+// within 20s regardless of connection speed. A composite `blocked` condition
+// can never legitimately stay true past ~20s because of `packLoading` — only
+// a genuine `hydratedStrict`/`hydrated` stall (no network dependency, should
+// resolve near-instantly or never) can. Widening past that made the timeout
+// structurally incapable of ever engaging for the scenario it claimed to fix,
+// while tripling the wait for the one failure mode still reachable through it.
+// Reverted to 15000ms — the original, correctly-reasoned value for a pure
+// storage-hydration stall. Revisit only if a dynamically-loaded language ships
+// `ready:true` AND real user reports show 15s is too tight for that specific
+// path — at which point the fix belongs on surfacing useLangPack()'s `error`
+// field (see .autocode/debt.md Task #378, sharpened this round) or a signal
+// scoped to that failure mode specifically, not a blanket widening here.
 "use client";
 
 import { useEffect, useState } from "react";
 
-export const HYDRATION_STUCK_TIMEOUT_MS = 45000;
+export const HYDRATION_STUCK_TIMEOUT_MS = 15000;
 
 export function useHydrationStuck(blocked: boolean, timeoutMs: number = HYDRATION_STUCK_TIMEOUT_MS): boolean {
   const [stuck, setStuck] = useState(false);

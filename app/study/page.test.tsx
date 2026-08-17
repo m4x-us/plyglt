@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { useSRSStore } from "@/store/srsStore";
+import { HYDRATION_STUCK_TIMEOUT_MS } from "@/hooks/useHydrationStuck";
 
 // ── vi.hoisted: mutable state controlling mock return values ──────────────────
 
@@ -561,6 +562,13 @@ describe("StudyPage — app/study/page.tsx", () => {
     // Task #644: hydratedStrict never resolves via a failsafe by design (that's
     // what makes it safe to write-gate on) — so a genuine hydration failure must
     // surface a retry affordance instead of hanging on "Loading…" forever.
+    // Round-9 audit finding (Agent A / Agent W / Agent K, 3-way convergent, Rule
+    // 18): the round-8 version of this test only advanced timers by a hardcoded
+    // 45000ms and asserted the end state — it would pass identically whatever
+    // HYDRATION_STUCK_TIMEOUT_MS actually is (confirmed via a live Deletion Test:
+    // reverting the exported constant back to 15000ms left this test green).
+    // Rewritten to import the real constant and assert BOTH sides of its
+    // boundary, so a future accidental change to the exported value is caught.
     it("shows a retry screen instead of Loading… once real hydration has stayed stuck past the bounded timeout", () => {
       vi.useFakeTimers();
       setCards([FAKE_CARD]);
@@ -572,9 +580,16 @@ describe("StudyPage — app/study/page.tsx", () => {
       expect(screen.getByText("Loading…")).toBeInTheDocument();
 
       act(() => {
-        // Round-8: HYDRATION_STUCK_TIMEOUT_MS widened to 45000ms (Red Agent R
-        // finding — 15s was too tight for a real slow-network pack download).
-        vi.advanceTimersByTime(45000);
+        vi.advanceTimersByTime(HYDRATION_STUCK_TIMEOUT_MS - 1);
+      });
+      // Deletion Test: reverting HYDRATION_STUCK_TIMEOUT_MS to any value below
+      // its real current value makes this assertion fail (the retry screen would
+      // already be showing here instead of "Loading…").
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
+      expect(screen.queryByText("Couldn't load your progress.")).not.toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
       });
 
       expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
@@ -604,7 +619,7 @@ describe("StudyPage — app/study/page.tsx", () => {
       expect(screen.getByText("Loading…")).toBeInTheDocument();
 
       act(() => {
-        vi.advanceTimersByTime(45000);
+        vi.advanceTimersByTime(HYDRATION_STUCK_TIMEOUT_MS);
       });
 
       // Deletion Test: reverting app/study/page.tsx's wiring to

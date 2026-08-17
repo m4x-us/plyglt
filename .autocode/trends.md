@@ -35,3 +35,4 @@
 | 2026-08-17 | batch 23 -- re-audit round 6 (8-agent, post Wave 8 remediation) | 1 | 8 | FAIL |
 | 2026-08-17 | batch 23 -- re-audit round 7 (8-agent, post round-6 remediation) | 1 | 8 | FAIL (13/18 findings fixed live same round, 5 capped/logged as debt) |
 | 2026-08-17 | batch 23 -- re-audit round 8 (8-agent, post round-7 remediation) | 1 | 7 | FAIL (6 findings fixed live same round -- incl. a real network-timeout false-positive risk and a genuine test-wiring gap -- 2 logged as debt, 1 prior debt entry corrected) |
+| 2026-08-17 | batch 23 -- re-audit round 9 (8-agent, post round-8 remediation) | 1 | 7 | FAIL (round-8's own timeout-widening fix reverted after its justification was found factually wrong; 4 more doc-drift siblings fixed; 2 new findings -- a resume-desync bug and a missing Pro-gate -- logged to debt for Max's disposition) |

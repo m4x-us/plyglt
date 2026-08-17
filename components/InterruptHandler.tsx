@@ -253,8 +253,8 @@ function InterruptHandlerCore() {
               // path's identical floor in supabase/functions/send-interrupt-notifications.
               // Task #564: also cap at INTERRUPT_SESSION_CAP (8) — totalDue sums FSRS-due
               // cards across the whole catalog and is genuinely unbounded, but
-              // app/study/page.tsx slices the opened queue at the same cap, so a backlog
-              // day must not announce more cards than the session can ever deliver. Same
+              // hooks/useStudyQueueSetup.ts slices the opened queue at the same cap, so a
+              // backlog day must not announce more cards than the session can ever deliver. Same
               // clamp shape as dueEstimate.ts's buildNotificationPayload (server sibling).
               // docs/INTERRUPT_ARCHITECTURE.md §10.4: a stranded introduction pause combined
               // with an empty near-due pool can leave the opened session below this count,

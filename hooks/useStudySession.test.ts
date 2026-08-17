@@ -777,13 +777,13 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
 // unconditionally for every session type, with no awareness of sessionIds.size or
 // INTERRUPT_SESSION_CAP — unlike the flex loop and near-due loop, which both correctly
 // stop at INTERRUPT_SESSION_FLOOR. A backlog-day interrupt session already sliced to
-// CAP (8) by app/study/page.tsx could still grow to 9 via this one unguarded path.
+// CAP (8) by hooks/useStudyQueueSetup.ts could still grow to 9 via this one unguarded path.
 
 describe("useStudySession — normal daily-cap path respects INTERRUPT_SESSION_CAP for interrupt sessions (Task #617)", () => {
   it("does not introduce a normal-cap new card into an interrupt session already at INTERRUPT_SESSION_CAP, even though a qualifying card exists and the daily cap is open", () => {
     const introduceCard = vi.fn();
     // 8 already-studied cards (INTERRUPT_SESSION_CAP) already in the session — the
-    // realistic app/study/page.tsx backlog-day shape (initialQueue sliced to CAP).
+    // realistic hooks/useStudyQueueSetup.ts backlog-day shape (initialQueue sliced to CAP).
     const initial = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`d${i}`));
     // One untouched candidate — qualifies for normal-cap introduction if nothing stops it.
     const extraCandidate = makeCard("extra");
