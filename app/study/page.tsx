@@ -45,36 +45,35 @@ function StudyInner() {
   const handleSnooze = useSnoozeAndExit(snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
-  // Task #612: card-scope/prerequisite/initial-queue computation extracted to
-  // hooks/useStudyQueueSetup.ts to keep this route under CLAUDE.md's 150-line cap.
+  // Task #612: card-scope/queue computation extracted to hooks/useStudyQueueSetup.ts (line-cap).
   const { allCards, unit, initialQueue, allCardMap } = useStudyQueueSetup({
     isGlobal, isInterrupt, unitId, allUnits: ALL_UNITS, unitMap: UNIT_MAP, cards,
     getDueCards, getNewCards, getIntroductionDueCardIds,
   });
 
-  // Task #542/#583/#620: this binding scans+sorts the full allCards catalog once per mount —
-  // see hooks/useStudySession.ts's near-due fill step for the cost/accepted-debt analysis.
+  // Task #542/#583/#620: scans+sorts the full allCards catalog once per mount —
+  // see hooks/useStudySession.ts's near-due fill step for the cost analysis.
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
     useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
-  // Task #628 (Wave 8): `hydrated` alone unblocks via HYDRATION_FAILSAFE_MS even
-  // without real hydration, but past this gate writes real data (handleRate,
-  // onRate) — `hydratedStrict` (never resolves via the failsafe) closes that gap.
+  // Task #628: `hydratedStrict` (never resolves via HYDRATION_FAILSAFE_MS,
+  // unlike lenient `hydrated`) gates real writes past this screen.
   const hydrated = useIsHydrated(useSRSStore);
   const hydratedStrict = useIsHydratedStrict(useSRSStore);
-  // Task #644: bounded escape hatch for a hydratedStrict that never resolves
-  // on its own — see hooks/useHydrationStuck.ts. Never bypasses the gate itself.
-  const hydrationStuck = useHydrationStuck(hydratedStrict);
-  if (!hydrated || packLoading || !hydratedStrict) {
+  const stillLoading = !hydrated || packLoading || !hydratedStrict;
+  // Task #644: bounded retry escape hatch — hooks/useHydrationStuck.ts — fed the
+  // SAME composite condition the gate checks (round-7 fix; a version scoped to
+  // hydratedStrict alone missed a stuck packLoading). Never bypasses the gate.
+  const hydrationStuck = useHydrationStuck(stillLoading);
+  if (stillLoading) {
     if (hydrationStuck) return <StudyHydrationStuck />;
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
   }
   if (!isGlobal && !isInterrupt && !unit) return <StudyUnitNotFound mode={mode} unitId={unitId} onHome={() => router.push("/learn")} />;
 
-  // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt
-  // session's mount effect can fill an empty initialQueue via flex introduction.
-  if (queue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
-
+  // Round-7 fix: checked BEFORE the empty-queue check — the mount-fill effect
+  // skips filling while pending (Task #629), so a caught-up day can have an
+  // empty queue AND a pending resume at once; the old order hid this prompt.
   if (resumeDecision === "pending") {
     // Task #608: peekResumableSession is the render-phase-safe read.
     const saved = peekResumableSession();
@@ -87,6 +86,10 @@ function StudyInner() {
       />
     );
   }
+
+  // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt
+  // session's mount effect can fill an empty initialQueue via flex introduction.
+  if (queue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
   const isDone = pos >= queue.length;
 
@@ -109,10 +112,7 @@ function StudyInner() {
     );
   }
 
-  // Task #599: only asserted non-null after the isDone branch above has already
-  // returned — pos < queue.length is guaranteed here, whereas evaluating this
-  // before that branch (the prior ordering) asserted non-null before its own
-  // precondition was confirmed, even though isDone's own branch never read it.
+  // Task #599: asserted non-null only after isDone's branch returns — pos < queue.length is guaranteed here.
   const currentCard = queue[pos]!;
   const unitName = isGlobal || isInterrupt ? findUnitName(currentCard.id, ALL_UNITS) : unit!.name;
   const headerTitle = isInterrupt ? "Quick review" : isGlobal ? "Global Review" : `${unit!.emoji} ${unit!.name}`;

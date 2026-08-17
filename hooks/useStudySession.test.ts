@@ -223,10 +223,10 @@ describe("useStudySession — mount-fill effect skips fill when a resumable sess
     // re-fires (its deps don't include resumeDecision) and the queue stays at the
     // raw, empty initialQueue forever — introduceCard would never be called and the
     // queue would stay empty. With the fix, this is exactly an ordinary empty-queue
-    // interrupt fill: all 3 CARD_MAP entries (c1-c3) get flex-introduced (well under
-    // both INTERRUPT_SESSION_MAX_NEW and the floor, since the catalog itself only has
-    // 3 cards) and all 3 land in the visible queue — the exact same result an ordinary
-    // mount with no resumable session at all would have produced.
+    // interrupt fill: all 3 CARD_MAP entries (c1-c3) get flex-introduced (exactly at
+    // INTERRUPT_SESSION_MAX_NEW, well under the floor, since the catalog itself only
+    // has 3 cards) and all 3 land in the visible queue — the exact same result an
+    // ordinary mount with no resumable session at all would have produced.
     expect(introduceCard).toHaveBeenCalledTimes(3);
     expect(result.current.queue.map((c) => c.id).sort()).toEqual(["c1", "c2", "c3"]);
   });
@@ -275,11 +275,22 @@ describe("useStudySession — apply-resume effect handles 'accepted' with a sinc
     // would show StudyResumePrompt, not the study card, while resumeDecision is
     // "pending") — a hook-level test liberty, purely to prove the #634 branch's own
     // reset logic, not a claim about a real reachable UI sequence.
+    // Round-7 audit finding (Agent K / Agent V, convergent): a single handleRate("again")
+    // call never mutates sessionCorrect away from 0 (grade "again" is not a correct
+    // answer), so the sessionCorrect assertion below was non-falsifiable — it passed
+    // whether or not the #634/#643 reset branch actually ran. A leading handleRate("good")
+    // genuinely increments sessionCorrect before the mutation-via-"again" call, so every
+    // one of queue/pos/sessionCorrect/sessionTotal is displaced from its reset target.
+    act(() => {
+      result.current.handleRate("good"); // sessionCorrect: 0 -> 1
+    });
     act(() => {
       result.current.handleRate("again"); // re-inserts the card: queue grows to 4
     });
     expect(result.current.queue).toHaveLength(4);
-    expect(result.current.pos).toBe(1);
+    expect(result.current.pos).toBe(2);
+    expect(result.current.sessionCorrect).toBe(1);
+    expect(result.current.sessionTotal).toBe(2);
 
     // The session expires between the pending read and this accepted read.
     peekResumableSession.mockReturnValue(null);
@@ -292,7 +303,8 @@ describe("useStudySession — apply-resume effect handles 'accepted' with a sinc
     // ("accepted"&&resumedQueue requires a truthy resumedQueue; "declined" and null
     // don't match "accepted" at all) — clearActiveSession would never be called, and
     // queue/pos/sessionCorrect/sessionTotal would stay stuck at the mutated
-    // 4-card/pos-1 state from the handleRate("again") call above, not reset.
+    // 4-card/pos-2/sessionCorrect-1/sessionTotal-2 state from the handleRate calls
+    // above, not reset — every one of these four assertions is genuinely falsifiable.
     expect(clearActiveSession).toHaveBeenCalledTimes(1);
     expect(result.current.queue.map((c) => c.id)).toEqual(CARDS.map((c) => c.id));
     expect(result.current.pos).toBe(0);

@@ -67,14 +67,22 @@ export function useInterruptConfig() {
   const userId = useAuthStore((s) => s.userId);
   const deviceId = useSyncStore((s) => s.deviceId);
 
-  // Mirrors what lib/queue.ts's buildQueue actually pulls into a session: FSRS-due
+  // Estimates what a real interrupt session will end up containing: FSRS-due
   // reviews, introduction-cadence cards due for their next appearance, and (capped at
-  // one, matching the daily introduction cap) a qualifying new card — not just FSRS due
-  // reviews. Docs: docs/INTERRUPT_ARCHITECTURE.md §2.
+  // one, matching the daily introduction cap) a qualifying new card. Round-7 audit
+  // finding (naive-reader lane, informational): the new-card figure is NOT pulled by
+  // lib/queue.ts's buildQueue for an interrupt session — buildQueue's newCards path is
+  // dead when globalMode is true (isGlobal || isInterrupt), so buildQueue always
+  // contributes newCards=[] here. The real new-card pull happens later, in
+  // hooks/useStudySession.ts's own mount-fill effect (a separate code path this
+  // estimate mirrors, not one it reads from) — both independently gate on the same
+  // canIntroduceNewCard(today), which is what keeps the two numbers in agreement.
+  // Docs: docs/INTERRUPT_ARCHITECTURE.md §2.
   //
   // Task #604 — staleness window: canIntroduceNewCard's true/false result is only a live
   // guarantee for a caller that checks-then-acts in the same tick, which is what both
-  // hooks/useStudySession.ts mount-effect call sites do (Adam's stream). This estimate is
+  // of hooks/useStudySession.ts's runFillPass call sites do (the mount-fill effect and
+  // the apply-resume effect's decline/expired-accept branch, Task #643). This estimate is
   // different in kind: it is computed here, then handed to the native OS notification layer
   // (components/InterruptHandler.tsx), and the real consumption only happens whenever the
   // user eventually taps that notification — seconds, minutes, or never. Store state (what's

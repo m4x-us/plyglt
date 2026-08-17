@@ -365,6 +365,17 @@ this key" fresh (via `peekResumableSession`, not the `resumeDecision` state
 variable, which can lag a render behind — see the effect's own code
 comment for why) and returns immediately if one is.
 
+**#629's own fix left the DECLINE path permanently unfilled (Task #643,
+round-6 audit finding, severity 8).** The paragraph above described the
+symptom as "queue changes discarded, writes not" — true for *accept*, but
+false for *decline*/*expired-accept*: nothing ever gave those two outcomes
+a fill pass of their own, since neither effect's dependency array changes
+on a `resumeDecision` transition. Declining a stale resume prompt (the
+"not rare" collision this section already describes) permanently left that
+session's queue at the raw, unfilled `initialQueue`. **Fixed:** the fill
+logic was extracted into a callable `runFillPass()`, now also invoked from
+the apply-resume effect's decline/expired-accept branch.
+
 #### Cold-start pack-loading race (Task #552/#573)
 
 `app/study/page.tsx` calls `useStudySession` unconditionally, before its own
@@ -439,10 +450,23 @@ the concrete path putting a card rating inside the exact race window the
 reconciliation fix above exists to protect against. **Fixed:** the page's
 loading gate now requires the strict signal too (`!hydrated || packLoading
 || !hydratedStrict`) — if real hydration genuinely never completes, the
-loading screen now stays up indefinitely rather than ever unblocking a
-write against unhydrated state, a deliberate choice over giving
-write-gating its own separate, more generous timeout (any such timeout
-just reintroduces the same race at a later, still-arbitrary point).
+gate itself never unblocks a write against unhydrated state, a deliberate
+choice over giving write-gating its own separate, more generous timeout
+(any such timeout just reintroduces the same race at a later, still-
+arbitrary point).
+
+**Round-7 fix (Task #644): the loading screen itself is no longer
+indefinite, even though the write-gate above still is.** The paragraph
+above originally claimed the loading screen "stays up indefinitely" —
+true of the *gate* (it must never unblock), but conflated that with the
+*screen*, which had no bounded fallback of its own. `hooks/useHydrationStuck.ts`
+observes the same composite blocking condition the page gates on and, after
+a much longer bounded window (15s — distinct from `HYDRATION_FAILSAFE_MS`'s
+3s, which exists to unblock ordinary slow-but-working hydration, not to
+diagnose a genuine failure) with no resolution, surfaces a retry screen
+(`components/StudyHydrationStuck.tsx`) instead of hanging forever. Retrying
+reloads the page from a clean start — it never flips a local flag to bypass
+the gate.
 
 ### 10.3 The flex fill's daily ceiling is enforced per introduction attempt, not once per mount (Task #562 — corrects Wave 1's original #538/#551 fix)
 

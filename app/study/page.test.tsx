@@ -308,6 +308,29 @@ describe("StudyPage — app/study/page.tsx", () => {
     expect(screen.queryByTestId("study-done")).not.toBeInTheDocument();
   });
 
+  // Round-7 audit finding (severity 8, Agent W "F-NEW-1"): the empty-queue check
+  // used to run BEFORE the pending-resume check. hooks/useStudySession.ts's
+  // mount-fill effect deliberately skips filling the queue while a resumable
+  // session is pending (Task #629) — on a caught-up day with an empty
+  // initialQueue AND a pending resumable session (interrupt sessions all key on
+  // unitId="", so any incomplete prior interrupt session matches any subsequent
+  // one), queue.length === 0 and resumeDecision === "pending" were both true at
+  // once. The old ordering showed "Nothing ready" and permanently hid the resume
+  // prompt — StudyEmptyQueue's Home button never clears the stale session, so
+  // the trap persisted for up to SESSION_EXPIRY_MS (24h). Deletion Test:
+  // reverting the reorder in app/study/page.tsx (checking queue.length === 0
+  // before resumeDecision === "pending" again) makes this test fail — "Nothing
+  // ready." would render instead of the resume prompt.
+  it("shows the resume prompt, not 'Nothing ready', when the queue is empty and a resume decision is pending", () => {
+    setCards([]); // empty queue — the mount-fill effect skipped filling while pending
+    sessionCfg.resumeDecision = "pending";
+
+    render(<StudyPage />);
+
+    expect(screen.getByTestId("study-resume")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing ready.")).not.toBeInTheDocument();
+  });
+
   // Interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer). The mocked
   // buildQueue (builtQueue.cards) simulates an empty initialQueue — the same starting state
   // useStudySession's mount effect sees before it performs the flex introduction — while

@@ -658,9 +658,13 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
     // same source data) are never Object.is-equal, so the log fired on nearly
     // every real collision regardless of whether the content actually differed —
     // diagnostic noise, not a data-safety bug (the discard-and-keep-real-value
-    // behavior itself was always correct). Deletion Test: reverting the
-    // shallowEqual-based check back to plain Object.is makes the first assertion
-    // below fail (the log fires even though the two objects are content-identical).
+    // behavior itself was always correct — the `continue` that discards a colliding
+    // sub-key runs unconditionally on a hasOwnProperty match regardless of this
+    // check, so the persisted-state outcome below is invariant either way). Round-7
+    // audit finding (Agent V): reverting the shallowEqual-based check back to plain
+    // Object.is does NOT change the persisted-state assertion — it makes the
+    // `collisionLogs` assertions further down fail instead (the log fires for
+    // BOTH sub-keys instead of just the genuinely-differing one).
     it("logs the collision only when the colliding sub-key's content genuinely differs, not merely when its object reference differs", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const store = makeFullStore({ introductions: {} as Record<string, { dayOfPhase: number; graduated: boolean }> });

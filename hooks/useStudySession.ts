@@ -97,29 +97,18 @@ export function useStudySession({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
 
-  // True once the mount-fill effect below has CLAIMED its one real attempt — not
-  // once that attempt has finished. Set at the start of the guarded block, before
-  // any fill logic that can throw runs — see that effect's own try/catch/finally.
+  // True once the mount-fill effect below has CLAIMED its one real attempt (set
+  // before any fill logic that can throw runs — see that effect's try/catch/finally).
   const mountFillStartedRef = useRef(false);
-  // app/study/page.tsx calls useStudySession unconditionally, before its own
-  // hydration gate — on Tauri (async file-store IPC), this hook's mount-fill effect
-  // can otherwise fire while `cards`/`introductions` are still pre-hydration {}
-  // defaults, silently losing an introduceCard write to Zustand persist's later
-  // hydrate() merge. `hydrated` gates the mount-fill effect (and, since Task #629,
-  // the resume-decision effect) against that race. MUST be useIsHydratedStrict, not
-  // the lenient useIsHydrated: this effect WRITES persisted state, and only the
-  // strict signal never resolves true via HYDRATION_FAILSAFE_MS's timeout fallback —
-  // see lib/storage.ts's own doc comment on useIsHydratedStrict for the full story.
+  // Must be useIsHydratedStrict, not the lenient useIsHydrated: this effect WRITES
+  // persisted state (introduceCard) against pre-hydration {} defaults on Tauri's
+  // async file-store IPC would silently lose the write to persist's later merge.
+  // Only the strict signal never resolves via HYDRATION_FAILSAFE_MS's timeout
+  // fallback — see lib/storage.ts's useIsHydratedStrict doc comment for the full story.
   const hydrated = useIsHydratedStrict(useSRSStore);
 
-  // Resolves resumeDecision via an effect using the render-safe
-  // peekResumableSession/clearExpiredResumableSession pair (never a useState lazy
-  // initializer — see that state's own comment) — gated on the same `hydrated`
-  // signal as the mount-fill effect below, for the identical pre-hydration-defaults
-  // reason. clearExpiredResumableSession runs first, since its own doc comment
-  // (store/srsStore.ts) requires calling it from an effect, never during render.
-  // Task #629: re-derives "is there a still-valid resumable session for THIS session
-  // key" fresh at read time — shared by the resume-decision effect below and the
+  // Re-derives "is there a still-valid resumable session for THIS session key"
+  // fresh at read time — shared by the resume-decision effect below and the
   // mount-fill effect further down. Deliberately NOT read via the `resumeDecision`
   // state variable in the mount-fill effect: both effects are gated on the same
   // `hydrated` dependency and fire in the same commit, in declaration order, but a
@@ -141,26 +130,22 @@ export function useStudySession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  // On mount: introduce the first qualifying new card if today's quota is open (all
-  // session types), then — for interrupt sessions only — fill the queue up to
-  // lib/queue.ts's INTERRUPT_SESSION_FLOOR. Fill order: (1) flex-introduce more new
-  // cards, capped at INTERRUPT_SESSION_MAX_NEW and the daily INTERRUPT_FLEX_DAILY_MAX
-  // ceiling; (2) near-due FSRS reviews pulled slightly early. The floor is a target,
-  // not a guarantee — a stranded pause or exhausted catalog can leave a session below
-  // it, or empty. Cross-tab races on the check-then-act ceiling reads below are an
-  // accepted client-only honor-system trade-off (CLAUDE.md §5), not a gap to fix.
-  // Full rationale, numbers, and history: docs/INTERRUPT_ARCHITECTURE.md §10.
-  // hooks/useInterruptConfig.ts's computeDue mirrors this supply logic for the
-  // fire-gate decision.
-  // Task #643: the actual fill logic, extracted so it can be claimed and run from
-  // two places — the mount-fill effect below (the ordinary path), and the
-  // apply-resume effect's decline/expired-accept branch (Task #629's skip left
-  // THAT session permanently unfilled otherwise, since neither effect's
-  // dependency array changes on a resumeDecision transition — see both call
-  // sites' own comments for the full history). Callers are responsible for their
-  // own mountFillStartedRef claim before calling this — it does not check or
-  // claim the ref itself, since the two call sites claim it under different
-  // conditions.
+  // On mount: introduce the first qualifying new card if today's quota is open, then
+  // — interrupt sessions only — fill to lib/queue.ts's INTERRUPT_SESSION_FLOOR: (1)
+  // flex-introduce more new cards (capped at INTERRUPT_SESSION_MAX_NEW and the daily
+  // INTERRUPT_FLEX_DAILY_MAX ceiling), (2) near-due FSRS reviews pulled slightly
+  // early. The floor is a target, not a guarantee. Full rationale/history:
+  // docs/INTERRUPT_ARCHITECTURE.md §10; hooks/useInterruptConfig.ts's computeDue
+  // mirrors this supply logic for the fire-gate decision.
+  // Task #643: extracted so it can be claimed and run from two places — the
+  // mount-fill effect below, and the apply-resume effect's decline/expired-accept
+  // branch (both call sites' own comments explain why). Callers claim
+  // mountFillStartedRef themselves before calling — this function doesn't, since
+  // the two call sites claim it under different conditions.
+  // Round-7 (Red Agent R, CONTRACT): despite the "fill" framing, this is NOT
+  // purely additive — its first statement (setQueue(initialQueue)) unconditionally
+  // replaces the visible queue (a no-op on the ordinary mount path; a real reset
+  // on the decline/expired-accept path).
   const runFillPass = () => {
     // Declared outside the try so the finally block can flush whatever succeeded
     // even if something below throws.
@@ -284,16 +269,13 @@ export function useStudySession({
   };
 
   useEffect(() => {
-    // app/study/page.tsx calls useStudySession unconditionally, before its own
-    // packLoading early return — a session mounting while the pack is still loading
-    // (cold push-tap into /study?mode=interrupt, a still-loading pack) renders this
-    // hook first with an empty allCardMap/initialQueue. This effect re-fires on every
-    // allCardMap/hydrated change so a later render with real data gets a fill pass;
-    // mountFillStartedRef below still limits the actual fill LOGIC to exactly one
-    // real attempt. allCardMap emptiness is a reliable "still loading" signal (a real
-    // pack always has thousands of cards) though not proof-positive (a load error or
-    // bad unitId also leaves it empty) — harmless either way, since the guard below
-    // just never finds anything to fill from.
+    // A session mounting while the pack is still loading (cold push-tap, a
+    // still-loading pack) renders this hook first with an empty allCardMap —
+    // re-fires on every allCardMap/hydrated change so a later render with real
+    // data gets a fill pass; mountFillStartedRef still limits the fill LOGIC to
+    // one real attempt. Empty allCardMap is a reliable "still loading" signal
+    // (a real pack always has thousands of cards) — harmless even if not
+    // proof-positive, since the guard below just never finds anything to fill.
     if (Object.keys(allCardMap).length === 0) return;
     // `hydrated` must stay wired to useIsHydratedStrict (see its own declaration
     // above) — this guard exists specifically so no introduceCard call in the fill
@@ -362,7 +344,8 @@ export function useStudySession({
       } else {
         // Unreachable under current logic (see comment above) — defensive
         // fallback so a future change to the pending-detection logic can't
-        // silently leave `queue` stuck at a stale value.
+        // silently leave `queue` stuck at a stale value. See .autocode/debt.md
+        // (round-7 audit) for why this doesn't contradict #647's opposite call.
         setQueue(initialQueue);
       }
     } else if (resumeDecision === null) {
