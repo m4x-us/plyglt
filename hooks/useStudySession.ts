@@ -152,49 +152,33 @@ export function useStudySession({
   // Full rationale, numbers, and history: docs/INTERRUPT_ARCHITECTURE.md §10.
   // hooks/useInterruptConfig.ts's computeDue mirrors this supply logic for the
   // fire-gate decision.
-  useEffect(() => {
-    // app/study/page.tsx calls useStudySession unconditionally, before its own
-    // packLoading early return — a session mounting while the pack is still loading
-    // (cold push-tap into /study?mode=interrupt, a still-loading pack) renders this
-    // hook first with an empty allCardMap/initialQueue. This effect re-fires on every
-    // allCardMap/hydrated change so a later render with real data gets a fill pass;
-    // mountFillStartedRef below still limits the actual fill LOGIC to exactly one
-    // real attempt. allCardMap emptiness is a reliable "still loading" signal (a real
-    // pack always has thousands of cards) though not proof-positive (a load error or
-    // bad unitId also leaves it empty) — harmless either way, since the guard below
-    // just never finds anything to fill from.
-    if (Object.keys(allCardMap).length === 0) return;
-    // `hydrated` must stay wired to useIsHydratedStrict (see its own declaration
-    // above) — this guard exists specifically so no introduceCard call in the fill
-    // logic below ever runs against pre-hydration {} defaults.
-    if (!hydrated) return;
-    // Task #629: a resumable session for this key is about to be offered via
-    // StudyResumePrompt — skip the fill pass entirely rather than burning real
-    // introduceCard/flex budget on content the apply-resume effect will overwrite
-    // regardless of accept/decline. Deliberately does NOT claim mountFillStartedRef —
-    // this render never attempted a fill, so it hasn't used its one real attempt.
-    if (hasPendingResumableSession()) return;
-    if (mountFillStartedRef.current) return;
-
+  // Task #643: the actual fill logic, extracted so it can be claimed and run from
+  // two places — the mount-fill effect below (the ordinary path), and the
+  // apply-resume effect's decline/expired-accept branch (Task #629's skip left
+  // THAT session permanently unfilled otherwise, since neither effect's
+  // dependency array changes on a resumeDecision transition — see both call
+  // sites' own comments for the full history). Callers are responsible for their
+  // own mountFillStartedRef claim before calling this — it does not check or
+  // claim the ref itself, since the two call sites claim it under different
+  // conditions.
+  const runFillPass = () => {
     // Declared outside the try so the finally block can flush whatever succeeded
     // even if something below throws.
     const added: Card[] = [];
 
-    // mountFillStartedRef's claim and the sessionIds/introducedIds construction below
-    // live INSIDE the try, alongside the fill logic itself: a throw from any of them
-    // (e.g. a malformed initialQueue entry) must not propagate uncaught (no error
-    // boundary on the /study route) while still only ever getting one real attempt
-    // (the ref claim happens first). The catch logs explicitly; the finally still
-    // flushes whatever made it into `added` before the failure.
+    // The sessionIds/introducedIds construction below lives INSIDE the try,
+    // alongside the fill logic itself: a throw from any of them (e.g. a malformed
+    // initialQueue entry) must not propagate uncaught (no error boundary on the
+    // /study route). The catch logs explicitly; the finally still flushes
+    // whatever made it into `added` before the failure.
     try {
-      mountFillStartedRef.current = true;
-
       // Sync queue to THIS render's real initialQueue — a no-op on a normal mount
       // where the pack was already loaded (same array reference useState's
       // initializer already captured, so React bails out with no extra render); a
-      // real resync on the cold-start path above, replacing the stale empty
-      // snapshot captured on an earlier, pack-still-loading render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // real resync on the cold-start path below, replacing the stale empty
+      // snapshot captured on an earlier, pack-still-loading render, or on the
+      // decline/expired-accept path, the fresh initialQueue this fill is about to
+      // build on top of.
       setQueue(initialQueue);
 
       const today = localDateStr();
@@ -297,6 +281,36 @@ export function useStudySession({
         });
       }
     }
+  };
+
+  useEffect(() => {
+    // app/study/page.tsx calls useStudySession unconditionally, before its own
+    // packLoading early return — a session mounting while the pack is still loading
+    // (cold push-tap into /study?mode=interrupt, a still-loading pack) renders this
+    // hook first with an empty allCardMap/initialQueue. This effect re-fires on every
+    // allCardMap/hydrated change so a later render with real data gets a fill pass;
+    // mountFillStartedRef below still limits the actual fill LOGIC to exactly one
+    // real attempt. allCardMap emptiness is a reliable "still loading" signal (a real
+    // pack always has thousands of cards) though not proof-positive (a load error or
+    // bad unitId also leaves it empty) — harmless either way, since the guard below
+    // just never finds anything to fill from.
+    if (Object.keys(allCardMap).length === 0) return;
+    // `hydrated` must stay wired to useIsHydratedStrict (see its own declaration
+    // above) — this guard exists specifically so no introduceCard call in the fill
+    // logic below ever runs against pre-hydration {} defaults.
+    if (!hydrated) return;
+    // Task #629: a resumable session for this key is about to be offered via
+    // StudyResumePrompt — skip the fill pass here rather than burning real
+    // introduceCard/flex budget on content that gets replaced if the user accepts.
+    // Deliberately does NOT claim mountFillStartedRef — this render never
+    // attempted a fill, so it hasn't used its one real attempt; the decline /
+    // expired-accept branch below claims it and runs the fill instead, once it's
+    // clear there's nothing left to resume (Task #643 — see that branch's own
+    // comment for why this session previously never got a fill attempt at all).
+    if (hasPendingResumableSession()) return;
+    if (mountFillStartedRef.current) return;
+    mountFillStartedRef.current = true;
+    runFillPass();
     // mountFillStartedRef makes this a true one-shot per session instance — a later
     // allCardMap growth (e.g. a specialty-pack merge after mount) is not picked up
     // by a second pass; accepted, since no specialty pack is registered ready:true
@@ -326,12 +340,31 @@ export function useStudySession({
       // a silent no-op — sessionStartedAtRef stayed at its initial 0 and queue/pos/
       // counters never reset. Treated identically to a decline: start fresh from
       // initialQueue, since that's the only content left to show.
+      //
+      // Task #643: this session's mount-fill effect deliberately skipped its one
+      // real attempt while this resumable session was pending (see that effect's
+      // own comment) — the fix's original claim that the fill effect's work
+      // "gets replaced regardless of accept/decline" was true for accept, but
+      // false for decline/expired-accept: nothing ever gave this branch a fill
+      // pass of its own. mountFillStartedRef is guaranteed false here (the only
+      // way to reach "declined" or "accepted"+expired is via "pending", which the
+      // mount-fill effect only reaches by skipping without claiming the ref) —
+      // claim it now and run the exact same fill pass an ordinary mount with no
+      // resumable session would have gotten.
       clearActiveSession();
-      setQueue(initialQueue);
       setPos(0);
       setSessionCorrect(0);
       setSessionTotal(0);
       sessionStartedAtRef.current = Date.now();
+      if (!mountFillStartedRef.current) {
+        mountFillStartedRef.current = true;
+        runFillPass();
+      } else {
+        // Unreachable under current logic (see comment above) — defensive
+        // fallback so a future change to the pending-detection logic can't
+        // silently leave `queue` stuck at a stale value.
+        setQueue(initialQueue);
+      }
     } else if (resumeDecision === null) {
       sessionStartedAtRef.current = Date.now();
     }

@@ -748,6 +748,14 @@ describe("InterruptHandler", () => {
   // after newer" ordering the finding describes must not throw or log an error from the new
   // success-path code, and the effect must still have issued both IPC calls with their own
   // correct, un-swapped argument sets regardless of resolution order.
+  // Task #651: by the same "currently inert" property, this test's assertions below hold
+  // identically whether the success-path `if (seq !== configSeqRef.current) return;` guard
+  // exists or is deleted — a Deletion Test on that specific line would not fail. Not a hidden
+  // gap: it's the direct, unavoidable consequence of the guard having nothing to guard yet
+  // (see its own comment). This test is honestly scoped to what it CAN prove today (no
+  // crash/log/argument-corruption on out-of-order resolution); it is not a regression test for
+  // the success-path guard itself, which has no observable effect to regress until
+  // updateInterruptConfig gains real post-resolution logic.
   it("does not crash or log an error when an older updateInterruptConfig call resolves after a newer one (Task #633)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     let resolveOlder!: () => void;

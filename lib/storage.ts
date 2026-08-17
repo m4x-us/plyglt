@@ -96,6 +96,21 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+// Task #646: this app's immutable-update patterns mean `postVal[subKey]` and
+// `preVal[subKey]` below are independently-constructed objects even when
+// structurally identical, so a reference check (Object.is) reports "changed"
+// for nearly every real collision regardless of whether the content actually
+// differs. Used only to decide whether the collision LOG fires accurately —
+// the data-safety branch that discards the live write is unconditional either
+// way. One level deep, matching the flat map-entry shape this app's map-shaped
+// persisted fields actually use (see isPlainObject's own comment above).
+function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((k) => Object.is(a[k], b[k]));
+}
+
 type PersistApi<T = unknown> = {
   // getState/setState/subscribe are the plain Zustand store API (present on every real
   // store hook); optional here only so existing minimal test doubles that supply just
@@ -265,7 +280,12 @@ export function useIsHydrated<T extends object = Record<string, unknown>>(store:
               for (const subKey of Object.keys(preVal)) {
                 if (Object.is(preVal[subKey], snapVal[subKey])) continue; // unchanged during the window
                 if (Object.prototype.hasOwnProperty.call(postVal, subKey)) {
-                  if (!Object.is(postVal[subKey], preVal[subKey])) {
+                  const postSubVal = postVal[subKey];
+                  const preSubVal = preVal[subKey];
+                  const contentDiffers = isPlainObject(postSubVal) && isPlainObject(preSubVal)
+                    ? !shallowEqual(postSubVal, preSubVal)
+                    : !Object.is(postSubVal, preSubVal);
+                  if (contentDiffers) {
                     console.error(
                       `[plyglt] [ERR-HYDRATION-LATE-MERGE-COLLISION] sub-key "${subKey}" of "${String(key)}" changed during the failsafe window, but real persisted data already exists for it — keeping the real persisted value, discarding the live pre-hydration write for this entry`
                     );

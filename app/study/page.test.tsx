@@ -11,7 +11,7 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { useSRSStore } from "@/store/srsStore";
 
 // ── vi.hoisted: mutable state controlling mock return values ──────────────────
@@ -533,6 +533,29 @@ describe("StudyPage — app/study/page.tsx", () => {
 
       expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
       expect(screen.getByTestId("study-card")).toBeInTheDocument();
+    });
+
+    // Task #644: hydratedStrict never resolves via a failsafe by design (that's
+    // what makes it safe to write-gate on) — so a genuine hydration failure must
+    // surface a retry affordance instead of hanging on "Loading…" forever.
+    it("shows a retry screen instead of Loading… once real hydration has stayed stuck past the bounded timeout", () => {
+      vi.useFakeTimers();
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 0;
+      hydrationState.hydrated = true;
+      hydrationState.hydratedStrict = false;
+
+      render(<StudyPage />);
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(15000);
+      });
+
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(screen.getByText("Couldn't load your progress.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      vi.useRealTimers();
     });
   });
 });

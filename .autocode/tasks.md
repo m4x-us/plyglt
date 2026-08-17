@@ -13016,6 +13016,195 @@ NEW
 
 ---
 
+### Task #643: Fix requirements: The mount-fill effect skips its entire fill pass via if (hasPendingResumableSession()) return at line 176 whenever a res
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** COMPLETE
+
+**What:**
+The mount-fill effect skips its entire fill pass via if (hasPendingResumableSession()) return at line 176 whenever a resumable session is pending for this session key, without claiming mountFillStartedRef, on the stated assumption that a later render retries. That retry never happens: the effect's dependency array at line 307 is [allCardMap, hydrated] and omits resumeDecision. When resumeDecision transitions to declined (or the Task #634 accepted-but-expired branch fires), the apply-resume effect sets queue directly to the raw initialQueue (buildQueue output with no flex introductions and no near-due padding) and the mount-fill effect never re-fires, since neither of its dependencies changed on that transition. Interrupt sessions always key on unitId equal to empty string, so any incomplete prior interrupt session (app close, navigation away, or the snooze flow, none of which call clearActiveSession) matches any subsequent interrupt session - not a rare edge case. Declining the resulting stale resume prompt permanently leaves that session unfilled; when initialQueue was genuinely empty, app/study/page.tsx's queue.length === 0 check renders 'Nothing ready' for a session the floor mechanism exists specifically to rescue. Task #629's own code comment claims this is safe regardless of accept/decline, and docs/INTERRUPT_ARCHITECTURE.md section 10.2 repeats that same claim; both are false, a Rule 23(b) violation. No test drives resumeDecision to declined and asserts what the queue contains afterward - a Rule 18/20a gap. at hooks/useStudySession.ts:mount-fill useEffect (lines 155-307) / apply-resume useEffect (lines 312-339):176.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useStudySession.ts:mount-fill useEffect (lines 155-307) / apply-resume useEffect (lines 312-339):176
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F001 — severity 8 — requirements
+
+---
+
+### Task #644: Fix edge-case: The route's loading gate (if (!hydrated || packLoading || !hydratedStrict) return Loading) uses useIsHydratedStrict, whi
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE
+
+**What:**
+The route's loading gate (if (!hydrated || packLoading || !hydratedStrict) return Loading) uses useIsHydratedStrict, which by design never resolves via HYDRATION_FAILSAFE_MS. If real persist.hasHydrated() genuinely never becomes true (a Tauri disk-read failure, corrupted store file, or permanently failing IPC call - all documented as real possibilities elsewhere in this file's own comments), the /study route shows 'Loading...' forever with no timeout, no retry affordance, and no user-visible error. Every other route retains the 3-second HYDRATION_FAILSAFE_MS unblock; this route's Task #628 fix removed that recourse specifically here, introducing an availability regression with zero escape hatch that isn't recorded as an open risk anywhere for Max to knowingly accept. at app/study/page.tsx:module-level render gate:69.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at app/study/page.tsx:module-level render gate:69
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F002 — severity 6 — edge-case
+
+---
+
+### Task #645: Fix tests: The regression test for Task #634 asserts five values, but four (queue, pos, sessionCorrect, sessionTotal) already match
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE
+
+**What:**
+The regression test for Task #634 asserts five values, but four (queue, pos, sessionCorrect, sessionTotal) already match useState's own initial defaults regardless of whether the fix branch executes, and the startedAt assertion only holds because the test's frozen mock clock never advances. Only the clearActiveSession assertion actually distinguishes the fix from its absence - a Rule 18 violation, since the test's own comment claims to prove sessionStartedAtRef was reset, which this construction doesn't prove. at hooks/useStudySession.test.ts:Task #634 fallback-from-null-resumedQueue test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:Task #634 fallback-from-null-resumedQueue test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F003 — severity 3 — tests
+
+---
+
+### Task #646: Fix code-quality: The collision-detection check (if (!Object.is(postVal[subKey], preVal[subKey]))) compares by reference, not content. Sin
+
+**File:** lib/storage.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE
+
+**What:**
+The collision-detection check (if (!Object.is(postVal[subKey], preVal[subKey]))) compares by reference, not content. Since the codebase uses immutable-update patterns throughout, postVal[subKey] and preVal[subKey] are independently-constructed objects even when structurally identical, so Object.is is false for nearly every real collision regardless of whether the underlying data actually differs. The correct data-safety branch still runs correctly either way; this is diagnostic noise only. at lib/storage.ts:collision-detection log:267.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at lib/storage.ts:collision-detection log:267
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F004 — severity 2 — code-quality
+
+---
+
+### Task #647: Fix data-loss: The per-subkey merge only activates when snapshotAtExpiry[key], preMerge[key], and postMerge[key] are all plain objects
+
+**File:** lib/storage.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE (accepted as debt — see .autocode/debt.md 2026-08-17 entry)
+
+**What:**
+The per-subkey merge only activates when snapshotAtExpiry[key], preMerge[key], and postMerge[key] are all plain objects (the triple isPlainObject guard). If any one is transiently not a plain object - e.g. undefined during a schema migration, or a future map-shaped field added without an eager {} default - the code falls through to the unconditional blanket clobbered[key] = preVal, reintroducing the whole-field-replace defect class for that field. Not reachable today since the only field processed (introductions) always defaults to {} synchronously at store creation. No test exercises this fallback path. at lib/storage.ts:per-subkey merge guard:248.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at lib/storage.ts:per-subkey merge guard:248
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F005 — severity 3 — data-loss
+
+---
+
+### Task #648: Fix requirements: Section 10.1 and an accompanying code comment state that app/study/page.tsx caps the built queue at INTERRUPT_SESSION_CA
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE
+
+**What:**
+Section 10.1 and an accompanying code comment state that app/study/page.tsx caps the built queue at INTERRUPT_SESSION_CAP; the actual slicing lives in hooks/useStudyQueueSetup.ts, extracted from page.tsx by the pre-existing Task #612. The end-to-end functional claim is accurate; only the specific file attribution is one hop stale. This doc file has already been fixed for staleness twice before (Tasks #625, #631) - a fresh recurrence of the same class of doc-drift. at docs/INTERRUPT_ARCHITECTURE.md:section 10.1:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at docs/INTERRUPT_ARCHITECTURE.md:section 10.1:0
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F006 — severity 2 — requirements
+
+---
+
+### Task #649: Fix async: The bounded retry for recordGateFired can append duplicate rows to the append-only interrupt_gate_events table when a re
+
+**File:** supabase/functions/send-interrupt-notifications/dispatch.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE (documented as an accepted trade-off in code)
+
+**What:**
+The bounded retry for recordGateFired can append duplicate rows to the append-only interrupt_gate_events table when a retried attempt follows a lost-response (not lost-write) failure. Confirmed functionally harmless (the reader takes the most recent effective_until, duplicates carry the same value, and the table's migration comment already treats concurrent events as legitimate) - unbounded, silent accumulation of duplicate audit-trail rows worsening with dispatch volume, a storage-growth/audit-cleanliness concern, not a correctness or security bug. at supabase/functions/send-interrupt-notifications/dispatch.ts:recordGateFired retry:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at supabase/functions/send-interrupt-notifications/dispatch.ts:recordGateFired retry:0
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dispatch.ts
+
+**Source:** Audit finding F007 — severity 2 — async
+
+---
+
+### Task #650: Fix async: interruptFireInFlightRef is a per-component-instance ref, not module-scoped. If InterruptHandlerCore ever unmounted mid-
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE (documented in code + accepted as debt — see .autocode/debt.md 2026-08-17 entry)
+
+**What:**
+interruptFireInFlightRef is a per-component-instance ref, not module-scoped. If InterruptHandlerCore ever unmounted mid-processing of an interrupt:fire callback and a new instance mounted before the old callback's finally block ran, the new instance's fresh ref could theoretically race a duplicate fire against the still-running orphaned callback. This component mounts once at the root layout and isn't expected to unmount during normal app lifetime - flagged for completeness only. at components/InterruptHandler.tsx:InterruptHandlerCore interrupt:fire callback:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at components/InterruptHandler.tsx:InterruptHandlerCore interrupt:fire callback:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F008 — severity 2 — async
+
+---
+
+### Task #651: Fix tests: The Task #633 config-race regression test still passes even with the new success-path staleness check deleted, because u
+
+**File:** components/InterruptHandler.test.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** COMPLETE (documented in test + accepted as debt — see .autocode/debt.md 2026-08-17 entry)
+
+**What:**
+The Task #633 config-race regression test still passes even with the new success-path staleness check deleted, because updateInterruptConfig resolves Promise<void> with no further action in its success branch today, so nothing there is currently observable by a test. The production code's own comment already discloses this honestly (currently inert, future-proofing), so this is not a hidden overclaim, only a test that cannot currently prove what it nominally targets. at components/InterruptHandler.test.tsx:Task #633 config-race test:0.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at components/InterruptHandler.test.tsx:Task #633 config-race test:0
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.test.tsx
+
+**Source:** Audit finding F009 — severity 2 — tests
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|

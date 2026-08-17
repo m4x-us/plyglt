@@ -66,6 +66,12 @@ function InterruptHandlerCore() {
   // guard shape as configSeqRef above, not a state-triggered one — nothing here needs to
   // cause a re-render, it only needs to be readable/writable synchronously across
   // concurrent callback invocations.
+  // Task #650: this ref is per-component-instance, not module-scoped, so it cannot
+  // guard against a fresh InterruptHandlerCore instance racing an orphaned callback
+  // left running by a just-unmounted prior instance. Not module-scoped deliberately:
+  // this component mounts once at the root layout and is not expected to unmount
+  // during normal app lifetime, so that race has no real trigger today. Flagged for
+  // completeness only, not fixed — see .autocode/debt.md.
   const interruptFireInFlightRef = useRef(false);
 
   // Keep the Rust thread in sync whenever relevant settings change.

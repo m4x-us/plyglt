@@ -72,7 +72,7 @@ export function computeDueEstimate(
  * (2026-08-15): the client TARGETS an interrupt session of
  * INTERRUPT_SESSION_FLOOR..INTERRUPT_SESSION_CAP cards (lib/queue.ts fills a
  * shortfall with flexed new-card introductions and near-due reviews;
- * app/study/page.tsx caps the queue at INTERRUPT_SESSION_CAP) — this is a
+ * hooks/useStudyQueueSetup.ts caps the queue at INTERRUPT_SESSION_CAP) — this is a
  * target, not an unconditional guarantee in either direction:
  *   - Too few: a fully exhausted catalog, or a paused (stranded) introduction
  *     pipeline, can still deliver a sub-floor session — see

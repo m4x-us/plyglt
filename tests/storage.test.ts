@@ -650,5 +650,56 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE-COLLISION"));
       errorSpy.mockRestore();
     });
+
+    // Task #646 (severity 2, F004): the collision log above compared postVal[subKey]
+    // against preVal[subKey] with Object.is (reference equality). This app's
+    // immutable-update patterns mean two independently-constructed but
+    // content-identical objects (e.g. an IntroductionRecord re-derived from the
+    // same source data) are never Object.is-equal, so the log fired on nearly
+    // every real collision regardless of whether the content actually differed —
+    // diagnostic noise, not a data-safety bug (the discard-and-keep-real-value
+    // behavior itself was always correct). Deletion Test: reverting the
+    // shallowEqual-based check back to plain Object.is makes the first assertion
+    // below fail (the log fires even though the two objects are content-identical).
+    it("logs the collision only when the colliding sub-key's content genuinely differs, not merely when its object reference differs", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ introductions: {} as Record<string, { dayOfPhase: number; graduated: boolean }> });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+
+      // cardSame: live write produces a NEW object reference with IDENTICAL content
+      // to what real hydration independently produces (e.g. two derivations of the
+      // same underlying persisted history). cardDiff: live write's content is
+      // genuinely different from the real persisted value.
+      act(() => {
+        store.setState({
+          introductions: {
+            cardSame: { dayOfPhase: 3, graduated: false },
+            cardDiff: { dayOfPhase: 1, graduated: false },
+          },
+        });
+      });
+
+      act(() => {
+        store.__simulateLateHydration({
+          introductions: {
+            cardSame: { dayOfPhase: 3, graduated: false }, // same content, different object reference
+            cardDiff: { dayOfPhase: 7, graduated: true }, // genuinely different content
+          },
+        });
+      });
+
+      // The real persisted value wins for both regardless — this test is purely
+      // about whether the log fires accurately, not the (already-correct) data outcome.
+      expect(store.getState().introductions).toEqual({
+        cardSame: { dayOfPhase: 3, graduated: false },
+        cardDiff: { dayOfPhase: 7, graduated: true },
+      });
+      const collisionLogs = errorSpy.mock.calls.filter((c) => typeof c[0] === "string" && c[0].includes("ERR-HYDRATION-LATE-MERGE-COLLISION"));
+      expect(collisionLogs).toHaveLength(1);
+      expect(collisionLogs[0]![0]).toContain('sub-key "cardDiff"');
+      errorSpy.mockRestore();
+    });
   });
 });

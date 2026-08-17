@@ -315,7 +315,7 @@ which at 8–15s/card means a real, reasoned range of constants:
 | `INTERRUPT_SESSION_CAP` | 8 | 8 cards at 8–15s/card is 64–120s — up to 30s past the 90s target. Deliberate tradeoff: a slightly longer worst-case session beats truncating a heavy backlog day's content mid-session (BRAND.md: cards are ready, never overdue — no wall of debt). |
 | `INTERRUPT_FLEX_DAILY_MAX` | 9 (`INTERRUPT_SESSION_MAX_NEW * 3`) | **New in Wave 1 (Task #551).** A real cross-*session* daily ceiling on flex-introduced new cards — see 10.3. |
 
-`app/study/page.tsx` caps the built queue at `INTERRUPT_SESSION_CAP`.
+`hooks/useStudyQueueSetup.ts` caps the built queue at `INTERRUPT_SESSION_CAP` (extracted from `app/study/page.tsx` by Task #612).
 
 ### 10.2 Fill order (`hooks/useStudySession.ts`'s mount effect, `isInterrupt` only)
 
@@ -337,7 +337,7 @@ session below 6 — even, in one rare combination, completely empty (10.4).
 needed its own ceiling too (Task #617, Wave 7).** Before this fix, `if
 (canIntroduceNewCard(today)) introduceNext();` — the ordinary one-new-card-
 a-day path every session type runs, not just interrupts — had no awareness
-of `sessionIds.size` at all. On a backlog day where `app/study/page.tsx`
+of `sessionIds.size` at all. On a backlog day where `hooks/useStudyQueueSetup.ts`
 had already sliced `initialQueue` to `INTERRUPT_SESSION_CAP` (8) cards, this
 one call could still push the session to 9, contradicting both the client
 (`components/InterruptHandler.tsx`) and server (`dueEstimate.ts`, 10.6)

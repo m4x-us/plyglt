@@ -180,51 +180,133 @@ describe("useStudySession — mount-fill effect skips fill when a resumable sess
     // call introduceCard once.
     expect(introduceCard).not.toHaveBeenCalled();
   });
+
+  // Task #643 (severity 8): #629's own fix skipped the fill pass while pending, but
+  // never gave the session a fill attempt once the user actually declined — the
+  // mount-fill effect's deps ([allCardMap, hydrated]) never change on a resumeDecision
+  // transition, so nothing re-ran it. Round 6 of this batch's audit found this reopens
+  // the exact floor-starvation defect Batch 23 exists to close, for the ordinary
+  // snooze-then-later-interrupt-then-decline flow (interrupt sessions always key on
+  // unitId="", so any incomplete prior interrupt session matches any subsequent one).
+  it("runs a real fill pass once the user declines a pending resumable session, instead of leaving the queue permanently unfilled", () => {
+    const introduceCard = vi.fn();
+    const savedSession = {
+      unitId: "",
+      queueIds: ["c1", "c2"],
+      position: 0,
+      sessionCorrect: 0,
+      sessionTotal: 0,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: CARD_MAP,
+          isInterrupt: true,
+          unitId: "",
+          peekResumableSession: vi.fn(() => savedSession),
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+
+    expect(result.current.resumeDecision).toBe("pending");
+    expect(introduceCard).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.setResumeDecision("declined");
+    });
+
+    // Deletion Test: without the #643 fix, this session's mount-fill effect never
+    // re-fires (its deps don't include resumeDecision) and the queue stays at the
+    // raw, empty initialQueue forever — introduceCard would never be called and the
+    // queue would stay empty. With the fix, this is exactly an ordinary empty-queue
+    // interrupt fill: all 3 CARD_MAP entries (c1-c3) get flex-introduced (well under
+    // both INTERRUPT_SESSION_MAX_NEW and the floor, since the catalog itself only has
+    // 3 cards) and all 3 land in the visible queue — the exact same result an ordinary
+    // mount with no resumable session at all would have produced.
+    expect(introduceCard).toHaveBeenCalledTimes(3);
+    expect(result.current.queue.map((c) => c.id).sort()).toEqual(["c1", "c2", "c3"]);
+  });
 });
 
 // ── apply-resume effect: accepted-with-expired-session race (Task #634, severity 6) ──
 describe("useStudySession — apply-resume effect handles 'accepted' with a since-expired resumable session (Task #634)", () => {
-  it("falls back to a fresh session from initialQueue instead of a silent no-op when resumedQueue is null at accept time", () => {
+  // Task #645 (round 6 audit, severity 3): the original version of this test started
+  // resumeDecision at its default null, so its own queue/pos/sessionCorrect/sessionTotal
+  // assertions below coincidentally matched useState's untouched initial defaults
+  // whether or not the #634 branch ran at all, and its startedAt assertion coincidentally
+  // matched the value the UNRELATED "resumeDecision === null" branch already sets on
+  // every initial mount, before "accepted" is ever reached. Only the clearActiveSession
+  // assertion actually distinguished the fix from its absence. Rewritten to start from
+  // "pending" (matching the real #634 race — expiry happens strictly BETWEEN the pending
+  // read and the later accepted read, so the null-branch never fires here) and to mutate
+  // queue/pos/counters away from their defaults via a real handleRate call before the
+  // accept click, so the reset back to fresh values can only be explained by the #634
+  // branch itself running.
+  it("resets session state to genuinely fresh values — not coincidentally-untouched mount defaults — when accept resolves against a since-expired session", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
     const clearActiveSession = vi.fn();
     const commitSession = vi.fn();
+    const savedSession = {
+      unitId: "it-a1u01",
+      queueIds: ["c1", "c2", "c3"],
+      position: 1,
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const peekResumableSession = vi.fn((): typeof savedSession | null => savedSession);
     const { result } = renderHook(() =>
       useStudySession(
         defaultParams({
-          // The session expired (or was cleared) between the 'pending' read and this
-          // 'accepted' read — peekResumableSession (and therefore resumedQueue's own
-          // useMemo) now resolves to null.
-          peekResumableSession: vi.fn(() => null),
+          peekResumableSession,
           clearActiveSession,
           commitSession,
         }),
       ),
     );
+    expect(result.current.resumeDecision).toBe("pending");
 
+    // Calling the hook's own handleRate directly (bypassing the fact that the real UI
+    // would show StudyResumePrompt, not the study card, while resumeDecision is
+    // "pending") — a hook-level test liberty, purely to prove the #634 branch's own
+    // reset logic, not a claim about a real reachable UI sequence.
+    act(() => {
+      result.current.handleRate("again"); // re-inserts the card: queue grows to 4
+    });
+    expect(result.current.queue).toHaveLength(4);
+    expect(result.current.pos).toBe(1);
+
+    // The session expires between the pending read and this accepted read.
+    peekResumableSession.mockReturnValue(null);
+    vi.setSystemTime(1_700_000_050_000);
     act(() => {
       result.current.setResumeDecision("accepted");
     });
 
     // Deletion Test: without the #634 branch, none of the three original branches match
-    // (accepted&&resumedQueue requires a truthy resumedQueue; declined and null don't
-    // match "accepted" at all) — clearActiveSession would never be called and
-    // sessionStartedAtRef would stay at its initial epoch-0 default.
+    // ("accepted"&&resumedQueue requires a truthy resumedQueue; "declined" and null
+    // don't match "accepted" at all) — clearActiveSession would never be called, and
+    // queue/pos/sessionCorrect/sessionTotal would stay stuck at the mutated
+    // 4-card/pos-1 state from the handleRate("again") call above, not reset.
     expect(clearActiveSession).toHaveBeenCalledTimes(1);
     expect(result.current.queue.map((c) => c.id)).toEqual(CARDS.map((c) => c.id));
     expect(result.current.pos).toBe(0);
     expect(result.current.sessionCorrect).toBe(0);
     expect(result.current.sessionTotal).toBe(0);
 
-    // Proves sessionStartedAtRef was actually reset (not left at epoch 0, which the bug
-    // report names as the concrete, persisted symptom) by observing it flow through to
-    // commitSession's session argument on the next rating.
+    // Proves sessionStartedAtRef was reset by the #634 branch specifically — not the
+    // unrelated initial-mount null-branch, whose value (1_700_000_000_000) this session
+    // never actually reads, since resumeDecision started "pending", not null.
     act(() => {
       result.current.handleRate("good");
     });
-    expect(commitSession).toHaveBeenCalledTimes(1);
-    const sessionArg = commitSession.mock.calls[0]![2] as { startedAt: number };
-    expect(sessionArg.startedAt).toBe(1_700_000_000_000);
+    const sessionArg = commitSession.mock.calls[commitSession.mock.calls.length - 1]![2] as { startedAt: number };
+    expect(sessionArg.startedAt).toBe(1_700_000_050_000);
 
     vi.useRealTimers();
   });

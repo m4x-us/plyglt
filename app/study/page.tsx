@@ -14,6 +14,7 @@ import StudyCard from "@/components/StudyCard";
 import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
+import StudyHydrationStuck from "@/components/StudyHydrationStuck";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
 import { exitMandatoryMode } from "@/lib/tauriInterrupt";
 import { findUnitName } from "@/lib/queue";
@@ -22,6 +23,7 @@ import { useStudyQueueSetup } from "@/hooks/useStudyQueueSetup";
 import { computeStudyDoneScreenProps } from "@/hooks/studyDoneScreenProps";
 import { useSnoozeAndExit } from "@/hooks/useSnoozeAndExit";
 import { useSync } from "@/hooks/useSync";
+import { useHydrationStuck } from "@/hooks/useHydrationStuck";
 import { tierLabel } from "@/lib/cardLabels";
 
 function StudyInner() {
@@ -55,18 +57,18 @@ function StudyInner() {
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
     useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
-  // Task #628 (Wave 8): `hydrated` (lenient) alone would unblock this screen
-  // within HYDRATION_FAILSAFE_MS even without real hydration (Task #406: never
-  // hang forever) — but everything past it writes real data (handleRate →
-  // commitSession; onRate → recordIntroductionResult), the exact reachability
-  // path F002 found still open after hooks/useStudySession.ts's own write got
-  // strict-gated. `hydratedStrict` (never resolves via the failsafe) closes it —
-  // combined into one condition since both render identical UI; no SEPARATE
-  // generous write-gating timeout, since any such timeout just reintroduces the
-  // same race later (lib/storage.ts's Task #627 collision fix note applies).
+  // Task #628 (Wave 8): `hydrated` alone unblocks via HYDRATION_FAILSAFE_MS even
+  // without real hydration, but past this gate writes real data (handleRate,
+  // onRate) — `hydratedStrict` (never resolves via the failsafe) closes that gap.
   const hydrated = useIsHydrated(useSRSStore);
   const hydratedStrict = useIsHydratedStrict(useSRSStore);
-  if (!hydrated || packLoading || !hydratedStrict) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
+  // Task #644: bounded escape hatch for a hydratedStrict that never resolves
+  // on its own — see hooks/useHydrationStuck.ts. Never bypasses the gate itself.
+  const hydrationStuck = useHydrationStuck(hydratedStrict);
+  if (!hydrated || packLoading || !hydratedStrict) {
+    if (hydrationStuck) return <StudyHydrationStuck />;
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
+  }
   if (!isGlobal && !isInterrupt && !unit) return <StudyUnitNotFound mode={mode} unitId={unitId} onHome={() => router.push("/learn")} />;
 
   // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt

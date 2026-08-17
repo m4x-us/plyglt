@@ -121,6 +121,17 @@ async function sendAndRecord(
     // estimate) — the non-zero case gets the same small resilience improvement as a side
     // benefit, but the retry's mandate specifically comes from the zero-estimate case's
     // more severe consequence.
+    // Task #649: this retry can append a duplicate row to the append-only
+    // interrupt_gate_events table when attempt N's write actually succeeded but
+    // its response was lost (not the write itself failing) — recordGateFired
+    // reports false, the loop retries, and a second row lands for the same
+    // fire. Accepted as a known, functionally harmless trade-off, not fixed:
+    // dueSelection.ts's reader takes the most recent effective_until, duplicate
+    // rows carry the same value either way, and the table's own migration
+    // comment already treats concurrent events as legitimate. Unbounded
+    // accumulation is a storage-growth/audit-cleanliness concern, not a
+    // correctness or security issue — revisit with a dedup mechanism only if
+    // dispatch volume makes the row count itself a problem.
     const GATE_RECORD_MAX_ATTEMPTS = 3;
     let recorded = false;
     for (let attempt = 1; attempt <= GATE_RECORD_MAX_ATTEMPTS && !recorded; attempt++) {
