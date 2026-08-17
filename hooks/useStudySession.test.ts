@@ -8,7 +8,7 @@ import { useStudySession } from "./useStudySession";
 import type { Card, Tier } from "@/content/types";
 import { useSRSStore } from "@/store/srsStore";
 import type { CardProgress } from "@/lib/srs";
-import { INTERRUPT_SESSION_FLOOR, INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP, INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
 import { ALL_UNITS } from "@/content/index";
 
 function makeCard(id: string, tier: Tier = 1, prerequisites?: string[]): Card {
@@ -588,6 +588,105 @@ describe("useStudySession — interrupt session-size floor (Batch 23)", () => {
   });
 });
 
+// ── normal daily-cap path respects INTERRUPT_SESSION_CAP (Task #617, Wave 7) ───────
+// The normal-cap `if (canIntroduceNewCard(today)) introduceNext();` line ran
+// unconditionally for every session type, with no awareness of sessionIds.size or
+// INTERRUPT_SESSION_CAP — unlike the flex loop and near-due loop, which both correctly
+// stop at INTERRUPT_SESSION_FLOOR. A backlog-day interrupt session already sliced to
+// CAP (8) by app/study/page.tsx could still grow to 9 via this one unguarded path.
+
+describe("useStudySession — normal daily-cap path respects INTERRUPT_SESSION_CAP for interrupt sessions (Task #617)", () => {
+  it("does not introduce a normal-cap new card into an interrupt session already at INTERRUPT_SESSION_CAP, even though a qualifying card exists and the daily cap is open", () => {
+    const introduceCard = vi.fn();
+    // 8 already-studied cards (INTERRUPT_SESSION_CAP) already in the session — the
+    // realistic app/study/page.tsx backlog-day shape (initialQueue sliced to CAP).
+    const initial = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`d${i}`));
+    // One untouched candidate — qualifies for normal-cap introduction if nothing stops it.
+    const extraCandidate = makeCard("extra");
+    const allCardMap = {
+      ...Object.fromEntries(initial.map((c) => [c.id, c])),
+      extra: extraCandidate,
+    };
+
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: initial,
+          allCardMap,
+          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])), // already studied — not "new"
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => true), // normal daily cap wide open
+          introduceCard,
+          getNearDueCards: vi.fn(() => []),
+        }),
+      ),
+    );
+
+    // Deletion Test: without the CAP guard, introduceNext() finds "extra" (the only
+    // untouched, prerequisite-met candidate) and appends it — the queue grows to 9.
+    expect(introduceCard).not.toHaveBeenCalled();
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+    expect(result.current.queue.map((c) => c.id)).toEqual(initial.map((c) => c.id));
+  });
+
+  it("still introduces a normal-cap new card into an interrupt session below INTERRUPT_SESSION_CAP (the guard does not over-block)", () => {
+    const introduceCard = vi.fn();
+    const initial = Array.from({ length: INTERRUPT_SESSION_CAP - 1 }, (_, i) => makeCard(`d${i}`));
+    const extraCandidate = makeCard("extra");
+    const allCardMap = {
+      ...Object.fromEntries(initial.map((c) => [c.id, c])),
+      extra: extraCandidate,
+    };
+
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: initial,
+          allCardMap,
+          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])),
+          isInterrupt: true,
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+          getNearDueCards: vi.fn(() => []),
+        }),
+      ),
+    );
+
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("extra", expect.any(String));
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+  });
+
+  it("does not apply the CAP guard to non-interrupt sessions (unit/global sessions have no size cap)", () => {
+    const introduceCard = vi.fn();
+    // A non-interrupt session with a queue already "at" what would be the interrupt
+    // CAP — the guard must not treat this as a limit for a session type that has none.
+    const initial = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`d${i}`));
+    const extraCandidate = makeCard("extra");
+    const allCardMap = {
+      ...Object.fromEntries(initial.map((c) => [c.id, c])),
+      extra: extraCandidate,
+    };
+
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: initial,
+          allCardMap,
+          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])),
+          isInterrupt: false,
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+
+    expect(introduceCard).toHaveBeenCalledTimes(1);
+    expect(introduceCard).toHaveBeenCalledWith("extra", expect.any(String));
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP + 1);
+  });
+});
+
 // ── prerequisite gating (Batch 18) ────────────────────────────────────────────
 // Rule 20 — exercises the real production entry point (the hook's mount effect), not the
 // underlying prerequisitesMet/selectQualifyingNewCard functions called directly in isolation.
@@ -1064,6 +1163,47 @@ describe("useStudySession — mount-fill effect error containment (Tasks #592/#5
     }).not.toThrow();
 
     expect(introduceCard).not.toHaveBeenCalled();
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
+      /^\[ERR-STUDY-SESSION-FILL-\d+\] mount-fill effect threw mid-pass/,
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  // Task #622 (Wave 7, investigated — confirms #592/#593 already covers this,
+  // no code fix needed): if getNearDueCards throws AFTER the flex while-loop has
+  // already introduced 1+ new cards, those introductions must still reach the
+  // visible queue via the finally-flush — proving the daily-flex-ceiling
+  // consumption for those cards is not wasted, since the user genuinely sees them.
+  it("still shows ALL cards introduced by the flex while-loop before getNearDueCards throws mid-pass, not just a single normal-cap card", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const introduceCard = vi.fn();
+    const getNearDueCards = vi.fn(() => {
+      throw new Error("getNearDueCards boom");
+    });
+    // Normal-cap path denied (isolates the introduced cards to the flex loop
+    // specifically); flex path open every call, so the while-loop runs to its
+    // INTERRUPT_SESSION_MAX_NEW (3) cap before getNearDueCards is even reached.
+    const canIntroduceNewCard = vi.fn((_today: string, maxPerDay?: number) => maxPerDay !== undefined);
+    const catalog = ["f1", "f2", "f3", "f4"].map((id) => makeCard(id));
+    const catalogMap = Object.fromEntries(catalog.map((c) => [c.id, c]));
+
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          allCardMap: catalogMap,
+          isInterrupt: true,
+          canIntroduceNewCard,
+          introduceCard,
+          getNearDueCards,
+        }),
+      ),
+    );
+
+    // All 3 flex-loop introductions (the working-memory cap, well short of
+    // INTERRUPT_SESSION_FLOOR=6 on their own) survive the near-due loop's throw.
+    expect(introduceCard).toHaveBeenCalledTimes(3);
+    expect(result.current.queue.map((c) => c.id).sort()).toEqual(["f1", "f2", "f3"]);
     expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
       /^\[ERR-STUDY-SESSION-FILL-\d+\] mount-fill effect threw mid-pass/,
     );

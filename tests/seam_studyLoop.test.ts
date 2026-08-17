@@ -4,10 +4,12 @@ import { renderHook } from "@testing-library/react";
 import { useSRSStore } from "@/store/srsStore";
 import type { ActiveSession } from "@/store/srsStore";
 import type { CardProgress } from "@/lib/srs";
+import type { Unit } from "@/content/types";
 import { buildQueue, INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 import { selectQualifyingNewCard } from "@/lib/srs";
 import { ALL_UNITS } from "@/content/index";
 import { useStudySession } from "@/hooks/useStudySession";
+import { useStudyQueueSetup } from "@/hooks/useStudyQueueSetup";
 
 // Three real Italian cards from the Greetings unit — imported directly
 // from content/index.ts with no mocks. Exercises the production data-format
@@ -205,20 +207,27 @@ describe("seam: interrupt-session floor-fill — real useStudySession + real srs
 // it hands useStudySession a hand-picked `nearDueCards` array and a hardcoded empty
 // initialQueue, never exercising the layer ABOVE the hook. Nothing proved that
 // app/study/page.tsx's own wiring — real buildQueue(allCards, ...) feeding the
-// INTERRUPT_SESSION_CAP slice into initialQueue (page.tsx:60-64), and the
-// `getNearDueCards: (limit) => getNearDueCards(allCards, limit)` closure (page.tsx:80)
-// binding over that SAME `allCards` variable — is itself correct. This describe block
-// reconstructs that exact page-level sequence (same function calls, same argument
-// order, same shared `allCards` reference feeding both buildQueue and the
-// getNearDueCards closure) against the real store, with no intermediate mock.
+// INTERRUPT_SESSION_CAP slice into initialQueue, and the
+// `getNearDueCards: (limit) => getNearDueCards(allCards, limit)` closure binding over
+// that SAME `allCards` variable — is itself correct.
+//
+// Task #616 (Wave 7): the two tests below originally hand-copied the
+// `isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full` expression inline instead
+// of exercising the real source — a Rule 18/B7 failure (deleting the real page-level
+// slice line didn't fail either test). Wave 6's Task #612 extracted that exact
+// computation out of app/study/page.tsx into hooks/useStudyQueueSetup.ts specifically so
+// a test like this could import and call the real function instead. Both tests now do
+// exactly that: renderHook(() => useStudyQueueSetup({...})) computes the real
+// initialQueue/allCardMap/allCards, which then feed into useStudySession below — no
+// hand-copied slice expression anywhere in this describe block anymore.
 describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP slice -> useStudySession) — real store", () => {
   it("caps a real FSRS-due backlog at INTERRUPT_SESSION_CAP via the page's own buildQueue+slice sequence, with no flex-fill needed", () => {
     // 12 real cards, all already due (reps>0, dueDate in the past) — exactly
     // page.tsx's `allCards` for an interrupt/global session (isGlobal || isInterrupt).
-    const allCards = UNIT.cards.slice(0, 12);
-    expect(allCards).toHaveLength(12);
+    const twelveCards = UNIT.cards.slice(0, 12);
+    expect(twelveCards).toHaveLength(12);
     const progress: Record<string, CardProgress> = Object.fromEntries(
-      allCards.map((c) => [c.id, {
+      twelveCards.map((c) => [c.id, {
         cardId: c.id,
         state: "review",
         stability: 10,
@@ -232,22 +241,38 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
     useSRSStore.setState({ cards: progress, streak: 0, lastStudiedDate: null, activeSession: null, introductions: {} });
     const store = useSRSStore.getState();
 
-    // Exactly page.tsx:60-64's initialQueue computation — isGlobal=false, isInterrupt=true.
     const isGlobal = false;
     const isInterrupt = true;
-    const full = buildQueue(allCards, store.getDueCards, store.getNewCards, isGlobal || isInterrupt, store.getIntroductionDueCardIds);
-    // buildQueue itself returns every due card, unsliced — the real backlog this
-    // scenario is meant to exercise (Task #544's server-side ceiling fix has its own
-    // client-side counterpart proven right here: buildQueue does not itself cap).
+    // Sanity check that buildQueue itself returns every due card unsliced — the real
+    // backlog this scenario is meant to exercise (Task #544's server-side ceiling fix
+    // has its own client-side counterpart proven right here: buildQueue does not itself
+    // cap). This is a direct, independent call to the real buildQueue — not what feeds
+    // useStudySession below, which instead comes from the real useStudyQueueSetup hook.
+    const full = buildQueue(twelveCards, store.getDueCards, store.getNewCards, isGlobal || isInterrupt, store.getIntroductionDueCardIds);
     expect(full).toHaveLength(12);
-    const initialQueue = isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full;
-    expect(initialQueue).toHaveLength(INTERRUPT_SESSION_CAP);
 
-    const allCardMap = Object.fromEntries(allCards.map((c) => [c.id, c]));
+    // A single fake unit wrapping the 12-card slice — real useStudyQueueSetup, not a
+    // hand-copied reconstruction of its slice logic (Task #616).
+    const fakeUnit: Unit = { ...UNIT, cards: twelveCards };
+    const { result: setupResult } = renderHook(() =>
+      useStudyQueueSetup({
+        isGlobal,
+        isInterrupt,
+        unitId: "",
+        allUnits: [fakeUnit],
+        unitMap: { [fakeUnit.id]: fakeUnit },
+        cards: store.cards,
+        getDueCards: store.getDueCards,
+        getNewCards: store.getNewCards,
+        getIntroductionDueCardIds: store.getIntroductionDueCardIds,
+      })
+    );
+    expect(setupResult.current.initialQueue).toHaveLength(INTERRUPT_SESSION_CAP);
+
     const { result } = renderHook(() =>
       useStudySession({
-        initialQueue,
-        allCardMap,
+        initialQueue: setupResult.current.initialQueue,
+        allCardMap: setupResult.current.allCardMap,
         isGlobal,
         isInterrupt,
         unitId: "",
@@ -260,9 +285,9 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,
         introduceCard: store.introduceCard,
-        // page.tsx:80's exact binding shape — closes over the SAME `allCards`
-        // reference passed into buildQueue above, not a pre-filtered subset.
-        getNearDueCards: (limit) => store.getNearDueCards(allCards, limit),
+        // page.tsx's exact binding shape — closes over the SAME `allCards` reference
+        // useStudyQueueSetup itself computed and returned, not a pre-filtered subset.
+        getNearDueCards: (limit) => store.getNearDueCards(setupResult.current.allCards, limit),
         cards: store.cards,
         introductions: store.introductions,
         enqueueReviewEvent: vi.fn(),
@@ -281,10 +306,10 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
     // uses a pool larger than INTERRUPT_SESSION_FLOOR to prove getNearDueCards' own
     // nearest-due-first selection, sourced through page.tsx's real shared `allCards`
     // variable, not a hand-trimmed stand-in).
-    const allCards = UNIT.cards.slice(0, 10);
-    expect(allCards).toHaveLength(10);
+    const tenCards = UNIT.cards.slice(0, 10);
+    expect(tenCards).toHaveLength(10);
     const progress: Record<string, CardProgress> = Object.fromEntries(
-      allCards.map((c, i) => [c.id, {
+      tenCards.map((c, i) => [c.id, {
         cardId: c.id,
         state: "review",
         stability: 10,
@@ -301,20 +326,35 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
 
     const isGlobal = false;
     const isInterrupt = true;
-    const full = buildQueue(allCards, store.getDueCards, store.getNewCards, isGlobal || isInterrupt, store.getIntroductionDueCardIds);
+    // Sanity check, same reasoning as the sibling test above: direct, independent call
+    // to the real buildQueue, not what feeds useStudySession below.
+    const full = buildQueue(tenCards, store.getDueCards, store.getNewCards, isGlobal || isInterrupt, store.getIntroductionDueCardIds);
     // No card is due, globalMode (isGlobal || isInterrupt) blocks new-card selection
     // inside buildQueue itself, and there are no pending introductions — the page's
     // own buildQueue call genuinely starves here, exactly the cold-start/backlog-return
     // scenario the interrupt-floor fill pipeline exists for.
     expect(full).toHaveLength(0);
-    const initialQueue = isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full;
-    expect(initialQueue).toHaveLength(0);
 
-    const allCardMap = Object.fromEntries(allCards.map((c) => [c.id, c]));
+    const fakeUnit: Unit = { ...UNIT, cards: tenCards };
+    const { result: setupResult } = renderHook(() =>
+      useStudyQueueSetup({
+        isGlobal,
+        isInterrupt,
+        unitId: "",
+        allUnits: [fakeUnit],
+        unitMap: { [fakeUnit.id]: fakeUnit },
+        cards: store.cards,
+        getDueCards: store.getDueCards,
+        getNewCards: store.getNewCards,
+        getIntroductionDueCardIds: store.getIntroductionDueCardIds,
+      })
+    );
+    expect(setupResult.current.initialQueue).toHaveLength(0);
+
     const { result } = renderHook(() =>
       useStudySession({
-        initialQueue,
-        allCardMap,
+        initialQueue: setupResult.current.initialQueue,
+        allCardMap: setupResult.current.allCardMap,
         isGlobal,
         isInterrupt,
         unitId: "",
@@ -327,7 +367,7 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         commitSession: store.commitSession,
         canIntroduceNewCard: store.canIntroduceNewCard,
         introduceCard: store.introduceCard,
-        getNearDueCards: (limit) => store.getNearDueCards(allCards, limit),
+        getNearDueCards: (limit) => store.getNearDueCards(setupResult.current.allCards, limit),
         cards: store.cards,
         introductions: store.introductions,
         enqueueReviewEvent: vi.fn(),
@@ -338,7 +378,7 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
     // The 6 nearest-due cards (soonest dueDate first) out of the 10-card allCards
     // pool — proving the real store's sort-by-dueDate selection ran against the
     // full pool the page-level closure actually exposes, not a pre-trimmed stand-in.
-    const expectedIds = allCards.slice(0, INTERRUPT_SESSION_FLOOR).map((c) => c.id).sort();
+    const expectedIds = tenCards.slice(0, INTERRUPT_SESSION_FLOOR).map((c) => c.id).sort();
     expect(result.current.queue.map((c) => c.id).sort()).toEqual(expectedIds);
   });
 });

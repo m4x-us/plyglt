@@ -15,6 +15,7 @@ import { createPlatformStorage } from "@/lib/storage";
 import { SRS_VERSION, migrateSrsStore } from "@/store/migrations";
 import { getLangPair } from "@/lib/constants";
 import { localDateStr } from "@/lib/utils";
+import { createResumableSessionActions } from "@/store/resumableSession";
 
 export { localDateStr };
 
@@ -53,8 +54,6 @@ export interface ActiveSession {
   startedAt: number;      // unix ms — sessions expire after 24 hours
 }
 
-const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
-
 interface SRSState {
   cards: Record<string, CardProgress>; // cardId → progress
   streak: number;
@@ -73,26 +72,12 @@ interface SRSState {
   // without recomputing scheduleCard() a second time at the hook layer.
   commitSession: (cardId: string, grade: Grade, session: ActiveSession) => CardProgress;
   clearActiveSession: () => void;
-  // Task #597: despite the getter-shaped name, this mutates state via set({activeSession:
-  // null}) as a side effect whenever the saved session has expired — NOT safe to call during
-  // React's render phase (useState lazy initializers, useMemo bodies), since render can run
-  // twice under StrictMode/concurrent rendering or be discarded entirely, either silently
-  // double-firing or dropping the mutation. hooks/useStudySession.ts currently calls this from
-  // exactly those render-phase positions (a pre-existing issue, not introduced by this
-  // comment) — kept unchanged here for backward compatibility with existing callers and
-  // tests/session.test.ts's explicit auto-purge assertions. New callers, and any future
-  // refactor of the render-phase call sites, should use the render-safe pair below instead:
-  // `peekResumableSession()` (pure, safe anywhere) to read the value, plus
-  // `clearExpiredResumableSession()` (an explicit action, call from an effect — never during
-  // render) to actually purge an expired session.
+  // Resumable-session trio — implementations extracted to store/resumableSession.ts
+  // under Rule 1 (Task #613); see that file's own comments for the full render-phase-
+  // safety rationale (getResumableSession mutates as a side effect and is unsafe during
+  // render; peekResumableSession/clearExpiredResumableSession are the render-safe split).
   getResumableSession: () => ActiveSession | null;
-  // Task #597 — pure alternative: identical resolution logic to getResumableSession (null if
-  // no session, or if the saved session has expired) but NEVER mutates store state. Safe to
-  // call during React's render phase.
   peekResumableSession: () => ActiveSession | null;
-  // Task #597 — the explicit, side-effecting half split out of getResumableSession: purges
-  // activeSession if (and only if) it has expired. A no-op otherwise. Intended to be called
-  // from a useEffect (post-render), not during render itself.
   clearExpiredResumableSession: () => void;
 
   // Returns IDs of cards in the unit that are due for review
@@ -176,29 +161,7 @@ export const useSRSStore = create<SRSState>()(
 
       clearActiveSession: () => set({ activeSession: null }),
 
-      getResumableSession: () => {
-        const session = get().activeSession;
-        if (!session) return null;
-        if (Date.now() - session.startedAt > SESSION_EXPIRY_MS) {
-          set({ activeSession: null });
-          return null;
-        }
-        return session;
-      },
-
-      peekResumableSession: () => {
-        const session = get().activeSession;
-        if (!session) return null;
-        if (Date.now() - session.startedAt > SESSION_EXPIRY_MS) return null;
-        return session;
-      },
-
-      clearExpiredResumableSession: () => {
-        const session = get().activeSession;
-        if (session && Date.now() - session.startedAt > SESSION_EXPIRY_MS) {
-          set({ activeSession: null });
-        }
-      },
+      ...createResumableSessionActions<ActiveSession>(get, set),
 
       getDueCards: (unitCards) => {
         const now = Date.now();

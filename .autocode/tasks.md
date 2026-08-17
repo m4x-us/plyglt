@@ -12265,9 +12265,9 @@ NEW
 **File:** hooks/useStudySession.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later silently overwrite' the introduction - false, per the F001 trace: the code path does run against pre-hydration defaults and the eventual reconciliation does silently overwrite, just not the one key the comment focuses on (it destroys sibling keys instead). Rule 23b: a fix's own new comment must not make a fresh false claim about the defect class it closes; this one does. at hooks/useStudySession.ts:mount-fill effect (Task #587 comment):170.
@@ -12307,9 +12307,9 @@ NEW
 **File:** hooks/useStudySession.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
 
 **What:**
 hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos) call getResumableSession() and read the same store's activeSession field with no hydrated guard, unlike the mount-fill effect's own guard block at lines 166-174. A useState lazy initializer runs exactly once, on first render, so it never re-evaluates once real hydration completes later. On a Tauri cold start where real hydration takes longer than the first render, activeSession reads as the pre-hydration null default, resumeDecision locks to null, and a genuine mid-mandatory-interrupt resumable session (ActiveSession exists specifically to survive 'a crash or forced interruption') is silently missed - the session restarts from scratch instead of prompting the user to resume. No test exercises real hydration timing here; all tests inject getResumableSession as a plain stub. at hooks/useStudySession.ts:resumeDecision (useState lazy initializer) / resumedQueue / resumedPos:58.
@@ -12349,9 +12349,9 @@ NEW
 **File:** hooks/useStudySession.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as narrowly scoped, but sits directly beside the actual open cross-effect hydration race (F001/F004) in a way a future maintainer could mistake as addressing it. Documentation-precision gap, not a functional defect on its own. at hooks/useStudySession.ts:mount-fill effect (Task #605 comment):189.
@@ -12391,9 +12391,9 @@ NEW
 **File:** store/srsStore.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 store/srsStore.ts is 405 lines against the 400-line services cap (Rule 1). Batch 23's getNearDueCards action plus interface/JSDoc additions pushed the file 5 lines over with no compensating extraction. Independently confirmed by three separate auditors, a 4-way convergence. at store/srsStore.ts:module-level (whole file):1.
@@ -12454,9 +12454,9 @@ NEW
 **File:** tests/seam_studyLoop.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 tests/seam_studyLoop.test.ts's two page.tsx wiring tests (lines 211, 270) fail Rule 18's B7 test: despite docstrings claiming to 'reconstruct that exact page-level sequence,' both hand-copy the slice expression (isInterrupt ? full.slice(0, INTERRUPT_SESSION_CAP) : full) inline into the test body instead of importing/exercising app/study/page.tsx's real source. Deleting the real page.tsx line does not fail either test. Real coverage for that specific line exists separately in app/study/page.test.tsx's 'caps an oversized interrupt-mode queue' test, but these two specific tests are pseudocode per Rule 18. at tests/seam_studyLoop.test.ts:page.tsx wiring tests:211.
@@ -12475,9 +12475,9 @@ NEW
 **File:** hooks/useStudySession.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
 
 **What:**
 hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path) runs unconditionally for every session type including isInterrupt, with no awareness of sessionIds.size or INTERRUPT_SESSION_CAP, unlike the flex loop and near-due loop which both correctly stop at INTERRUPT_SESSION_FLOOR. Concrete sequence: app/study/page.tsx slices initialQueue to CAP (8) when the day's backlog is >=8 (common for any active or returning user), the mount effect seeds sessionIds with those 8, no card has been introduced yet that day (true most days, system-wide cap is 1/day), introduceNext() searches the entire ~30K-card cross-unit catalog with no knowledge of sessionIds, finds a candidate for almost any non-completionist user, and appends it - the session is now 9 cards. This directly contradicts BRAND.md's ratified '6-8 cards' framing and both the client (InterruptHandler.tsx:204) and server (dueEstimate.ts:120) notification clamps, which announce 'at most 8' while the session that actually opens can show 9. tests/seam_studyLoop.test.ts's closest existing test cannot catch this: its fixture seeds CardProgress for all 12 cards in allCardMap, so selectQualifyingNewCard's !cards[c.id] filter excludes every one of them, making introduceNext() structurally unable to succeed in that fixture regardless of whether a CAP guard exists. Also stated as fact, incorrectly, in docs/INTERRUPT_ARCHITECTURE.md SS10.1/SS10.7 and tests/pushDueEstimate.test.ts:115. at hooks/useStudySession.ts:mount-fill effect (normal daily-cap path):231.
@@ -12559,9 +12559,9 @@ NEW
 **File:** supabase/functions/send-interrupt-notifications/dispatch.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 supabase/functions/send-interrupt-notifications' dispatch.ts - removing the zero-estimate skip means every gated-eligible token proceeds through claimToken+send on every cron tick with no new throttle added to compensate. The file's own comment admits this 'has simply not yet been measured against higher real volume.' Performance/scale concern, not a correctness bug at current volume. at supabase/functions/send-interrupt-notifications/dispatch.ts:dispatch (zero-estimate skip removed):1.
@@ -12580,9 +12580,9 @@ NEW
 **File:** hooks/useStudySession.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-16 (Wave 7)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3 new cards, those introductions are permanently recorded (consuming that day's flex-daily-ceiling) even though the queue the user ultimately sees may end up smaller than the flex effort spent. Edge case gated behind getNearDueCards actually throwing, which does not occur under current inputs. at hooks/useStudySession.ts:mount-fill effect (flex loop + getNearDueCards throw):200.

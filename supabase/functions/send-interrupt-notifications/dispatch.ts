@@ -8,13 +8,31 @@
 // caller ordering, but processing sequentially also avoids one Edge Function
 // invocation bursting a large batch of simultaneous requests at APNs/FCM
 // or the Postgres connection pool. Batch 23 (2026-08-14) removed the
-// zero-estimate skip, so this sequential loop now carries strictly MORE
-// send volume per invocation than when this rationale was first written —
-// every gated-eligible token proceeds through claimToken/send, with no
-// short-circuit for a zero due estimate. The rationale above still holds
-// (this remains a burst-control choice, not a correctness requirement); it
-// has simply not yet been measured against the higher real volume. Revisit
-// only if real dispatch volume makes this a measured latency problem.
+// zero-estimate skip, so every gated-eligible token proceeds through
+// claimToken/send, with no short-circuit for a zero due estimate.
+//
+// Task #621 (2026-08-16), re-examining the scale concern this raised: Task
+// #623 (Wave 6) independently widens the shared cross-device gate to
+// ZERO_ESTIMATE_GATE_MINUTES (24h, see dueEstimate.ts) after any zero-estimate
+// send. Because dueSelection.ts's selectDueTokens excludes a user from
+// `candidateTokens` entirely while their gate is in effect, a zero-estimate
+// send removes that same user from candidacy for a full day, not just until
+// their next normal interrupt_interval_minutes elapses. This converts the
+// added send volume from "every gated-eligible zero-estimate token, every
+// interval, indefinitely" (the shape that motivated the original "not yet
+// measured" caution) into "at most one extra claim+send per active user per
+// 24h" — a small, bounded, steady-state addition, not an unbounded repeat.
+// The sequential-processing choice above still stands as the burst-shape
+// control for whatever volume a single invocation does carry (this was
+// always true independent of the zero-estimate question). Given this
+// mitigation, a dedicated throttle (a per-invocation token cap, or an
+// inter-send delay) is not added here — it would add real complexity against
+// a risk this reasoning shows is already substantially bounded, with no
+// measured latency problem to justify it. Revisit if real dispatch volume
+// ever surfaces a measured latency problem the 24h gate doesn't cover (e.g.
+// a very large simultaneous first-time-zero-estimate cohort on one tick,
+// which the gate cannot smooth out since it only takes effect after a
+// user's first such send).
 // ============================================================
 // DEPENDS ON: ./types.ts, ./dueEstimate.ts
 // USED BY: index.ts (the Deno entrypoint)

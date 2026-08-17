@@ -7,7 +7,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import type { Card } from "@/content/types";
 import type { IntroductionRecord } from "@/content/types";
 import { selectQualifyingNewCard, type Grade, type CardProgress } from "@/lib/srs";
-import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_MAX_NEW } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP, INTERRUPT_SESSION_MAX_NEW } from "@/lib/queue";
 import { useSRSStore, type ActiveSession } from "@/store/srsStore";
 import { useIsHydratedStrict } from "@/lib/storage";
 import { canFlexIntroduceToday } from "@/hooks/useInterruptConfig";
@@ -213,11 +213,22 @@ export function useStudySession({
     // exactly once, on whichever render is the FIRST to have real data, rather than
     // unconditionally (and possibly vacuously) on render 1.
     if (Object.keys(allCardMap).length === 0) return;
-    // Task #587 (Wave 5): allCardMap being ready does not mean the SRS store itself
-    // has finished hydrating (see the `hydrated` declaration above for the full
-    // race). Gating here too, alongside allCardMap, means the fill pass — and every
-    // introduceCard call inside it — never runs against pre-hydration {} defaults
-    // that persist's hydrate() would later silently overwrite.
+    // Task #587 (Wave 5) / #607 (Wave 7, tightened): allCardMap being ready does
+    // not mean the SRS store itself has finished hydrating (see the `hydrated`
+    // declaration above for the full race). Gating here too, alongside
+    // allCardMap, means the fill pass — and every introduceCard call inside it —
+    // never runs against pre-hydration {} defaults. This guarantee holds
+    // specifically BECAUSE `hydrated` above is useIsHydratedStrict (Task #606),
+    // not plain useIsHydrated: strict never resolves true via
+    // HYDRATION_FAILSAFE_MS's timeout fallback, only via a genuine
+    // persist.hasHydrated(). Gating this write-performing effect on the lenient
+    // variant instead would NOT make this claim true — the failsafe could still
+    // open the gate before real hydration finished, and lib/storage.ts's
+    // late-merge reconciliation (its own doc comment on useIsHydratedStrict) is
+    // the only backstop against losing that write, not a substitute for
+    // genuinely waiting. This comment's correctness is therefore tied to
+    // `hydrated` staying wired to the strict variant — if that ever changes,
+    // this claim needs re-verifying, not just re-reading.
     if (!hydrated) return;
     if (mountFillStartedRef.current) return;
 
@@ -258,17 +269,22 @@ export function useStudySession({
       // path may pick a card already sitting in the queue (unit sessions interleave
       // new cards via buildQueue) — that introduction still happens, it just
       // appends nothing.
-      // Task #605 (Wave 5): canIntroduceNewCard/introduceCard/getNearDueCards below
-      // read LIVE store state via their own closures (store/srsStore.ts's get()),
-      // while `cards`/`introductions`/`allCardMap` are read once from this render's
-      // closure — a mixed live/snapshot pattern in general. Within this one effect
-      // pass specifically it cannot desync: every statement here (loops, closures,
-      // store calls) is plain synchronous JS with no `await`/yield point, so nothing
-      // else can run — a sync-triggered background patch, or another render — between
-      // this effect's first statement and its last. The snapshot and the live reads
-      // are therefore reading the same instant in time throughout this whole pass;
-      // the mismatch (if any) can only appear ACROSS separate effect runs, which is
-      // exactly what mountFillStartedRef/hydrated/allCardMap already gate correctly.
+      // Task #605 (Wave 5) / #611 (Wave 7, scope clarified): canIntroduceNewCard/
+      // introduceCard/getNearDueCards below read LIVE store state via their own
+      // closures (store/srsStore.ts's get()), while `cards`/`introductions`/
+      // `allCardMap` are read once from this render's closure — a mixed
+      // live/snapshot pattern in general. Within this one effect pass
+      // specifically it cannot desync: every statement here (loops, closures,
+      // store calls) is plain synchronous JS with no `await`/yield point, so
+      // nothing else can run — a sync-triggered background patch, or another
+      // render — between this effect's first statement and its last. This claim
+      // is deliberately narrow: it says nothing about the SEPARATE, ACROSS-effect
+      // hydration race (whether this pass can run against pre-hydration data at
+      // all) — that race is real but sits one layer up, at the `if (!hydrated)
+      // return;` guard above, and reading THIS comment is not a substitute for
+      // checking that one. It is CLOSED (Task #606's useIsHydratedStrict gate,
+      // see that guard's own comment) — not still-open, and not something this
+      // comment was ever trying to address.
       const sessionIds = new Set<string>(initialQueue.map((c) => c.id));
       const introducedIds = new Set<string>();
 
@@ -311,7 +327,27 @@ export function useStudySession({
       // `introducedIds` with the interrupt flex loop below: a normal-cap
       // introduction here counts as one of the flex loop's INTERRUPT_SESSION_MAX_NEW
       // slots, it is not additive with them (Task #574 seam-tests this interaction).
-      if (canIntroduceNewCard(today)) introduceNext();
+      //
+      // Task #617 (Wave 7): gated on INTERRUPT_SESSION_CAP for interrupt sessions
+      // specifically — lib/queue.ts's INTERRUPT_SESSION_CAP (8) is an interrupt-only
+      // concept (unit/global sessions have no queue-size cap at all, hence
+      // `!isInterrupt ||` short-circuits the check for them). Before this guard, this
+      // line ran unconditionally regardless of sessionIds.size, unlike the flex loop
+      // and near-due loop below, which both correctly stop at INTERRUPT_SESSION_FLOOR.
+      // Concrete failure this closes: app/study/page.tsx slices initialQueue to CAP
+      // (8) on a backlog day, seeding sessionIds with 8 cards; on any day no card has
+      // been introduced yet (true most days, system-wide cap is 1/day),
+      // introduceNext() searched the ENTIRE cross-unit catalog with no knowledge of
+      // sessionIds, found a qualifying candidate for almost any non-completionist
+      // user, and appended it — growing the session to 9, contradicting both the
+      // client (components/InterruptHandler.tsx) and server
+      // (supabase/functions/send-interrupt-notifications/dueEstimate.ts) notification
+      // clamps, which both announce "at most 8." Deliberately checked against CAP
+      // here, not FLOOR (INTERRUPT_SESSION_FLOOR) — this is the ceiling this specific
+      // path was missing, not the floor the flex/near-due tiers already target.
+      if (canIntroduceNewCard(today) && (!isInterrupt || sessionIds.size < INTERRUPT_SESSION_CAP)) {
+        introduceNext();
+      }
 
       if (isInterrupt) {
         // Task #562 (Wave 3): canFlexIntroduceToday (hooks/useInterruptConfig.ts,
@@ -348,6 +384,21 @@ export function useStudySession({
           if (!introduceNext()) break;
         }
 
+        // Task #622 (Wave 7, investigated — no code fix, this is correct behavior):
+        // if getNearDueCards below throws after this loop already introduced 1-3
+        // cards, those introductions stay permanently recorded (consuming
+        // INTERRUPT_FLEX_DAILY_MAX for the day) even though the near-due padding
+        // never ran. This is NOT a gap — Tasks #592/#593's try/catch/finally
+        // (wrapping this whole block) already flushes whatever made it into
+        // `added` on ANY throw here, so every flex-introduced card still reaches
+        // the visible queue; there is no divergence between "cards the store
+        // recorded as introduced" and "cards the user actually sees." Consuming
+        // the daily ceiling for them is therefore correct, not wasted — those
+        // introductions genuinely happened and are genuinely shown. The user
+        // simply doesn't get near-due padding on top that day, which Task #561
+        // already documents as an accepted possibility (the floor is a target,
+        // not an unconditional guarantee). Confirmed with a regression test in
+        // hooks/useStudySession.test.ts proving this exact sequence.
         if (sessionIds.size < INTERRUPT_SESSION_FLOOR) {
           // Task #541 (mirrored in hooks/useInterruptConfig.ts's computeDue —
           // Task #618/Wave 6 — check that file's matching near-due-fallback block

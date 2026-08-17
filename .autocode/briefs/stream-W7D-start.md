@@ -1,9 +1,3 @@
----
-status: done
-stream: W7D
-wave: 7
----
-
 # Derek — Stream W7D — Wave 7 — 2026-08-16
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
