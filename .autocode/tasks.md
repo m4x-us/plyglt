@@ -12769,9 +12769,9 @@ NEW
 **File:** docs/INTERRUPT_ARCHITECTURE.md
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
+**Status:** COMPLETE — 2026-08-17 (direct fix, orchestrator)
 **Blocked by:** Nothing
 **Priority:** P3
-**Status:** OPEN
 
 **What:**
 Section 10 documents hooks/useStudySession.ts's behavior but is stale for Wave 7's Task #617 (the CAP guard) and Wave 6's Task #618 (the canFlexIntroduceToday extraction): the section's own intro claims currency only through 'Wave 1 and Wave 3'; grepping the whole file for '617' returns zero hits; the file-summary table (10.7) describes current behavior without mentioning the CAP guard at all; section 10.3 never mentions that Task #618 eliminated the flex-condition half of the hand-duplication it warns about. A repeat instance of a named recurring failure class in this exact file, one round after it was fixed for a prior staleness issue (Task #625). at docs/INTERRUPT_ARCHITECTURE.md:section 10 (file-summary table and cross-file documentation):10.

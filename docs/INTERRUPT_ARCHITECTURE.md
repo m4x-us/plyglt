@@ -276,7 +276,7 @@ capability for mobile, not just "connect the existing thing."
 
 ---
 
-## 10. Interrupt content-supply floor (Batch 22–23, remediated Wave 1 and Wave 3 2026-08-15)
+## 10. Interrupt content-supply floor (Batch 22–23, remediated through Wave 8, 2026-08-17)
 
 Status: **IMPLEMENTED.** Batch 22 (`.autocode/tasks.md`, Task #533) closed a
 real gap live Windows testing surfaced: §2 above fixed `computeDue`
@@ -287,16 +287,21 @@ made the interrupt engine go completely silent — contradicting BRAND.md's
 Batch 23 then found that "non-empty" alone wasn't enough either: a caught-up
 user's session could still land as a single card, a real, live-tested UX
 complaint ("way too small"). This section documents the current, live
-behavior after both batches, Wave 1's audit remediation (`/audit 23`, Tasks
-#538/#539/#541/#544/#545/#550/#551), and Wave 3's follow-up remediation
-(Tasks #562/#565/#573) — not the original Batch 23 spec text, nor Wave 1's
-own corrections, both of which have since been superseded in places (noted
-below). In particular: 10.2 now documents a real cold-start pack-loading
-race Wave 1's own #552 fix did not actually close (fixed in Wave 3 as
-#573); 10.3 now describes the real per-iteration daily-ceiling enforcement
-(Wave 3 #562, correcting Wave 1's once-per-mount version); and 10.4 now
-documents that the never-empty backstop described there in Wave 1 was
-removed entirely in Wave 3 (#565) as dead code, not merely re-gated.
+behavior after Wave 1's audit remediation (`/audit 23`, Tasks
+#538/#539/#541/#544/#545/#550/#551), Wave 3's follow-up (Tasks
+#562/#565/#573), Wave 5's hydration-gate fix (Task #587), Wave 6's shared-
+predicate extraction and reconciliation hardening (Tasks #606/#618), Wave
+7's session-cap guard (Task #617), and Wave 8's collision fix and
+resume-awareness fix (Tasks #627/#628/#629) — not the original Batch 23 spec
+text, nor any single wave's own corrections in isolation, several of which
+have since been superseded in places (noted throughout). This section has
+already gone stale once before (fixed as Task #625, one round after
+shipping) and again after that (this revision, Task #631) — both times
+because a wave's fix landed in code and tests but not here. Treat any future
+wave that changes `hooks/useStudySession.ts`'s mount-fill effect,
+`lib/storage.ts`'s hydration signals, or `hooks/useInterruptConfig.ts`'s
+`computeDue` as needing a matching update to this section, not an optional
+follow-up.
 
 ### 10.1 The client-side content floor (`lib/queue.ts`)
 
@@ -327,6 +332,38 @@ one-per-day new card) falls short of the floor:
 **The floor is a target, not an unconditional guarantee (Task #561).** A
 stranded introduction pause, or a genuinely exhausted catalog, can leave a
 session below 6 — even, in one rare combination, completely empty (10.4).
+
+**The normal daily-cap introduction (step 0, before either fill step above)
+needed its own ceiling too (Task #617, Wave 7).** Before this fix, `if
+(canIntroduceNewCard(today)) introduceNext();` — the ordinary one-new-card-
+a-day path every session type runs, not just interrupts — had no awareness
+of `sessionIds.size` at all. On a backlog day where `app/study/page.tsx`
+had already sliced `initialQueue` to `INTERRUPT_SESSION_CAP` (8) cards, this
+one call could still push the session to 9, contradicting both the client
+(`components/InterruptHandler.tsx`) and server (`dueEstimate.ts`, 10.6)
+notification clamps, which both promise "at most 8." **Fixed:** the call is
+now gated on `!isInterrupt || sessionIds.size < INTERRUPT_SESSION_CAP` —
+scoped to `isInterrupt` specifically, since unit/global sessions have no
+size cap to enforce. The flex loop and near-due step can never independently
+overshoot `CAP` on their own (both stop at `FLOOR`, strictly below `CAP`),
+so this one guard is sufficient to bound all three fill mechanisms together.
+
+**The fill pass now skips entirely when a resumable session is pending
+(Task #629, Wave 8).** Before this fix, the mount-fill effect ran its full
+pass — real `introduceCard` writes, near-due padding — with no awareness of
+whether `StudyResumePrompt` was about to be shown instead of the queue it
+just built. Since an interrupt session's `sessionKey` is always the empty
+string, *any* incomplete prior interrupt session (an ordinary app close, a
+navigation away, or the snooze flow — none of which clear the active
+session) matches *any* subsequent one. Whichever way the user resolved the
+resulting resume prompt, the fill pass's queue changes were discarded, but
+its `introduceCard` writes were not — silently spending real
+`INTERRUPT_FLEX_DAILY_MAX` budget on content the user never saw, which
+could deny a *later* real interrupt that same day its own flex fill.
+**Fixed:** the effect now re-derives "is a resumable session pending for
+this key" fresh (via `peekResumableSession`, not the `resumeDecision` state
+variable, which can lag a render behind — see the effect's own code
+comment for why) and returns immediately if one is.
 
 #### Cold-start pack-loading race (Task #552/#573)
 
@@ -379,6 +416,33 @@ the fill pass had *completed*, but the ref is actually claimed at the
 start of the guarded block, before any of the fill logic that can throw
 runs (see the effect's own try/catch/finally, added the same wave, for
 what happens if a claimed attempt fails partway through).
+
+**Wave 6's `hydrated`-gate fix had its own gap, closed in Wave 8 (Tasks
+#627/#628).** Gating the mount-fill effect's *write* on the strict signal
+closed the race for `introduceCard` specifically, but two things were still
+true: (1) `lib/storage.ts`'s late-merge reconciliation — the backstop for
+any write that still lands during the failsafe window, from any source —
+only generalized correctly to a live write *adding* a new record; a live
+write *colliding* with a sub-key that already had real, different content
+on disk (e.g. a card with real FSRS/introduction history that just hadn't
+loaded yet) was taken from the live write unconditionally, silently
+discarding the real persisted history for that one entry. **Fixed:** the
+reconciliation now checks whether the real, fully-hydrated value already
+has that sub-key before ever taking the live value — a genuine collision
+keeps the real data; only a genuine addition (absent from the real data
+entirely) is still taken from the live write. (2) `app/study/page.tsx`
+itself still gated its whole interactive UI — including `handleRate` →
+`commitSession` and `recordIntroductionResult`, both real persisted writes
+— on the *lenient* `useIsHydrated`, which resolves `true` via
+`HYDRATION_FAILSAFE_MS` even when real hydration never finishes. That was
+the concrete path putting a card rating inside the exact race window the
+reconciliation fix above exists to protect against. **Fixed:** the page's
+loading gate now requires the strict signal too (`!hydrated || packLoading
+|| !hydratedStrict`) — if real hydration genuinely never completes, the
+loading screen now stays up indefinitely rather than ever unblocking a
+write against unhydrated state, a deliberate choice over giving
+write-gating its own separate, more generous timeout (any such timeout
+just reintroduces the same race at a later, still-arbitrary point).
 
 ### 10.3 The flex fill's daily ceiling is enforced per introduction attempt, not once per mount (Task #562 — corrects Wave 1's original #538/#551 fix)
 
@@ -442,6 +506,21 @@ own zero-supply flex-fallback branch (Task #539) — before that fix,
 untouched card that the session's own flex fill would then refuse to
 introduce, a real fire-gate/session-content divergence of the same shape §2
 already closed once for the normal-cap case.
+
+**No longer two hand-duplicated implementations (Task #618, Wave 6).** The
+flex-gate condition above (`canIntroduceNewCard(today,
+INTERRUPT_FLEX_DAILY_MAX)`) used to be written out separately in both
+`hooks/useStudySession.ts`'s mount-fill effect and `computeDue` — the exact
+kind of duplication that caused the divergence bugs named in Tasks #523 and
+#539 in the first place. Both call sites now call one shared function,
+`canFlexIntroduceToday` (exported from `hooks/useInterruptConfig.ts`), so a
+future change to this one condition can no longer be applied to one call
+site and silently missed on the other. The remaining tiers of the fill
+decision (the normal-cap search and the near-due fallback search) are
+still separately implemented in each file, since they genuinely operate
+over different data shapes (`computeDue` probes per-unit; the mount-fill
+effect probes the whole session's card map) — only the flex-gate condition
+itself was extracted.
 
 ### 10.4 The never-empty backstop was removed as dead code (Task #565, Wave 3 — supersedes Wave 1's #538 re-gating fix)
 
@@ -535,8 +614,9 @@ the old skip-gate.
 | Area | File(s) | Current behavior |
 |---|---|---|
 | Client floor/cap/ceiling constants | `lib/queue.ts` | `INTERRUPT_SESSION_FLOOR`(6), `INTERRUPT_SESSION_MAX_NEW`(3), `INTERRUPT_SESSION_CAP`(8), `INTERRUPT_FLEX_DAILY_MAX`(9) — see 10.1 |
-| Session fill + cold-start reliability + pause/ceiling gating | `hooks/useStudySession.ts` | Mount-effect fill order, cold-start ready-signal + once-guard, per-iteration ceiling recheck — see 10.2–10.5. The never-empty backstop (formerly here too) was removed as dead code in Wave 3 (10.4) — no longer a mechanism this file implements |
-| Fire-gate mirror | `hooks/useInterruptConfig.ts` | `computeDue`'s flex-fallback, gated identically to the session fill — see 10.3 |
+| Session fill + cold-start reliability + pause/ceiling gating | `hooks/useStudySession.ts` | Mount-effect fill order, cold-start ready-signal + once-guard, per-iteration ceiling recheck, session-size CAP guard (10.2, Task #617), resumable-session skip (10.2, Task #629) — see 10.2–10.5. The never-empty backstop (formerly here too) was removed as dead code in Wave 3 (10.4) — no longer a mechanism this file implements |
+| Fire-gate mirror | `hooks/useInterruptConfig.ts` | `computeDue`'s flex-fallback, now calling the shared `canFlexIntroduceToday` (10.3, Task #618) instead of a hand-duplicated condition |
+| Hydration-race data-loss defense | `lib/storage.ts`, `app/study/page.tsx` | `useIsHydratedStrict` (never resolves via the failsafe) gates every write-performing consumer; the late-merge reconciliation is collision-aware for map-shaped fields — see 10.2's "Wave 6's hydrated-gate fix" note (Task #606/#627/#628) |
 | Server estimate + payload | `supabase/functions/send-interrupt-notifications/dueEstimate.ts` | Lower-bound estimate, clamp-to-[FLOOR,CAP], honest zero case — see 10.6 |
 | Dispatch observability | `supabase/functions/send-interrupt-notifications/types.ts`, `dispatch.ts` | `sentWithZeroEstimate` replaces `skippedNoCards` — see 10.6 |
 | Client/server constant sync guard | `tests/interruptFloorSync.test.ts` | Mechanical equality assertion, not a shared import — see 10.6 |
