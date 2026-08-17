@@ -362,6 +362,52 @@ describe("useStudySession — handleRate", () => {
     );
   });
 
+  // Round-11 audit finding (Red Agent R): before this fix, the requeue splice above ran
+  // unconditionally regardless of isInterrupt or queue length, so a wrong answer in an
+  // interrupt session already at INTERRUPT_SESSION_CAP still grew the queue past it —
+  // silently defeating the cap this whole batch exists to enforce. Deletion Test: removing
+  // the atInterruptCap guard restores the unconditional splice, and this test's second
+  // assertion (queue stays at exactly INTERRUPT_SESSION_CAP, not CAP + 1) fails.
+  it("'again' answer in an interrupt session already at INTERRUPT_SESSION_CAP does not grow the queue past the cap", () => {
+    const capQueue = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`cap${i}`));
+    const capMap = Object.fromEntries(capQueue.map((c) => [c.id, c]));
+    const commitSession = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({ initialQueue: capQueue, allCardMap: capMap, isInterrupt: true, commitSession }),
+      ),
+    );
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+
+    act(() => {
+      result.current.handleRate("again");
+    });
+
+    expect(result.current.pos).toBe(1);
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP); // no duplicate re-inserted — cap holds
+    expect(commitSession).toHaveBeenCalledWith(
+      "cap0",
+      "again",
+      expect.objectContaining({ queueIds: capQueue.map((c) => c.id) }), // no dupe id in the persisted queueIds either
+    );
+  });
+
+  // Control case, same fix: an interrupt session BELOW the cap must still requeue normally
+  // (the guard is a cap check, not a blanket "never requeue in interrupt mode" rule).
+  it("'again' answer in an interrupt session below INTERRUPT_SESSION_CAP still re-inserts the card", () => {
+    const belowCapQueue = Array.from({ length: INTERRUPT_SESSION_CAP - 1 }, (_, i) => makeCard(`below${i}`));
+    const belowCapMap = Object.fromEntries(belowCapQueue.map((c) => [c.id, c]));
+    const { result } = renderHook(() =>
+      useStudySession(defaultParams({ initialQueue: belowCapQueue, allCardMap: belowCapMap, isInterrupt: true })),
+    );
+
+    act(() => {
+      result.current.handleRate("again");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP); // grew by exactly 1, up to the cap
+  });
+
   it("final card: commitSession receives correct unitId, queueIds, and sessionTotal === 1", () => {
     const solo = makeCard("solo");
     const commitSession = vi.fn();

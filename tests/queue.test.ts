@@ -3,6 +3,8 @@ import {
   buildQueue,
   findUnitName,
   INTERRUPT_FLEX_DAILY_MAX,
+  INTERRUPT_SESSION_FLOOR,
+  INTERRUPT_SESSION_CAP,
   INTERRUPT_SESSION_MAX_NEW,
 } from "@/lib/queue";
 import type { Card, Unit } from "@/content/types";
@@ -210,5 +212,26 @@ describe("INTERRUPT_FLEX_DAILY_MAX derivation", () => {
 
   it("is exactly 9 today (INTERRUPT_SESSION_MAX_NEW=3 x 3) — matches the doc's literal value", () => {
     expect(INTERRUPT_FLEX_DAILY_MAX).toBe(9);
+  });
+});
+
+// Round-11 audit finding (Agent W): INTERRUPT_FLEX_DAILY_MAX had a hardcoded-value pin above,
+// but the three base constants it's built from/paired with — the exact numbers behind BRAND.md's
+// "6-8 cards, 45-90 seconds" promise — had none anywhere in the suite. Every consuming test only
+// ever compared against these SAME imported constants (toHaveLength(INTERRUPT_SESSION_FLOOR), not
+// toHaveLength(6)), so a silent edit to any of the three would leave every test green. These pins
+// close that gap — Deletion Test: change any literal on the right of a toBe() call below and the
+// corresponding assertion fails, independent of any production code path.
+describe("interrupt session size constants — hardcoded value pins", () => {
+  it("INTERRUPT_SESSION_FLOOR is exactly 6 — BRAND.md's ratified session-floor promise", () => {
+    expect(INTERRUPT_SESSION_FLOOR).toBe(6);
+  });
+
+  it("INTERRUPT_SESSION_CAP is exactly 8 — BRAND.md's ratified session-ceiling promise", () => {
+    expect(INTERRUPT_SESSION_CAP).toBe(8);
+  });
+
+  it("INTERRUPT_SESSION_MAX_NEW is exactly 3 — Cowan (2001) working-memory cap on new cards per session", () => {
+    expect(INTERRUPT_SESSION_MAX_NEW).toBe(3);
   });
 });

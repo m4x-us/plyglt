@@ -51,20 +51,29 @@
 // effect chains `fetchManifest()` and `loadPack()` (a THIRD `loadPack()` for a
 // specialty pack) SEQUENTIALLY via `.then()`, each independently bounded by
 // `FETCH_TIMEOUT_MS` (20000ms) — not raced against one shared ceiling — plus
-// up to `HYDRATION_GRACE_MS` (3000ms) before the chain even starts; (2)
-// `lib/basePackLoader.ts`'s cache-read step (`readCacheMeta`/`readCacheData`,
-// backed by platform storage — an unbounded Tauri IPC call on desktop) runs
-// BEFORE `fetchWithTimeout` even starts, with no timeout of its own. Neither
+// up to `HYDRATION_GRACE_MS` (3000ms) before the chain even starts; (2) BOTH
+// `lib/basePackLoader.ts` AND `lib/specialtyPackLoader.ts` run the identical
+// unbounded cache-read step (`readCacheMeta`/`readCacheData`, backed by
+// platform storage — an unbounded Tauri IPC call on desktop) BEFORE their own
+// `fetchWithTimeout` call even starts, with no timeout of its own — so the
+// "a THIRD `loadPack()` for a specialty pack" in point (1) means this
+// unbounded stretch can occur TWICE in series (base pack's, then specialty
+// pack's), not once (round-11 audit finding, Agent A: round 10's own
+// correction named only the base-pack instance and omitted its byte-for-byte
+// sibling in specialtyPackLoader.ts — itself a fresh instance of exactly the
+// "fix generalizes to one instance, not the identical sibling" pattern this
+// hook's own comment history has now shipped four rounds running). Neither
 // of these facts changes today's revert decision (still correct — `it` never
 // enters this path at all, so no live number is currently mistuned) — but a
 // precise numeric replacement bound would be dishonest given (2) is
-// structurally unbounded. Revisiting this hook once a dynamically-loaded
-// language ships `ready:true` requires re-deriving the real bound from the
-// actual sequential storage+fetch chain at that time, not reusing any single
-// figure asserted here today. See .autocode/debt.md Task #378 (sharpened
-// round 9) for the related gap this hook's retry mechanism depends on for
-// that future case (app/study/page.tsx never surfaces useLangPack()'s `error`
-// field).
+// structurally unbounded (twice over). Revisiting this hook once a
+// dynamically-loaded language ships `ready:true` requires re-deriving the
+// real bound from the actual sequential storage+fetch chain at that time —
+// including BOTH loader files' unbounded cache-read steps — not reusing any
+// single figure asserted here today. See .autocode/debt.md Task #378
+// (sharpened round 9) for the related gap this hook's retry mechanism
+// depends on for that future case (app/study/page.tsx never surfaces
+// useLangPack()'s `error` field).
 "use client";
 
 import { useEffect, useState } from "react";

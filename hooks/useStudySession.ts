@@ -365,11 +365,22 @@ export function useStudySession({
     const newPos = pos + 1;
     const currentCard = queue[pos]!;
 
+    // Round-11 audit finding (Red Agent R): this requeue was unscoped to isInterrupt and
+    // had no cap check, so a wrong answer in an interrupt session grew the queue by one
+    // every time, unbounded — silently defeating INTERRUPT_SESSION_CAP and, with it, the
+    // 45-90s / mandatory-mode-lock-duration promise this whole batch exists to keep. Once
+    // an interrupt session is already at the cap, a wrong answer no longer re-inserts a
+    // duplicate; the card is scored wrong and returns via normal FSRS/introduction
+    // scheduling instead of immediate in-session retry. Non-interrupt sessions (unit/global)
+    // are unaffected — they have no length promise to protect.
     let newQueue = queue;
     if (grade === "again") {
-      newQueue = [...queue];
-      newQueue.splice(Math.min(pos + 3, newQueue.length), 0, currentCard);
-      setQueue(newQueue);
+      const atInterruptCap = isInterrupt && queue.length >= INTERRUPT_SESSION_CAP;
+      if (!atInterruptCap) {
+        newQueue = [...queue];
+        newQueue.splice(Math.min(pos + 3, newQueue.length), 0, currentCard);
+        setQueue(newQueue);
+      }
     }
 
     const resultingProgress = commitSession(currentCard.id, grade, {
