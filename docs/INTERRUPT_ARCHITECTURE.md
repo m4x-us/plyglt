@@ -376,6 +376,21 @@ session's queue at the raw, unfilled `initialQueue`. **Fixed:** the fill
 logic was extracted into a callable `runFillPass()`, now also invoked from
 the apply-resume effect's decline/expired-accept branch.
 
+**A second, independent bug produced the identical symptom — the wrong
+screen rendered, not just the wrong queue content (round-7 audit finding
+F009, severity 8).** `app/study/page.tsx`'s own screen-selection order was
+the second half of this collision: `if (queue.length === 0) return
+<StudyEmptyQueue/>` ran BEFORE `if (resumeDecision === "pending") return
+<StudyResumePrompt/>`. On the exact caught-up-day-with-a-pending-session
+scenario this whole section describes, `queue.length === 0` AND
+`resumeDecision === "pending"` were true at the same time — the empty-queue
+check fired first, permanently hiding the resume prompt behind "Nothing
+ready," and `StudyEmptyQueue`'s Home button never calls
+`clearActiveSession()`, so the stale session (and the trap) survived up to
+`SESSION_EXPIRY_MS` (24h). **Fixed:** the two checks were reordered — the
+pending-resume check now runs first, unconditionally, regardless of queue
+content.
+
 #### Cold-start pack-loading race (Task #552/#573)
 
 `app/study/page.tsx` calls `useStudySession` unconditionally, before its own

@@ -572,12 +572,47 @@ describe("StudyPage — app/study/page.tsx", () => {
       expect(screen.getByText("Loading…")).toBeInTheDocument();
 
       act(() => {
-        vi.advanceTimersByTime(15000);
+        // Round-8: HYDRATION_STUCK_TIMEOUT_MS widened to 45000ms (Red Agent R
+        // finding — 15s was too tight for a real slow-network pack download).
+        vi.advanceTimersByTime(45000);
       });
 
       expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
       expect(screen.getByText("Couldn't load your progress.")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      vi.useRealTimers();
+    });
+
+    // Round-8 audit finding (Agent B): the round-7 F012 fix (useHydrationStuck
+    // generalized to a composite `blocked` parameter) had a unit test proving the
+    // HOOK tracks whatever boolean it's given, but nothing proved the page-level
+    // WIRING — that app/study/page.tsx actually passes the full stillLoading
+    // composite, not just !hydratedStrict, to the hook. Agent B confirmed this
+    // gap concretely: reverting the wiring to the old, narrower
+    // useHydrationStuck(!hydratedStrict) call left the full 2024-test suite green.
+    // This test exercises the exact scenario F012 was written to fix: hydration
+    // itself resolves, but the pack is still loading.
+    it("shows the retry screen when packLoading alone is what stays stuck, even though hydratedStrict has already resolved", () => {
+      vi.useFakeTimers();
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 0;
+      hydrationState.hydrated = true;
+      hydrationState.hydratedStrict = true; // hydration itself is fine...
+      langPackState.loading = true; // ...but the pack fetch is the one still stuck
+
+      render(<StudyPage />);
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(45000);
+      });
+
+      // Deletion Test: reverting app/study/page.tsx's wiring to
+      // useHydrationStuck(!hydratedStrict) (ignoring packLoading) would leave
+      // hydrationStuck permanently false here (!hydratedStrict is false the whole
+      // time), so this assertion fails and "Loading…" stays shown forever instead.
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(screen.getByText("Couldn't load your progress.")).toBeInTheDocument();
       vi.useRealTimers();
     });
   });

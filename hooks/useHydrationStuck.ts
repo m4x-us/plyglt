@@ -12,29 +12,40 @@
 //
 // This hook does NOT unblock the caller's gate — it only tells the caller when
 // enough time has passed that it's safe to assume something is actually wrong,
-// so the UI can offer a retry affordance instead of hanging forever. Deliberately
-// a much longer window than HYDRATION_FAILSAFE_MS (3000ms): that failsafe exists
-// to unblock ordinary slow-but-working hydration, whereas this timeout exists to
-// distinguish "still loading" from "never going to finish."
+// so the UI can offer a retry affordance instead of hanging forever.
 //
 // Round-7 audit finding (Agent W / Red Agent R, convergent, severity 7): the
 // first version of this hook took only `hydratedStrict` as input, but its real
 // (and only) caller gates its loading screen on a 3-way OR
 // (`!hydrated || packLoading || !hydratedStrict`). If `hydratedStrict` resolved
-// but `packLoading` was the one still stuck, the hook never observed it — either
-// the screen hung with no retry (packLoading was the one hanging) or, worse, a
-// `stuck=true` latched from an earlier `hydratedStrict` stall never cleared once
-// `hydratedStrict` resolved, showing a hydration-specific retry message for an
-// unrelated, still-pending pack-loading condition. Fix: this hook takes whichever
-// single boolean the caller's own gate condition evaluates to — the caller is
-// responsible for combining its own conditions before calling in, so the
-// "caller has stopped reading this value once the gate opens" invariant below is
-// true by construction rather than by an assumption about what the gate contains.
+// but `packLoading` was the one still stuck, the hook never observed it. Fix:
+// this hook takes whichever single boolean the caller's own gate condition
+// evaluates to — the caller is responsible for combining its own conditions
+// before calling in, so the "caller has stopped reading this value once the
+// gate opens" invariant below is true by construction. Verified safe against a
+// re-triggering `blocked` (true→false→true within one mount): `packLoading`
+// (hooks/useLangPack.ts) only ever transitions true→false, exactly once per
+// mount, same as `hydratedStrict` — a language switch reloads the whole page
+// (CLAUDE.md) rather than re-triggering loading on an already-mounted hook.
+//
+// Round-8 audit finding (Red Agent R, CHAOS, severity 7): widening the input to
+// include `packLoading` also widened what "stuck" has to mean. The original
+// 15000ms was tuned for HYDRATION_FAILSAFE_MS-adjacent local storage stalls —
+// no network dependency, should resolve near-instantly or never. `packLoading`
+// is a network fetch of `public/packs/{lang}.json` (~8.6MB uncompressed for
+// `it`, and CURRICULUM.md documents the curriculum still actively growing) —
+// on an ordinary (not even "slow") 3G connection, downloading that much data
+// can legitimately take well over 15s, even accounting for gzip/brotli
+// compression on JSON. The old threshold would show "Couldn't load your
+// progress" — and its Retry button would restart the identical slow fetch —
+// for users who are simply on a slow connection with a load that's genuinely
+// still progressing. Fixed: widened to accommodate a realistic slow-connection
+// pack download while still bounding a truly dead connection under a minute.
 "use client";
 
 import { useEffect, useState } from "react";
 
-export const HYDRATION_STUCK_TIMEOUT_MS = 15000;
+export const HYDRATION_STUCK_TIMEOUT_MS = 45000;
 
 export function useHydrationStuck(blocked: boolean, timeoutMs: number = HYDRATION_STUCK_TIMEOUT_MS): boolean {
   const [stuck, setStuck] = useState(false);

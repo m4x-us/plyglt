@@ -112,7 +112,7 @@ describe("buildNotificationPayload — Batch 23 session floor, Tasks #544/#545 c
   });
 
   // Deletion Test: the pre-clamp code returned "9 cards ready" here, overstating what
-  // app/study/page.tsx's INTERRUPT_SESSION_CAP(8)-capped queue can ever deliver.
+  // hooks/useStudyQueueSetup.ts's INTERRUPT_SESSION_CAP(8)-capped queue can ever deliver.
   it("clamps a backlog estimate above the cap (9) down to 8 — never announces more than the session can hold", () => {
     const payload = buildNotificationPayload({ cardCount: 9, sessionType: "review" });
     expect(payload).toEqual({
