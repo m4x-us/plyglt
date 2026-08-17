@@ -31,3 +31,4 @@
 | 2026-08-15 | batch 23 -- re-audit round 2 (8-agent, post Wave 1+2 remediation) | 1 | 8 | FAIL |
 | 2026-08-15 | batch 23 -- re-audit round 3 (8-agent, post Wave 3+4 remediation) | 1 | 8 | FAIL |
 | 2026-08-15 | batch 23 -- re-audit round 4 (8-agent, post Wave 5 remediation) | 1 | 9 | FAIL |
+| 2026-08-16 | batch 23 -- re-audit round 5 (8-agent, post Wave 6+7 remediation) | 1 | 8 | FAIL |

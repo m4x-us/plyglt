@@ -98,9 +98,36 @@ async function sendAndRecord(
       : token.interrupt_interval_minutes;
     const occurredAt = now.toISOString();
     const effectiveUntil = new Date(now.getTime() + gateMinutes * 60_000).toISOString();
-    const recorded = await deps.recordGateFired(token.user_id, token.device_id, occurredAt, effectiveUntil);
+    // Task #642: a recordGateFired failure is NOT symmetric between the two cases above,
+    // even though both used to be treated identically ("log it, move on"). claimToken's own
+    // per-token CAS guard (supabaseAdmin.ts) always throttles on the token's plain
+    // interrupt_interval_minutes, never on the widened daily backoff — dueSelection.ts's
+    // gate read (interrupt_gate_events, written here) is the ONLY thing that actually
+    // enforces "at most once per day" for a zero-estimate send. A non-zero-estimate send's
+    // gate-write failure only costs cross-device coordination (a second device might also
+    // ping this user before the next successful write) — a real but comparatively minor
+    // annoyance, since this same token/device is still correctly re-throttled by its own
+    // normal interval either way. A zero-estimate send's gate-write failure, left
+    // unretried, reproduces the EXACT recurring-content-free-push-every-interval
+    // notification-fatigue bug (BRAND.md's stress-free principle, a real uninstall risk)
+    // that Task #623 exists to fix — for as long as the write keeps failing for that user.
+    // Given that asymmetry, a bare "log and accept" is not the proportionate response here.
+    // Fix: retry the write a bounded, small number of times (no backoff delay — this loop
+    // is already sequential per token, per dispatch.ts's file-header burst-control rationale,
+    // so an unbounded or sleep-based retry would itself become the volume problem #621
+    // examined; an immediate retry costs one more await, no more, and still recovers a
+    // transient connection blip, which is the dominant real-world failure mode for a single
+    // REST POST). Applies uniformly to both cases (simpler than branching this loop by
+    // estimate) — the non-zero case gets the same small resilience improvement as a side
+    // benefit, but the retry's mandate specifically comes from the zero-estimate case's
+    // more severe consequence.
+    const GATE_RECORD_MAX_ATTEMPTS = 3;
+    let recorded = false;
+    for (let attempt = 1; attempt <= GATE_RECORD_MAX_ATTEMPTS && !recorded; attempt++) {
+      recorded = await deps.recordGateFired(token.user_id, token.device_id, occurredAt, effectiveUntil);
+    }
     if (!recorded) {
-      console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${token.user_id} after a successful send`);
+      console.error(`[ERR-PUSH-GATE-RECORD-${Date.now()}] recordGateFired failed for user ${token.user_id} after a successful send (${GATE_RECORD_MAX_ATTEMPTS} attempts)`);
     }
     return;
   }

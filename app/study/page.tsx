@@ -9,7 +9,7 @@ import { useSRSStore, localDateStr } from "@/store/srsStore";
 import { useLangPack } from "@/hooks/useLangPack";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSyncStore } from "@/store/syncStore";
-import { useIsHydrated } from "@/lib/storage";
+import { useIsHydrated, useIsHydratedStrict } from "@/lib/storage";
 import StudyCard from "@/components/StudyCard";
 import StudyDoneScreen from "@/components/StudyDoneScreen";
 import StudyResumePrompt from "@/components/StudyResumePrompt";
@@ -43,10 +43,8 @@ function StudyInner() {
   const handleSnooze = useSnoozeAndExit(snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
-  // Task #612 (Wave 6): card-scope/prerequisite/initial-queue computation extracted to
-  // hooks/useStudyQueueSetup.ts to keep this route under CLAUDE.md's 150-line cap —
-  // see that file's own header for the extraction rationale (same pattern as
-  // hooks/useSnoozeAndExit.ts's earlier extraction from this file).
+  // Task #612: card-scope/prerequisite/initial-queue computation extracted to
+  // hooks/useStudyQueueSetup.ts to keep this route under CLAUDE.md's 150-line cap.
   const { allCards, unit, initialQueue, allCardMap } = useStudyQueueSetup({
     isGlobal, isInterrupt, unitId, allUnits: ALL_UNITS, unitMap: UNIT_MAP, cards,
     getDueCards, getNewCards, getIntroductionDueCardIds,
@@ -57,21 +55,26 @@ function StudyInner() {
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
     useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
+  // Task #628 (Wave 8): `hydrated` (lenient) alone would unblock this screen
+  // within HYDRATION_FAILSAFE_MS even without real hydration (Task #406: never
+  // hang forever) — but everything past it writes real data (handleRate →
+  // commitSession; onRate → recordIntroductionResult), the exact reachability
+  // path F002 found still open after hooks/useStudySession.ts's own write got
+  // strict-gated. `hydratedStrict` (never resolves via the failsafe) closes it —
+  // combined into one condition since both render identical UI; no SEPARATE
+  // generous write-gating timeout, since any such timeout just reintroduces the
+  // same race later (lib/storage.ts's Task #627 collision fix note applies).
   const hydrated = useIsHydrated(useSRSStore);
-  if (!hydrated || packLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
+  const hydratedStrict = useIsHydratedStrict(useSRSStore);
+  if (!hydrated || packLoading || !hydratedStrict) return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500 text-sm">Loading…</div>;
   if (!isGlobal && !isInterrupt && !unit) return <StudyUnitNotFound mode={mode} unitId={unitId} onHome={() => router.push("/learn")} />;
 
-  // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt session
-  // that starts with an empty initialQueue can still end up non-empty once useStudySession's
-  // mount effect performs the interrupt-floor flex introduction (hooks/useStudySession.ts) —
-  // checking the stale memo here would show "nothing ready" even after that fallback succeeds.
+  // Checks the hook's live `queue`, not the `initialQueue` memo snapshot: an interrupt
+  // session's mount effect can fill an empty initialQueue via flex introduction.
   if (queue.length === 0) return <StudyEmptyQueue isInterrupt={isInterrupt} onHome={() => router.push("/learn")} />;
 
   if (resumeDecision === "pending") {
-    // Task #608 (Wave 6): peekResumableSession (store/srsStore.ts, Task #597) is the
-    // render-phase-safe read — getResumableSession's set() side effect on an
-    // expired session is unsafe to call during render (StrictMode/concurrent
-    // rendering can run this twice or discard it).
+    // Task #608: peekResumableSession is the render-phase-safe read.
     const saved = peekResumableSession();
     return (
       <StudyResumePrompt
@@ -86,9 +89,8 @@ function StudyInner() {
   const isDone = pos >= queue.length;
 
   if (isDone) {
-    // Task #612 (Wave 6): derived-props computation extracted to
-    // hooks/studyDoneScreenProps.ts (a plain function, not a hook — see its own
-    // header for why) to keep this route under CLAUDE.md's 150-line cap.
+    // Task #612: derived-props extracted to hooks/studyDoneScreenProps.ts (a
+    // plain function, not a hook — see its own header) for the line-count cap.
     const { pct, stillDue, onStudyMore } = computeStudyDoneScreenProps({
       isGlobal, isInterrupt, unit, allUnits: ALL_UNITS, allCards,
       sessionCorrect, sessionTotal, getDueCards, getNewCards, getIntroductionDueCardIds, resetToQueue,
@@ -117,10 +119,7 @@ function StudyInner() {
     <div className="min-h-screen bg-gray-950 flex flex-col px-4 py-8">
       <div className="flex items-center justify-between max-w-xl mx-auto w-full mb-6">
         {isInterrupt ? (
-          <button
-            onClick={handleSnooze}
-            className="text-yellow-600 hover:text-yellow-400 text-sm font-medium transition-colors"
-          >
+          <button onClick={handleSnooze} className="text-yellow-600 hover:text-yellow-400 text-sm font-medium transition-colors">
             Snooze {snoozeMinutes} min
           </button>
         ) : (

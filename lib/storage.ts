@@ -246,11 +246,33 @@ export function useIsHydrated<T extends object = Record<string, unknown>>(store:
             const preVal = preMerge[key];
             const postVal = postMerge[key];
             if (isPlainObject(snapVal) && isPlainObject(preVal) && isPlainObject(postVal)) {
+              // Task #627: a sub-key that changed during the failsafe window is only
+              // safe to restore from the live pre-hydration value (`preVal`) if
+              // `postVal` — the REAL, fully-hydrated persisted data — has NOTHING
+              // for that sub-key. If `postVal` already has real content there (e.g.
+              // a card that already had real FSRS/introduction history on disk, not
+              // a brand-new one), `preVal[subKey]` was derived from the pre-hydration
+              // snapshot with zero knowledge of that real history — taking it
+              // unconditionally would silently destroy the real persisted entry,
+              // exactly the collision member of the defect class #606's original
+              // fix generalized to the addition member but missed. Only a genuine
+              // ADDITION (the sub-key is absent from postVal entirely) is safe to
+              // take from the live write; a genuine COLLISION (postVal already has
+              // that sub-key) keeps the real persisted value — the `...postVal`
+              // spread below already supplies it, so a colliding sub-key is simply
+              // never added to subDiff.
               const subDiff: Record<string, unknown> = {};
               for (const subKey of Object.keys(preVal)) {
-                if (!Object.is(preVal[subKey], snapVal[subKey])) {
-                  subDiff[subKey] = preVal[subKey];
+                if (Object.is(preVal[subKey], snapVal[subKey])) continue; // unchanged during the window
+                if (Object.prototype.hasOwnProperty.call(postVal, subKey)) {
+                  if (!Object.is(postVal[subKey], preVal[subKey])) {
+                    console.error(
+                      `[plyglt] [ERR-HYDRATION-LATE-MERGE-COLLISION] sub-key "${subKey}" of "${String(key)}" changed during the failsafe window, but real persisted data already exists for it — keeping the real persisted value, discarding the live pre-hydration write for this entry`
+                    );
+                  }
+                  continue; // real persisted data wins — do not overwrite a real entry
                 }
+                subDiff[subKey] = preVal[subKey];
               }
               if (Object.keys(subDiff).length > 0) {
                 clobbered[key] = { ...postVal, ...subDiff } as T[typeof key];

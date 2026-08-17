@@ -308,6 +308,43 @@ describe("InterruptHandler", () => {
       expect(mockPush).toHaveBeenCalledWith("/study?mode=interrupt");
     });
 
+    // Task #641: src-tauri/src/interrupt.rs documents emit_interrupt as fire-and-forget
+    // with no queueing/retry — a genuine double-fire is possible. Deletion Test: removing
+    // the interruptFireInFlightRef guard makes this fail (markInterruptFired/mockPush would
+    // each be called twice, once per concurrent execution, instead of once).
+    it("processes a second rapid-succession fire as a no-op while the first is still in flight", async () => {
+      useSettingsStore.setState({ dndStart: "22:00", dndEnd: "22:00" });
+      mockUseLangPack.mockReturnValueOnce({
+        units: [{ id: "u1", cards: [] }],
+        unitMap: {},
+        lang: { code: "it" },
+        loading: false,
+        error: null,
+      });
+      tauriState.isTauri = true;
+      await act(async () => { render(<InterruptHandler />); });
+
+      const callback = tauriState.listeners.get("interrupt:fire");
+      expect(typeof callback).toBe("function");
+
+      // Fire twice back-to-back, BEFORE either call's async chain resolves — exactly the
+      // fire-and-forget double-fire scenario the finding describes. Both calls are started
+      // synchronously (neither awaited individually first) so the second genuinely lands
+      // while the first is still mid-flight, not after it has already finished.
+      await act(async () => {
+        if (callback) {
+          const first = callback(true);
+          const second = callback(true);
+          await Promise.all([first, second]);
+        }
+      });
+
+      // Only the first fire actually processed — the second was blocked by the in-flight
+      // guard before it reached any of the real work.
+      expect(mockMarkInterruptFired).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledTimes(1);
+    });
+
     // Task #614: this component navigates to /study?mode=interrupt and has no visibility
     // into whether the mount-fill effect on the other side of that navigation actually
     // reaches the session floor — that fill logic lives entirely in
@@ -700,6 +737,54 @@ describe("InterruptHandler", () => {
       false,  // idleEnabled
       45,     // idleThresholdMinutes
     ]);
+  });
+
+  // Task #633: the configSeqRef staleness guard existed only in the .catch() branch of the
+  // updateInterruptConfig effect — the success path had no equivalent check, a real doc/code
+  // mismatch (the comment on configSeqRef claims protection against exactly this race).
+  // updateInterruptConfig resolves Promise<void> with no further JS-side action today, so this
+  // specific guard is currently inert with respect to observable state — there is nothing a
+  // stale resolution could visibly corrupt. What IS provable: forcing the exact "older resolves
+  // after newer" ordering the finding describes must not throw or log an error from the new
+  // success-path code, and the effect must still have issued both IPC calls with their own
+  // correct, un-swapped argument sets regardless of resolution order.
+  it("does not crash or log an error when an older updateInterruptConfig call resolves after a newer one (Task #633)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let resolveOlder!: () => void;
+    let resolveNewer!: () => void;
+    mockUpdateInterruptConfig
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { resolveOlder = resolve; }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { resolveNewer = resolve; }));
+
+    useSettingsStore.setState({
+      interruptEnabled: false, intervalHours: 1.5, mandatory: false,
+      wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15,
+    });
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    // Second effect run — a real re-render before the first IPC call has resolved,
+    // exactly the "rapid toggle" scenario the configSeqRef comment describes.
+    await act(async () => {
+      useSettingsStore.setState({ interruptEnabled: true });
+    });
+    expect(mockUpdateInterruptConfig).toHaveBeenCalledTimes(2);
+
+    // Resolve out of order: the OLDER (first) call settles AFTER the newer (second) one.
+    await act(async () => {
+      resolveNewer();
+    });
+    await act(async () => {
+      resolveOlder();
+    });
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    // Each call still carried its own correct arguments — resolution order never
+    // retroactively changes what was actually sent over IPC.
+    expect(mockUpdateInterruptConfig.mock.calls[0]![0]).toBe(false); // older: enabled=false
+    expect(mockUpdateInterruptConfig.mock.calls[1]![0]).toBe(true); // newer: enabled=true
+
+    errorSpy.mockRestore();
   });
 
   // ── Test: validateLicense NOT called on mount — EntitlementValidator.tsx owns revalidation ─

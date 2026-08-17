@@ -1,54 +1,114 @@
-# Stream W8C — Wave 8 — Batch 12 Audit Remediation (#262 #267 #280 #291)
-**Date:** 2026-07-09
-**Agent:** Charles
-**Status:** COMPLETE
-**Verification gate at close:** tsc=0 errors · 53/53 test files · 1082 tests pass · lint=0 errors
+CLOSED: #633 #641 #635
+NOT_CLOSED: none
 
-## Tasks closed
-- #262 — Fix setTargetLangCode/getTargetLangCode hyphen truncation (lib/constants.ts)
-- #267 — Fix hasAddOn pure function doc comment (lib/entitlement.ts)
-- #280 — Add isReadySpecialtyPackCode + clarify isSpecialtyPackCode doc comment (lib/langRegistry.ts)
-- #291 — Add LanguageGrid.tsx to langRegistry.ts USED BY header (lib/langRegistry.ts)
+## Summary
 
-## What was done
+All 3 tasks closed. Read `components/InterruptHandler.tsx` in full before starting either of
+the two async-safety tasks in it, per the brief's instruction. Verification gate:
+- `npx tsc --noEmit` — clean
+- `npm test` — 100 files passed, 1 file (`app/study/page.test.tsx`) had 1 failing test,
+  persistent across two re-runs; confirmed via `git status` that both `app/study/page.tsx`
+  and `.test.tsx` are mid-edit by another stream this wave (both off-limits to me) — my
+  owned-scope-only run (`components/InterruptHandler.tsx`, `.test.tsx`,
+  `hooks/useInterruptConfig.test.ts`) is 45/45 clean in isolation. Not something I touched or
+  can fix within my file ownership this wave; flagging per the brief's own "confirm via git
+  status before assuming" instruction rather than silently ignoring it.
+- `npm run lint` — 0 errors, 7 pre-existing warnings, none in files I touched
+- Existence-assertion grep gate — clean on all 3 owned files
+- `git status` showed only expected, recognizable changes throughout (my 3 owned files, plus
+  every other stream's own off-limits files matching this wave's off-limits list exactly) — no
+  `git stash` used or needed.
 
-### #262 — getTargetLangCode hyphen truncation (P1)
+Debt entries logged: 0
+Carry-forward tasks generated: 0
 
-**Bug:** `getTargetLangCode()` used `pair.split("-")[1]` which returns only the segment immediately after the first hyphen. For `setTargetLangCode("it-medical")`, the stored value is `"en-it-medical"`, but `split("-")[1]` returned `"it"` — silently discarding `"-medical"`.
+## Task #633 — configSeqRef staleness guard missing from the success path
 
-**Fix:** Replaced with `indexOf("-")` to split on the first hyphen only and take everything after it:
-```typescript
-const sepIdx = pair.indexOf("-");
-return sepIdx === -1 ? "it" : (pair.slice(sepIdx + 1) || "it");
-```
+**Design decision, explained per the brief's request:** read `updateInterruptConfig`
+(`lib/tauriInterrupt.ts`) directly before deciding anything — it resolves `Promise<void>`,
+with genuinely no return value and no further JS-side action taken after it today (confirmed:
+the effect had no `.then()` at all, only a `.catch()`). This matters because the actual
+"overwrite" the audit finding describes happens on the RUST side, at the moment the IPC call
+completes there — not in JS after the `await` resolves. A JS-side staleness check added after
+a successful `await` cannot retroactively undo a Rust-side write that already happened; it can
+only gate JS code that runs AFTER that point, and none exists today.
 
-Round-trip now works for all target codes: `"it"` → `"en-it"` → `"it"` ✓, `"it-medical"` → `"en-it-medical"` → `"it-medical"` ✓. The no-hyphen malformed case (`"en"`) still returns `"it"` (existing test preserved).
+**Decision: add the check anyway, documented honestly as currently inert.** This directly
+closes the real doc/code mismatch the audit flagged (the `configSeqRef` comment already claims
+protection against this race; the code only delivered half of it) and future-proofs any change
+that later adds real post-success logic here (e.g. storing an ack) — without the check, that
+future code would silently need someone to remember to add exactly this line. Implemented by
+converting the effect from `.catch()`-chaining to an `async () => { try {...} catch {...} }`
+IIFE (matching this same file's existing style for the `interrupt:fire` listener), with the
+identical `if (seq !== configSeqRef.current) return;` line placed symmetrically in both the
+success and catch paths.
 
-Note: Regression test for hyphenated round-trip should be added in `tests/srsStore.test.ts` (tests the current `getTargetLangCode` tests). Not added here as that file is not in the owned file list.
+**Regression test added**, using controllable/deferred promises to force the exact "older
+resolves after newer" ordering: asserts (1) no error is logged (proving the new success-path
+code doesn't throw/crash), and (2) each of the two `updateInterruptConfig` calls still carried
+its own correct, un-swapped arguments regardless of resolution order.
 
-### #267 — hasAddOn doc comment (P2)
+**Deletion Test — run live, and the result is worth stating precisely, not just "ran it":**
+removing the new success-path check line did NOT fail any test, including the new regression
+test — confirming, exactly as reasoned above, that the guard is currently inert with respect
+to any observable behavior. This is not a failed verification; it's the expected, honestly
+documented outcome for a defensive/future-proofing fix with no live effect to gate yet. Stated
+plainly rather than glossed over, per the brief's instruction to explain design-decision
+reasoning clearly.
 
-The existing doc comment was minimal: "Returns true if the given specialty pack code has been purchased as an add-on." It did not explain:
-- That this is the canonical pure implementation
-- That `store/entitlementStore.ts` should delegate here rather than duplicate the logic
-- That the intended use case is non-React contexts (lib/ modules, scripts)
+## Task #641 — interrupt:fire listener has no re-entrancy guard
 
-Updated to a full JSDoc comment documenting all three points. No code changes — doc improvement only.
+Added `interruptFireInFlightRef` (a `useRef(false)`, same ref-based-guard shape as
+`configSeqRef`, not a state-triggered one — nothing here needs to cause a re-render). Set to
+`true` at the very start of the listener callback (before any `await`, so it's synchronously
+visible to a second concurrent invocation), checked-and-early-returned at the top for a second
+fire while the first is in flight, and released in a `finally` wrapping the existing
+try/catch — guaranteed to run regardless of which of the callback's several early-return paths,
+a thrown error, or normal completion is taken.
 
-### #280 — isReadySpecialtyPackCode (P3)
+**Regression test added:** fires the listener twice back-to-back (both calls started
+synchronously, neither individually awaited first, so the second genuinely lands mid-flight of
+the first — not after it already finished), then asserts `markInterruptFired` and the router's
+`push` were each called exactly once, not twice.
 
-**Gap:** `isSpecialtyPackCode` checks any readiness state but `packLoader.ts`'s inline `SPECIALTY_PACKS.some(sp => sp.code === lang && sp.ready)` is the actual loadability check. No named function existed for the ready-only check, so packLoader reimplemented it inline (F006 finding).
+**Live Deletion Test:** removed the guard-check/set lines and the `finally` release — the new
+regression test failed exactly as expected (`markInterruptFired` called 2 times, not 1).
+Restored and re-verified all 27 tests pass.
 
-**Fix:**
-1. Added `isReadySpecialtyPackCode(s: string): boolean` — the named counterpart to READY_PACK_CODES for specialty packs. Mirrors the loadability contract packLoader's inline check uses.
-2. Updated `isSpecialtyPackCode` doc comment to explicitly say "Does NOT check .ready — use isReadySpecialtyPackCode for loadability checks."
+## Task #635 — two computeDue tests fail the Deletion Test negatively
 
-`lib/packLoader.ts` (off-limits in this wave) should be updated by another agent to use `isReadySpecialtyPackCode` instead of the inline reimplementation.
+Traced both tests against the CURRENT `hooks/useInterruptConfig.ts` (variable renamed
+`newCardDue` → `hasQualifyingContent` in a later wave than the finding's own comments
+reference, but the logic is identical) before rewriting, per this project's own repeated lesson
+about checking real current state rather than trusting a stale description.
 
-### #291 — langRegistry.ts USED BY header (P3)
+**"does not flex when reviews are due":** the original fixture set `newCardIds: []`, so even
+if the outer `reviewDue === 0 && ...` guard gating the whole flex block were deleted, the flex
+new-card loop would find nothing to flex anyway (empty pool) — same result of 1 either way.
+Fix: added a genuinely untouched card via `newCardIds` that the flex path WOULD pick up if it
+incorrectly ran, so a deleted guard now changes the numeric result (2, not 1) instead of
+silently no-op'ing.
 
-Added `components/LanguageGrid.tsx` to the USED BY list. It directly imports `LANGUAGE_REGISTRY` and `getSpecialtyPacks`.
+**"falls through to a near-due card when the flex introduction is blocked":** the original
+fixture set up exactly one matching card on BOTH the new-card side and the near-due side, so
+whether the `flexIntroAllowed` guard correctly blocks the new-card loop (falling through to
+near-due, as the name claims) or the guard is deleted (new-card loop runs unconditionally,
+finds its match, and never even reaches the near-due block) — both land on the identical count
+of 1. Fix: spied on both `getNewCards` and `getNearDueCards` (same technique as this file's own
+existing Task #558 pattern) to prove the result specifically came from the near-due fallback:
+`getNearDueCardsSpy` must have been called with the unit's cards, and `getNewCardsSpy` must
+never have been called at all (neither the normal-cap check nor the flex check should reach it
+in this fixture).
 
-## Debt entries logged: 0
-## Carry-forward tasks generated: 0
-## Note: packLoader.ts inline reimplementation (F006) should be updated to use isReadySpecialtyPackCode — deferred to next wave.
+**Both Deletion Tests run live** against the real (off-limits/read-only-to-me)
+`hooks/useInterruptConfig.ts`: temporarily removed the outer flex guard for test 1 (result
+became 2, correctly caught), then restored and removed the `flexIntroAllowed` gate around the
+new-card loop for test 2 (the new `getNearDueCardsSpy` assertion correctly failed — never
+called). Restored the production file after each attempt; `git diff` on it is empty — confirmed
+byte-identical to its state before I started, consistent with it not being in my file ownership
+this wave.
+
+## Note on `scripts/deep-audit.sh`
+
+Still does not exist in this repo (same finding as every prior wave's stream) — substituted the
+real Verification Gate as every task's acceptance criteria itself instructed.

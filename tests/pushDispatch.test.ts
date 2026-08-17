@@ -358,7 +358,7 @@ describe("dispatchNotifications", () => {
       expect(deps.recordGateFired).not.toHaveBeenCalled();
     });
 
-    it("still reports sent:1 (unaffected) when recordGateFired itself fails, logging the failure separately", async () => {
+    it("still reports sent:1 (unaffected) when recordGateFired fails on every retry attempt, logging the failure separately", async () => {
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const token = makeToken({ user_id: "u1" });
       const deps = makeDeps({ recordGateFired: vi.fn().mockResolvedValue(false) });
@@ -368,8 +368,56 @@ describe("dispatchNotifications", () => {
 
       expect(summary.sent).toBe(1);
       expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(
-        /^\[ERR-PUSH-GATE-RECORD-\d+\] recordGateFired failed for user u1 after a successful send$/
+        /^\[ERR-PUSH-GATE-RECORD-\d+\] recordGateFired failed for user u1 after a successful send \(3 attempts\)$/
       );
+      consoleErrorSpy.mockRestore();
+    });
+
+    // Task #642: claimToken's own per-token CAS guard always throttles on the token's plain
+    // interrupt_interval_minutes, never on the widened daily backoff — dueSelection.ts's gate
+    // read (interrupt_gate_events, written by recordGateFired) is the ONLY thing that enforces
+    // "at most once per day" for a zero-estimate send. A silent, unretried write failure there
+    // would reproduce the exact recurring-notification-fatigue bug Task #623 exists to fix.
+    it("retries recordGateFired up to 3 times total and succeeds on a later attempt", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const recordGateFired = vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const deps = makeDeps({ recordGateFired });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const summary = await dispatchNotifications([token], events, NOW, deps);
+
+      expect(recordGateFired).toHaveBeenCalledTimes(3);
+      expect(summary.sent).toBe(1);
+      // Recovered on the 3rd attempt — no failure log, since recorded ended up true.
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("stops retrying recordGateFired as soon as one attempt succeeds (never calls a 4th time)", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const recordGateFired = vi.fn().mockResolvedValueOnce(true);
+      const deps = makeDeps({ recordGateFired });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(recordGateFired).toHaveBeenCalledTimes(1);
+    });
+
+    it("makes exactly 3 attempts (not more) when every attempt fails", async () => {
+      const token = makeToken({ user_id: "u1" });
+      const recordGateFired = vi.fn().mockResolvedValue(false);
+      const deps = makeDeps({ recordGateFired });
+      const events = new Map([["u1", [readyEvent("u1")]]]);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await dispatchNotifications([token], events, NOW, deps);
+
+      expect(recordGateFired).toHaveBeenCalledTimes(3);
       consoleErrorSpy.mockRestore();
     });
   });

@@ -58,21 +58,48 @@ function InterruptHandlerCore() {
   // Guards against rapid toggle races where an older in-flight call could revert Rust state.
   const configSeqRef = useRef(0);
 
+  // Task #641: re-entrancy guard for the interrupt:fire listener below. Rust's
+  // emit_interrupt is fire-and-forget with no queueing/retry (src-tauri/src/interrupt.rs) —
+  // if the event fires twice in rapid succession, two concurrent async executions of the
+  // callback body could both pass the early-return guards and both proceed, producing
+  // duplicate mandatory locks or notifications for one logical interrupt. Same ref-based-
+  // guard shape as configSeqRef above, not a state-triggered one — nothing here needs to
+  // cause a re-render, it only needs to be readable/writable synchronously across
+  // concurrent callback invocations.
+  const interruptFireInFlightRef = useRef(false);
+
   // Keep the Rust thread in sync whenever relevant settings change.
   useEffect(() => {
     const seq = ++configSeqRef.current;
-    updateInterruptConfig(
-      interruptEnabled,
-      intervalHours,
-      mandatory,
-      wakeEnabled,
-      unlockEnabled,
-      idleEnabled,
-      idleThresholdMinutes,
-    ).catch((err) => {
-      if (seq !== configSeqRef.current) return; // stale — a newer write is in flight
-      console.error(`[ERR-IPC-CONFIG-${Date.now()}] Failed to sync interrupt config:`, err);
-    });
+    (async () => {
+      try {
+        await updateInterruptConfig(
+          interruptEnabled,
+          intervalHours,
+          mandatory,
+          wakeEnabled,
+          unlockEnabled,
+          idleEnabled,
+          idleThresholdMinutes,
+        );
+        // Task #633: the identical staleness check the .catch() branch below already had —
+        // previously missing from the success path entirely, a real doc/code mismatch (the
+        // comment on configSeqRef above claims protection against exactly this class of
+        // race, but the guard as originally written only covered rejection). Honest caveat:
+        // updateInterruptConfig resolves Promise<void> (lib/tauriInterrupt.ts) with no
+        // further JS-side action after it today, so this specific check is currently inert —
+        // by the time any await here resolves, the Rust-side write (the actual "overwrite"
+        // the finding describes) has already happened, and no JS-side check run after the
+        // fact can undo it. Kept anyway, symmetric with the catch branch, so any future
+        // change that adds real post-success logic here (e.g. storing an ack) is
+        // automatically protected rather than requiring someone to remember to add this
+        // check when that logic lands.
+        if (seq !== configSeqRef.current) return; // stale — a newer write is in flight
+      } catch (err) {
+        if (seq !== configSeqRef.current) return; // stale — a newer write is in flight
+        console.error(`[ERR-IPC-CONFIG-${Date.now()}] Failed to sync interrupt config:`, err);
+      }
+    })();
   }, [interruptEnabled, intervalHours, mandatory, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes]);
 
   // Always-current snapshot the interrupt:fire handler below reads at call time, so the
@@ -100,6 +127,11 @@ function InterruptHandlerCore() {
     let unlisten: (() => void) | undefined;
 
     listen<boolean>("interrupt:fire", async (isMandatory) => {
+      // Task #641: a second fire landing while the first is still being processed is a
+      // no-op — released in the finally below regardless of which exit path (an early
+      // return, a thrown error, or normal completion) the callback takes.
+      if (interruptFireInFlightRef.current) return;
+      interruptFireInFlightRef.current = true;
       // Task #601: top-level guard — computeDue and readInterruptGateState below are not
       // individually try/catch'd (unlike the branches further down), so an uncaught throw
       // from either would otherwise reject this async listener callback silently: no
@@ -247,6 +279,8 @@ function InterruptHandlerCore() {
         }
       } catch (err) {
         console.error(`[ERR-INTERRUPT-FIRE-${Date.now()}] interrupt:fire handler failed:`, err);
+      } finally {
+        interruptFireInFlightRef.current = false;
       }
     }).then((fn) => {
       unlisten = fn;

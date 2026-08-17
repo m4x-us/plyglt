@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { createPlatformStorage, useIsHydrated, HYDRATION_FAILSAFE_MS } from "@/lib/storage";
+import { createPlatformStorage, useIsHydrated, useIsHydratedStrict, HYDRATION_FAILSAFE_MS } from "@/lib/storage";
 
 // ── Module mocks (hoisted — apply to all tests) ───────────────────────────────
 
@@ -347,6 +347,64 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
     });
   });
 
+  // Task #632 (Wave 8): useIsHydratedStrict must NEVER resolve via useIsHydrated's
+  // HYDRATION_FAILSAFE_MS fallback — that fallback exists to unblock READS, not to
+  // greenlight a consumer that WRITES persisted state (see lib/storage.ts's doc
+  // comment on useIsHydratedStrict). This is the exact contrast case: identical
+  // never-hydrates store, identical elapsed time, opposite hooks.
+  describe("useIsHydratedStrict — never resolves via the failsafe (Task #632)", () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it("stays false forever past HYDRATION_FAILSAFE_MS when hasHydrated never becomes true, while useIsHydrated (same store) flips true", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = {
+        persist: {
+          hasHydrated: vi.fn().mockReturnValue(false),
+          onFinishHydration: vi.fn(() => vi.fn()),
+        },
+      };
+
+      const strict = renderHook(() => useIsHydratedStrict(store));
+      const lenient = renderHook(() => useIsHydrated(store));
+      expect(strict.result.current).toBe(false);
+      expect(lenient.result.current).toBe(false);
+
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+      // Advance further to prove this isn't just a timing/ordering fluke — strict
+      // never resolves no matter how long real hydration is stuck.
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS * 10); });
+
+      expect(lenient.result.current).toBe(true);
+      expect(strict.result.current).toBe(false);
+      errorSpy.mockRestore();
+    });
+
+    it("resolves true only when real hydration actually completes, matching useIsHydrated in that case", () => {
+      let hydrateCallback: (() => void) | undefined;
+      let hasHydratedFlag = false;
+      const store = {
+        persist: {
+          hasHydrated: vi.fn(() => hasHydratedFlag),
+          onFinishHydration: vi.fn((fn: () => void) => {
+            hydrateCallback = fn;
+            return vi.fn();
+          }),
+        },
+      };
+
+      const { result } = renderHook(() => useIsHydratedStrict(store));
+      expect(result.current).toBe(false);
+
+      act(() => {
+        hasHydratedFlag = true;
+        hydrateCallback?.();
+      });
+
+      expect(result.current).toBe(true);
+    });
+  });
+
   describe("late real-hydration merge reconciliation (#435)", () => {
     beforeEach(() => { vi.useFakeTimers(); });
     afterEach(() => { vi.useRealTimers(); });
@@ -471,6 +529,14 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
       errorSpy.mockRestore();
     });
 
+    // Task #637 (Wave 8): the original version of this test never wrote to `introductions`
+    // during the failsafe window (preMerge.introductions === snapshotAtExpiry.introductions,
+    // both `{}`) — so `userTouched` was false and the whole isPlainObject/subDiff branch was
+    // skipped entirely for this field. Deleting that branch outright left this test passing
+    // identically. Now both a scalar AND a map field are live-written in the same window, so
+    // both reconciliation branches actually execute together in one pass. Deletion Test:
+    // reverting the map branch to the pre-#606 blanket `clobbered[key] = preMerge[key]` makes
+    // this test fail — introductions would read back as only `{cardNew: ...}`, losing cardX.
     it("still restores a live write on a scalar field exactly as before — the map-field diff branch does not regress the existing scalar path", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const store = makeFullStore({ count: 0, introductions: {} as Record<string, string> });
@@ -478,30 +544,110 @@ describe("useIsHydrated — hook behavioral tests (covers lines 102–110)", () 
       renderHook(() => useIsHydrated(store));
       act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
 
-      act(() => { store.setState({ count: 5 }); });
+      // Both fields written in the same window: scalar `count`, and a genuinely new
+      // (non-colliding) map entry `cardNew`.
       act(() => {
-        store.__simulateLateHydration({ count: 1, introductions: { cardX: "recordX" } });
+        store.setState({ count: 5, introductions: { cardNew: "recordNew-from-live-write" } });
+      });
+      act(() => {
+        store.__simulateLateHydration({ count: 1, introductions: { cardX: "recordX-real-history" } });
       });
 
       expect(store.getState().count).toBe(5); // scalar path: whole-field replace, unchanged
-      // introductions was never touched during the window — no clobber, no reconciliation.
-      expect(store.getState().introductions).toEqual({ cardX: "recordX" });
+      // map path: real persisted entry survives AND the live-write addition survives.
+      expect(store.getState().introductions).toEqual({
+        cardX: "recordX-real-history",
+        cardNew: "recordNew-from-live-write",
+      });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
       errorSpy.mockRestore();
     });
 
+    // Task #637 (Wave 8): the original version of this test never wrote to ANY field during
+    // the window, so the failsafe's reconciliation callback found `clobbered` empty and never
+    // even called `setState()` — "introductions ends up equal to what __simulateLateHydration
+    // passed in" is true whether or not the map-aware diff code exists at all, since the plain
+    // merge inside __simulateLateHydration already produces that result with zero help from
+    // reconciliation. Now a DIFFERENT (scalar) field is live-written during the window, which
+    // forces the reconciliation callback to actually run and call setState(clobbered) — proving
+    // the untouched map field passes through the real reconciliation code path unmodified,
+    // rather than merely being untouched because reconciliation never ran at all.
     it("does not touch a map-shaped field the user never wrote to during the window", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const store = makeFullStore({ count: 0, introductions: {} as Record<string, string> });
+
+      renderHook(() => useIsHydrated(store));
+      act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
+
+      // Only the scalar field is live-written — introductions is never touched.
+      act(() => { store.setState({ count: 9 }); });
+      act(() => {
+        store.__simulateLateHydration({ count: 2, introductions: { cardX: "recordX", cardY: "recordY" } });
+      });
+
+      // Reconciliation genuinely ran (proven by the scalar restoration + the log line)...
+      expect(store.getState().count).toBe(9);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      // ...yet the untouched map field passed through exactly as real hydration set it.
+      expect(store.getState().introductions).toEqual({ cardX: "recordX", cardY: "recordY" });
+      errorSpy.mockRestore();
+    });
+
+    // Task #627 (severity 8, F001): the sub-key diff above compared preVal[subKey]
+    // against snapVal[subKey] ONLY, never checking whether postVal (the REAL,
+    // fully-hydrated persisted data) already had real content for that exact
+    // sub-key. A live write during the failsafe window for a card that ALREADY has
+    // real, larger persisted history on disk (not a brand-new card) would
+    // unconditionally overwrite that real history with the pre-hydration-derived
+    // live value — the collision member of the defect class #606's fix generalized
+    // to the addition member but missed entirely. Zero test coverage existed for
+    // this specific scenario before this test. Deletion Test: reverting the
+    // collision guard (the `hasOwnProperty.call(postVal, subKey)` check) back to
+    // unconditionally taking `preVal[subKey]` makes this test fail — cardA would
+    // read back as the fresh, wrong live-write value instead of its real history.
+    it("prefers the REAL persisted value over a colliding live write for a sub-key that already has real history, while still preserving a genuine addition with no real counterpart", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const store = makeFullStore({ introductions: {} as Record<string, string> });
 
       renderHook(() => useIsHydrated(store));
       act(() => { vi.advanceTimersByTime(HYDRATION_FAILSAFE_MS); });
 
+      // Live writes during the failsafe window: cardA is a stale re-derivation of a
+      // card that actually already has real history (e.g. introduceCard() firing
+      // against the pre-hydration empty introductions map, which has no record of
+      // cardA yet); cardC is a genuinely brand-new card with no real counterpart.
       act(() => {
-        store.__simulateLateHydration({ introductions: { cardX: "recordX", cardY: "recordY" } });
+        store.setState({
+          introductions: {
+            cardA: "recordA-FRESH-WRONG-from-live-write",
+            cardC: "recordC-genuinely-new-from-live-write",
+          },
+        });
       });
 
-      expect(store.getState().introductions).toEqual({ cardX: "recordX", cardY: "recordY" });
-      expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE"));
+      // Real hydration finishes late: the actual disk data has cardA's TRUE,
+      // substantial history (different from the fresh live-write value) plus
+      // cardB (untouched, real) — but has never heard of cardC, since it's
+      // genuinely new.
+      act(() => {
+        store.__simulateLateHydration({
+          introductions: {
+            cardA: "recordA-REAL-substantial-history",
+            cardB: "recordB-real-untouched",
+          },
+        });
+      });
+
+      // cardA: the REAL persisted history wins — the live write's stale
+      // re-derivation must NOT silently destroy it. cardB: real, untouched entry
+      // survives normally. cardC: a genuine addition with no real counterpart —
+      // still safe to take from the live write.
+      expect(store.getState().introductions).toEqual({
+        cardA: "recordA-REAL-substantial-history",
+        cardB: "recordB-real-untouched",
+        cardC: "recordC-genuinely-new-from-live-write",
+      });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-HYDRATION-LATE-MERGE-COLLISION"));
       errorSpy.mockRestore();
     });
   });

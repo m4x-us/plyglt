@@ -1,67 +1,94 @@
 ---
 status: done
-stream: W7A
-wave: 7
+stream: W8A
+wave: 8
 ---
 
-# Adam — Stream W7A — Wave 7 — 2026-08-16
+# Adam — Stream W8A — Wave 8 — 2026-08-16
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W7A | #617 #622 #609 #607 #611
+— Adam | W8A | #627 #628 #632 #637
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
 ## Context
 
-All 5 tasks are in hooks/useStudySession.ts's mount-fill effect — the same area Wave 6 heavily reworked (Task #606's strict hydration gate, #608's resume-session migration, #615's try/catch extension, #618's shared-predicate extraction). Read the current file in full before starting.
+Your 4 tasks are the highest-priority work this wave — a real, compounding gap in round 4's severity-9 data-loss fix. Read lib/storage.ts and tests/storage.test.ts in full first, then app/study/page.tsx, before writing anything.
 
-**#617 first — the real bug, severity 7, do this properly.** The normal daily-cap introduction path (`if (canIntroduceNewCard(today)) introduceNext();`, inside the try block) runs unconditionally for every session type including isInterrupt, with no INTERRUPT_SESSION_CAP awareness — unlike the flex loop and near-due loop, which both correctly stop at INTERRUPT_SESSION_FLOOR. Concrete failure: app/study/page.tsx slices initialQueue to CAP (8) when the day's backlog is >=8; the mount effect seeds sessionIds with those 8; if no card has been introduced yet today (true most days — only 1/day system-wide), introduceNext() searches the ENTIRE cross-unit catalog with no knowledge of sessionIds, finds a candidate for almost any non-completionist user, and appends it — the session grows to 9, contradicting both the client (InterruptHandler.tsx) and server (dueEstimate.ts) notification clamps which announce 'at most 8'. Fix: gate the normal-cap `introduceNext()` call the same way the flex loop does — only introduce via this path if `sessionIds.size < INTERRUPT_SESSION_CAP` (not FLOOR — this is the daily-cap path, which applies to ALL session types, not just interrupt; for non-interrupt sessions there's no CAP concept at all, so the guard should only apply when isInterrupt is true, or reason about whether a global/unit session has any size concern of its own — check `lib/queue.ts` and BRAND.md for whether CAP is interrupt-only, then scope your guard precisely). Wave 6's #618 already extracted a shared predicate (`canFlexIntroduceToday` in hooks/useInterruptConfig.ts, imported here) for the flex-gate condition — consider whether the daily-cap path's new CAP-awareness belongs there too, or is simple enough to inline; use your judgment, but don't reintroduce the duplication #618 just removed. Write a real regression test: an interrupt session already at 8 cards, canIntroduceNewCard returns true, a qualifying new card exists in the catalog — assert introduceCard is NOT called and the queue stays at 8. Deletion Test: revert your guard, confirm the new test fails with the queue growing to 9.
+**#627 first (severity 8, the real bug).** lib/storage.ts's late-hydration reconciliation (added last wave to fix a whole-field-replace data-loss bug) computes `subDiff[subKey] = preVal[subKey]` whenever `preVal[subKey]` differs from `snapshotAtExpiry[subKey]` — it NEVER compares against `postMerge[key]` (the real, correctly-hydrated persisted value) before deciding to prefer the live value. This means: if a live write during the failsafe window touches a sub-key that ALSO exists in the real persisted data with DIFFERENT content — e.g. a card that already has real FSRS/introduction history on disk, not a brand-new one — the reconciliation unconditionally overwrites the real history with the live (pre-hydration, likely-wrong) value. Fix: change the comparison so a genuine collision (the sub-key exists in `postVal` too, with a value different from `preVal`) prefers `postVal[subKey]` (the real persisted data) over `preVal[subKey]` — only an ADDITION (sub-key absent from `postVal`, or present but genuinely originating from the live write with no real persisted counterpart to protect) should still take the live value. Think through this carefully: the goal is 'never let a live write during the race window silently destroy real persisted data for an entry that already existed,' while still 'don't lose a live write that has no real persisted counterpart to conflict with.' Write a concrete regression test proving the collision case specifically (a card with real, larger persisted history on disk, colliding with a smaller/wrong live write during the failsafe window) — this exact scenario has zero test coverage today. Live Deletion Test: revert your fix, confirm the new collision test fails with the real data silently overwritten, restore.
 
-**#622 next** (severity 3): if `getNearDueCards` throws after the flex loop has already introduced 1-3 new cards, those introductions stay permanently recorded (consuming the daily flex ceiling) even though the visible queue may end up smaller than the flex effort spent. Before writing a fix, check whether Wave 5's #592/#593 try/catch/finally (which flushes whatever's in `added` on any throw) already surfaces those flex-introduced cards in the visible queue despite the near-due loop failing — if so, the ONLY remaining concern is whether consuming the daily ceiling for cards that DID get introduced (just not padded to the floor) is actually wrong, or whether that's correct behavior (the introductions genuinely happened, they should count). Investigate and document your conclusion; only add a code fix if you find a genuine gap beyond what #592/#593 already handles.
+**#628 next (severity 7).** app/study/page.tsx:60 still gates the whole interactive page — including `handleRate` → `commitSession` (writes cards/activeSession/streak) and the `onRate` callback → `recordIntroductionResult` (writes introductions) — on the LENIENT `useIsHydrated`, not the STRICT `useIsHydratedStrict` that hooks/useStudySession.ts's mount-fill effect already uses (hooks/useStudySession.ts is read-only reference for you this wave, owned by Barry's stream — do not edit it). This is the concrete reachability path that puts a real card rating inside the exact failsafe window #627's collision bug requires. Switch page.tsx's hydration gate to `useIsHydratedStrict` — but think through the UX trade-off first: this gate ALSO controls when the 'Loading…' screen unblocks. If real hydration never finishes (a genuine storage failure), the strict signal never resolves true, meaning the loading screen would show forever instead of eventually giving up after the failsafe. Decide whether that's acceptable (arguably yes — an app that can't load its own SRS data shouldn't let the user interact with it at all) or whether page.tsx needs a SEPARATE, generous timeout of its own for the loading-screen-only concern (distinct from write-gating). Document your reasoning either way. Write a regression test proving a user cannot reach the interactive study UI (and thus cannot trigger a write) before real hydration completes, even after HYDRATION_FAILSAFE_MS elapses.
 
-**#609 next** (severity 7, should be quick): this is very likely ALREADY FIXED as a side effect of Wave 6's #608 (the resumeDecision-resolution useEffect is now gated on the same `hydrated` signal the mount-fill effect uses — see the Task #608 comment block above the `resumeDecision` state declaration and the resolution effect a few lines below it). Verify: does a test already exist proving resumeDecision does not resolve from pre-hydration activeSession defaults? If yes, this task is just a close-out — confirm and note it in your completion.md. If a gap remains (e.g. no test actually proves the hydration-gate timing), add one. Do not re-implement what's already fixed.
+**#632 next (severity 4).** `useIsHydratedStrict` — the load-bearing fix for the original severity-9 bug — has zero test coverage proving its ONE differentiating behavior (never resolving true via the failsafe, unlike the lenient `useIsHydrated`). Add a test using fake timers: advance past `HYDRATION_FAILSAFE_MS` without `persist.hasHydrated()` ever becoming true, and assert `useIsHydratedStrict` still returns `false` (while, for contrast, confirm `useIsHydrated` in the same scenario DOES return `true`). Deletion Test: temporarily make `useIsHydratedStrict` alias `useIsHydrated` internally, confirm the new test fails, restore.
 
-**#607 and #611 last** (severity 3 and 2 — both stale/inaccurate comments near the mount-fill effect's hydration gate, referencing the pre-Wave-6 state). Do these AFTER #617/#622 land so the comments describe the truly final code shape: #607 is Task #587's original comment overclaiming 'never runs against pre-hydration defaults' (now actually true after Wave 6's #606 fix, but the comment's original wording predates that fix and should be checked/tightened to describe the CURRENT mechanism accurately, not just declared correct by coincidence). #611 is the Task #605 comment sitting beside the hydration race without addressing it — now that the race is actually closed (Wave 6 #606), update it to reflect that instead of just being 'accurate but easily mistaken for addressing it.'
+**#637 last (severity 4).** Two of tests/storage.test.ts's three existing map-aware-reconciliation regression tests ('still restores a live write on a scalar field exactly as before' and 'does not touch a map-shaped field the user never wrote to') never actually exercise the map-shaped field during the failsafe window — both would still pass with the entire map-aware branch deleted. Strengthen both so they genuinely exercise what their names claim — note your #627 fix likely already added a real collision test as part of that task; make sure these two don't end up duplicating it, and that all tests in this file (existing + your #627/#632 additions) still pass together.
 
 ## Your Tasks (run in this exact order)
-1. /task #617  — Fix requirements: hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path)
-2. /task #622  — Fix edge-case: hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3
-3. /task #609  — Fix async: hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos
-4. /task #607  — Fix code-quality: Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later si
-5. /task #611  — Fix code-quality: hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as n
+1. /task #627  — Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK
+2. /task #628  — Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+3. /task #632  — Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+4. /task #637  — Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
-Adam — W7A
-[→] #617 — Fix requirements: hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path)   ← starting now
-[ ] #622 — Fix edge-case: hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3
-[ ] #609 — Fix async: hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos
-[ ] #607 — Fix code-quality: Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later si
-[ ] #611 — Fix code-quality: hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as n
+Adam — W8A
+[→] #627 — Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK   ← starting now
+[ ] #628 — Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+[ ] #632 — Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+[ ] #637 — Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
 ## Files You Own (edit ONLY these)
-hooks/useStudySession.ts
-hooks/useStudySession.test.ts
+lib/storage.ts
+tests/storage.test.ts
+app/study/page.tsx
+app/study/page.test.tsx
 
 ## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel, or read-only reference)
-store/srsStore.ts
+.autocode/debt.md
+components/InterruptHandler.test.tsx
+components/InterruptHandler.tsx
+hooks/useInterruptConfig.test.ts
+hooks/useStudySession.test.ts
+hooks/useStudySession.ts
 supabase/functions/send-interrupt-notifications/dispatch.ts
+supabase/functions/send-interrupt-notifications/dueEstimate.ts
 tests/pushDispatch.test.ts
-tests/seam_studyLoop.test.ts
-tests/srsStore.test.ts
-lib/storage.ts (read-only reference)
-hooks/useInterruptConfig.ts (read-only reference — canFlexIntroduceToday helper)
+tests/pushDueEstimate.test.ts
+hooks/useStudySession.ts (read-only reference — Barry's stream owns it)
 
 ## Task Definitions
 
-### Task #617
+### Task #627
 
-### Task #617: Fix requirements: hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path)
+### Task #627: Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK
 
-**File:** hooks/useStudySession.ts
+**File:** lib/storage.ts
+**Complexity:** 🔧 Full — a real redesign of the subDiff/collision-detection logic in a primitive shared by 3 persisted stores, not a single-scope tweak
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subKey] = preVal[subKey] whenever preVal[subKey] differs from snapshotAtExpiry[subKey], then spreads it over postVal unconditionally: clobbered[key] = { ...postVal, ...subDiff }. It never compares against postMerge[key] (the real, fully-hydrated persisted value) before taking the live value. When a live write during the HYDRATION_FAILSAFE_MS window touches a sub-key that ALSO exists in the real persisted data with different content - e.g. rating a card that already has real FSRS history on disk, not just introducing a brand-new one - the reconciliation unconditionally prefers the live pre-hydration value and silently discards the real persisted history for that entry. Rule 23a violation: the fix generalized to the ADDITION member of the defect class but not the COLLISION member it exists to protect against. Existing regression tests never exercise a genuine collision scenario. at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F001 — severity 8 — data-loss
+
+---
+
+### Task #628
+
+### Task #628: Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+
+**File:** app/study/page.tsx
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -69,22 +96,22 @@ hooks/useInterruptConfig.ts (read-only reference — canFlexIntroduceToday helpe
 **Status:** OPEN
 
 **What:**
-hooks/useStudySession.ts:231 - if (canIntroduceNewCard(today)) introduceNext(); (the normal daily-cap introduction path) runs unconditionally for every session type including isInterrupt, with no awareness of sessionIds.size or INTERRUPT_SESSION_CAP, unlike the flex loop and near-due loop which both correctly stop at INTERRUPT_SESSION_FLOOR. Concrete sequence: app/study/page.tsx slices initialQueue to CAP (8) when the day's backlog is >=8 (common for any active or returning user), the mount effect seeds sessionIds with those 8, no card has been introduced yet that day (true most days, system-wide cap is 1/day), introduceNext() searches the entire ~30K-card cross-unit catalog with no knowledge of sessionIds, finds a candidate for almost any non-completionist user, and appends it - the session is now 9 cards. This directly contradicts BRAND.md's ratified '6-8 cards' framing and both the client (InterruptHandler.tsx:204) and server (dueEstimate.ts:120) notification clamps, which announce 'at most 8' while the session that actually opens can show 9. tests/seam_studyLoop.test.ts's closest existing test cannot catch this: its fixture seeds CardProgress for all 12 cards in allCardMap, so selectQualifyingNewCard's !cards[c.id] filter excludes every one of them, making introduceNext() structurally unable to succeed in that fixture regardless of whether a CAP guard exists. Also stated as fact, incorrectly, in docs/INTERRUPT_ARCHITECTURE.md SS10.1/SS10.7 and tests/pushDueEstimate.test.ts:115. at hooks/useStudySession.ts:mount-fill effect (normal daily-cap path):231.
+hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. app/study/page.tsx:60 still gates the entire interactive page on the lenient useIsHydrated, which resolves true via the HYDRATION_FAILSAFE_MS timeout even when real hydration has not finished. Once that gate passes, handleRate drives commitSession (writes cards/activeSession/streak) and calls recordIntroductionResult directly (writes introductions) with no additional strict-hydration check. lib/storage.ts's own doc comment states the governing principle: a consumer that writes new persisted state should gate on useIsHydratedStrict, not the lenient useIsHydrated - page.tsx violates its own batch's stated principle on the two main interactive write paths, and is the concrete reachability path that puts a rating write inside the exact failsafe window F001's collision bug requires. at app/study/page.tsx:StudyPage (component body, hydration gate):60.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix requirements issue at hooks/useStudySession.ts:mount-fill effect (normal daily-cap path):231
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix async issue at app/study/page.tsx:StudyPage (component body, hydration gate):60
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
 
-**Source:** Audit finding F012 — severity 7 — requirements
+**Source:** Audit finding F002 — severity 7 — async
 
 ---
 
-### Task #622
+### Task #632
 
-### Task #622: Fix edge-case: hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3
+### Task #632: Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
 
-**File:** hooks/useStudySession.ts
+**File:** lib/storage.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -92,45 +119,22 @@ NEW
 **Status:** OPEN
 
 **What:**
-hooks/useStudySession.ts's mount-fill effect - if getNearDueCards throws after the flex loop has already introduced 1-3 new cards, those introductions are permanently recorded (consuming that day's flex-daily-ceiling) even though the queue the user ultimately sees may end up smaller than the flex effort spent. Edge case gated behind getNearDueCards actually throwing, which does not occur under current inputs. at hooks/useStudySession.ts:mount-fill effect (flex loop + getNearDueCards throw):200.
+useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - every test that exercises the mount-fill effect's hydration gate manipulates persist.hasHydrated() directly, never HYDRATION_FAILSAFE_MS, so none of them can distinguish useIsHydratedStrict from a broken reimplementation as `return useIsHydrated(store)`. Per Rule 18, a fix this severe requires a test whose corruption of the strict behavior would fail; none exists. at lib/storage.ts:useIsHydratedStrict:175.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix edge-case issue at hooks/useStudySession.ts:mount-fill effect (flex loop + getNearDueCards throw):200
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix tests issue at lib/storage.ts:useIsHydratedStrict:175
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
 
-**Source:** Audit finding F017 — severity 3 — edge-case
-
----
-
-### Task #609
-
-### Task #609: Fix async: hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-hooks/useStudySession.ts:58-65 (resumeDecision's useState lazy initializer) and :69-82 (resumedQueue/resumedPos useMemos) call getResumableSession() and read the same store's activeSession field with no hydrated guard, unlike the mount-fill effect's own guard block at lines 166-174. A useState lazy initializer runs exactly once, on first render, so it never re-evaluates once real hydration completes later. On a Tauri cold start where real hydration takes longer than the first render, activeSession reads as the pre-hydration null default, resumeDecision locks to null, and a genuine mid-mandatory-interrupt resumable session (ActiveSession exists specifically to survive 'a crash or forced interruption') is silently missed - the session restarts from scratch instead of prompting the user to resume. No test exercises real hydration timing here; all tests inject getResumableSession as a plain stub. at hooks/useStudySession.ts:resumeDecision (useState lazy initializer) / resumedQueue / resumedPos:58.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix async issue at hooks/useStudySession.ts:resumeDecision (useState lazy initializer) / resumedQueue / resumedPos:58
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F004 — severity 7 — async
+**Source:** Audit finding F006 — severity 4 — tests
 
 ---
 
-### Task #607
+### Task #637
 
-### Task #607: Fix code-quality: Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later si
+### Task #637: Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
-**File:** hooks/useStudySession.ts
+**File:** tests/storage.test.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -138,37 +142,14 @@ NEW
 **Status:** OPEN
 
 **What:**
-Task #587's own doc comment states the mount-fill effect 'never runs against pre-hydration {} defaults... would later silently overwrite' the introduction - false, per the F001 trace: the code path does run against pre-hydration defaults and the eventual reconciliation does silently overwrite, just not the one key the comment focuses on (it destroys sibling keys instead). Rule 23b: a fix's own new comment must not make a fresh false claim about the defect class it closes; this one does. at hooks/useStudySession.ts:mount-fill effect (Task #587 comment):170.
+Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly as before' and 'does not touch a map-shaped field the user never wrote to during the window' - never actually exercise the map-shaped field during the failsafe window, and both would still pass with the entire new isPlainObject/map-aware branch deleted. Only the third test is genuinely load-bearing. Notably, none of the three tests exercises the sub-key collision scenario F001 identifies, so this suite would not have caught F001 either. at tests/storage.test.ts:map-aware reconciliation regression tests:474.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #587 comment):170
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+- [ ] Fix tests issue at tests/storage.test.ts:map-aware reconciliation regression tests:474
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/storage.test.ts
 
-**Source:** Audit finding F002 — severity 3 — code-quality
-
----
-
-### Task #611
-
-### Task #611: Fix code-quality: hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as n
-
-**File:** hooks/useStudySession.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-hooks/useStudySession.ts:189-199 - the Task #605 comment's 'cannot desync within one effect pass' claim is accurate as narrowly scoped, but sits directly beside the actual open cross-effect hydration race (F001/F004) in a way a future maintainer could mistake as addressing it. Documentation-precision gap, not a functional defect on its own. at hooks/useStudySession.ts:mount-fill effect (Task #605 comment):189.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #605 comment):189
-- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
-
-**Source:** Audit finding F006 — severity 2 — code-quality
+**Source:** Audit finding F011 — severity 4 — tests
 
 ---
 
@@ -179,16 +160,20 @@ NEW
 - `npm run lint` — zero errors
 - `scripts/deep-audit.sh` does not exist in this repo (confirmed every prior wave) — the real
   Verification Gate above is the actual acceptance criterion for every task.
-- For every NEW assertion you add, run the Deletion Test: temporarily revert the production fix
-  and confirm your new test fails, then restore it and confirm it passes. State explicitly in
-  your completion.md which tasks got a live Deletion Test vs. traced-by-hand verification.
+- For every NEW assertion you add, run the Deletion Test: temporarily revert the production
+  fix and confirm your new test fails, then restore it and confirm it passes. State explicitly
+  in your completion.md which tasks got a live Deletion Test vs. traced-by-hand verification.
 
-IMPORTANT — do not run `git stash` on your own initiative. If `git status` looks messy or shows
-changes you don't recognize, report it in your completion.md rather than resolving it yourself
-with a repo-wide command.
+IMPORTANT — do not run `git stash` on your own initiative. If `git status` looks messy or
+shows changes you don't recognize, report it in your completion.md rather than resolving it
+yourself with a repo-wide command.
+
+This wave includes several tasks that ask for a genuine design decision (not a mechanical
+fix). Explain your reasoning clearly in completion.md — do not silently pick an option
+without stating why.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W7A/completion.md. The file
+Write your completion summary to .autocode/stream-W8A/completion.md. The file
 MUST begin with exactly these two lines, in this exact format, before any other content:
 
 CLOSED: #[NUM] #[NUM] ...
@@ -200,4 +185,4 @@ After those two lines, write whatever prose detail is useful.
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W7A | #617 #622 #609 #607 #611
+— Adam | W8A | #627 #628 #632 #637

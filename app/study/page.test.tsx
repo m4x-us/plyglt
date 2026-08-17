@@ -32,6 +32,12 @@ const { mockRouterPush, mockUseStudySession, mockBuildQueue } = vi.hoisted(() =>
 // exercise isInterrupt/isGlobal branches without every other test needing to know about it.
 const searchParamsState = vi.hoisted(() => ({ mode: "global" as string | null }));
 
+// Task #628 (Wave 8): independently controls useIsHydrated (lenient) and
+// useIsHydratedStrict — both default true so every pre-existing test (written before
+// the strict gate existed) is unaffected; the dedicated regression test below sets
+// hydrated=true/hydratedStrict=false to prove the interactive UI stays blocked.
+const hydrationState = vi.hoisted(() => ({ hydrated: true, hydratedStrict: true }));
+
 // Controls what buildQueue returns for each test
 const builtQueue = vi.hoisted(() => ({
   cards: [] as Array<{
@@ -121,14 +127,17 @@ vi.mock("@/hooks/useStudySession", () => ({
   },
 }));
 
-// ── @/lib/storage — no-op storage + useIsHydrated always true ─────────────────
+// ── @/lib/storage — no-op storage + useIsHydrated/useIsHydratedStrict always true ──
+// Task #628 (Wave 8): page.tsx now also gates on useIsHydratedStrict — must be
+// mocked too, or every render throws (no export defined on the mock).
 vi.mock("@/lib/storage", () => ({
   createPlatformStorage: () => ({
     getItem:    vi.fn().mockResolvedValue(null),
     setItem:    vi.fn().mockResolvedValue(undefined),
     removeItem: vi.fn().mockResolvedValue(undefined),
   }),
-  useIsHydrated: () => true,
+  useIsHydrated: () => hydrationState.hydrated,
+  useIsHydratedStrict: () => hydrationState.hydratedStrict,
 }));
 
 // ── @/lib/tauri — no-op for all Tauri APIs ────────────────────────────────────
@@ -238,6 +247,8 @@ beforeEach(() => {
   sessionCfg.sessionTotal = 0;
   sessionCfg.resumeDecision = "declined";
   searchParamsState.mode = "global";
+  hydrationState.hydrated = true;
+  hydrationState.hydratedStrict = true;
   langPackState.units = [];
   langPackState.unitMap = {};
   langPackState.loading = false;
@@ -485,5 +496,43 @@ describe("StudyPage — app/study/page.tsx", () => {
     const initialQueue = mockUseStudySession.mock.calls[0]![0].initialQueue;
     expect(initialQueue).toHaveLength(8);
     expect(initialQueue).toEqual(oversizedQueue.slice(0, 8));
+  });
+
+  // Task #628 (Wave 8): the lenient useIsHydrated resolves true via
+  // HYDRATION_FAILSAFE_MS even when real hydration never finishes — but everything
+  // past that gate is the interactive, write-capable study UI (handleRate →
+  // commitSession; onRate → recordIntroductionResult). A user must never reach that
+  // UI (and therefore never be able to trigger a write) before real hydration
+  // completes, even after the failsafe has elapsed and the lenient gate has opened.
+  describe("hydration gating (Task #628) — interactive UI stays blocked until real hydration completes", () => {
+    it("does not render the interactive study UI when the failsafe has elapsed (useIsHydrated=true) but real hydration has not finished (useIsHydratedStrict=false)", () => {
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 0; // would render StudyCard if reached
+      hydrationState.hydrated = true; // failsafe already elapsed — lenient gate open
+      hydrationState.hydratedStrict = false; // real hydration still pending
+
+      render(<StudyPage />);
+
+      // Deletion Test: gating only on `hydrated` (the pre-#628 shape) would render
+      // StudyCard here — the exact reachability path that put a real rating write
+      // inside the failsafe window lib/storage.ts's Task #627 collision fix protects
+      // against.
+      // useStudySession is an unconditional hook call (runs every render before the
+      // early return per Rules of Hooks) — the gate gets checked, not the hook call.
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
+      expect(screen.queryByTestId("study-card")).not.toBeInTheDocument();
+    });
+
+    it("renders the interactive study UI once real hydration completes (both gates true)", () => {
+      setCards([FAKE_CARD]);
+      sessionCfg.pos = 0;
+      hydrationState.hydrated = true;
+      hydrationState.hydratedStrict = true;
+
+      render(<StudyPage />);
+
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(screen.getByTestId("study-card")).toBeInTheDocument();
+    });
   });
 });

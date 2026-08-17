@@ -140,6 +140,96 @@ describe("useStudySession — resume decision hydration gating (Task #608/#609)"
   });
 });
 
+// ── mount-fill effect skips when a resumable session is pending (Task #629, severity 7) ──
+// Before this fix, the mount-fill effect ran its full fill pass (real introduceCard writes
+// consuming daily/flex budget, near-due padding) even when a resumable session was about to
+// be offered via StudyResumePrompt — content the apply-resume effect then discards regardless
+// of accept/decline, silently burning real INTERRUPT_FLEX_DAILY_MAX budget for nothing.
+describe("useStudySession — mount-fill effect skips fill when a resumable session is pending (Task #629)", () => {
+  it("does not call introduceCard (no fill pass) when a resumable session matches this session's key", () => {
+    const introduceCard = vi.fn();
+    // Interrupt sessions always key on unitId="" (app/study/page.tsx never sets a unit
+    // query param for isInterrupt=true) — this is the exact collision the brief describes:
+    // ANY incomplete prior interrupt session matches ANY subsequent one.
+    const savedSession = {
+      unitId: "",
+      queueIds: ["c1", "c2"],
+      position: 0,
+      sessionCorrect: 0,
+      sessionTotal: 0,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: [],
+          isInterrupt: true,
+          unitId: "",
+          peekResumableSession: vi.fn(() => savedSession),
+          // Would otherwise qualify for a normal-cap introduction — proves the skip, not
+          // an unrelated reason introduceCard happened not to fire.
+          canIntroduceNewCard: vi.fn(() => true),
+          introduceCard,
+        }),
+      ),
+    );
+
+    expect(result.current.resumeDecision).toBe("pending");
+    // Deletion Test: without the #629 guard, canIntroduceNewCard(today)=true and an
+    // empty initialQueue (sessionIds.size=0 < CAP) would let introduceNext() run and
+    // call introduceCard once.
+    expect(introduceCard).not.toHaveBeenCalled();
+  });
+});
+
+// ── apply-resume effect: accepted-with-expired-session race (Task #634, severity 6) ──
+describe("useStudySession — apply-resume effect handles 'accepted' with a since-expired resumable session (Task #634)", () => {
+  it("falls back to a fresh session from initialQueue instead of a silent no-op when resumedQueue is null at accept time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+    const clearActiveSession = vi.fn();
+    const commitSession = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          // The session expired (or was cleared) between the 'pending' read and this
+          // 'accepted' read — peekResumableSession (and therefore resumedQueue's own
+          // useMemo) now resolves to null.
+          peekResumableSession: vi.fn(() => null),
+          clearActiveSession,
+          commitSession,
+        }),
+      ),
+    );
+
+    act(() => {
+      result.current.setResumeDecision("accepted");
+    });
+
+    // Deletion Test: without the #634 branch, none of the three original branches match
+    // (accepted&&resumedQueue requires a truthy resumedQueue; declined and null don't
+    // match "accepted" at all) — clearActiveSession would never be called and
+    // sessionStartedAtRef would stay at its initial epoch-0 default.
+    expect(clearActiveSession).toHaveBeenCalledTimes(1);
+    expect(result.current.queue.map((c) => c.id)).toEqual(CARDS.map((c) => c.id));
+    expect(result.current.pos).toBe(0);
+    expect(result.current.sessionCorrect).toBe(0);
+    expect(result.current.sessionTotal).toBe(0);
+
+    // Proves sessionStartedAtRef was actually reset (not left at epoch 0, which the bug
+    // report names as the concrete, persisted symptom) by observing it flow through to
+    // commitSession's session argument on the next rating.
+    act(() => {
+      result.current.handleRate("good");
+    });
+    expect(commitSession).toHaveBeenCalledTimes(1);
+    const sessionArg = commitSession.mock.calls[0]![2] as { startedAt: number };
+    expect(sessionArg.startedAt).toBe(1_700_000_000_000);
+
+    vi.useRealTimers();
+  });
+});
+
 describe("useStudySession — handleRate", () => {
   it("correct answer: advances pos, increments sessionTotal and sessionCorrect, calls commitSession", () => {
     const commitSession = vi.fn();
@@ -630,38 +720,61 @@ describe("useStudySession — normal daily-cap path respects INTERRUPT_SESSION_C
   });
 
   it("still introduces a normal-cap new card into an interrupt session below INTERRUPT_SESSION_CAP (the guard does not over-block)", () => {
-    const introduceCard = vi.fn();
-    const initial = Array.from({ length: INTERRUPT_SESSION_CAP - 1 }, (_, i) => makeCard(`d${i}`));
-    const extraCandidate = makeCard("extra");
-    const allCardMap = {
-      ...Object.fromEntries(initial.map((c) => [c.id, c])),
-      extra: extraCandidate,
-    };
+    // Task #636: a size of CAP-1 alone can't distinguish `sessionIds.size < CAP` from
+    // a narrower `<=` mutation — both evaluate to true at CAP-1 (7 < 8 and 7 <= 8 are
+    // both true), so a single assertion here would still pass under that realistic
+    // bug. Rendering a SECOND instance at exactly CAP (where `<` and `<=` diverge —
+    // `<` blocks, `<=` doesn't) inside this same test makes it self-sufficient rather
+    // than relying on the sibling "does not introduce... already at CAP" test above.
+    function runAt(size: number) {
+      const introduceCard = vi.fn();
+      const initial = Array.from({ length: size }, (_, i) => makeCard(`d${i}`));
+      const extraCandidate = makeCard("extra");
+      const allCardMap = {
+        ...Object.fromEntries(initial.map((c) => [c.id, c])),
+        extra: extraCandidate,
+      };
+      const { result } = renderHook(() =>
+        useStudySession(
+          defaultParams({
+            initialQueue: initial,
+            allCardMap,
+            cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])),
+            isInterrupt: true,
+            canIntroduceNewCard: vi.fn(() => true),
+            introduceCard,
+            getNearDueCards: vi.fn(() => []),
+          }),
+        ),
+      );
+      return { introduceCard, result };
+    }
 
-    const { result } = renderHook(() =>
-      useStudySession(
-        defaultParams({
-          initialQueue: initial,
-          allCardMap,
-          cards: Object.fromEntries(initial.map((c) => [c.id, { reps: 1 } as never])),
-          isInterrupt: true,
-          canIntroduceNewCard: vi.fn(() => true),
-          introduceCard,
-          getNearDueCards: vi.fn(() => []),
-        }),
-      ),
-    );
+    const below = runAt(INTERRUPT_SESSION_CAP - 1);
+    expect(below.introduceCard).toHaveBeenCalledTimes(1);
+    expect(below.introduceCard).toHaveBeenCalledWith("extra", expect.any(String));
+    expect(below.result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
 
-    expect(introduceCard).toHaveBeenCalledTimes(1);
-    expect(introduceCard).toHaveBeenCalledWith("extra", expect.any(String));
-    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+    // Deletion Test: mutating `<` to `<=` in the guard makes this second assertion
+    // fail (introduceCard would be called once more, growing the queue to CAP+1) —
+    // the above assertion alone would still pass unchanged under that mutation.
+    const atCap = runAt(INTERRUPT_SESSION_CAP);
+    expect(atCap.introduceCard).not.toHaveBeenCalled();
+    expect(atCap.result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
   });
 
   it("does not apply the CAP guard to non-interrupt sessions (unit/global sessions have no size cap)", () => {
+    // Task #636: `isInterrupt: false` makes `!isInterrupt` short-circuit the guard's
+    // `||`, so a size fixed at exactly INTERRUPT_SESSION_CAP alone can never exercise
+    // — let alone falsify — the right-hand `sessionIds.size < CAP` sub-expression; it
+    // only proves the guard doesn't misfire AT that one boundary value. Testing well
+    // past CAP (2x) instead proves the guard is genuinely absent for non-interrupt
+    // sessions, not just correct at a single coincidental point — catching a
+    // realistic narrower mutation like swapping in some other bounded formula that
+    // happens to also pass at exactly CAP.
     const introduceCard = vi.fn();
-    // A non-interrupt session with a queue already "at" what would be the interrupt
-    // CAP — the guard must not treat this as a limit for a session type that has none.
-    const initial = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`d${i}`));
+    const size = INTERRUPT_SESSION_CAP * 2;
+    const initial = Array.from({ length: size }, (_, i) => makeCard(`d${i}`));
     const extraCandidate = makeCard("extra");
     const allCardMap = {
       ...Object.fromEntries(initial.map((c) => [c.id, c])),
@@ -683,7 +796,7 @@ describe("useStudySession — normal daily-cap path respects INTERRUPT_SESSION_C
 
     expect(introduceCard).toHaveBeenCalledTimes(1);
     expect(introduceCard).toHaveBeenCalledWith("extra", expect.any(String));
-    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP + 1);
+    expect(result.current.queue).toHaveLength(size + 1);
   });
 });
 

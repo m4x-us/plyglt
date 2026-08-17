@@ -164,10 +164,21 @@ export function buildNotificationPayload(estimate: { cardCount: number; sessionT
     };
   }
   if (estimate.cardCount < 0) {
-    // Not reachable today — computeDueEstimate only ever increments a counter from 0 — but a
-    // future upstream bug producing a negative value must leave a trace instead of silently
-    // masquerading as a legitimate floor case via the Math.max clamp below.
-    console.error(`[ERR-DUE-ESTIMATE-NEGATIVE-${Date.now()}] negative cardCount ${estimate.cardCount} clamped to floor`);
+    // Task #638: not reachable today — computeDueEstimate only ever increments a counter
+    // from 0, and dispatchNotifications is this function's only production caller, always
+    // chaining computeDueEstimate's own return value straight in. But the parameter type
+    // here is a plain `{cardCount: number, ...}` literal, not structurally tied to
+    // computeDueEstimate — nothing statically stops a future caller from passing a
+    // corrupted estimate. Throwing (rather than logging-and-clamping to a fake
+    // INTERRUPT_SESSION_FLOOR value) is the proportionate fix: dispatchNotifications
+    // already wraps this call in a per-token try/catch (summary.erroredUnexpectedly),
+    // the exact backstop this project's own comments describe as "a bug in any future
+    // addition to this chain should abort processing for ONE token, never the rest of the
+    // batch" — so throwing here costs nothing beyond what the architecture already
+    // absorbs, while silently announcing "6 cards ready" against a negative count would
+    // send a real user a number backed by corrupted upstream data and leave only a log
+    // line as the only trace something was wrong.
+    throw new Error(`buildNotificationPayload received a negative cardCount: ${estimate.cardCount}`);
   }
   const announced = Math.min(Math.max(estimate.cardCount, INTERRUPT_SESSION_FLOOR), INTERRUPT_SESSION_CAP);
   return {

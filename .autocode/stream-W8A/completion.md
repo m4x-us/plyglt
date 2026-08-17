@@ -1,74 +1,48 @@
-# Stream W8A — Wave 8 — Completion
+CLOSED: #627 #628 #632 #637
+NOT_CLOSED: none
 
-**Agent:** Adam  
-**Wave:** 8  
-**Date:** 2026-07-09  
-**Tasks:** #263 #286 #288 #264 #265 #290
+## Summary
 
----
+All four tasks closed. Verification Gate green: `npx tsc --noEmit` (0 errors), `npm test` (101 files, 2013 tests, all passing — full repo run, not just my scoped files), `npm run lint` (0 errors, 7 pre-existing warnings in files I did not touch). File-length cap: `app/study/page.tsx` stays at 148 lines (under the 150-line CLAUDE.md cap). No banned existence-only assertions (`.toBeDefined()`/`.toBeTruthy()`/`.not.toBeNull()`/`.toBeGreaterThan(0)`) introduced.
 
-## Tasks Closed
+## #627 — collision-vs-addition fix in lib/storage.ts (severity 8, the real bug)
 
-| Task | Status | Notes |
-|------|--------|-------|
-| #263 | COMPLETE | `clearEntitlement` now calls `clearSpecialtyCache()` before resetting Zustand state. Prunes `loadedAddOns` and `inFlight` so specialty content merged into memCache is no longer accessible after license deactivation. |
-| #286 | COMPLETE | Updated `purchaseAddOn` comment to be explicit: "This does NOT initiate or verify payment — callers must complete payment with the Lemon Squeezy API before calling this." No behavioral change, only comment honesty. |
-| #288 | COMPLETE | Extracted `_handleCrossTabStorageEvent` and registered it via `window.addEventListener("storage", ...)` (browser-only, guarded by `typeof window !== "undefined"`). Rehydrates Zustand persist state from disk when another tab writes, preventing the last-write-wins race on `purchasedAddOns`. |
-| #264 | COMPLETE | Added `inFlight: Map<string, Promise<LoadPackResult>>` to `lib/specialtyPackLoader.ts`. Same-code dedup: concurrent calls for the same lang share the in-flight promise. Cross-code serialization: concurrent loads for different specialty codes sharing the same base lang chain sequentially via `prior.then(...)` so neither merge clobbers the other. |
-| #265 | COMPLETE | Changed sha256 check from fail-open to fail-closed: if `manifest?.packs?.[lang]` is absent, now returns `{ ok: false, error: "checksum_mismatch" }` with `[ADDON_NO_MANIFEST-...]` log instead of silently skipping verification and merging arbitrary content. |
-| #290 | COMPLETE | Updated file header: removed "Pure functions only" claim, added accurate "Side effects: fetch() I/O, memCache mutation, loadedAddOns mutation." |
+`lib/storage.ts`'s late-hydration reconciliation now checks whether `postVal` (the real, fully-hydrated persisted data) already has the colliding sub-key before taking `preVal[subKey]` (the live pre-hydration write). Only a genuine ADDITION (sub-key absent from `postVal` entirely) is still taken from the live write; a genuine COLLISION (postVal already has real content for that sub-key) now keeps the real persisted value — the `...postVal` spread already supplies it, so a colliding key is simply never added to `subDiff`. Logs a new `[ERR-HYDRATION-LATE-MERGE-COLLISION]` line when a real collision is detected and discarded, distinct from the existing `[ERR-HYDRATION-LATE-MERGE]` line for successful restores.
 
-Tasks NOT completed: none
+New regression test in `tests/storage.test.ts`: `"prefers the REAL persisted value over a colliding live write for a sub-key that already has real history, while still preserving a genuine addition with no real counterpart"` — exercises both the collision case (cardA: real history wins over the stale live write) and the addition case (cardC: no real counterpart, live write survives) in the same assertion, plus asserts the new collision log line fires.
 
-Debt entries logged: 0
+**Live Deletion Test performed:** reverted the `hasOwnProperty.call(postVal, subKey)` collision guard back to unconditionally taking `preVal[subKey]` — confirmed the new test failed (cardA read back as the fresh, wrong live-write value instead of its real history) — restored via `cp`/`diff` byte-identical verification.
 
-Carry-forward tasks generated: 0
+## #628 — app/study/page.tsx hydration gate design decision (severity 7)
 
----
+Switched the page's hydration gate from `useIsHydrated` (lenient) alone to `useIsHydrated || packLoading || !useIsHydratedStrict` — i.e. the interactive UI (and therefore every write path: `handleRate` → `commitSession`, `onRate` → `recordIntroductionResult`) is now blocked until BOTH the lenient AND strict signals agree hydration is done.
 
-## Files Changed
+**Design decision, reasoned explicitly (not silently picked):** considered giving the strict write-gating concern its own separate, more generous timeout distinct from the loading-screen concern. Rejected this — a second timeout that eventually gives up and lets the write proceed anyway just reintroduces the exact same race #627 exists to patch over, at a different elapsed time. Instead: if real hydration genuinely never finishes (a storage failure), the loading screen now stays up indefinitely rather than ever unblocking a write against unhydrated state. Judged this an acceptable trade-off — an app that cannot load its own SRS data should not let the user interact with it at all, rather than silently risking data loss on every rating. Documented this reasoning directly in the code (`app/study/page.tsx`'s comment above the gate).
 
-- `store/entitlementStore.ts` — import `clearSpecialtyCache`; `clearEntitlement` calls it (#263); `purchaseAddOn` comment updated (#286); `_handleCrossTabStorageEvent` exported + registered on `window.storage` (#288)
-- `lib/specialtyPackLoader.ts` — file header updated (#290); `inFlight` map added; `clearSpecialtyCache` now clears `inFlight`; `_doLoad` helper extracted; `loadSpecialtyPack` restructured with same-code dedup + cross-code serialization (#264); sha256 fail-closed (#265)
-- `tests/packLoader.test.ts` — added `fakeAddOnBusinessPack`/`fakeTwoAddOnManifest` fixtures; `#264` same-code and cross-code concurrent load tests; `#265` manifest-absent rejection test
-- `tests/entitlement.test.ts` — added `import * as specialtyPackLoader`; `#263` spy test for `clearSpecialtyCache` call; `#288` handler unit tests via `_handleCrossTabStorageEvent`
+New regression tests in `app/study/page.test.tsx` (new `describe("hydration gating (Task #628)…")` block): (1) proves the interactive study UI does NOT render — "Loading…" stays up, `study-card` testid absent — when `useIsHydrated=true` (failsafe already elapsed) but `useIsHydratedStrict=false` (real hydration still pending); (2) contrast case proving the UI DOES render once both gates are true. Also fixed the pre-existing mock (`vi.mock("@/lib/storage", …)`) to export `useIsHydratedStrict`, and added a hoisted `hydrationState` object so both signals are independently controllable per test — every pre-existing test defaults both to `true` and is unaffected.
 
----
+**Live Deletion Test performed:** reverted the gate condition back to `if (!hydrated || packLoading)` (pre-#628 shape) — confirmed the new "stays blocked" test failed (the interactive `StudyCard` rendered instead of the loading screen) — restored via `cp`/`diff` byte-identical verification.
 
-## Verification Gate
+## #632 — useIsHydratedStrict test coverage (severity 4)
 
-- `npx tsc --noEmit` — 0 errors ✓
-- `npm test` — 1092/1092 passing ✓ (+64 vs Wave 7)
-- `npm run lint` — 0 errors (1 pre-existing warning in unrelated file) ✓
-- Assertion quality grep gate — clean ✓
+Added `describe("useIsHydratedStrict — never resolves via the failsafe (Task #632)", …)` to `tests/storage.test.ts` with two tests: (1) using fake timers, advances past `HYDRATION_FAILSAFE_MS` (and 10x further, to rule out a timing fluke) with `hasHydrated()` never becoming true — asserts `useIsHydratedStrict` stays `false` the whole time while `useIsHydrated` on the identical store flips `true`; (2) confirms `useIsHydratedStrict` does resolve `true` once `onFinishHydration` genuinely fires.
 
----
+**Live Deletion Test performed:** temporarily changed `useIsHydratedStrict`'s body from `return useRealHydrated(store)` to `return useIsHydrated(store)` (aliasing it to the lenient hook, the exact broken-reimplementation risk this task exists to catch) — confirmed the new contrast test failed (`strict` resolved `true` after the failsafe, same as `lenient`) — restored via `cp`/`diff` byte-identical verification.
 
-## purchaseAddOn Contract (for Tasks #285 and #287)
+## #637 — strengthening two vacuous map-aware-reconciliation tests (severity 4)
 
-**Current signature (after #286):**
-```typescript
-purchaseAddOn: (code: string) => void
-```
+Both flagged tests in `tests/storage.test.ts` never wrote to the map-shaped `introductions` field during the failsafe window, so both passed identically whether or not the entire `isPlainObject`/subDiff branch existed.
 
-**Current behavior:** Appends `code` to `purchasedAddOns` idempotently. Local-only — no payment API contact, no receipt verification. The comment now explicitly states callers must verify payment before calling.
+- `"still restores a live write on a scalar field exactly as before…"` — now also live-writes a genuinely new (non-colliding) map entry (`cardNew`) in the same window as the scalar write, and asserts both the scalar restoration AND the map addition survive together. Deliberately uses a non-colliding key to avoid duplicating #627's dedicated collision test.
+- `"does not touch a map-shaped field the user never wrote to during the window"` — now also live-writes a scalar field (`count`) during the window, forcing the reconciliation callback to actually execute `setState(clobbered)` (proven via the scalar restoration + the `ERR-HYDRATION-LATE-MERGE` log assertion), while asserting the never-touched map field passes through exactly as real hydration set it. This proves the field is untouched *because reconciliation correctly skips it*, not merely because reconciliation never ran at all.
 
-**For #285/#287:** The next wave building payment integration should:
-1. Change the signature to `async purchaseAddOn(code: string, receiptToken: string): Promise<boolean>` — accepting a verified receipt token from Lemon Squeezy
-2. Validate the token against the LS API before appending to `purchasedAddOns`
-3. Return `true` if added (first time), `false` if already present
-4. Handle the async Zustand update pattern (see existing `clearEntitlement` for the `set()` + side-effect pattern)
+**Live Deletion Test performed:** disabled the entire `isPlainObject(...)` branch (short-circuited with `if (false && ...)`) — confirmed the strengthened scalar+map test failed (map addition lost) along with the pre-existing #606/#627 tests, as expected — confirmed the strengthened "untouched field" test still passed (correct: an untouched field must survive regardless of whether the branch exists, since it never reaches that branch either way — its Deletion Test target was "reconciliation genuinely runs," which the scalar-restoration + log assertions inside it independently prove) — restored via `cp`/`diff` byte-identical verification.
 
-The current synchronous `set()` call in `purchaseAddOn` is straightforward to wrap in an async function — the Zustand `set` itself is synchronous, so only the pre-call token validation adds the async boundary.
+## Files touched (all within ownership)
 
----
+- `lib/storage.ts` — #627 fix, plus (temporarily, then reverted) the #632/#637 Deletion Test edits
+- `tests/storage.test.ts` — #627, #632, #637 new/strengthened tests
+- `app/study/page.tsx` — #628 fix
+- `app/study/page.test.tsx` — #628 new tests, mock fix for `useIsHydratedStrict`
 
-## Architecture Notes
-
-**Layer compliance:** `store/entitlementStore.ts` importing from `lib/specialtyPackLoader.ts` is correct — store layer imports from lib layer. No upward imports introduced.
-
-**`_handleCrossTabStorageEvent` exposure:** The `_` prefix convention marks it as test-internal. It is exported only to make the handler directly testable in the Node.js test environment (which has no `window`). Production code calls it only via the `window.addEventListener("storage", ...)` registration.
-
-**`clearSpecialtyCache` now clears `inFlight`:** Required for test isolation and for correctness when `clearCacheForTesting()` is called — in-flight promises from prior test cases must not leak into the next test's execution.
-
-**Cross-tab serialization semantics:** The `inFlight` map's base-lang key chains concurrent loads sequentially. The `prior.then(async () => { if (loadedAddOns.includes(lang)) return early... })` re-check handles the race where two loads for the same code both see an empty `loadedAddOns` at entry but one wins the chain.
+`git status` confirmed throughout the session that only these four files (plus this completion.md and the queue frontmatter) were touched by me; all other modified files in the working tree belong to concurrently running streams (W8B/W8C/W8D) per the brief's off-limits list, and were left untouched.

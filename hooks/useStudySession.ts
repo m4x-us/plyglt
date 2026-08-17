@@ -97,161 +97,95 @@ export function useStudySession({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
 
-  // Task #573 (Wave 3) / #587 (Wave 5): true once the mount-fill effect below has
-  // CLAIMED its one real attempt — not once that attempt has successfully finished.
-  // The ref is set at the very start of the guarded block, before any of the fill
-  // logic that can throw runs (Task #592/#594: the old name/comment implied a
-  // stronger "completed" guarantee than the code actually delivers — see the
-  // effect's own try/catch/finally for what happens if the claimed attempt fails
-  // partway through).
+  // True once the mount-fill effect below has CLAIMED its one real attempt — not
+  // once that attempt has finished. Set at the start of the guarded block, before
+  // any fill logic that can throw runs — see that effect's own try/catch/finally.
   const mountFillStartedRef = useRef(false);
-  // Task #587 (Wave 5): app/study/page.tsx destructures `cards`/`introductions` from
-  // useSRSStore() and calls useStudySession unconditionally, BEFORE its own
-  // useIsHydrated(useSRSStore) gate — so on Tauri (async file-store IPC hydration,
-  // unlike web's synchronous localStorage) this hook's mount-fill effect can fire
-  // while `allCardMap` is already ready (Italian's pack loads synchronously via
-  // STATIC_PACKS) but `cards`/`introductions` are still pre-hydration {} defaults.
-  // Introducing a card in that window writes into an in-memory `introductions` map
-  // that Zustand persist's hydrate() then wholesale-replaces moments later, silently
-  // discarding the just-created record while the card's FSRS progress (written via
-  // the unrelated handleRate/commitSession path, not gated here) survives — the
-  // card permanently and silently skips BRAND.md's 22-day intensive cadence. Fixed
-  // the same way #573 fixed the pack-loading race: a second, independent readiness
-  // signal gating the same guarded block below, computed by the hook itself (not
-  // threaded in from app/study/page.tsx, which already calls this hook before it
-  // could compute and pass such a value) so the fix needs no caller-side change.
-  //
-  // Task #606 (Wave 6): this second signal MUST be the STRICT hydration value
-  // (useIsHydratedStrict — reflects only real persist.hasHydrated(), never
-  // useIsHydrated's HYDRATION_FAILSAFE_MS fallback). This effect WRITES new
-  // persisted state (introduceCard) — a write-performing consumer racing ahead of
-  // real hydration on the failsafe's say-so is exactly the root cause a prior
-  // version of this fix (gated on plain useIsHydrated) still exposed: the failsafe
-  // could flip "hydrated" true before the disk read actually finished, and
-  // lib/storage.ts's late-merge reconciliation was the only backstop against losing
-  // that write — necessary defense in depth (now fixed to be map-aware, see
-  // lib/storage.ts), but not a substitute for simply not writing before hydration
-  // is real. useIsHydratedStrict never resolves true via the failsafe, so this gate
-  // now waits for the genuine thing.
+  // app/study/page.tsx calls useStudySession unconditionally, before its own
+  // hydration gate — on Tauri (async file-store IPC), this hook's mount-fill effect
+  // can otherwise fire while `cards`/`introductions` are still pre-hydration {}
+  // defaults, silently losing an introduceCard write to Zustand persist's later
+  // hydrate() merge. `hydrated` gates the mount-fill effect (and, since Task #629,
+  // the resume-decision effect) against that race. MUST be useIsHydratedStrict, not
+  // the lenient useIsHydrated: this effect WRITES persisted state, and only the
+  // strict signal never resolves true via HYDRATION_FAILSAFE_MS's timeout fallback —
+  // see lib/storage.ts's own doc comment on useIsHydratedStrict for the full story.
   const hydrated = useIsHydratedStrict(useSRSStore);
 
-  // Task #608 (Wave 6): resolves resumeDecision via a useEffect using the
-  // render-safe peekResumableSession/clearExpiredResumableSession pair instead of
-  // the useState lazy initializer that used to call getResumableSession (see that
-  // state declaration's own comment). Gated on the SAME `hydrated` signal the
-  // mount-fill effect above uses (Task #587) — this also closes Task #609: without
-  // the gate, a slow Tauri cold start could resolve resumeDecision from
-  // pre-hydration activeSession {}/null defaults before the real persisted session
-  // loads, permanently reporting "nothing to resume" for a session that is
-  // actually there, just not loaded yet (this effect only runs meaningfully once,
-  // on the false→true hydration transition — hydration never reverts, so there is
-  // no second run to guard against). clearExpiredResumableSession runs first, in
-  // the same effect, since its own doc comment (store/srsStore.ts) says it's
-  // "intended to be called from a useEffect, not during render."
+  // Resolves resumeDecision via an effect using the render-safe
+  // peekResumableSession/clearExpiredResumableSession pair (never a useState lazy
+  // initializer — see that state's own comment) — gated on the same `hydrated`
+  // signal as the mount-fill effect below, for the identical pre-hydration-defaults
+  // reason. clearExpiredResumableSession runs first, since its own doc comment
+  // (store/srsStore.ts) requires calling it from an effect, never during render.
+  // Task #629: re-derives "is there a still-valid resumable session for THIS session
+  // key" fresh at read time — shared by the resume-decision effect below and the
+  // mount-fill effect further down. Deliberately NOT read via the `resumeDecision`
+  // state variable in the mount-fill effect: both effects are gated on the same
+  // `hydrated` dependency and fire in the same commit, in declaration order, but a
+  // setState scheduled by this earlier effect isn't visible in a later effect's
+  // closure until a subsequent render — only a fresh re-check sees it in time.
+  const hasPendingResumableSession = (): boolean => {
+    const saved = peekResumableSession();
+    const sessionKey = isGlobal ? "global" : unitId;
+    return !!saved && saved.unitId === sessionKey && saved.position < saved.queueIds.length;
+  };
+
   useEffect(() => {
     if (!hydrated) return;
     clearExpiredResumableSession();
-    const saved = peekResumableSession();
-    const sessionKey = isGlobal ? "global" : unitId;
-    if (saved && saved.unitId === sessionKey && saved.position < saved.queueIds.length) {
+    if (hasPendingResumableSession()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setResumeDecision("pending");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  // On mount: introduce the first qualifying new card if today's quota is open
-  // (all session types), then — for interrupt sessions only — fill the queue up
-  // to lib/queue.ts's INTERRUPT_SESSION_FLOOR (Batch 23, owner-ratified spec:
-  // every interrupt targets 45-90 seconds ≈ 6 cards; a 1-card burst spends the
-  // attention cost of an interruption on almost no learning). Fill order:
-  //   1. more NEW cards (Max's ratified fill choice — starvation is cold-start-
-  //      shaped, exactly when extra intros are pure ramp-up), hard-capped at
-  //      INTERRUPT_SESSION_MAX_NEW (3) per session — the working-memory limit —
-  //      and gated on both the introduction engine's strandedAcrossDays pause
-  //      AND lib/queue.ts's INTERRUPT_FLEX_DAILY_MAX, a real cross-session
-  //      daily ceiling (Task #551 — the numeric per-session cap deliberately
-  //      flexes here, Task #533, but the flex itself is bounded, not unlimited).
-  //      Task #577 (Wave 3): this ceiling is enforced via a check-then-act read
-  //      of in-memory Zustand state (canIntroduceNewCard, then introduceCard) —
-  //      two browser tabs/windows signed into the same account can each
-  //      independently pass the check and each flex up to INTERRUPT_SESSION_MAX_NEW
-  //      cards, exceeding the intended daily ceiling. No cross-tab lock is added
-  //      here: entitlement/session state in this app is already an intentional,
-  //      owner-confirmed client-only honor-system trade-off (CLAUDE.md §5), and a
-  //      real cross-tab coordination mechanism (BroadcastChannel, storage events,
-  //      a server-side counter) is disproportionate to the actual cost of this
-  //      race — a handful of extra new-card introductions on a day the user
-  //      happens to run two tabs at once, not data loss or a security boundary.
-  //   2. near-due FSRS reviews pulled slightly early (soonest-due first).
-  // The floor is a target, not an unconditional guarantee (Task #561): a
-  // stranded pause or an exhausted catalog can leave a session below 6, or
-  // even empty. Non-interrupt sessions keep the original one-new-card
-  // behavior; hooks/useInterruptConfig.ts's computeDue mirrors this supply
-  // logic when deciding whether an interrupt fires at all.
+  // On mount: introduce the first qualifying new card if today's quota is open (all
+  // session types), then — for interrupt sessions only — fill the queue up to
+  // lib/queue.ts's INTERRUPT_SESSION_FLOOR. Fill order: (1) flex-introduce more new
+  // cards, capped at INTERRUPT_SESSION_MAX_NEW and the daily INTERRUPT_FLEX_DAILY_MAX
+  // ceiling; (2) near-due FSRS reviews pulled slightly early. The floor is a target,
+  // not a guarantee — a stranded pause or exhausted catalog can leave a session below
+  // it, or empty. Cross-tab races on the check-then-act ceiling reads below are an
+  // accepted client-only honor-system trade-off (CLAUDE.md §5), not a gap to fix.
+  // Full rationale, numbers, and history: docs/INTERRUPT_ARCHITECTURE.md §10.
+  // hooks/useInterruptConfig.ts's computeDue mirrors this supply logic for the
+  // fire-gate decision.
   useEffect(() => {
-    // Task #573 (Wave 3) / #602 (Wave 5): app/study/page.tsx calls useStudySession
-    // unconditionally, before its own packLoading early return — any session that
-    // mounts while the pack is still loading (a still-loading es-language pack, a
-    // specialty-pack load, or a cold push-tap launch straight into
-    // /study?mode=interrupt) renders this hook FIRST with an empty
-    // allCardMap/initialQueue. useState(initialQueue) only consumes its initializer
-    // on that first render, and this effect used to have an empty [] dependency
-    // array (mount only) — so the fill pass ran exactly once against that empty
-    // snapshot and never got a second chance once real pack data actually arrived,
-    // permanently freezing the queue empty (a regression Task #552's useMemo-only
-    // fix did not address, since the stale closure lived here, not in the useMemo).
-    // allCardMap emptiness is a reliable STARTING signal (a real language pack
-    // always has thousands of cards, so it's never a legitimate FULL catalog), but
-    // is not proof-positive of "still loading": a pack-load error or an invalid
-    // unitId can also leave allCardMap permanently empty. Both are harmless here —
-    // the guard below simply never finds anything to fill from either, the same
-    // correct no-op it would produce for a genuinely still-loading pack.
-    // mountFillStartedRef preserves the original "exactly one real fill ATTEMPT per
-    // session" guarantee — this effect re-fires on every allCardMap or `hydrated`
-    // reference/value change, but the guard below makes the actual fill logic run
-    // exactly once, on whichever render is the FIRST to have real data, rather than
-    // unconditionally (and possibly vacuously) on render 1.
+    // app/study/page.tsx calls useStudySession unconditionally, before its own
+    // packLoading early return — a session mounting while the pack is still loading
+    // (cold push-tap into /study?mode=interrupt, a still-loading pack) renders this
+    // hook first with an empty allCardMap/initialQueue. This effect re-fires on every
+    // allCardMap/hydrated change so a later render with real data gets a fill pass;
+    // mountFillStartedRef below still limits the actual fill LOGIC to exactly one
+    // real attempt. allCardMap emptiness is a reliable "still loading" signal (a real
+    // pack always has thousands of cards) though not proof-positive (a load error or
+    // bad unitId also leaves it empty) — harmless either way, since the guard below
+    // just never finds anything to fill from.
     if (Object.keys(allCardMap).length === 0) return;
-    // Task #587 (Wave 5) / #607 (Wave 7, tightened): allCardMap being ready does
-    // not mean the SRS store itself has finished hydrating (see the `hydrated`
-    // declaration above for the full race). Gating here too, alongside
-    // allCardMap, means the fill pass — and every introduceCard call inside it —
-    // never runs against pre-hydration {} defaults. This guarantee holds
-    // specifically BECAUSE `hydrated` above is useIsHydratedStrict (Task #606),
-    // not plain useIsHydrated: strict never resolves true via
-    // HYDRATION_FAILSAFE_MS's timeout fallback, only via a genuine
-    // persist.hasHydrated(). Gating this write-performing effect on the lenient
-    // variant instead would NOT make this claim true — the failsafe could still
-    // open the gate before real hydration finished, and lib/storage.ts's
-    // late-merge reconciliation (its own doc comment on useIsHydratedStrict) is
-    // the only backstop against losing that write, not a substitute for
-    // genuinely waiting. This comment's correctness is therefore tied to
-    // `hydrated` staying wired to the strict variant — if that ever changes,
-    // this claim needs re-verifying, not just re-reading.
+    // `hydrated` must stay wired to useIsHydratedStrict (see its own declaration
+    // above) — this guard exists specifically so no introduceCard call in the fill
+    // logic below ever runs against pre-hydration {} defaults.
     if (!hydrated) return;
+    // Task #629: a resumable session for this key is about to be offered via
+    // StudyResumePrompt — skip the fill pass entirely rather than burning real
+    // introduceCard/flex budget on content the apply-resume effect will overwrite
+    // regardless of accept/decline. Deliberately does NOT claim mountFillStartedRef —
+    // this render never attempted a fill, so it hasn't used its one real attempt.
+    if (hasPendingResumableSession()) return;
     if (mountFillStartedRef.current) return;
 
-    // `added` holds only the cards that actually need appending to the queue —
-    // declared here (not inside the try below) specifically so the finally block
-    // can still flush whatever DID succeed even if something else throws; an empty
-    // array literal cannot itself throw, so this declaration needs no protection.
+    // Declared outside the try so the finally block can flush whatever succeeded
+    // even if something below throws.
     const added: Card[] = [];
 
-    // Task #592/#593 (Wave 5), extended by Task #615 (Wave 6): mountFillStartedRef's
-    // claim, the queue resync, and the sessionIds/introducedIds construction below
-    // all now live INSIDE the try, alongside the fill logic itself — Task #615 found
-    // that leaving them outside meant a throw from any of them (e.g. a malformed
-    // initialQueue entry crashing the `.map((c) => c.id)` call) both permanently
-    // skipped the fill pass (the ref would already be latched) AND propagated
-    // uncaught (there is no error boundary around the /study route) — the exact
-    // failure mode #592/#593 exists to prevent, just from a spot outside where that
-    // fix's protection reached. This session instance still gets exactly one real
-    // attempt and never retries (the ref claim happens first, inside the try); if
-    // anything here throws, the catch below contains the failure and logs it
-    // explicitly rather than swallowing it, and the finally still flushes whatever
-    // DID make it into `added` before the failure, so a partial success is not
-    // silently discarded on top of being partial.
+    // mountFillStartedRef's claim and the sessionIds/introducedIds construction below
+    // live INSIDE the try, alongside the fill logic itself: a throw from any of them
+    // (e.g. a malformed initialQueue entry) must not propagate uncaught (no error
+    // boundary on the /study route) while still only ever getting one real attempt
+    // (the ref claim happens first). The catch logs explicitly; the finally still
+    // flushes whatever made it into `added` before the failure.
     try {
       mountFillStartedRef.current = true;
 
@@ -268,49 +202,16 @@ export function useStudySession({
       // pass adds) for both dedupe and the floor arithmetic. The normal daily-intro
       // path may pick a card already sitting in the queue (unit sessions interleave
       // new cards via buildQueue) — that introduction still happens, it just
-      // appends nothing.
-      // Task #605 (Wave 5) / #611 (Wave 7, scope clarified): canIntroduceNewCard/
-      // introduceCard/getNearDueCards below read LIVE store state via their own
-      // closures (store/srsStore.ts's get()), while `cards`/`introductions`/
-      // `allCardMap` are read once from this render's closure — a mixed
-      // live/snapshot pattern in general. Within this one effect pass
-      // specifically it cannot desync: every statement here (loops, closures,
-      // store calls) is plain synchronous JS with no `await`/yield point, so
-      // nothing else can run — a sync-triggered background patch, or another
-      // render — between this effect's first statement and its last. This claim
-      // is deliberately narrow: it says nothing about the SEPARATE, ACROSS-effect
-      // hydration race (whether this pass can run against pre-hydration data at
-      // all) — that race is real but sits one layer up, at the `if (!hydrated)
-      // return;` guard above, and reading THIS comment is not a substitute for
-      // checking that one. It is CLOSED (Task #606's useIsHydratedStrict gate,
-      // see that guard's own comment) — not still-open, and not something this
-      // comment was ever trying to address.
+      // appends nothing. canIntroduceNewCard/introduceCard/getNearDueCards below
+      // read LIVE store state; `cards`/`introductions`/`allCardMap` are read once
+      // from this render's closure — safe within one pass since every statement
+      // here is synchronous JS with no yield point for anything else to run.
       const sessionIds = new Set<string>(initialQueue.map((c) => c.id));
       const introducedIds = new Set<string>();
 
-      // Task #619 (Wave 6, investigated — accepted as debt, not fixed here): up to
-      // INTERRUPT_SESSION_MAX_NEW (3) introduceCard calls can happen in this one
-      // synchronous pass (plus the 1 normal-cap call below). The IN-MEMORY Zustand
-      // state composes correctly and synchronously across all of them (Task #605's
-      // comment above), but each call independently triggers Zustand persist
-      // middleware to asynchronously write the full state snapshot to storage —
-      // on Tauri, lib/storage.ts's setItem does `await store.set(key, value)`
-      // against @tauri-apps/plugin-store, and that plugin's own dist-js source
-      // (node_modules/@tauri-apps/plugin-store/dist-js/index.js) shows each set()
-      // as an independent `invoke('plugin:store|set', ...)` IPC round-trip with no
-      // visible client-side queue/lock forcing FIFO completion. Since each snapshot
-      // IS the full cumulative state at the moment it was captured (not an
-      // incremental patch), the only real risk is a LATER (more complete) write's
-      // promise resolving BEFORE an EARLIER (staler) one's — the stale write would
-      // then overwrite the correct one on disk (in-memory state stays correct
-      // regardless; only the persisted copy could regress, until the next
-      // unrelated save corrects it). A real fix (batch all cards to introduce in
-      // this pass, then commit via one store action/set() call) requires changes
-      // to store/srsStore.ts (a new batched action) and/or lib/storage.ts
-      // (serializing consecutive persist writes) — both off-limits to this stream
-      // this wave (store/srsStore.ts's own extraction is deferred to Task #613
-      // next wave; lib/storage.ts is being redesigned by a parallel stream this
-      // wave). See .autocode/stream-W6A/completion.md for the full investigation.
+      // Async write-ordering risk with multiple introduceCard calls in one pass:
+      // accepted debt, see .autocode/debt.md (Task #619/#639) for the full
+      // investigation and reasoning.
       const introduceNext = (): boolean => {
         const next = selectQualifyingNewCard(allCardMap, cards, introductions, introducedIds);
         if (!next) return false;
@@ -324,58 +225,29 @@ export function useStudySession({
       };
 
       // Normal daily-cap path — one new card per day, every session type. Shares
-      // `introducedIds` with the interrupt flex loop below: a normal-cap
-      // introduction here counts as one of the flex loop's INTERRUPT_SESSION_MAX_NEW
-      // slots, it is not additive with them (Task #574 seam-tests this interaction).
-      //
-      // Task #617 (Wave 7): gated on INTERRUPT_SESSION_CAP for interrupt sessions
-      // specifically — lib/queue.ts's INTERRUPT_SESSION_CAP (8) is an interrupt-only
-      // concept (unit/global sessions have no queue-size cap at all, hence
-      // `!isInterrupt ||` short-circuits the check for them). Before this guard, this
-      // line ran unconditionally regardless of sessionIds.size, unlike the flex loop
-      // and near-due loop below, which both correctly stop at INTERRUPT_SESSION_FLOOR.
-      // Concrete failure this closes: app/study/page.tsx slices initialQueue to CAP
-      // (8) on a backlog day, seeding sessionIds with 8 cards; on any day no card has
-      // been introduced yet (true most days, system-wide cap is 1/day),
-      // introduceNext() searched the ENTIRE cross-unit catalog with no knowledge of
-      // sessionIds, found a qualifying candidate for almost any non-completionist
-      // user, and appended it — growing the session to 9, contradicting both the
-      // client (components/InterruptHandler.tsx) and server
-      // (supabase/functions/send-interrupt-notifications/dueEstimate.ts) notification
-      // clamps, which both announce "at most 8." Deliberately checked against CAP
-      // here, not FLOOR (INTERRUPT_SESSION_FLOOR) — this is the ceiling this specific
-      // path was missing, not the floor the flex/near-due tiers already target.
+      // `introducedIds` with the interrupt flex loop below (not additive with it —
+      // Task #574 seam-tests this). Gated on INTERRUPT_SESSION_CAP for interrupt
+      // sessions specifically (`!isInterrupt ||` short-circuits it for unit/global,
+      // which have no size cap): without this, a backlog day's CAP-sliced
+      // initialQueue could still grow past CAP via an unrelated normal-cap
+      // introduction, contradicting the client/server notification clamps that both
+      // announce "at most CAP." Checked against CAP, not FLOOR — this is the
+      // ceiling this path was missing, not the floor the flex/near-due tiers target.
       if (canIntroduceNewCard(today) && (!isInterrupt || sessionIds.size < INTERRUPT_SESSION_CAP)) {
         introduceNext();
       }
 
       if (isInterrupt) {
-        // Task #562 (Wave 3): canFlexIntroduceToday (hooks/useInterruptConfig.ts,
-        // Task #618/Wave 6 — shared with computeDue there, see its own doc comment)
-        // is re-evaluated on every loop iteration, as part of the while-condition
-        // itself, rather than computed once before the loop started. The real store
-        // action reads live introductions state (store/srsStore.ts), so a
-        // per-iteration call correctly reflects each introduceCard this same pass
-        // already committed, genuinely enforcing INTERRUPT_FLEX_DAILY_MAX
-        // per-introduction rather than per-session. The previous once-per-mount
-        // version let repeated same-day interrupt sessions each pass a count-based
-        // check still under the ceiling and each be granted a full
-        // INTERRUPT_SESSION_MAX_NEW batch, overshooting INTERRUPT_FLEX_DAILY_MAX by
-        // up to 2 cards across a day's sessions.
-        //
-        // Task #566: canFlexIntroduceToday returning false here has two distinct
-        // causes — the stranded-pause invariant (an introduction record failed 3x in
-        // a row and hasn't yet recovered with a correct answer) OR the daily flex
-        // ceiling (INTERRUPT_FLEX_DAILY_MAX) being reached — and this loop
-        // deliberately does not distinguish them: both are legitimate reasons to stop
-        // flexing new cards, and the near-due fill below still runs regardless of
-        // which one stopped the loop.
-        //
-        // Task #596 (Wave 5): like the normal-cap path above, this daily ceiling is
-        // enforced via a check-then-act read of in-memory Zustand state — already
-        // documented (originally Task #577) and accepted as a client-only
-        // honor-system trade-off (CLAUDE.md §5); this wave's audit re-confirmed the
-        // risk is unchanged and does not add any new exploitation surface.
+        // canFlexIntroduceToday (hooks/useInterruptConfig.ts, shared with
+        // computeDue there) is re-evaluated on every loop iteration, not computed
+        // once before the loop — it reads live introductions state, so each
+        // iteration correctly reflects this pass's own introduceCard calls,
+        // genuinely enforcing INTERRUPT_FLEX_DAILY_MAX per-introduction rather than
+        // per-session. A false return has two causes (the stranded-pause invariant,
+        // or the daily flex ceiling) that this loop deliberately doesn't
+        // distinguish — both legitimately stop flexing, and near-due fill below
+        // still runs regardless of which one stopped it. Full history:
+        // docs/INTERRUPT_ARCHITECTURE.md §10.3.
         while (
           sessionIds.size < INTERRUPT_SESSION_FLOOR &&
           introducedIds.size < INTERRUPT_SESSION_MAX_NEW &&
@@ -384,47 +256,19 @@ export function useStudySession({
           if (!introduceNext()) break;
         }
 
-        // Task #622 (Wave 7, investigated — no code fix, this is correct behavior):
-        // if getNearDueCards below throws after this loop already introduced 1-3
-        // cards, those introductions stay permanently recorded (consuming
-        // INTERRUPT_FLEX_DAILY_MAX for the day) even though the near-due padding
-        // never ran. This is NOT a gap — Tasks #592/#593's try/catch/finally
-        // (wrapping this whole block) already flushes whatever made it into
-        // `added` on ANY throw here, so every flex-introduced card still reaches
-        // the visible queue; there is no divergence between "cards the store
-        // recorded as introduced" and "cards the user actually sees." Consuming
-        // the daily ceiling for them is therefore correct, not wasted — those
-        // introductions genuinely happened and are genuinely shown. The user
-        // simply doesn't get near-due padding on top that day, which Task #561
-        // already documents as an accepted possibility (the floor is a target,
-        // not an unconditional guarantee). Confirmed with a regression test in
-        // hooks/useStudySession.test.ts proving this exact sequence.
+        // If getNearDueCards below throws after this loop already introduced 1-3
+        // cards, those stay recorded (consuming the daily ceiling) even though
+        // near-due padding never ran — correct, not a gap: the try/catch/finally
+        // below flushes whatever made it into `added` on any throw, so every
+        // flex-introduced card still reaches the visible queue.
         if (sessionIds.size < INTERRUPT_SESSION_FLOOR) {
-          // Task #541 (mirrored in hooks/useInterruptConfig.ts's computeDue —
-          // Task #618/Wave 6 — check that file's matching near-due-fallback block
-          // too if you change what counts as near-due-fallback-worthy here):
-          // request the full near-due pool rather than a
-          // INTERRUPT_SESSION_FLOOR + sessionIds.size heuristic. That heuristic
-          // only over-fetches enough if cards already in the session cluster at
-          // the front of the sorted pool — if they're interleaved instead, the
-          // slice can run out before the floor is reached even though enough
-          // near-due cards exist — a mathematically sufficient bound instead of
-          // an unproven one.
-          //
-          // Task #620 (Wave 6, investigated — accepted as debt, explicit
-          // trade-off, not "not yet measured"): getNearDueCards
-          // (store/srsStore.ts) filters+sorts the ENTIRE ~30K-card catalog
-          // (CURRICULUM.md's 2026-08-03 count) — real O(n log n) work, run
-          // synchronously inside this mount effect on every interrupt-session
-          // open. A real fix exists (getNearDueCards accepting an exclusion set
-          // so it can filter+sort+early-terminate in one pass instead of
-          // returning everything for this loop to post-filter) but requires
-          // changing store/srsStore.ts, off-limits to this stream this wave
-          // (its own file-size extraction is deferred to Task #613 next wave).
-          // Accepted at the current curriculum scale: each call measured at a
-          // few ms, well under any perceptible session-open latency. Revisit if
-          // the curriculum grows past ~100K cards or this shows up in real
-          // profiling — not a correctness concern, purely a cost one.
+          // Requests the full near-due pool rather than a
+          // INTERRUPT_SESSION_FLOOR + sessionIds.size heuristic, which only
+          // over-fetches enough if cards already in the session cluster at the
+          // front of the sorted pool — a mathematically sufficient bound instead
+          // of an unproven one. getNearDueCards filters+sorts the entire catalog
+          // per call (O(n log n), accepted cost at current curriculum scale — see
+          // docs/INTERRUPT_ARCHITECTURE.md §10.5 for the full trade-off).
           for (const card of getNearDueCards(Number.MAX_SAFE_INTEGER)) {
             if (sessionIds.size >= INTERRUPT_SESSION_FLOOR) break;
             if (sessionIds.has(card.id)) continue;
@@ -433,20 +277,12 @@ export function useStudySession({
           }
         }
 
-        // Task #565 (Wave 3): the former post-loop "never-empty" backstop
-        // (`if (sessionIds.size === 0 && flexIntroAllowed) introduceNext();`) was
-        // removed — it was structurally dead code. introduceNext() is a pure
-        // function of (allCardMap, cards, introductions, introducedIds), none of
-        // which change between the while loop's last attempt and this point, so
-        // whenever that guard's condition was true, the while loop had already
-        // tried and failed with bit-identical arguments and the backstop was
-        // guaranteed to fail again. The #562 per-iteration recheck above does not
-        // change this analysis — it only changes WHEN the loop stops, never whether
-        // a repeat call against the same frozen inputs can succeed where the loop's
-        // own attempt didn't. A session that reaches this point with zero content
-        // (no flex-introduced card, no near-due card) is genuinely empty — Task
-        // #561 already documents the floor as a target, not an unconditional
-        // guarantee.
+        // No post-loop "never-empty" backstop: introduceNext() is a pure function
+        // of (allCardMap, cards, introductions, introducedIds), unchanged since the
+        // while loop's last attempt — a repeat call against the same frozen inputs
+        // cannot succeed where the loop already failed. A session that reaches
+        // this point with zero content is genuinely empty (§10.4: the floor is a
+        // target, not a guarantee).
       }
     } catch (e) {
       console.error(
@@ -461,18 +297,12 @@ export function useStudySession({
         });
       }
     }
-    // Task #588 (Wave 5): mountFillStartedRef makes this a true one-shot per session
-    // instance — if allCardMap later grows again after the one real attempt (e.g. a
-    // specialty-pack merge completing after mount), that growth is not picked up by
-    // a second fill pass. Accepted as-is: no specialty pack is registered ready:true
-    // today (lib/langRegistry.ts), so this path has no real caller yet; revisit if
-    // that changes.
-    //
-    // Deliberately narrowed to [allCardMap, hydrated]: initialQueue/cards/
-    // introductions/etc. are read from this render's closure the one time the
-    // guards above let the fill logic actually run, matching the original "run
-    // (essentially) once per session" intent — see the Task #573/#587 comments
-    // above for why allCardMap and hydrated together are the correct re-run triggers.
+    // mountFillStartedRef makes this a true one-shot per session instance — a later
+    // allCardMap growth (e.g. a specialty-pack merge after mount) is not picked up
+    // by a second pass; accepted, since no specialty pack is registered ready:true
+    // today (lib/langRegistry.ts). Deliberately narrowed to [allCardMap, hydrated]:
+    // initialQueue/cards/introductions are read once from the closure the one time
+    // the guards above let the fill logic run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCardMap, hydrated]);
 
@@ -488,7 +318,14 @@ export function useStudySession({
       setSessionCorrect(saved?.sessionCorrect ?? 0);
       setSessionTotal(saved?.sessionTotal ?? 0);
       sessionStartedAtRef.current = saved?.startedAt ?? Date.now();
-    } else if (resumeDecision === "declined") {
+    } else if (resumeDecision === "declined" || (resumeDecision === "accepted" && !resumedQueue)) {
+      // Task #634: "accepted" with a null resumedQueue is a narrow race — the
+      // resumable session expired between the 'pending' read and this 'accepted'
+      // read (resumedQueue's own useMemo re-derives from peekResumableSession() at
+      // that moment). Nothing is left to resume; without this branch the click was
+      // a silent no-op — sessionStartedAtRef stayed at its initial 0 and queue/pos/
+      // counters never reset. Treated identically to a decline: start fresh from
+      // initialQueue, since that's the only content left to show.
       clearActiveSession();
       setQueue(initialQueue);
       setPos(0);

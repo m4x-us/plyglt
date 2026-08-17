@@ -135,20 +135,15 @@ describe("buildNotificationPayload — Batch 23 session floor, Tasks #544/#545 c
     expect(buildNotificationPayload({ cardCount: 0, sessionType: "review" }).body).not.toMatch(/due|overdue/i);
   });
 
-  // Task #578: a negative cardCount (malformed upstream data, not reachable via
-  // computeDueEstimate today) still clamps to a sane floored value, but must leave a
-  // diagnostic trace rather than silently masquerading as a legitimate floor case.
-  it("logs a diagnostic error for a negative cardCount while still clamping the output to the floor", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const payload = buildNotificationPayload({ cardCount: -3, sessionType: "review" });
-    expect(payload).toEqual({
-      title: "plyglt",
-      body: "6 cards ready",
-      data: { cardCount: 6, sessionType: "review" },
-    });
-    expect(errorSpy).toHaveBeenCalledTimes(1);
-    expect(errorSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-DUE-ESTIMATE-NEGATIVE-\d+\] negative cardCount -3 clamped to floor$/);
-    errorSpy.mockRestore();
+  // Task #638 (supersedes Task #578's clamp-and-log behavior): a negative cardCount
+  // (malformed upstream data, not reachable via computeDueEstimate today) now throws
+  // rather than silently clamping to a fake floored value — dispatchNotifications'
+  // per-token try/catch (summary.erroredUnexpectedly) is the intended backstop, so
+  // corrupted data never reaches an actual sent notification with a made-up count.
+  it("throws for a negative cardCount instead of silently clamping to a fake floor value", () => {
+    expect(() => buildNotificationPayload({ cardCount: -3, sessionType: "review" })).toThrow(
+      "buildNotificationPayload received a negative cardCount: -3"
+    );
   });
 
   it("does not log anything for a non-negative cardCount", () => {

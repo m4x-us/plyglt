@@ -12680,6 +12680,342 @@ NEW
 
 ---
 
+### Task #627: Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK
+
+**File:** lib/storage.ts
+**Complexity:** 🔧 Full — a real redesign of the subDiff/collision-detection logic in a primitive shared by 3 persisted stores, not a single-scope tweak
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P1
+
+**What:**
+The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subKey] = preVal[subKey] whenever preVal[subKey] differs from snapshotAtExpiry[subKey], then spreads it over postVal unconditionally: clobbered[key] = { ...postVal, ...subDiff }. It never compares against postMerge[key] (the real, fully-hydrated persisted value) before taking the live value. When a live write during the HYDRATION_FAILSAFE_MS window touches a sub-key that ALSO exists in the real persisted data with different content - e.g. rating a card that already has real FSRS history on disk, not just introducing a brand-new one - the reconciliation unconditionally prefers the live pre-hydration value and silently discards the real persisted history for that entry. Rule 23a violation: the fix generalized to the ADDITION member of the defect class but not the COLLISION member it exists to protect against. Existing regression tests never exercise a genuine collision scenario. at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix data-loss issue at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F001 — severity 8 — data-loss
+
+---
+
+### Task #628: Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. app/study/page.tsx:60 still gates the entire interactive page on the lenient useIsHydrated, which resolves true via the HYDRATION_FAILSAFE_MS timeout even when real hydration has not finished. Once that gate passes, handleRate drives commitSession (writes cards/activeSession/streak) and calls recordIntroductionResult directly (writes introductions) with no additional strict-hydration check. lib/storage.ts's own doc comment states the governing principle: a consumer that writes new persisted state should gate on useIsHydratedStrict, not the lenient useIsHydrated - page.tsx violates its own batch's stated principle on the two main interactive write paths, and is the concrete reachability path that puts a rating write inside the exact failsafe window F001's collision bug requires. at app/study/page.tsx:StudyPage (component body, hydration gate):60.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at app/study/page.tsx:StudyPage (component body, hydration gate):60
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F002 — severity 7 — async
+
+---
+
+### Task #629: Fix requirements: The mount-fill effect never checks resumeDecision or calls peekResumableSession() before running its fill logic (introdu
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The mount-fill effect never checks resumeDecision or calls peekResumableSession() before running its fill logic (introduceCard calls consuming real daily/flex budget, near-due padding, setQueue). For interrupt sessions, unitId is always the empty string, so any incomplete prior interrupt session's sessionKey matches any subsequent interrupt session - reachable via ordinary app close, navigation away, or the existing snooze flow, none of which call clearActiveSession. When resumeDecision resolves to 'pending', the apply-resume effect later overwrites the fill pass's queue via setQueue(resumedQueue) or setQueue(initialQueue) regardless of the user's accept/decline choice, but the introduceCard() calls the fill pass already made are never undone - silently burning real INTERRUPT_FLEX_DAILY_MAX budget on introductions the user never saw. This can cause a later, real interrupt that same day to be denied a flex fill it should have received, directly undermining BRAND.md's '6-10 interrupts every day, never fewer' commitment. No test sets up a pending resumable session alongside the fill pass. at hooks/useStudySession.ts:mount-fill effect:200.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at hooks/useStudySession.ts:mount-fill effect:200
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F003 — severity 7 — requirements
+
+---
+
+### Task #630: Fix code-quality: hooks/useStudySession.ts is 546 lines, well over the 400-line services cap (Rule 1). This file is the center of all 7 re
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+hooks/useStudySession.ts is 546 lines, well over the 400-line services cap (Rule 1). This file is the center of all 7 remediation waves in this batch, yet unlike its two siblings in the same batch (app/study/page.tsx extracted to 149 lines via Task #612; store/srsStore.ts extracted to 368 lines via Task #613) it was never extracted. A large share of the excess is unconsolidated, paragraph-by-paragraph inline comment accretion citing roughly 15 different task numbers, duplicating material that already has a dedicated home in docs/INTERRUPT_ARCHITECTURE.md section 10. at hooks/useStudySession.ts:module-level (whole file):1.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:module-level (whole file):1
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F004 — severity 3 — code-quality
+
+---
+
+### Task #631: Fix code-quality: Section 10 documents hooks/useStudySession.ts's behavior but is stale for Wave 7's Task #617 (the CAP guard) and Wave 6'
+
+**File:** docs/INTERRUPT_ARCHITECTURE.md
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
+
+**What:**
+Section 10 documents hooks/useStudySession.ts's behavior but is stale for Wave 7's Task #617 (the CAP guard) and Wave 6's Task #618 (the canFlexIntroduceToday extraction): the section's own intro claims currency only through 'Wave 1 and Wave 3'; grepping the whole file for '617' returns zero hits; the file-summary table (10.7) describes current behavior without mentioning the CAP guard at all; section 10.3 never mentions that Task #618 eliminated the flex-condition half of the hand-duplication it warns about. A repeat instance of a named recurring failure class in this exact file, one round after it was fixed for a prior staleness issue (Task #625). at docs/INTERRUPT_ARCHITECTURE.md:section 10 (file-summary table and cross-file documentation):10.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at docs/INTERRUPT_ARCHITECTURE.md:section 10 (file-summary table and cross-file documentation):10
+- [ ] Audit passes: bash scripts/deep-audit.sh docs/INTERRUPT_ARCHITECTURE.md
+
+**Source:** Audit finding F005 — severity 3 — code-quality
+
+---
+
+### Task #632: Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+
+**File:** lib/storage.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - every test that exercises the mount-fill effect's hydration gate manipulates persist.hasHydrated() directly, never HYDRATION_FAILSAFE_MS, so none of them can distinguish useIsHydratedStrict from a broken reimplementation as `return useIsHydrated(store)`. Per Rule 18, a fix this severe requires a test whose corruption of the strict behavior would fail; none exists. at lib/storage.ts:useIsHydratedStrict:175.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at lib/storage.ts:useIsHydratedStrict:175
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
+
+**Source:** Audit finding F006 — severity 4 — tests
+
+---
+
+### Task #633: Fix async: The staleness check `if (seq !== configSeqRef.current) return;` exists only inside the .catch() handler of the updateInt
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The staleness check `if (seq !== configSeqRef.current) return;` exists only inside the .catch() handler of the updateInterruptConfig() call. If an OLDER call resolves SUCCESSFULLY after a newer one has already started - plausible on a real IPC round-trip when a user toggles a setting twice in quick succession - there is no check preventing the older call's success path from silently overwriting the Rust-side config with stale values. The comment above the guard claims protection against exactly this class of race, but the guard as written only covers the reject path. at components/InterruptHandler.tsx:updateInterruptConfig effect / configSeqRef guard:73.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at components/InterruptHandler.tsx:updateInterruptConfig effect / configSeqRef guard:73
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F007 — severity 6 — async
+
+---
+
+### Task #634: Fix edge-case: The apply-resume effect has three branches (accepted&&resumedQueue, declined, null) but no branch for resumeDecision==='
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P2
+
+**What:**
+The apply-resume effect has three branches (accepted&&resumedQueue, declined, null) but no branch for resumeDecision==='accepted' with a null resumedQueue. Reachable via a narrow race where peekResumableSession() returns a valid session on one read (setting resumeDecision to 'accepted') and null shortly after (the resumable session expires between the pending and accepted reads). In that gap, sessionStartedAtRef stays at its initial value (0, epoch) and queue/pos/counters never reset - the user's 'Resume' click becomes a silent no-op, with session.startedAt: 0 potentially persisted on the next rating. at hooks/useStudySession.ts:apply-resume effect:482.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix edge-case issue at hooks/useStudySession.ts:apply-resume effect:482
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F008 — severity 6 — edge-case
+
+---
+
+### Task #635: Fix tests: Two tests - 'does not flex when reviews are due' and 'falls through to a near-due card when the flex introduction is blo
+
+**File:** hooks/useInterruptConfig.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Two tests - 'does not flex when reviews are due' and 'falls through to a near-due card when the flex introduction is blocked but a near-due card exists' - pass the Deletion Test negatively: each would produce the identical asserted result even if the specific guard clause its own name claims to prove were deleted. No live behavioral defect is implicated - the underlying computeDue logic itself is not shown incorrect. at hooks/useInterruptConfig.test.ts:computeDue tests:217.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useInterruptConfig.test.ts:computeDue tests:217
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useInterruptConfig.test.ts
+
+**Source:** Audit finding F009 — severity 3 — tests
+
+---
+
+### Task #636: Fix tests: Two of the three Task #617 CAP-guard regression tests - 'still introduces a normal-cap new card into an interrupt sessio
+
+**File:** hooks/useStudySession.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Two of the three Task #617 CAP-guard regression tests - 'still introduces a normal-cap new card into an interrupt session below INTERRUPT_SESSION_CAP' and part of 'does not apply the CAP guard to non-interrupt sessions' - pass under realistic, narrower mutations of the guard clause, not just the full guard's deletion. The underlying CAP guard itself was independently manually traced and confirmed correct by four agents, so this is a pure test-quality gap with no live defect behind it. at hooks/useStudySession.test.ts:CAP-guard regression tests:632.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at hooks/useStudySession.test.ts:CAP-guard regression tests:632
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.test.ts
+
+**Source:** Audit finding F010 — severity 3 — tests
+
+---
+
+### Task #637: Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
+
+**File:** tests/storage.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly as before' and 'does not touch a map-shaped field the user never wrote to during the window' - never actually exercise the map-shaped field during the failsafe window, and both would still pass with the entire new isPlainObject/map-aware branch deleted. Only the third test is genuinely load-bearing. Notably, none of the three tests exercises the sub-key collision scenario F001 identifies, so this suite would not have caught F001 either. at tests/storage.test.ts:map-aware reconciliation regression tests:474.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/storage.test.ts:map-aware reconciliation regression tests:474
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/storage.test.ts
+
+**Source:** Audit finding F011 — severity 4 — tests
+
+---
+
+### Task #638: Fix requirements: A negative estimate.cardCount is logged via console.error but still clamped to INTERRUPT_SESSION_FLOOR and announced as
+
+**File:** supabase/functions/send-interrupt-notifications/dueEstimate.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+A negative estimate.cardCount is logged via console.error but still clamped to INTERRUPT_SESSION_FLOOR and announced as '6 cards ready' rather than surfaced as an error state. The code's own comment documents this path as not reachable by any caller today. at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:166.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix requirements issue at supabase/functions/send-interrupt-notifications/dueEstimate.ts:buildNotificationPayload:166
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dueEstimate.ts
+
+**Source:** Audit finding F012 — severity 2 — requirements
+
+---
+
+### Task #639: Fix code-quality: Task #619's async write-ordering risk (accepted as debt in round 4, unchanged this round) is documented only in this inl
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+Task #619's async write-ordering risk (accepted as debt in round 4, unchanged this round) is documented only in this inline code comment, with no corresponding entry in .autocode/debt.md. This project's own convention calls for accepted debt to live in a durable ledger, not only in a comment that can be lost if the surrounding code is later refactored. at hooks/useStudySession.ts:mount-fill effect (Task #619 comment):291.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #619 comment):291
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F013 — severity 2 — code-quality
+
+---
+
+### Task #640: Fix code-quality: The Task #619 comment states up to 3 flex plus 1 normal-cap introduceCard calls can happen in one pass, implying up to 4
+
+**File:** hooks/useStudySession.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The Task #619 comment states up to 3 flex plus 1 normal-cap introduceCard calls can happen in one pass, implying up to 4 total. In the actual code, introducedIds is shared between the normal-cap call and the flex loop's own MAX_NEW limit, so the real maximum is 3 total, never 4. A minor comment-precision nit, not a functional bug. at hooks/useStudySession.ts:mount-fill effect (Task #619 comment):291.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix code-quality issue at hooks/useStudySession.ts:mount-fill effect (Task #619 comment):291
+- [ ] Audit passes: bash scripts/deep-audit.sh hooks/useStudySession.ts
+
+**Source:** Audit finding F014 — severity 2 — code-quality
+
+---
+
+### Task #641: Fix async: The interrupt:fire listener has no re-entrancy guard or mutual-exclusion lock. src-tauri/src/interrupt.rs documents emit
+
+**File:** components/InterruptHandler.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+The interrupt:fire listener has no re-entrancy guard or mutual-exclusion lock. src-tauri/src/interrupt.rs documents emit_interrupt as fire-and-forget with no queueing/retry. If the event fires twice in rapid succession, two concurrent async executions of the callback can both pass the early-return guards and both proceed, potentially producing two duplicate mandatory locks or notifications for one logical interrupt. at components/InterruptHandler.tsx:interrupt:fire listener:102.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at components/InterruptHandler.tsx:interrupt:fire listener:102
+- [ ] Audit passes: bash scripts/deep-audit.sh components/InterruptHandler.tsx
+
+**Source:** Audit finding F015 — severity 5 — async
+
+---
+
+### Task #642: Fix async: If recordGateFired fails after a zero-estimate send, the widened 24h ZERO_ESTIMATE_GATE_MINUTES gate is never actually w
+
+**File:** supabase/functions/send-interrupt-notifications/dispatch.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Status:** COMPLETE — 2026-08-17 (Wave 8)
+**Blocked by:** Nothing
+**Priority:** P3
+
+**What:**
+If recordGateFired fails after a zero-estimate send, the widened 24h ZERO_ESTIMATE_GATE_MINUTES gate is never actually written, but the send is still counted as successful. The very next dispatch cycle can then re-select the same user sooner than the documented 'at most once per day on a zero estimate' guarantee. at supabase/functions/send-interrupt-notifications/dispatch.ts:dispatch send handler:101.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at supabase/functions/send-interrupt-notifications/dispatch.ts:dispatch send handler:101
+- [ ] Audit passes: bash scripts/deep-audit.sh supabase/functions/send-interrupt-notifications/dispatch.ts
+
+**Source:** Audit finding F016 — severity 3 — async
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|

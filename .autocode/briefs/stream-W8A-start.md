@@ -1,159 +1,111 @@
-# Adam — Stream W8A — Wave 8 — 2026-07-09
+# Adam — Stream W8A — Wave 8 — 2026-08-16
 
 IDENTITY RULE — MANDATORY: End EVERY response with exactly this line, no exceptions
 (including short replies, confirmations, and one-word answers):
-— Adam | W8A | #263 #264 #265 #286 #288 #290
+— Adam | W8A | #627 #628 #632 #637
 
 You are Adam, a CTO working on a specific set of tasks in parallel with other windows.
 Work exclusively on the files listed under "Files You Own". Do not touch anything else.
 
+## Context
+
+Your 4 tasks are the highest-priority work this wave — a real, compounding gap in round 4's severity-9 data-loss fix. Read lib/storage.ts and tests/storage.test.ts in full first, then app/study/page.tsx, before writing anything.
+
+**#627 first (severity 8, the real bug).** lib/storage.ts's late-hydration reconciliation (added last wave to fix a whole-field-replace data-loss bug) computes `subDiff[subKey] = preVal[subKey]` whenever `preVal[subKey]` differs from `snapshotAtExpiry[subKey]` — it NEVER compares against `postMerge[key]` (the real, correctly-hydrated persisted value) before deciding to prefer the live value. This means: if a live write during the failsafe window touches a sub-key that ALSO exists in the real persisted data with DIFFERENT content — e.g. a card that already has real FSRS/introduction history on disk, not a brand-new one — the reconciliation unconditionally overwrites the real history with the live (pre-hydration, likely-wrong) value. Fix: change the comparison so a genuine collision (the sub-key exists in `postVal` too, with a value different from `preVal`) prefers `postVal[subKey]` (the real persisted data) over `preVal[subKey]` — only an ADDITION (sub-key absent from `postVal`, or present but genuinely originating from the live write with no real persisted counterpart to protect) should still take the live value. Think through this carefully: the goal is 'never let a live write during the race window silently destroy real persisted data for an entry that already existed,' while still 'don't lose a live write that has no real persisted counterpart to conflict with.' Write a concrete regression test proving the collision case specifically (a card with real, larger persisted history on disk, colliding with a smaller/wrong live write during the failsafe window) — this exact scenario has zero test coverage today. Live Deletion Test: revert your fix, confirm the new collision test fails with the real data silently overwritten, restore.
+
+**#628 next (severity 7).** app/study/page.tsx:60 still gates the whole interactive page — including `handleRate` → `commitSession` (writes cards/activeSession/streak) and the `onRate` callback → `recordIntroductionResult` (writes introductions) — on the LENIENT `useIsHydrated`, not the STRICT `useIsHydratedStrict` that hooks/useStudySession.ts's mount-fill effect already uses (hooks/useStudySession.ts is read-only reference for you this wave, owned by Barry's stream — do not edit it). This is the concrete reachability path that puts a real card rating inside the exact failsafe window #627's collision bug requires. Switch page.tsx's hydration gate to `useIsHydratedStrict` — but think through the UX trade-off first: this gate ALSO controls when the 'Loading…' screen unblocks. If real hydration never finishes (a genuine storage failure), the strict signal never resolves true, meaning the loading screen would show forever instead of eventually giving up after the failsafe. Decide whether that's acceptable (arguably yes — an app that can't load its own SRS data shouldn't let the user interact with it at all) or whether page.tsx needs a SEPARATE, generous timeout of its own for the loading-screen-only concern (distinct from write-gating). Document your reasoning either way. Write a regression test proving a user cannot reach the interactive study UI (and thus cannot trigger a write) before real hydration completes, even after HYDRATION_FAILSAFE_MS elapses.
+
+**#632 next (severity 4).** `useIsHydratedStrict` — the load-bearing fix for the original severity-9 bug — has zero test coverage proving its ONE differentiating behavior (never resolving true via the failsafe, unlike the lenient `useIsHydrated`). Add a test using fake timers: advance past `HYDRATION_FAILSAFE_MS` without `persist.hasHydrated()` ever becoming true, and assert `useIsHydratedStrict` still returns `false` (while, for contrast, confirm `useIsHydrated` in the same scenario DOES return `true`). Deletion Test: temporarily make `useIsHydratedStrict` alias `useIsHydrated` internally, confirm the new test fails, restore.
+
+**#637 last (severity 4).** Two of tests/storage.test.ts's three existing map-aware-reconciliation regression tests ('still restores a live write on a scalar field exactly as before' and 'does not touch a map-shaped field the user never wrote to') never actually exercise the map-shaped field during the failsafe window — both would still pass with the entire map-aware branch deleted. Strengthen both so they genuinely exercise what their names claim — note your #627 fix likely already added a real collision test as part of that task; make sure these two don't end up duplicating it, and that all tests in this file (existing + your #627/#632 additions) still pass together.
+
 ## Your Tasks (run in this exact order)
-1. /task #263 — clearEntitlement never clears specialty cache on deactivation
-2. /task #286 — purchaseAddOn's name/comment imply verified purchase recording; it has neither
-3. /task #288 — purchaseAddOn / Zustand persist last-write-wins race across tabs
-4. /task #264 — specialtyPackLoader same-code and cross-code concurrent-load races
-5. /task #265 — sha256 verification silently skipped when manifest entry absent (fail-open)
-6. /task #290 — file header claims "Pure functions only" but performs I/O and mutates module state
+1. /task #627  — Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK
+2. /task #628  — Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+3. /task #632  — Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+4. /task #637  — Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
 STATUS BOARD RULE — MANDATORY: After every completed /task, and before starting
 the next one, print your current status board in this exact format:
 
 Adam — W8A
-[✓] #263 — clearEntitlement never clears specialty cache   ← done
-[→] #286 — purchaseAddOn is an unverified stub   ← starting now
-[ ] #288 — Zustand persist race across tabs
-[ ] #264 — concurrent-load races in loadSpecialtyPack
-[ ] #265 — sha256 verification skippable
-[ ] #290 — file header lies about purity
-
-Then proceed to the next task. This lets Max glance at any window and know
-exactly where you are.
+[→] #627 — Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK   ← starting now
+[ ] #628 — Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+[ ] #632 — Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+[ ] #637 — Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
 ## Files You Own (edit ONLY these)
-store/entitlementStore.ts
-lib/specialtyPackLoader.ts
+lib/storage.ts
+tests/storage.test.ts
+app/study/page.tsx
+app/study/page.test.tsx
 
-## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel)
-lib/packLoader.ts
-components/LanguageGrid.tsx
-lib/constants.ts
-lib/entitlement.ts
-lib/langRegistry.ts
-store/migrations.ts
-tests/langRegistry.test.ts
-lib/language.ts
-lib/packTypes.ts
+## Off-Limits Files (DO NOT MODIFY — owned by other windows running in parallel, or read-only reference)
+.autocode/debt.md
+components/InterruptHandler.test.tsx
+components/InterruptHandler.tsx
+hooks/useInterruptConfig.test.ts
+hooks/useStudySession.test.ts
+hooks/useStudySession.ts
+supabase/functions/send-interrupt-notifications/dispatch.ts
+supabase/functions/send-interrupt-notifications/dueEstimate.ts
+tests/pushDispatch.test.ts
+tests/pushDueEstimate.test.ts
+hooks/useStudySession.ts (read-only reference — Barry's stream owns it)
 
 ## Task Definitions
 
-### Task #263: Fix security: clearEntitlement resets purchasedAddOns to [] but never calls clearSpecialtyCache()/clearS
+### Task #627
 
-**File:** store/entitlementStore.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
+### Task #627: Fix data-loss: The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subK
 
-**What:**
-clearEntitlement resets purchasedAddOns to [] but never calls clearSpecialtyCache()/clearSpecialtyPacksForLang(). A license deactivation mid-session leaves already-merged specialty content fully accessible in memCache for the rest of the session; loadedAddOns never resyncs with the store. at store/entitlementStore.ts:clearEntitlement:111.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix security issue at store/entitlementStore.ts:clearEntitlement:111
-- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
-
-**Source:** Audit finding F003 — severity 7 — security
-
----
-
-### Task #286: Fix requirements: purchaseAddOn's name and its own comment imply a verified purchase-recording function; the
-
-**File:** store/entitlementStore.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P3
-**Status:** OPEN
-
-**What:**
-purchaseAddOn's name and its own comment imply a verified purchase-recording function; the implementation has no Promise return, no payment token, no verification, and has zero production callers anywhere, even as a stub. at store/entitlementStore.ts:purchaseAddOn:140.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix requirements issue at store/entitlementStore.ts:purchaseAddOn:140
-- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
-
-**Source:** Audit finding F026 — severity 5 — requirements
-
----
-
-### Task #288: Fix async: Zustand's persist middleware writes localStorage from in-memory state at call time, not me
-
-**File:** store/entitlementStore.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-Zustand's persist middleware writes localStorage from in-memory state at call time, not merged against the on-disk value. Two browser tabs racing on purchaseAddOn for different specialty codes causes the second tab's write to silently overwrite and drop the first tab's purchase. at store/entitlementStore.ts:purchaseAddOn (Zustand persist):140.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix async issue at store/entitlementStore.ts:purchaseAddOn (Zustand persist):140
-- [ ] Audit passes: bash scripts/deep-audit.sh store/entitlementStore.ts
-
-**Source:** Audit finding F028 — severity 6 — async
-
----
-
-### Task #264: Fix async: Two race conditions: same-code concurrent loads both pass loadedAddOns.includes before eit
-
-**File:** lib/specialtyPackLoader.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
-**Owner:** —
-**Blocked by:** Nothing
-**Priority:** P2
-**Status:** OPEN
-
-**What:**
-Two race conditions: same-code concurrent loads both pass loadedAddOns.includes before either pushes (duplicate merge); cross-code concurrent loads sharing a base language each read the base pack independently after their own await, and whichever memCache.merge() resolves last silently discards the other's merge while getLoadedAddOns() reports both as loaded. No locking, mutex, or CAS exists anywhere in this module. at lib/specialtyPackLoader.ts:loadSpecialtyPack:67.
-NEW
-
-**Acceptance Criteria:**
-- [ ] Fix async issue at lib/specialtyPackLoader.ts:loadSpecialtyPack:67
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
-
-**Source:** Audit finding F004 — severity 7 — async
-
----
-
-### Task #265: Fix security: sha256 verification is skipped entirely, with no fail-closed else branch, when manifest?.p
-
-**File:** lib/specialtyPackLoader.ts
-**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**File:** lib/storage.ts
+**Complexity:** 🔧 Full — a real redesign of the subDiff/collision-detection logic in a primitive shared by 3 persisted stores, not a single-scope tweak
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
 **Status:** OPEN
 
 **What:**
-sha256 verification is skipped entirely, with no fail-closed else branch, when manifest?.packs?.[lang] is absent for the requested specialty code. Arbitrary content is parsed and merged into the base pack's in-memory cache with zero integrity check. at lib/specialtyPackLoader.ts:loadSpecialtyPack:45.
+The map-aware sub-key reconciliation added to fix the round-4 severity-9 data-loss bug (Task #606) computes subDiff[subKey] = preVal[subKey] whenever preVal[subKey] differs from snapshotAtExpiry[subKey], then spreads it over postVal unconditionally: clobbered[key] = { ...postVal, ...subDiff }. It never compares against postMerge[key] (the real, fully-hydrated persisted value) before taking the live value. When a live write during the HYDRATION_FAILSAFE_MS window touches a sub-key that ALSO exists in the real persisted data with different content - e.g. rating a card that already has real FSRS history on disk, not just introducing a brand-new one - the reconciliation unconditionally prefers the live pre-hydration value and silently discards the real persisted history for that entry. Rule 23a violation: the fix generalized to the ADDITION member of the defect class but not the COLLISION member it exists to protect against. Existing regression tests never exercise a genuine collision scenario. at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix security issue at lib/specialtyPackLoader.ts:loadSpecialtyPack:45
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
+- [ ] Fix data-loss issue at lib/storage.ts:createPlatformStorage (late-hydration reconciliation, onFinishHydration handler):248
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
 
-**Source:** Audit finding F005 — severity 8 — security
+**Source:** Audit finding F001 — severity 8 — data-loss
 
 ---
 
-### Task #290: Fix code-quality: The file header claims 'Pure functions only - no React, no Zustand', but loadSpecialtyPack
+### Task #628
 
-**File:** lib/specialtyPackLoader.ts
+### Task #628: Fix async: hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. a
+
+**File:** app/study/page.tsx
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+hooks/useStudySession.ts's mount-fill effect gates its introduceCard() write on the strict useIsHydratedStrict signal. app/study/page.tsx:60 still gates the entire interactive page on the lenient useIsHydrated, which resolves true via the HYDRATION_FAILSAFE_MS timeout even when real hydration has not finished. Once that gate passes, handleRate drives commitSession (writes cards/activeSession/streak) and calls recordIntroductionResult directly (writes introductions) with no additional strict-hydration check. lib/storage.ts's own doc comment states the governing principle: a consumer that writes new persisted state should gate on useIsHydratedStrict, not the lenient useIsHydrated - page.tsx violates its own batch's stated principle on the two main interactive write paths, and is the concrete reachability path that puts a rating write inside the exact failsafe window F001's collision bug requires. at app/study/page.tsx:StudyPage (component body, hydration gate):60.
+NEW
+
+**Acceptance Criteria:**
+- [ ] Fix async issue at app/study/page.tsx:StudyPage (component body, hydration gate):60
+- [ ] Audit passes: bash scripts/deep-audit.sh app/study/page.tsx
+
+**Source:** Audit finding F002 — severity 7 — async
+
+---
+
+### Task #632
+
+### Task #632: Fix tests: useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - eve
+
+**File:** lib/storage.ts
 **Complexity:** ⚡ Direct — 1 file, single-scope fix
 **Owner:** —
 **Blocked by:** Nothing
@@ -161,83 +113,70 @@ NEW
 **Status:** OPEN
 
 **What:**
-The file header claims 'Pure functions only - no React, no Zustand', but loadSpecialtyPack performs fetch() I/O, console.error() side effects, and mutates module-level loadedAddOns via push/splice/length-reset. at lib/specialtyPackLoader.ts:N/A (file header):1.
+useIsHydratedStrict is the load-bearing fix for round 4's severity-9 data-loss bug, but no test file references it - every test that exercises the mount-fill effect's hydration gate manipulates persist.hasHydrated() directly, never HYDRATION_FAILSAFE_MS, so none of them can distinguish useIsHydratedStrict from a broken reimplementation as `return useIsHydrated(store)`. Per Rule 18, a fix this severe requires a test whose corruption of the strict behavior would fail; none exists. at lib/storage.ts:useIsHydratedStrict:175.
 NEW
 
 **Acceptance Criteria:**
-- [ ] Fix code-quality issue at lib/specialtyPackLoader.ts:N/A (file header):1
-- [ ] Audit passes: bash scripts/deep-audit.sh lib/specialtyPackLoader.ts
+- [ ] Fix tests issue at lib/storage.ts:useIsHydratedStrict:175
+- [ ] Audit passes: bash scripts/deep-audit.sh lib/storage.ts
 
-**Source:** Audit finding F030 — severity 3 — code-quality
+**Source:** Audit finding F006 — severity 4 — tests
 
 ---
 
-## Agent Memories
+### Task #637
 
-## Security Agent Memory (first 100 lines)
-# Security Agent Memory — plyglt
+### Task #637: Fix tests: Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly
 
-## Trust Boundaries
-1. Lemon Squeezy API response (via Tauri IPC) → `lib/entitlement.ts` — `raw as LsActivateBody` structural cast only; field-presence checks guard happy path but do not reject unexpected types.
-2. User-supplied license key → `hooks/useLicenseActivation.ts:21` → forwarded to LS API. After Task #098: length cap (200 chars) + alphanumeric+hyphen allowlist.
-3. Persisted Zustand store (localStorage / Tauri store) → hydrated without runtime type validation; used in pack-unlock decisions.
-4. Pack JSON from network → `lib/packLoader.ts` — SHA-256 verified before use. Integrity check is correct and robust.
-5. Tauri IPC commands → `lib/tauri.ts:invoke()` — cmd is always a hardcoded string literal; Tauri backend uses `generate_handler![]` allowlist. No injection surface.
-6. Update manifest from endpoint → `src-tauri/tauri.conf.json:46` — REAL ed25519/minisign pubkey in place (Task #121 COMPLETE).
+**File:** tests/storage.test.ts
+**Complexity:** ⚡ Direct — 1 file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P3
+**Status:** OPEN
 
-## Intentional Design (do not raise as findings)
-- Client-only entitlement — honor-system, no server-side verification. Decision 2026-06-24.
-- No webhook endpoint — manual key activation by design.
-- Interrupt engine ungated (free users can enable) — owner decision 2026-06-29.
-- Spanish pack (es.json) hidden by ready:false — intentional; content not ready.
+**What:**
+Two of the three new map-aware-reconciliation regression tests - 'still restores a live write on a scalar field exactly as before' and 'does not touch a map-shaped field the user never wrote to during the window' - never actually exercise the map-shaped field during the failsafe window, and both would still pass with the entire new isPlainObject/map-aware branch deleted. Only the third test is genuinely load-bearing. Notably, none of the three tests exercises the sub-key collision scenario F001 identifies, so this suite would not have caught F001 either. at tests/storage.test.ts:map-aware reconciliation regression tests:474.
+NEW
 
-Relevant open note (Batch 12 audit, this wave's source): S1/S2 in this file already flagged
-`purchaseAddOn` accepting unvalidated codes and the specialty-pack sha256-skip gap as dormant
-risk while SPECIALTY_PACKS was empty — that dormancy argument is explicitly NOT a valid reason
-to reduce severity; the standard applies to the code as written. Fix both for real in #265/#286.
+**Acceptance Criteria:**
+- [ ] Fix tests issue at tests/storage.test.ts:map-aware reconciliation regression tests:474
+- [ ] Audit passes: bash scripts/deep-audit.sh tests/storage.test.ts
 
-## Architect Agent Memory (first 100 lines)
-# Architecture Agent Memory — plyglt
+**Source:** Audit finding F011 — severity 4 — tests
 
-## Layer Structure (dependencies flow strictly down)
-- `lib/` — Pure utilities. No React, no Zustand imports. Must NEVER import from store/, hooks/, components/, app/.
-- `store/` — Zustand stores (srsStore, settingsStore, entitlementStore). Imports from lib/.
+---
 
-## Key Files and Blast Radius
-- Entitlement cluster (`lib/entitlement.ts` + `lib/checkout.ts` + `store/entitlementStore.ts`) — 26 files combined importers. Touch carefully.
+## Verification Gate (run before writing completion.md)
+- `npx tsc --noEmit` — zero errors
+- `npm test` — all tests pass (other streams are editing other files concurrently; a failure
+  in a file you did not touch is not yours to fix, but confirm via `git status` before assuming)
+- `npm run lint` — zero errors
+- `scripts/deep-audit.sh` does not exist in this repo (confirmed every prior wave) — the real
+  Verification Gate above is the actual acceptance criterion for every task.
+- For every NEW assertion you add, run the Deletion Test: temporarily revert the production
+  fix and confirm your new test fails, then restore it and confirm it passes. State explicitly
+  in your completion.md which tasks got a live Deletion Test vs. traced-by-hand verification.
 
-## Specialty Pack Architecture (Batch 12)
-- `store/entitlementStore.ts` — owns `purchasedAddOns: string[]`, `hasAddOn(code)`, `purchaseAddOn(code)` (currently an idempotent no-op stub — this is exactly what #286 fixes), `clearEntitlement` (currently does NOT clear specialty cache — this is exactly what #263 fixes).
-- `lib/specialtyPackLoader.ts` — Task #156: extracted from packLoader.ts (116 lines then; has grown since). Owns `loadedAddOns` module-level array, `loadSpecialtyPack()`, `getLoadedAddOns()`, `clearSpecialtyPacksForLang()`.
+IMPORTANT — do not run `git stash` on your own initiative. If `git status` looks messy or
+shows changes you don't recognize, report it in your completion.md rather than resolving it
+yourself with a repo-wide command.
 
-## Notes for this wave
-This is the remediation wave following the first-ever standalone audit of Batch 12 (2026-07-09,
-8-agent parallel review, FAIL verdict, severity 8). All 7 scored auditors independently converged
-on: entitlement enforcement for specialty packs exists nowhere in the data layer, only in a UI
-onClick gate. Your 6 tasks here are NOT that root-cause fix (that's Task #261, deferred — blocked
-on Task #262 which lands in stream W8C this same wave) — they are adjacent, independently real
-defects found in the same two files: entitlementStore.ts's own bookkeeping integrity
-(clearEntitlement, purchaseAddOn, the persist race) and specialtyPackLoader.ts's own robustness
-(concurrent-load races, the sha256 skip-when-manifest-absent gap, and a false file-header claim).
-Fix each on its own merits — don't try to wire in the cross-cutting entitlement-gate fix yourself;
-that's explicitly out of scope for this stream and lands in Task #261 next wave.
-
-Two tasks are already deferred to next wave BECAUSE of what you do here — do not start them:
-#285 and #287 are blocked on your #286 (purchaseAddOn rewrite) landing first, since they validate
-against/build on whatever new (likely async) signature you give it. Leave a clear comment or
-completion note describing purchaseAddOn's new contract so next wave's builder can pick it up.
+This wave includes several tasks that ask for a genuine design decision (not a mechanical
+fix). Explain your reasoning clearly in completion.md — do not silently pick an option
+without stating why.
 
 ## When You Finish
-Write your completion summary to .autocode/stream-W8A/completion.md:
-  Tasks closed: [list task numbers that reached COMPLETE status]
-  Tasks NOT completed: [list task number + done-when condition that failed]
-  Debt entries logged: [count]
-  Carry-forward tasks generated: [count]
+Write your completion summary to .autocode/stream-W8A/completion.md. The file
+MUST begin with exactly these two lines, in this exact format, before any other content:
 
-Also note in that file: the exact new signature/contract of purchaseAddOn after #286 (e.g.
-"now async, returns Promise<boolean>, takes (code, receiptToken)") — the next wave's stream
-touching #285/#287 needs this to build against the real contract, not guess at it.
+CLOSED: #[NUM] #[NUM] ...
+NOT_CLOSED: #[NUM] — [one-line reason]
+
+(If every assigned task closed: `NOT_CLOSED: none`. If none closed: `CLOSED: none`.)
+
+After those two lines, write whatever prose detail is useful.
 
 Then tell Max in this window: "Adam is done." (or describe what's incomplete).
 
-— Adam | W8A | #263 #264 #265 #286 #288 #290
+— Adam | W8A | #627 #628 #632 #637

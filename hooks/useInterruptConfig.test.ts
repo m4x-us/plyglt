@@ -214,12 +214,27 @@ describe("useInterruptConfig — computeDue", () => {
     expect(result.current.computeDue([unit])).toBe(1);
   });
 
+  // Task #635: the original version of this test set newCardIds to [] — so even if the
+  // `reviewDue === 0 && ...` guard gating the whole flex block were deleted (making the flex
+  // branch run unconditionally), the flex new-card loop would find nothing to flex anyway
+  // (empty newCardIds), still landing on the same result of 1. A bare `toBe(1)` couldn't tell
+  // "the guard correctly skipped the flex block" apart from "the flex block ran but found
+  // nothing" — Rule 18. Fix: give the flex path a real untouched card it WOULD pick up if it
+  // incorrectly ran, so a deleted guard changes the numeric result, not just an unobserved
+  // code path. Deletion Test: removing the `reviewDue === 0 && introDue === 0 &&
+  // hasQualifyingContent === 0` guard (or unconditionally entering that block) makes this
+  // fail — computeDue would return 2 (reviewDue 1 + the now-flex-found untouched card), not 1.
   it("does not flex when reviews are due — the normal review count already makes the day non-empty", () => {
     const dueCard = makeCard("u1-c1");
-    const unit = makeUnit("u1", [dueCard]);
-    mockGetState.mockReturnValue(makeState({ dueCardIds: [dueCard.id], canIntroduceNewCard: false, newCardIds: [] }));
+    const untouchedCard = makeCard("u1-c2"); // flex WOULD find this if the guard were deleted
+    const unit = makeUnit("u1", [dueCard, untouchedCard]);
+    mockGetState.mockReturnValue(makeState({
+      dueCardIds: [dueCard.id],
+      canIntroduceNewCard: false,
+      newCardIds: [untouchedCard.id],
+    }));
     const { result } = renderHook(() => useInterruptConfig());
-    expect(result.current.computeDue([unit])).toBe(1); // review count only — no flex needed or applied
+    expect(result.current.computeDue([unit])).toBe(1); // review count only — flex never runs
   });
 
   // Batch 23: the session floor can fill with a near-due review pulled slightly early,
@@ -270,20 +285,40 @@ describe("useInterruptConfig — computeDue", () => {
     expect(result.current.computeDue([unit])).toBe(0);
   });
 
+  // Task #635: the original version of this test only asserted the final result was 1 — but
+  // that result is identical whether the flexIntroAllowed guard correctly blocks the new-card
+  // loop (falling through to near-due, as the test's own name claims) OR the guard is deleted
+  // entirely (the new-card loop then runs unconditionally, finds newCard via newCardIds, and
+  // stops before near-due is ever consulted) — both paths land on the same count of 1, since
+  // this fixture sets up exactly one matching card on each side. A bare `toBe(1)` can't tell
+  // "blocked, fell through to near-due" apart from "not blocked, used the new-card path
+  // instead" — Rule 18. Fix: spy on both getNewCards and getNearDueCards (same technique as
+  // Task #558 above) to prove which path actually supplied the result. Deletion Test: removing
+  // the `if (flexIntroAllowed)` guard around the new-card loop leaves `toBe(1)` passing but
+  // makes getNewCardsSpy get called (should never be, since both the normal-cap check and the
+  // flex check are blocked here) and getNearDueCardsSpy never get called (the new-card loop
+  // would set hasQualifyingContent to 1 first, skipping the near-due block entirely).
   it("falls through to a near-due card when the flex introduction is blocked but a near-due card exists", () => {
     const newCard = makeCard("u1-c1");
     const nearDueCard = makeCard("u1-c2");
     const unit = makeUnit("u1", [newCard, nearDueCard]);
-    mockGetState.mockReturnValue(
-      makeState({
-        canIntroduceNewCard: false,
-        flexIntroAllowed: false,
-        newCardIds: [newCard.id],
-        nearDueIds: [nearDueCard.id],
-      })
-    );
+    const state = makeState({
+      canIntroduceNewCard: false,
+      flexIntroAllowed: false,
+      newCardIds: [newCard.id],
+      nearDueIds: [nearDueCard.id],
+    });
+    const getNewCardsSpy = vi.fn(state.getNewCards);
+    const getNearDueCardsSpy = vi.fn(state.getNearDueCards);
+    mockGetState.mockReturnValue({ ...state, getNewCards: getNewCardsSpy, getNearDueCards: getNearDueCardsSpy });
     const { result } = renderHook(() => useInterruptConfig());
     expect(result.current.computeDue([unit])).toBe(1);
+    // The result came from the near-due fallback specifically, not an incorrectly
+    // unblocked new-card flex path that happens to find the same count.
+    expect(getNearDueCardsSpy).toHaveBeenCalledWith(unit.cards, 1);
+    // Neither the normal-cap check (canIntroduceNewCard: false) nor the flex check
+    // (flexIntroAllowed: false) should ever let the new-card loop query getNewCards here.
+    expect(getNewCardsSpy).not.toHaveBeenCalled();
   });
 });
 
