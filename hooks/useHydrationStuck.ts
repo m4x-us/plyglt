@@ -33,28 +33,38 @@
 // 15000ms -> 45000ms reasoning that a slow-connection download of the ~8.6MB
 // `it.json` pack could legitimately exceed 15s. Round-9 audit finding (Red
 // Agent R / Agent B / Agent A, 3-way convergent, severity 7): that reasoning
-// was wrong on two independent counts, and the widening was REVERTED. (1)
-// `it` — the only READY:true, currently-selectable language (lib/langRegistry.ts)
-// — is bundled into the JS as static TypeScript content (hooks/useLangPack.ts's
-// STATIC_PACKS), never fetched as `it.json` over the network at runtime at
-// all; `packLoading` for it resolves to `false` synchronously. (2) even for a
-// genuinely network-loaded pack (today only reachable once a non-static
-// language ships ready:true), `lib/fetchWithTimeout.ts` hard-bounds every pack
-// fetch to `FETCH_TIMEOUT_MS` (20000ms, lib/constants.ts) via an
-// AbortController AND an independent Promise.race backstop — `packLoading`
-// is therefore GUARANTEED to resolve to `false` (success or `download_failed`)
-// within 20s regardless of connection speed. A composite `blocked` condition
-// can never legitimately stay true past ~20s because of `packLoading` — only
-// a genuine `hydratedStrict`/`hydrated` stall (no network dependency, should
-// resolve near-instantly or never) can. Widening past that made the timeout
-// structurally incapable of ever engaging for the scenario it claimed to fix,
-// while tripling the wait for the one failure mode still reachable through it.
-// Reverted to 15000ms — the original, correctly-reasoned value for a pure
-// storage-hydration stall. Revisit only if a dynamically-loaded language ships
-// `ready:true` AND real user reports show 15s is too tight for that specific
-// path — at which point the fix belongs on surfacing useLangPack()'s `error`
-// field (see .autocode/debt.md Task #378, sharpened this round) or a signal
-// scoped to that failure mode specifically, not a blanket widening here.
+// was wrong — `it`, the only READY:true, currently-selectable language
+// (lib/langRegistry.ts), is bundled into the JS as static TypeScript content
+// (hooks/useLangPack.ts's STATIC_PACKS), never fetched as `it.json` over the
+// network at runtime at all; `packLoading` for it resolves to `false`
+// synchronously. The widening was REVERTED to 15000ms on that basis alone —
+// sufficient by itself, since no reachable-today path can make `packLoading`
+// network-bound at all.
+//
+// Round-10 audit finding (Agent A / Agent B / Red Agent R / Agent K, 4-way
+// convergent): round 9's own revert comment additionally claimed `packLoading`
+// is "GUARANTEED to resolve within 20s regardless of connection speed" for a
+// HYPOTHETICAL future dynamically-loaded language — false, caught by the exact
+// class of error round 9 itself was fixing (Rule 23b: the fix's own new
+// comment recreated the defect it closed). Two independent reasons the "~20s"
+// figure understates the real bound: (1) `hooks/useLangPack.ts`'s dynamic-load
+// effect chains `fetchManifest()` and `loadPack()` (a THIRD `loadPack()` for a
+// specialty pack) SEQUENTIALLY via `.then()`, each independently bounded by
+// `FETCH_TIMEOUT_MS` (20000ms) — not raced against one shared ceiling — plus
+// up to `HYDRATION_GRACE_MS` (3000ms) before the chain even starts; (2)
+// `lib/basePackLoader.ts`'s cache-read step (`readCacheMeta`/`readCacheData`,
+// backed by platform storage — an unbounded Tauri IPC call on desktop) runs
+// BEFORE `fetchWithTimeout` even starts, with no timeout of its own. Neither
+// of these facts changes today's revert decision (still correct — `it` never
+// enters this path at all, so no live number is currently mistuned) — but a
+// precise numeric replacement bound would be dishonest given (2) is
+// structurally unbounded. Revisiting this hook once a dynamically-loaded
+// language ships `ready:true` requires re-deriving the real bound from the
+// actual sequential storage+fetch chain at that time, not reusing any single
+// figure asserted here today. See .autocode/debt.md Task #378 (sharpened
+// round 9) for the related gap this hook's retry mechanism depends on for
+// that future case (app/study/page.tsx never surfaces useLangPack()'s `error`
+// field).
 "use client";
 
 import { useEffect, useState } from "react";

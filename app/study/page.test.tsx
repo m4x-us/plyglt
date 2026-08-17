@@ -568,7 +568,12 @@ describe("StudyPage — app/study/page.tsx", () => {
     // HYDRATION_STUCK_TIMEOUT_MS actually is (confirmed via a live Deletion Test:
     // reverting the exported constant back to 15000ms left this test green).
     // Rewritten to import the real constant and assert BOTH sides of its
-    // boundary, so a future accidental change to the exported value is caught.
+    // boundary — this proves the page's WIRING correctly uses whatever the
+    // constant currently is (a real regression there still fails this test).
+    // Round-10 audit finding (Agent V): a regression of the constant's own
+    // VALUE is NOT caught here — both boundaries are derived from the same
+    // imported constant, so they move together with it. That value-pin lives
+    // solely in hooks/useHydrationStuck.test.ts's dedicated test.
     it("shows a retry screen instead of Loading… once real hydration has stayed stuck past the bounded timeout", () => {
       vi.useFakeTimers();
       setCards([FAKE_CARD]);

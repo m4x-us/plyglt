@@ -1034,6 +1034,15 @@ describe("useStudySession — interrupt flex loop per-iteration recheck (Task #5
     // `true` from this same mock (since it only branches on `undefined`), so the
     // introduceCard-call-count assertions elsewhere in this file would not catch it —
     // only pinning the exact argument value does.
+    // Round-10 audit finding (Agent N, naive-reader lane): the assertion below alone
+    // is tautological — it compares flexCallArgs against the SAME imported
+    // INTERRUPT_FLEX_DAILY_MAX constant the production code also imports, so it
+    // cannot catch a regression of the constant's own value (e.g. lib/queue.ts's
+    // `INTERRUPT_SESSION_MAX_NEW * 3` accidentally narrowed to `* 2`) — both sides
+    // would move together. This hardcoded pin closes that gap, matching the fix
+    // applied to hooks/useHydrationStuck.test.ts's HYDRATION_STUCK_TIMEOUT_MS test
+    // this same round for the identical defect class.
+    expect(INTERRUPT_FLEX_DAILY_MAX).toBe(9);
     expect(flexCallArgs).toEqual([INTERRUPT_FLEX_DAILY_MAX, INTERRUPT_FLEX_DAILY_MAX]);
   });
 });
