@@ -1,0 +1,36 @@
+-- ===========================================
+-- PUSH TOKENS — protect last_sent_at from client writes (Batch 23 audit round 19)
+-- ===========================================
+-- Closes debt.md's 2026-08-08 Task #170 security finding, re-triaged round 19:
+-- push_tokens' update RLS policy (auth.uid() = user_id) is row-level only — it never
+-- restricted WHICH columns an authenticated user could PATCH on their own row via
+-- PostgREST. last_sent_at is server-owned bookkeeping: supabase/functions/
+-- send-interrupt-notifications/supabaseAdmin.ts's claimToken() is the only intended
+-- writer, using it as the atomic rate-limiting cutoff for how often a device gets
+-- pushed. A client able to PATCH it directly could reset/backdate it to defeat that
+-- cutoff and receive interrupts more often than the app's own interval setting
+-- intends — self-limited to the account's own notification frequency (RLS still
+-- fully blocks any cross-user access), but a real gap in what "server-owned" should
+-- mean.
+--
+-- Deliberately NOT extended to deactivated_at, the debt row's other named column:
+-- lib/pushTokenClient.ts's registerPushToken() legitimately writes
+-- deactivated_at: null on every registration (Task #170's round-15 audit fix — a
+-- live re-registration is definitionally proof the device is reachable again).
+-- Blocking client writes to that column would break that intended, already-shipped
+-- behavior. A client resetting their OWN deactivated_at to null achieves nothing a
+-- real re-registration wouldn't already do (dispatch still needs a currently-valid
+-- token to succeed) — not the same risk shape as last_sent_at.
+--
+-- A column-level REVOKE (not a trigger) deliberately: last_sent_at is never present
+-- in registerPushToken()'s upsert payload (verified directly against
+-- lib/pushTokenClient.ts — grep confirms zero references), so this is fully
+-- transparent to every legitimate write path; only a direct, out-of-band PostgREST
+-- PATCH naming this column is affected. Simpler and lower-risk than a trigger:
+-- pure declarative privilege, no custom logic to get wrong, trivially reversible
+-- (a matching GRANT) if it ever needs to change.
+-- ===========================================
+-- DEPENDS ON: 20260808000000_push_tokens.sql
+-- ===========================================
+
+revoke update (last_sent_at) on public.push_tokens from authenticated;

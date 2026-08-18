@@ -80,7 +80,17 @@ Deno.serve(async (req: Request) => {
   const fcmCreds = readFcmCredentialsFromEnv(env);
 
   const now = new Date();
-  const allTokens = await fetchAllPushTokens(supabaseUrl, serviceRoleKey, fetch);
+  // Round-19 audit fix: fetchAllPushTokens now returns a Result rather than collapsing a
+  // genuine fetch failure into the same `[]` a real "no tokens registered" state would
+  // produce. A tokens-fetch failure means this whole tick has nothing safe to work from —
+  // abort loudly (502, not the 200 every other branch of this function returns) rather than
+  // silently reporting a no-op tick that looks identical to "nobody was due."
+  const tokensResult = await fetchAllPushTokens(supabaseUrl, serviceRoleKey, fetch);
+  if (!tokensResult.ok) {
+    console.error(`[ERR-PUSH-DISPATCH-ABORT-${Date.now()}] Aborting: could not fetch push tokens: ${tokensResult.error}`);
+    return Response.json({ error: `Could not fetch push tokens: ${tokensResult.error}` }, { status: 502 });
+  }
+  const allTokens = tokensResult.rows;
 
   // Task #527 — the shared, cross-device fire gate replaces last_sent_at as the
   // due/not-due decision. Fetched for every candidate user up front (not just
@@ -91,7 +101,17 @@ Deno.serve(async (req: Request) => {
   const dueTokens = selectDueTokens(allTokens, now, gateStateByUser);
 
   const dueUserIds = [...new Set(dueTokens.map((t) => t.user_id))];
-  const events = await fetchReviewEventsForUsers(supabaseUrl, serviceRoleKey, dueUserIds, fetch);
+  // Round-19 audit fix: unlike the tokens fetch above, a review-events fetch failure is NOT
+  // fatal to the tick — dispatch already has a designed fallback for "no review history"
+  // (dueEstimate.ts's session-floor/zero-case fabrication, Batch 23), so degrading to that
+  // fallback for this one tick is strictly better than aborting a real send. What changes is
+  // that the failure is now LOGGED as a distinct, loud event instead of being silently
+  // indistinguishable from "these due users genuinely have no synced review history."
+  const eventsResult = await fetchReviewEventsForUsers(supabaseUrl, serviceRoleKey, dueUserIds, fetch);
+  if (!eventsResult.ok) {
+    console.error(`[ERR-PUSH-DISPATCH-DEGRADED-${Date.now()}] Failed to fetch review events, proceeding with zero-estimate fallback for this tick: ${eventsResult.error}`);
+  }
+  const events = eventsResult.ok ? eventsResult.rows : [];
   const reviewEventsByUser = groupReviewEventsByUserId(events);
 
   const summary = await dispatchNotifications(dueTokens, reviewEventsByUser, now, {

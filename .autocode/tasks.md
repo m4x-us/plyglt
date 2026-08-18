@@ -13205,6 +13205,52 @@ NEW
 
 ---
 
+### Task #652: Fix error-handling: fetchAllPushTokens/fetchReviewEventsForUsers collapsed a genuine fetch failure and "zero rows" into the same [] return
+
+**File:** supabase/functions/send-interrupt-notifications/supabaseAdmin.ts, supabase/functions/send-interrupt-notifications/index.ts, tests/pushSupabaseAdmin.test.ts
+**Complexity:** ⚡ Direct — 3 files, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-08-18
+
+**What:**
+Logged 2026-08-08 (Task #170 audit) and deferred as "not reachable — no production callers yet." Re-triaged round 19 (Batch 23 audit): that precondition went stale when Task #522's push feature went live 2026-08-14. fetchAllPushTokens and fetchReviewEventsForUsers both returned a bare `[]` whether the request genuinely found zero rows or the request itself failed — a cron-tick outage was indistinguishable from "nobody has data" anywhere in DispatchSummary, and index.ts still returned HTTP 200 either way.
+
+Fixed: both functions now return a `FetchResult<T>` (`{ok:true,rows}|{ok:false,error}`). index.ts checks the result explicitly — a tokens-fetch failure aborts the whole tick loudly (HTTP 502, logged) since there's nothing safe to work from; a review-events-fetch failure degrades to the existing zero-estimate fallback (BRAND.md's session-floor design already treats this as an acceptable degraded state) but now logs the failure as a distinct, loud event instead of silently looking like "these users have no review history." Deletion-Tested (reverting to a bare `[]` return made the new `{ok:false,error}` test assertions fail).
+
+**Acceptance Criteria:**
+- [x] fetchAllPushTokens/fetchReviewEventsForUsers return FetchResult, not a bare array
+- [x] index.ts aborts (502) on a tokens-fetch failure, degrades gracefully (with a distinct log) on a review-events-fetch failure
+- [x] tsc clean, full test suite passing, lint clean, weak-assertion gate clean
+
+**Source:** debt.md 2026-08-08 (Task #170 audit), re-triaged round 19 — severity 6 (raised from 5)
+
+---
+
+### Task #653: Fix security: push_tokens' update RLS policy had no column-level restriction on last_sent_at
+
+**File:** supabase/migrations/20260818000001_push_tokens_protect_last_sent_at.sql
+**Complexity:** ⚡ Direct — 1 migration file, single-scope fix
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** COMPLETE — 2026-08-18 (applied to live production database)
+
+**What:**
+Logged 2026-08-08 (Task #170 audit, security agent) and deferred as "not reachable — no production caller writes rows yet." Re-triaged round 19: that precondition went stale when push went live 2026-08-14. push_tokens' update RLS policy (auth.uid() = user_id) is row-level only — it never restricted which COLUMNS an authenticated user could PATCH on their own row via PostgREST, including last_sent_at, server-owned bookkeeping that supabaseAdmin.ts's claimToken() uses as the atomic rate-limiting cutoff for how often a device gets pushed. A user able to PATCH it directly could reset/backdate it to defeat that cutoff and receive interrupts more often than their own interval setting intends.
+
+Fixed with a column-level `revoke update (last_sent_at) on public.push_tokens from authenticated` — verified this is fully transparent to the real registration flow (lib/pushTokenClient.ts's registerPushToken() never references last_sent_at in its upsert payload, confirmed via direct grep) before applying. Deliberately NOT extended to deactivated_at (the debt row's other named column): registerPushToken() legitimately writes `deactivated_at: null` on every registration (Task #170's round-15 fix, proving device reachability clears a permanent-failure flag) — blocking that would break already-shipped, intended behavior, and a client resetting their own deactivated_at achieves nothing a real re-registration wouldn't already do. A column-level REVOKE (not a trigger) chosen deliberately for this same reason across the board: simpler, lower-risk, no custom logic to get wrong, trivially reversible.
+
+**Acceptance Criteria:**
+- [x] Migration written, reasoned through for safety (verified no legitimate write path touches last_sent_at)
+- [x] Applied to the live production Supabase database (supabase db push, isolated to just this migration, dry-run-verified first)
+- [x] Confirmed applying cleanly (no SQL error) — authenticated role and push_tokens table both resolved correctly
+
+**Source:** debt.md 2026-08-08 (Task #170 audit, security agent), re-triaged round 19 — severity 4 (raised from 3)
+
+---
+
 ## Escalation Queue
 | Issue | Why it needs a decision | Options |
 |-------|------------------------|---------|

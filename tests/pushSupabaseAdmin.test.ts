@@ -40,18 +40,24 @@ describe("fetchAllPushTokens", () => {
     expect(fetchImpl.mock.calls[0]![0]).toBe(
       "https://project.supabase.co/rest/v1/push_tokens?select=*&deactivated_at=is.null"
     );
-    expect(result).toEqual(tokens);
+    expect(result).toEqual({ ok: true, rows: tokens });
   });
 
-  it("returns an empty array (not a throw) when the request resolves with a non-ok status", async () => {
+  // Round-19 audit fix (re-triaged debt from the 2026-08-08 Task #170 audit, deferred back
+  // then as "not reachable — no production caller writes rows yet"; that precondition is no
+  // longer true as of Task #522's 2026-08-14 live push launch): a genuine fetch failure used
+  // to collapse into the identical `[]` a real "zero rows" response produces — an outage
+  // during a cron tick was indistinguishable from "nobody has data." Deletion Test:
+  // reverting to a bare `[]` return makes this test's `{ok:false, error}` assertion fail.
+  it("returns {ok:false, error} (not a throw, and not a bare empty array) when the request resolves with a non-ok status", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
     const result = await fetchAllPushTokens(SUPABASE_URL, SERVICE_ROLE_KEY, fetchImpl);
-    expect(result).toEqual([]);
+    expect(result).toEqual({ ok: false, error: "HTTP 500" });
     consoleErrorSpy.mockRestore();
   });
 
-  it("returns an empty array (not a throw) when fetchImpl itself rejects (network exception)", async () => {
+  it("returns {ok:false, error} (not a throw) when fetchImpl itself rejects (network exception)", async () => {
     // Audit finding (2026-08-08): the prior version only handled a resolved
     // non-ok Response; a genuine network exception from fetchImpl was
     // uncaught. This is the case the sibling test above's "(not a throw)"
@@ -59,17 +65,17 @@ describe("fetchAllPushTokens", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchImpl = vi.fn().mockRejectedValue(new Error("network unreachable"));
     const result = await fetchAllPushTokens(SUPABASE_URL, SERVICE_ROLE_KEY, fetchImpl);
-    expect(result).toEqual([]);
+    expect(result).toEqual({ ok: false, error: "network unreachable" });
     expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-PUSH-FETCH-TOKENS-\d+\] fetchAllPushTokens failed:$/);
     consoleErrorSpy.mockRestore();
   });
 });
 
 describe("fetchReviewEventsForUsers", () => {
-  it("returns an empty array without calling fetch when userIds is empty", async () => {
+  it("returns {ok:true, rows:[]} without calling fetch when userIds is empty", async () => {
     const fetchImpl = vi.fn();
     const result = await fetchReviewEventsForUsers(SUPABASE_URL, SERVICE_ROLE_KEY, [], fetchImpl);
-    expect(result).toEqual([]);
+    expect(result).toEqual({ ok: true, rows: [] });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -82,11 +88,20 @@ describe("fetchReviewEventsForUsers", () => {
     );
   });
 
-  it("returns an empty array (not a throw) when fetchImpl itself rejects (network exception)", async () => {
+  // Round-19 audit fix: same Result-shaped distinction as fetchAllPushTokens above.
+  it("returns {ok:false, error} (not a bare empty array) when the request resolves with a non-ok status", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
+    const result = await fetchReviewEventsForUsers(SUPABASE_URL, SERVICE_ROLE_KEY, ["u1"], fetchImpl);
+    expect(result).toEqual({ ok: false, error: "HTTP 503" });
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("returns {ok:false, error} (not a throw) when fetchImpl itself rejects (network exception)", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchImpl = vi.fn().mockRejectedValue(new Error("network unreachable"));
     const result = await fetchReviewEventsForUsers(SUPABASE_URL, SERVICE_ROLE_KEY, ["u1"], fetchImpl);
-    expect(result).toEqual([]);
+    expect(result).toEqual({ ok: false, error: "network unreachable" });
     expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[ERR-PUSH-FETCH-EVENTS-\d+\] fetchReviewEventsForUsers failed:$/);
     consoleErrorSpy.mockRestore();
   });

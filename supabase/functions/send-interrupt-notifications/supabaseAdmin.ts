@@ -31,23 +31,36 @@ function authHeaders(serviceRoleKey: string): Record<string, string> {
   };
 }
 
+// Round-19 audit fix (re-triaged debt from the 2026-08-08 Task #170 audit, originally
+// deferred as "not reachable — no production caller writes rows yet"; that precondition
+// is no longer true as of Task #522's 2026-08-14 live push launch): fetchAllPushTokens and
+// fetchReviewEventsForUsers used to collapse a genuine request failure and "the request
+// genuinely found zero rows" into the identical `[]` return value — an outage during a
+// cron tick was indistinguishable from "nobody has data" anywhere downstream, and index.ts
+// still returned HTTP 200 either way. FetchResult makes that distinction real without
+// requiring every caller to change: `.ok` must be checked, and TypeScript won't let `.rows`
+// be read without it.
+export type FetchResult<T> = { ok: true; rows: T[] } | { ok: false; error: string };
+
 export async function fetchAllPushTokens(
   supabaseUrl: string,
   serviceRoleKey: string,
   fetchImpl: typeof fetch
-): Promise<PushTokenRow[]> {
+): Promise<FetchResult<PushTokenRow>> {
   try {
     const response = await fetchImpl(`${supabaseUrl}/rest/v1/push_tokens?select=*&deactivated_at=is.null`, {
       headers: authHeaders(serviceRoleKey),
     });
     if (!response.ok) {
-      console.error(`[ERR-PUSH-FETCH-TOKENS-${Date.now()}] fetchAllPushTokens failed: HTTP ${response.status}`);
-      return [];
+      const error = `HTTP ${response.status}`;
+      console.error(`[ERR-PUSH-FETCH-TOKENS-${Date.now()}] fetchAllPushTokens failed: ${error}`);
+      return { ok: false, error };
     }
-    return (await response.json()) as PushTokenRow[];
+    return { ok: true, rows: (await response.json()) as PushTokenRow[] };
   } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
     console.error(`[ERR-PUSH-FETCH-TOKENS-${Date.now()}] fetchAllPushTokens failed:`, e);
-    return [];
+    return { ok: false, error };
   }
 }
 
@@ -57,8 +70,8 @@ export async function fetchReviewEventsForUsers(
   serviceRoleKey: string,
   userIds: readonly string[],
   fetchImpl: typeof fetch
-): Promise<ReviewEventRow[]> {
-  if (userIds.length === 0) return [];
+): Promise<FetchResult<ReviewEventRow>> {
+  if (userIds.length === 0) return { ok: true, rows: [] };
   const idList = userIds.map((id) => `"${id}"`).join(",");
   try {
     const response = await fetchImpl(
@@ -66,13 +79,15 @@ export async function fetchReviewEventsForUsers(
       { headers: authHeaders(serviceRoleKey) }
     );
     if (!response.ok) {
-      console.error(`[ERR-PUSH-FETCH-EVENTS-${Date.now()}] fetchReviewEventsForUsers failed: HTTP ${response.status}`);
-      return [];
+      const error = `HTTP ${response.status}`;
+      console.error(`[ERR-PUSH-FETCH-EVENTS-${Date.now()}] fetchReviewEventsForUsers failed: ${error}`);
+      return { ok: false, error };
     }
-    return (await response.json()) as ReviewEventRow[];
+    return { ok: true, rows: (await response.json()) as ReviewEventRow[] };
   } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
     console.error(`[ERR-PUSH-FETCH-EVENTS-${Date.now()}] fetchReviewEventsForUsers failed:`, e);
-    return [];
+    return { ok: false, error };
   }
 }
 
