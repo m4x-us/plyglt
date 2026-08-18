@@ -3,6 +3,8 @@
 Generated: 2026-06-24 | Method: /meet
 Last updated: 2026-08-14 (Batch 22 COMPLETE — Task #533, the interrupt content-supply floor: 6-10 interrupts/day is now a hard guarantee, never skipped for lack of "due" content. Live-verified working on the Windows VM same session. Task #522 (iOS) made real, substantial progress — Xcode installed, Simulator build compiles/launches/runs without crashing, blank-screen issue root-caused precisely to a known WebKit mixed-content limitation with a scoped, not-yet-built fix (HTTPS dev server). Task #166 (Windows) found one new open finding: idle-trigger foreground-forcing works, unlock-trigger's doesn't (1 occurrence each, unconfirmed as reproducible) — wake-from-sleep still never tested. Also closed 3 small debt items (timing-safe cron-secret compare, notification-permission hook extraction, devtools dropped from release builds) and fixed a live production gap (the `interrupt_gate_events` cross-device gate table existed in the repo's migration but was never applied to the real Supabase project). Mac and Windows now both running the same `v0.1.0-beta.12` build.)
 
+**2026-08-18 addendum (not a full rewrite of the summary above — see `.autocode/agents/cto.md` for the fuller narrative):** Task #522 (iOS) is now live-verified end-to-end on a real iPhone via TestFlight, App Store submission is its only remaining step. Batch 23 (interrupt session floor + push registration hardening) ran 19 audit rounds and CLOSED 2026-08-18, accepted as debt; its one significant open finding was spun into **Task #654** (OPEN). **Batch 24 — Go-Live / Operational Readiness** was added the same day: real payments have never been processed (LS store still test-mode, Task #655), there's no production monitoring on the push pipeline (Task #656), the local branch is unpushed to `origin/main` (Task #657), and no independent security review has been done (Task #658) — see that batch for the full go-live checklist.
+
 ## Summary
 Batches 1–14, 16, 18, 19, 20, 21, 22 COMPLETE; Batch 15 IN PROGRESS (Task #166: unlock trigger confirmed working, but a new foreground-forcing discrepancy vs. the idle trigger needs reproduction — see debt.md; wake-from-sleep still never tested; #167 Linux still not manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (iOS) now has Xcode installed and a working, non-crashing Simulator build; the one remaining blocker (live-dev blank screen, WebKit mixed-content) is root-caused with a scoped fix (HTTPS dev server) not yet built; #172 (Android, blocked on #522) remains open; Batch 21 COMPLETE (2026-08-13) — the interrupt trigger/cross-device scheduling redesign; **Batch 22 COMPLETE (2026-08-14)** — the interrupt content-supply floor (Task #533), BRAND.md's "6-10 interrupts every day" is now a real, tested, live-verified guarantee.
 Current Sprint: none currently marked. Remaining open work, roughly in order of what's closest to done: (1) Task #522 — iOS live dev with HMR now FULLY WORKING (2026-08-14; `dev:https` + `tauri.ios.conf.json` devUrl `https://plyglt.localhost:3050` — see the task's dated log); what remains is the Max-owned Apple infrastructure: push capability + APNs registration, APNs key, TestFlight, App Store submission; (2) Task #166 — reproduce or rule out the idle-vs-unlock foreground-forcing gap (a few more lock/unlock cycles on the Windows VM), then test wake-from-sleep (a VM suspend/resume, never done); (3) Batch 17 mobile work (#172 Android) blocked on #522. Run `/tasks debt` to review the full debt register, or `/meet`/`/team-health` to plan the next sprint.
@@ -10705,8 +10707,10 @@ Dependency: Batch 21 complete (cross-device gate live). Theme: close a real gap 
 
 ---
 
-## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [CURRENT SPRINT]
-<!-- BATCH_REMEDIATION_GATE: batch=23; paused_batch=none; paused_batch_old_tag="" -->
+## Batch 23 — Interrupt Session Size Floor (6 cards) + Server Push Content Floor [COMPLETE — 2026-08-18, accepted as debt]
+<!-- BATCH_REMEDIATION_GATE: CLOSED 2026-08-18 by Max's explicit accept-as-debt sign-off. batch=23; paused_batch=none; paused_batch_old_tag="" -->
+**Gate closure note (2026-08-18):** 19 audit rounds total (3 formal `/audit batch 23`, 16 further ad-hoc rounds of equivalent rigor — see `.autocode/agents/cto.md`'s "Batch 23 | Rounds 4-19" narrative entry for full detail). Round 19's remaining lower-severity findings are logged in `debt.md`, not fixed. The one significant open item — a severity-7 stale-interrupt-session-on-navigation bug found in round 13 — was spun out into its own dedicated task (**Task #654**, still OPEN) rather than blocking this gate further; per AGENTS.md's Batch Completion Gate accept-as-debt exception, Max explicitly signed off on closing the gate now rather than continuing the audit cycle on this batch. Two older, unrelated debt items re-triaged during round 19 were fixed and closed as Tasks #652/#653 (both live in production). Both new database migrations from this batch's remediation work are live in production. Task #654 tracks the remaining known defect going forward; it is not part of this batch and does not reopen this gate.
+
 Dependency: Batch 22 complete. Theme: the first real-iPhone push test (Task #522 live verification, 2026-08-14 evening) surfaced that Batch 22's floor guarantees a NON-EMPTY interrupt session but not a SUBSTANTIVE one — a caught-up user can get a 10-second, 1-card session, contradicting BRAND.md's "3-5 cards" framing and feeling broken (Max's words: "way too small"). Owner decision captured same evening via structured AskUserQuestion (three rounds, science-grounded — retrieval-count math, Cowan's ~4-chunk working-memory limit for new items, and the discovery that BRAND's own intro cadence table means 1 new card/day yields ~28 intro appearances/day at steady state, so starvation is a cold-start/post-vacation phenomenon):
 
 **The ratified spec — every INTERRUPT session:**
@@ -13248,6 +13252,139 @@ Fixed with a column-level `revoke update (last_sent_at) on public.push_tokens fr
 - [x] Confirmed applying cleanly (no SQL error) — authenticated role and push_tokens table both resolved correctly
 
 **Source:** debt.md 2026-08-08 (Task #170 audit, security agent), re-triaged round 19 — severity 4 (raised from 3)
+
+---
+
+### Task #654: Fix requirements: a push tap or deep link received mid-session on another /study route opens a stale, mislabeled interrupt session
+
+**File:** app/study/page.tsx, hooks/useStudySession.ts, hooks/usePushInterruptTap.ts, hooks/useInterruptDeepLink.ts, components/InterruptHandler.tsx
+**Complexity:** 🔧 Full — 4-5 files, touches the most heavily-audited, most fragile logic in Batch 23 (7+ rounds of resume/mount-fill tuning); needs its own focused design pass, not a quick patch
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+Found in Batch 23 audit round 13 (Red Agent R, independently re-verified against the real files by the orchestrating session — not taken on trust) and deliberately left unfixed at the time, pending its own dedicated task. Re-confirmed still open through round 19; no round since 13 has touched this code path.
+
+Root cause, traced through the real files: `app/study/page.tsx` mounts `<StudyInner/>` with no `key` prop, so a same-pathname, query-string-only navigation (e.g. `/study?unit=X` → `/study?mode=interrupt`) does NOT remount the component in Next.js App Router. `hooks/useStudySession.ts`'s mount-fill effect is gated by `mountFillStartedRef` — a one-shot-per-hook-instance guard that is already `true` from the FIRST (unit/global) session and is never reset on a session-identity change — so `runFillPass()` (the only place `queue` gets resynced) never runs a second time. `queue`/`pos`/`sessionCorrect`/`sessionTotal` all stay frozen at the prior session's values while the header/badge relabels to "Quick review" (read fresh every render from `isInterrupt`). If the user rates a card in this state, `handleRate` persists an `ActiveSession` tagged with the INTERRUPT session key but containing the STALE unit session's `queueIds` — corrupting the resumable-session slot future real interrupt sessions read via `hasPendingResumableSession()`.
+
+The trigger is real and unguarded: `hooks/usePushInterruptTap.ts` and `hooks/useInterruptDeepLink.ts` both call `router.push("/study?mode=interrupt")` unconditionally, with no pathname check — unlike `components/InterruptHandler.tsx`'s own desktop `interrupt:fire` listener, which explicitly guards `if (pathname.startsWith("/study")) return;` before navigating. Push notifications are live-verified end-to-end on a real iPhone (Task #522) and the `plyglt://` scheme is registered in production, so this is reachable by a real user today, not hypothetical.
+
+Two candidate fix shapes (from the original finding, needing a real design decision, not a default pick):
+(a) give `<StudyInner>` a `key` derived from session identity (e.g. `${mode}-${unitId}`) so React fully remounts on a session-type change — simplest and most robust, but requires restructuring the Suspense/searchParams boundary in `app/study/page.tsx`, which currently reads `useSearchParams()` inside the same component being keyed.
+(b) add a session-identity-change effect inside `hooks/useStudySession.ts` that resets `mountFillStartedRef` and calls the existing `resetToQueue(initialQueue)` on an `isGlobal`/`isInterrupt`/`unitId` change — but this also needs to correctly re-trigger the resume-decision effect (currently keyed only on `[hydrated]`, so a mid-flight session-identity change wouldn't re-evaluate `hasPendingResumableSession()` for the NEW session key either), a second, related gap the fix must not leave half-done.
+
+`hooks/useStudySession.test.ts`'s own existing test ("runs the real fill pass exactly once, even if allCardMap keeps changing reference after real data first arrives") names this exact scenario in its own comment but only asserts `introduceCard` isn't double-called — it never asserts what `queue` actually contains post-navigation, so this defect has zero test coverage in either direction today.
+
+**Acceptance Criteria:**
+- [ ] A push tap or deep link received while mid-session on a different `/study` route produces a real, correctly-filled interrupt session (or, if choice (a) is taken, a clean remount) — not a stale, mislabeled one
+- [ ] The resume-decision effect correctly re-evaluates for the new session identity, not just the mount-fill effect
+- [ ] A regression test exercises the actual reported scenario end to end (navigating into interrupt mode from an active unit/global session without a full remount) and asserts on `queue` contents, not just call counts
+- [ ] `npx tsc --noEmit` clean, full test suite passing, `npm run lint` clean, weak-assertion gate clean
+
+**Source:** debt.md 2026-08-18 (Batch 23 audit round 13, Red Agent R) — severity 7
+
+---
+
+## Batch 24 — Go-Live / Operational Readiness [NOT STARTED]
+
+Dependency: none formal — this batch can run in parallel with anything else. Theme: a 2026-08-18 direct assessment (asked of and answered by the assistant, not self-generated) concluded plyglt is **rigorously engineered but not yet operationally proven** — no real payments have ever been processed, there is no production monitoring, and no independent party has reviewed the security surface. This batch is the consolidated go-live checklist: the single place to check before calling plyglt "launched," not just "built." Some items below are new tasks; others are pointers to gaps already tracked elsewhere in this file, gathered here so nothing gets missed by being scattered across older batches.
+
+**New tasks (this batch):**
+
+### Task #655: Switch the Lemon Squeezy store from test mode to live mode
+
+**File:** N/A — Lemon Squeezy dashboard configuration, not a code change
+**Complexity:** ⚡ Direct — owner action, no code
+**Owner:** Max
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+The Lemon Squeezy store has been in TEST MODE since Task #120 first created it (2026-06-29) — confirmed still true as of the 2026-08-14 live iOS push-verification session, where the founder license used for testing was minted through a test-mode checkout with a test card (see Task #522's log). Every real "Upgrade to Pro" click today would either fail or (worse) silently succeed against test infrastructure with no real charge — plyglt has never processed a single real transaction.
+
+**Acceptance Criteria:**
+- [ ] Lemon Squeezy store switched to live/production mode in the LS dashboard
+- [ ] A real checkout completes with a real card (small real charge, refunded after, or a comped test purchase if LS supports one in live mode) and correctly activates a license end-to-end through the existing `lib/entitlement.ts` flow
+- [ ] `lib/checkout.ts`'s pricing/URLs re-verified against the live store (not just the test-mode store) — confirm no URL or slug drift between test and live stores
+- [ ] Existing test-mode founder/test licenses documented as test-mode artifacts, not mistaken for real customers later
+
+**Source:** 2026-08-18 roadmap discussion (operational-maturity assessment)
+
+---
+
+### Task #656: Add production monitoring/alerting for the push-notification dispatch pipeline
+
+**File:** `supabase/functions/send-interrupt-notifications/` (no code change required necessarily — may be pure Supabase/observability config), possibly a new lightweight external health-check
+**Complexity:** 🔧 Full — needs a real decision on what tool/service to use, not just a code edit
+**Owner:** —
+**Blocked by:** Nothing
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+The push dispatch Edge Function (Task #170) runs on a 5-minute pg_cron schedule with no monitoring or alerting wired to anything — if it silently breaks (a Supabase outage, an expired APNs credential, a bug that makes every tick 502), nobody is notified; the only way anyone finds out today is a user (or Max) noticing interrupts stopped. This is the single most consequential unmonitored path in the app, since Batch 23's own audit rounds (13, 19) already found and left open real edge cases in this exact subsystem.
+
+**Acceptance Criteria:**
+- [ ] A real alerting mechanism exists for: the Edge Function returning a 5xx/502 (already logged via `[ERR-PUSH-DISPATCH-ABORT-...]`, but logs alone don't page anyone), the pg_cron job failing to fire on schedule, and APNs/FCM credential expiry
+- [ ] Decision made and documented on tooling (Supabase's own log-based alerting, an external uptime/health-check service, or a lightweight custom check) — proportional to a one-person team, not an enterprise on-call rotation
+- [ ] Verified by deliberately breaking the function in a safe way (e.g. a bad `CRON_SECRET` temporarily) and confirming the alert actually fires
+
+**Source:** 2026-08-18 roadmap discussion (operational-maturity assessment) — the "if it breaks at 3am nobody gets paged" gap named directly
+
+---
+
+### Task #657: Push the local branch to origin/main and close the deployment-drift gap
+
+**File:** N/A — git operation, not a code change
+**Complexity:** ⚡ Direct
+**Owner:** Max (push authorization) — see AGENTS.md Git Safety Protocol, pushing is never done unilaterally
+**Blocked by:** Nothing
+**Priority:** P1
+**Status:** OPEN
+
+**What:**
+As of 2026-08-18 the local branch is dozens of commits ahead of `origin/main`, including all of Batch 23's work and both live-production database migrations. This means the canonical GitHub remote does not reflect what's actually running in production — a real risk (single point of failure: this one machine's local git history) and a real hygiene gap for a project claiming enterprise-grade process.
+
+**Acceptance Criteria:**
+- [ ] Local `main` pushed to `origin/main`, confirmed via `git log origin/main..HEAD` returning empty
+- [ ] A standing habit or lightweight check established so the branch doesn't silently drift this far again (e.g. push at the end of every session, or a periodic reminder) — process, not necessarily code
+
+**Source:** 2026-08-18 roadmap discussion (operational-maturity assessment)
+
+---
+
+### Task #658: Scope and schedule an independent security review before scaling real payments
+
+**File:** N/A — owner decision + likely an external engagement, not a code task
+**Complexity:** 🔧 Full — requires a real decision on scope/vendor, not a code edit
+**Owner:** Max
+**Blocked by:** Task #655 (real payments should exist, or be imminent, before this is worth paying for)
+**Priority:** P2
+**Status:** OPEN
+
+**What:**
+Every security review plyglt has had to date is the same AI-agent audit process, self-graded, with Max as the sole external gate — real and rigorous, but not independent, and not the same as a party with no stake in the process trying to break it. Before real payment and user data are flowing at any real volume, plyglt should get at least a scoped external review — likely candidates: entitlement/licensing flow, Supabase RLS policies (especially `push_tokens`, `interrupt_gate_events`, `review_events`), and the auth/sync path.
+
+**Acceptance Criteria:**
+- [ ] Decision made on scope and format (a paid third-party pentest, a scoped code review from an independent security-focused contractor, or at minimum a structured self-audit checklist run by someone other than the usual AI-agent process) — proportional to plyglt's actual size and risk, not a full enterprise SOC2 engagement
+- [ ] Review completed and findings triaged the same way any other audit's findings are (fixed, or explicitly accepted as debt with Max's sign-off)
+
+**Source:** 2026-08-18 roadmap discussion (operational-maturity assessment)
+
+---
+
+**Already-tracked gaps, gathered here for visibility (not duplicated as new tasks):**
+- **Task #165** — Windows code-signing setup, still blocked on Max's Azure Trusted Signing account.
+- **Task #166** — wake-from-sleep on Windows has never been manually tested; this is the one literal, named Done-When condition never exercised.
+- **Task #167** — Linux OS-hook triggers have never been verified on real hardware/VM at all.
+- **Task #172** — Android hasn't been started (unblocked since Task #522, not yet picked up).
+- **Task #522** — the only remaining iOS work is App Store submission itself (export compliance, screenshots, review) — an owner/business step, not engineering.
+- **Task #654** — the round-13 severity-7 stale-interrupt-session-on-navigation bug, accepted as debt when Batch 23 closed; still a real, reachable defect in production code.
+
+**Named but deliberately NOT a task here:** team/bus-factor redundancy (plyglt is built and operated by one person plus AI agents, with no backup if Max is unavailable) is a real organizational gap this assessment surfaced, but it isn't something a task with acceptance criteria can close — it's a business decision (hire, contract, or formally accept the risk) left for Max to make on his own timeline, not tracked as engineering work.
 
 ---
 

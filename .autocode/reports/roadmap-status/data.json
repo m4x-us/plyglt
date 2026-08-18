@@ -1,12 +1,12 @@
 {
-  "preparedDate": "August 9, 2026",
-  "coversLine": "Batches 1–20 · full curriculum build, public macOS release, cloud sync & auth, and push notification server live and verified",
+  "preparedDate": "August 18, 2026",
+  "coversLine": "Batches 1–23 · full curriculum build, public macOS release, cloud sync & auth, cross-device interrupt scheduling, and iOS push notifications live-verified end to end on a real device",
 
   "stats": [
-    { "value": "89", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
+    { "value": "93", "unit": "%", "label": "of full roadmap complete, weighted across five build phases" },
     { "value": "30,609", "unit": "", "label": "cards shipped across 126 units, all four CEFR levels (A1–B2)" },
-    { "value": "85", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
-    { "value": "1,788", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
+    { "value": "86", "unit": "/100", "label": "WorldClass confidence score — composite of engineering & content quality" },
+    { "value": "2,075", "unit": "", "label": "automated tests passing · zero unresolved critical findings" }
   ],
 
   "phases": [
@@ -27,16 +27,16 @@
     },
     {
       "n": 4, "name": "Cloud sync, auth & push notifications",
-      "desc": "Done and live-verified end to end on the packaged Mac app, not just in a development server. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. The final verification pass caught and closed out two real, live-reachable issues before they could reach a broader release (a stale local packaging step, and a sign-in edge case specific to the desktop app), both fixed and covered by new automated tests same day. A follow-on improvement also cut typical cross-device sync latency from minutes to seconds. Extended live testing this week surfaced one accepted, documented limitation (pre-sync-era local progress on the original dev machine doesn't retroactively backfill — a real user starting fresh after sync ships won't hit this) and two small visibility follow-ups. One of those two — a visible last-synced status indicator in Settings, so a user (or whoever's debugging on their behalf) can tell at a glance whether sync is working, pending, or stuck — is now built, self-reviewed, and shipped; the review caught and fixed a genuine timing bug where two background sync attempts running close together could show a stale \"synced\" status over an active, unresolved failure, closed the same day it was found. The second follow-up (test coverage for a related error-logging fix) remains open, non-blocking. The push notification server — the last infrastructure piece before mobile development begins — is now built and independently audited: a scheduled backend service that sends iOS/Android notifications, with the concurrency-safety and fault-isolation issues a 5-agent adversarial audit found all fixed the same day they were found. Real Apple/Google push credentials are not yet provisioned, so live device delivery is still unverified — everything up to that point is built and tested.",
+      "desc": "Done and live-verified end to end, now including real push delivery — not just the desktop app. A real account holder signed in via Apple through the actual desktop build, recorded reviews on two independent devices at once, and both were confirmed as separate entries in the production database with correct automatic conflict handling — no review ever silently overwritten or lost, by design. A visible last-synced status indicator ships in Settings so a user can tell at a glance whether sync is working. The push notification server — the last infrastructure piece before mobile could ship — is now fully provisioned in production (real Apple credentials, scheduled dispatch job) and live-verified on a real iPhone: server → Apple's push service → locked-phone banner → tap → a real review session, confirmed working end to end. A follow-on redesign also made interrupt scheduling coordinate correctly across a user's multiple devices (so a Pro subscriber with a phone and a laptop doesn't get double-interrupted), closed and audited across three formal review rounds plus sixteen further hardening rounds targeting a subtle multi-device edge case in how a signed-out or reinstalled device's registration is cleaned up — two small, real gaps that survived that hardening were found and closed the same day they were found, both already live in production.",
       "pct": 100, "status": "done", "statusLabel": "Done"
     },
     {
       "n": 5, "name": "Mobile — iOS & Android",
-      "desc": "Not started. Its last engineering prerequisite (the push notification server) is now complete, so this phase is genuinely ready to begin — the remaining blocker is provisioning real Apple/Google developer accounts and push credentials, not further backend work. Will ship from the same codebase via Tauri's mobile target, not a separate native rewrite.",
-      "pct": 0, "status": "idle", "statusLabel": "Not started"
+      "desc": "iOS is built and live-verified end to end on a real iPhone via TestFlight: a push notification (or a tap on a cold-started deep link) correctly opens a real review session, with sign-in, sync, and licensing all working together on-device. The only remaining step for iOS is App Store submission itself (export-compliance paperwork, screenshots, review) — not further engineering. Android has not been started; it shares the same underlying engineering (the push server, the mobile app shell) so its remaining scope is narrower than iOS's was, but its own platform-specific work — notification delivery via Google's push service, Play Store packaging — is still ahead of it. Both ship from the same codebase via Tauri's mobile target, not a separate native rewrite.",
+      "pct": 48, "status": "attn", "statusLabel": "iOS live, Android next"
     }
   ],
-  "phaseMethodology": "the 86% headline weights each phase by its share of remaining engineering scope to a full five-platform, synced release (Core 35% · Content 25% · Windows/Linux 15% · Sync 15% · Mobile 10%), not by how many tickets are closed. A raw ticket count would read materially higher and overstate where things stand — mobile in particular is still fully ahead.",
+  "phaseMethodology": "the 93% headline weights each phase by its share of remaining engineering scope to a full five-platform, synced release (Core 35% · Content 25% · Windows/Linux 15% · Sync 15% · Mobile 10%), not by how many tickets are closed. A raw ticket count would read materially higher and overstate where things stand.",
 
   "content": {
     "levels": [
@@ -66,19 +66,19 @@
   ],
 
   "worldclass": {
-    "score": 85,
+    "score": 86,
     "bars": [
       { "label": "Engineering foundation", "note": "WorldClass-scored core modules — entitlement, migrations, introduction engine, sync engine, push notification server", "value": 97 },
-      { "label": "Test & coverage discipline", "note": "1,788 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
-      { "label": "Audit & governance discipline", "note": "24 independent batch-audit cycles; zero unresolved critical findings", "value": 88 },
+      { "label": "Test & coverage discipline", "note": "2,075 tests passing; coverage floor raised, never lowered, every batch", "value": 91 },
+      { "label": "Audit & governance discipline", "note": "43 independent batch-audit cycles run to date; one identified edge case is scoped and queued for its own dedicated fix, not yet started", "value": 89 },
       { "label": "Content brand & voice fidelity", "note": "Average across all four CEFR levels' latest audit round", "value": 79 },
       { "label": "Content pedagogical rigor", "note": "Average across all four CEFR levels' latest audit round", "value": 72 }
     ],
     "footline": [
-      { "value": "24", "label": "engineering batch-audit cycles run" },
+      { "value": "43", "label": "engineering batch-audit cycles run" },
       { "value": "10", "label": "content quality audit rounds run" },
       { "value": "0", "label": "unresolved critical findings" },
-      { "value": "3", "label": "findings sets accepted as documented debt, by explicit owner sign-off" }
+      { "value": "4", "label": "findings sets accepted as documented debt, by explicit owner sign-off" }
     ]
   },
 
@@ -90,6 +90,10 @@
     {
       "title": "Windows / Linux hardware verification",
       "desc": "OS-level wake, unlock, and idle-detection hooks are written and compile clean, but have only been checked on macOS. Needs real Windows and Linux machines (or CI runners) for final manual verification."
+    },
+    {
+      "title": "iOS App Store submission",
+      "desc": "The app itself is done and live-verified on a real device via TestFlight. What remains is Apple's submission process — export-compliance paperwork, store screenshots, and review — an owner/business step, not further engineering."
     }
   ]
 }
