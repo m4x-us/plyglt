@@ -20,6 +20,12 @@ const { state, mocks } = vi.hoisted(() => ({
   mocks: {
     registerPushToken: vi.fn(() => Promise.resolve({ ok: true as const })),
     registerForPushNotifications: vi.fn(() => Promise.resolve(state.registerSupported)),
+    onPushToken: vi.fn((handler: (token: string) => void) => {
+      state.tokenHandler = handler;
+      return Promise.resolve(() => {
+        state.tokenHandler = null;
+      });
+    }),
   },
 }));
 
@@ -33,12 +39,7 @@ vi.mock("@/lib/tauri", () => ({
 vi.mock("@/lib/tauriPush", () => ({
   registerForPushNotifications: mocks.registerForPushNotifications,
   getPushToken: vi.fn(() => Promise.resolve(state.cachedToken)),
-  onPushToken: vi.fn((handler: (token: string) => void) => {
-    state.tokenHandler = handler;
-    return Promise.resolve(() => {
-      state.tokenHandler = null;
-    });
-  }),
+  onPushToken: mocks.onPushToken,
 }));
 
 vi.mock("@/lib/pushTokenClient", () => ({
@@ -158,6 +159,36 @@ describe("usePushRegistration — gates", () => {
     await Promise.resolve();
     expect(state.tokenHandler).toBeNull();
     expect(mocks.registerPushToken).not.toHaveBeenCalled();
+  });
+
+  // Round-12 audit finding (Agent W): onPushToken (a real async Tauri IPC round-trip) had
+  // no `cancelled` check immediately after it resolved, unlike getPushToken's result two
+  // lines below — a dep change (sign-out, license downgrade, toggling interruptEnabled)
+  // that tears down the effect WHILE onPushToken is still in flight left the returned
+  // unlisten function assigned to the outer `unlisten` var AFTER cleanup already ran,
+  // permanently leaking a live listener closed over the stale userId. Deletion Test:
+  // removing the `if (cancelled) { un(); return; }` guard restores the leak, and
+  // unlistenSpy below is never called.
+  it("does not leak a live token listener when the effect is torn down while onPushToken's registration is still in flight", async () => {
+    let resolveOnPushToken!: (unlisten: () => void) => void;
+    const unlistenSpy = vi.fn();
+    mocks.onPushToken.mockImplementationOnce((handler: (token: string) => void) => {
+      state.tokenHandler = handler;
+      return new Promise<() => void>((resolve) => {
+        resolveOnPushToken = resolve;
+      });
+    });
+
+    const { unmount } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(mocks.onPushToken).toHaveBeenCalledTimes(1));
+
+    // Tear down the effect (e.g. sign-out / dep change) BEFORE the in-flight
+    // onPushToken registration resolves — the exact race window this fix closes.
+    unmount();
+
+    // The registration now resolves, delivering a real unlisten function.
+    resolveOnPushToken(unlistenSpy);
+    await vi.waitFor(() => expect(unlistenSpy).toHaveBeenCalledTimes(1));
   });
 
   it("skips the upload when no sync deviceId exists yet, without erroring", async () => {

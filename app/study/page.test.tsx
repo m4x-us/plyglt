@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { useSRSStore } from "@/store/srsStore";
 import { HYDRATION_STUCK_TIMEOUT_MS } from "@/hooks/useHydrationStuck";
+import { INTERRUPT_SESSION_CAP } from "@/lib/queue";
 
 // ── vi.hoisted: mutable state controlling mock return values ──────────────────
 
@@ -199,8 +200,8 @@ vi.mock("@/components/StudyDoneScreen", () => ({
 // ── @/components/StudyResumePrompt — test double ─────────────────────────────
 vi.mock("@/components/StudyResumePrompt", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  default: ({ onDecline }: any) => (
-    <div data-testid="study-resume">
+  default: ({ onDecline, resumeTotal }: any) => (
+    <div data-testid="study-resume" data-resume-total={resumeTotal}>
       <button onClick={onDecline}>Decline</button>
     </div>
   ),
@@ -330,6 +331,35 @@ describe("StudyPage — app/study/page.tsx", () => {
 
     expect(screen.getByTestId("study-resume")).toBeInTheDocument();
     expect(screen.queryByText("Nothing ready.")).not.toBeInTheDocument();
+  });
+
+  // Round-12 audit finding (Agent A): resumeTotal was the raw, unclamped
+  // saved.queueIds.length — after hooks/useStudySession.ts's own round-12 fix clamps the
+  // ACCEPTED queue to INTERRUPT_SESSION_CAP, an oversized saved session (persisted before
+  // round 11's requeue fix, or by any future bug) would show a resume prompt promising a
+  // higher count than the session actually delivers once accepted. Deletion Test: removing
+  // the `isInterrupt ? Math.min(..., INTERRUPT_SESSION_CAP) : ...` clamp in page.tsx makes
+  // this test's assertion fail (would read the raw, unclamped queueIds.length instead).
+  it("clamps the resume prompt's displayed count to INTERRUPT_SESSION_CAP for an oversized interrupt session", () => {
+    searchParamsState.mode = "interrupt";
+    sessionCfg.resumeDecision = "pending";
+    const oversizedIds = Array.from({ length: INTERRUPT_SESSION_CAP + 2 }, (_, i) => `over${i}`);
+    useSRSStore.setState({
+      activeSession: {
+        unitId: "",
+        queueIds: oversizedIds,
+        position: 1,
+        sessionCorrect: 1,
+        sessionTotal: 1,
+        startedAt: Date.now(),
+      },
+    });
+
+    render(<StudyPage />);
+
+    expect(screen.getByTestId("study-resume").dataset.resumeTotal).toBe(String(INTERRUPT_SESSION_CAP));
+
+    useSRSStore.setState({ activeSession: null });
   });
 
   // Interrupt-floor flex fallback (BRAND.md: 6-10 interrupts/day, never fewer). The mocked

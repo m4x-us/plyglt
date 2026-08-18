@@ -17,7 +17,7 @@ import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import StudyHydrationStuck from "@/components/StudyHydrationStuck";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
 import { exitMandatoryMode } from "@/lib/tauriInterrupt";
-import { findUnitName } from "@/lib/queue";
+import { findUnitName, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useStudyQueueSetup } from "@/hooks/useStudyQueueSetup";
 import { computeStudyDoneScreenProps } from "@/hooks/studyDoneScreenProps";
@@ -80,7 +80,7 @@ function StudyInner() {
     return (
       <StudyResumePrompt
         resumePos={saved?.position ?? 0}
-        resumeTotal={saved?.queueIds.length ?? 0}
+        resumeTotal={isInterrupt ? Math.min(saved?.queueIds.length ?? 0, INTERRUPT_SESSION_CAP) : (saved?.queueIds.length ?? 0)}
         onDecline={() => setResumeDecision("declined")}
         onAccept={() => setResumeDecision("accepted")}
       />

@@ -23,13 +23,11 @@ type UseStudySessionParams = {
   isInterrupt: boolean;
   unitId: string;
   getResumableSession: () => ActiveSession | null;
-  // Task #608 (Wave 6): render-phase-safe pair (store/srsStore.ts, Task #597) —
-  // peekResumableSession never mutates state, safe to call from useState lazy
-  // initializers/useMemo bodies/useEffect alike; clearExpiredResumableSession is
-  // the explicit, side-effecting purge, intended to be called from a useEffect
-  // only. Together they replace getResumableSession's render-phase set() call at
-  // every site in this file except the "apply resume" effect below (already
-  // effect-scoped, so getResumableSession's mutation there was never unsafe).
+  // Task #608 (Wave 6): render-phase-safe pair (store/srsStore.ts, Task #597) — peekResumableSession
+  // never mutates state, safe from useState lazy initializers/useMemo/useEffect alike;
+  // clearExpiredResumableSession is the explicit, side-effecting purge, effect-only. Together
+  // they replace getResumableSession's render-phase set() call everywhere except the
+  // effect-scoped "apply resume" effect below (already safe there).
   peekResumableSession: () => ActiveSession | null;
   clearExpiredResumableSession: () => void;
   clearActiveSession: () => void;
@@ -67,28 +65,35 @@ export function useStudySession({
   introductions,
   enqueueReviewEvent,
 }: UseStudySessionParams) {
-  // Task #608 (Wave 6): starts unresolved (null) rather than resolving via a
-  // useState lazy initializer that called getResumableSession() — a mutating
-  // set() call during React's render phase, unsafe under StrictMode/concurrent
-  // rendering (render can run twice or be discarded entirely, either silently
-  // double-firing the expiry-purge mutation or dropping it). See the
-  // hydration-gated effect below for how this now actually resolves.
+  // Task #608 (Wave 6): starts unresolved (null) rather than a useState lazy initializer
+  // calling getResumableSession() — a mutating set() during React's render phase, unsafe
+  // under StrictMode/concurrent rendering. See the hydration-gated effect below for how
+  // this now actually resolves.
   const [resumeDecision, setResumeDecision] = useState<"pending" | "accepted" | "declined" | null>(null);
 
   const sessionStartedAtRef = useRef<number>(0);
 
+  // Round-12 audit finding (3-way convergent): round 11's handleRate fix only stops an
+  // "again" requeue from growing an interrupt queue PAST INTERRUPT_SESSION_CAP going
+  // forward — a session persisted oversized before that fix (or by any future bug) would
+  // resume unclamped otherwise. Mirrors useStudyQueueSetup.ts's own .slice(0, CAP).
   const resumedQueue = useMemo((): Card[] | null => {
     if (resumeDecision !== "accepted") return null;
     const saved = peekResumableSession();
     if (!saved) return null;
-    return saved.queueIds.map((id) => allCardMap[id]).filter((c): c is Card => !!c);
+    const filtered = saved.queueIds.map((id) => allCardMap[id]).filter((c): c is Card => !!c);
+    return isInterrupt ? filtered.slice(0, INTERRUPT_SESSION_CAP) : filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeDecision]);
 
+  // Fixes the resumedQueue/resumedPos desync (debt.md, round 9): saved.position indexes the
+  // RAW queueIds, not resumedQueue (drops ids no longer in allCardMap). Recomputed by
+  // counting surviving entries before the saved position.
   const resumedPos = useMemo((): number => {
     if (resumeDecision !== "accepted") return 0;
     const saved = peekResumableSession();
-    return saved?.position ?? 0;
+    if (!saved) return 0;
+    return saved.queueIds.slice(0, saved.position).filter((id) => allCardMap[id]).length;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeDecision]);
 
@@ -100,20 +105,15 @@ export function useStudySession({
   // True once the mount-fill effect below has CLAIMED its one real attempt (set
   // before any fill logic that can throw runs — see that effect's try/catch/finally).
   const mountFillStartedRef = useRef(false);
-  // Must be useIsHydratedStrict, not the lenient useIsHydrated: this effect WRITES
-  // persisted state (introduceCard) against pre-hydration {} defaults on Tauri's
-  // async file-store IPC would silently lose the write to persist's later merge.
-  // Only the strict signal never resolves via HYDRATION_FAILSAFE_MS's timeout
-  // fallback — see lib/storage.ts's useIsHydratedStrict doc comment for the full story.
+  // Must be useIsHydratedStrict: this effect WRITES persisted state (introduceCard) — pre-
+  // hydration writes on Tauri's async IPC would silently lose the write. Only the strict
+  // signal never resolves via HYDRATION_FAILSAFE_MS's timeout — see lib/storage.ts.
   const hydrated = useIsHydratedStrict(useSRSStore);
 
-  // Re-derives "is there a still-valid resumable session for THIS session key"
-  // fresh at read time — shared by the resume-decision effect below and the
-  // mount-fill effect further down. Deliberately NOT read via the `resumeDecision`
-  // state variable in the mount-fill effect: both effects are gated on the same
-  // `hydrated` dependency and fire in the same commit, in declaration order, but a
-  // setState scheduled by this earlier effect isn't visible in a later effect's
-  // closure until a subsequent render — only a fresh re-check sees it in time.
+  // Re-derives "still-valid resumable session for THIS key" fresh at read time — shared by
+  // the resume-decision effect and the mount-fill effect. NOT read via `resumeDecision`
+  // state in the mount-fill effect: both fire in the same commit, but a setState from the
+  // earlier effect isn't visible there until a later render — only a fresh check sees it.
   const hasPendingResumableSession = (): boolean => {
     const saved = peekResumableSession();
     const sessionKey = isGlobal ? "global" : unitId;
@@ -130,22 +130,16 @@ export function useStudySession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
-  // On mount: introduce the first qualifying new card if today's quota is open, then
-  // — interrupt sessions only — fill to lib/queue.ts's INTERRUPT_SESSION_FLOOR: (1)
-  // flex-introduce more new cards (capped at INTERRUPT_SESSION_MAX_NEW and the daily
-  // INTERRUPT_FLEX_DAILY_MAX ceiling), (2) near-due FSRS reviews pulled slightly
-  // early. The floor is a target, not a guarantee. Full rationale/history:
-  // docs/INTERRUPT_ARCHITECTURE.md §10; hooks/useInterruptConfig.ts's computeDue
-  // mirrors this supply logic for the fire-gate decision.
-  // Task #643: extracted so it can be claimed and run from two places — the
-  // mount-fill effect below, and the apply-resume effect's decline/expired-accept
-  // branch (both call sites' own comments explain why). Callers claim
-  // mountFillStartedRef themselves before calling — this function doesn't, since
-  // the two call sites claim it under different conditions.
-  // Round-7 (Red Agent R, CONTRACT): despite the "fill" framing, this is NOT
-  // purely additive — its first statement (setQueue(initialQueue)) unconditionally
-  // replaces the visible queue (a no-op on the ordinary mount path; a real reset
-  // on the decline/expired-accept path).
+  // On mount: introduce the first qualifying new card if today's quota is open, then —
+  // interrupt sessions only — fill to lib/queue.ts's INTERRUPT_SESSION_FLOOR: (1) flex-
+  // introduce more new cards (capped at INTERRUPT_SESSION_MAX_NEW / INTERRUPT_FLEX_DAILY_MAX),
+  // (2) near-due FSRS reviews pulled slightly early. Floor is a target, not a guarantee.
+  // Full rationale: docs/INTERRUPT_ARCHITECTURE.md §10; useInterruptConfig.ts's computeDue
+  // mirrors this for the fire-gate decision. Task #643: extracted so it can be claimed and
+  // run from two places — this effect, and the apply-resume effect's decline/expired-accept
+  // branch — each claiming mountFillStartedRef itself under different conditions. Round-7
+  // (CONTRACT): NOT purely additive — its first statement (setQueue(initialQueue))
+  // unconditionally replaces the visible queue (no-op on mount; a real reset on decline).
   const runFillPass = () => {
     // Declared outside the try so the finally block can flush whatever succeeded
     // even if something below throws.
@@ -365,14 +359,10 @@ export function useStudySession({
     const newPos = pos + 1;
     const currentCard = queue[pos]!;
 
-    // Round-11 audit finding (Red Agent R): this requeue was unscoped to isInterrupt and
-    // had no cap check, so a wrong answer in an interrupt session grew the queue by one
-    // every time, unbounded — silently defeating INTERRUPT_SESSION_CAP and, with it, the
-    // 45-90s / mandatory-mode-lock-duration promise this whole batch exists to keep. Once
-    // an interrupt session is already at the cap, a wrong answer no longer re-inserts a
-    // duplicate; the card is scored wrong and returns via normal FSRS/introduction
-    // scheduling instead of immediate in-session retry. Non-interrupt sessions (unit/global)
-    // are unaffected — they have no length promise to protect.
+    // Round-11 fix: this requeue was unscoped to isInterrupt with no cap check, so a
+    // wrong answer grew an interrupt queue unbounded, defeating INTERRUPT_SESSION_CAP.
+    // At the cap, a wrong answer scores and returns via normal FSRS scheduling instead of
+    // immediate in-session retry. Non-interrupt sessions are unaffected.
     let newQueue = queue;
     if (grade === "again") {
       const atInterruptCap = isInterrupt && queue.length >= INTERRUPT_SESSION_CAP;

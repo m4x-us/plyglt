@@ -84,9 +84,25 @@ export function usePushRegistration(): void {
       const supported = await registerForPushNotifications();
       if (!supported || cancelled) return;
 
-      unlisten = await onPushToken((token) => {
+      // Round-12 audit finding (Agent W): onPushToken (lib/tauriPush.ts) wraps lib/tauri.ts's
+      // listen(), a real async Tauri IPC round-trip (see components/InterruptHandler.tsx's
+      // Task #166 comment on the same primitive) — there is a genuine window between this
+      // await resolving and the check below where cleanup could already have run. Before this
+      // fix, the returned unlisten was assigned to the outer `unlisten` unconditionally, so a
+      // dep change (sign-out, license downgrade, toggling interruptEnabled) mid-await left
+      // `unlisten` still undefined when cleanup ran (a no-op), then this async IIFE resumed
+      // and registered a live listener AFTER teardown — permanently leaked, closing over this
+      // effect run's now-stale `userId` and silently uploading every future token event under
+      // the wrong/signed-out user. Mirrors the `!cancelled` check already used for getPushToken
+      // below.
+      const un = await onPushToken((token) => {
         void uploadToken(token);
       });
+      if (cancelled) {
+        un();
+        return;
+      }
+      unlisten = un;
 
       // The OS may have delivered the token before the listener attached
       // (registration is idempotent across launches and tokens are cached

@@ -93,6 +93,112 @@ describe("useStudySession — resume path", () => {
     expect(result.current.sessionCorrect).toBe(2);
     expect(result.current.sessionTotal).toBe(2);
   });
+
+  // Round-12 audit finding, closing debt tracked since round 9 (Agent N): saved.position
+  // indexes the RAW queueIds, not the filtered resumedQueue (which drops any id no longer
+  // in allCardMap — e.g. a card deprecated within the 24h resume window). Before this fix,
+  // resuming past a dropped id landed on the WRONG card (one further along than intended).
+  // Deletion Test: reverting resumedPos to the raw `saved?.position ?? 0` makes this test's
+  // assertion fail (would resolve to c3 at pos 2, not c2 at pos 1).
+  it("resumes onto the correct card when an earlier queueIds entry was dropped from allCardMap (deprecated)", () => {
+    const savedSession = {
+      unitId: "it-a1u01",
+      queueIds: ["c1", "gone", "c2", "c3"], // "gone" no longer resolves in allCardMap
+      position: 2, // raw index of "c2" in the unfiltered array
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(defaultParams({
+        getResumableSession: vi.fn(() => savedSession),
+        peekResumableSession: vi.fn(() => savedSession),
+      })),
+    );
+
+    act(() => {
+      result.current.setResumeDecision("accepted");
+    });
+
+    // resumedQueue filters "gone" out -> [c1, c2, c3]; the surviving-entries-before-position
+    // count is 1 (only c1 precedes "c2" in the raw array and survives) — pos 1 correctly
+    // indexes to c2, matching what the user was actually on, not pos 2 (which would be c3).
+    expect(result.current.queue.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
+    expect(result.current.pos).toBe(1);
+    expect(result.current.queue[result.current.pos]?.id).toBe("c2");
+  });
+
+  // Round-12 audit finding (Agent A / Agent K / Agent V, 3-way convergent): round 11's
+  // handleRate fix only stops an interrupt queue from GROWING past INTERRUPT_SESSION_CAP
+  // going forward — it never clamps an already-oversized queue on resume. A session
+  // persisted before round 11's fix (or by any future bug) with queueIds.length >
+  // INTERRUPT_SESSION_CAP would resume unclamped. Deletion Test: removing the
+  // `isInterrupt ? filtered.slice(0, INTERRUPT_SESSION_CAP) : filtered` clamp restores
+  // the raw 10-card filtered array, and this test's queue-length assertion fails.
+  it("clamps an oversized resumed interrupt-session queue to INTERRUPT_SESSION_CAP", () => {
+    const oversizedIds = Array.from({ length: INTERRUPT_SESSION_CAP + 2 }, (_, i) => `over${i}`);
+    const oversizedCards = oversizedIds.map((id) => makeCard(id));
+    const oversizedMap = Object.fromEntries(oversizedCards.map((c) => [c.id, c]));
+    const savedSession = {
+      unitId: "",
+      queueIds: oversizedIds,
+      position: 1,
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: oversizedCards,
+          allCardMap: oversizedMap,
+          isInterrupt: true,
+          getResumableSession: vi.fn(() => savedSession),
+          peekResumableSession: vi.fn(() => savedSession),
+        }),
+      ),
+    );
+
+    act(() => {
+      result.current.setResumeDecision("accepted");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+    expect(result.current.queue.map((c) => c.id)).toEqual(oversizedIds.slice(0, INTERRUPT_SESSION_CAP));
+  });
+
+  // Control case, same fix: a non-interrupt (unit/global) resumed session must NOT be
+  // clamped — only isInterrupt sessions have a length promise to protect.
+  it("does not clamp a resumed non-interrupt session's queue, even if it exceeds INTERRUPT_SESSION_CAP", () => {
+    const oversizedIds = Array.from({ length: INTERRUPT_SESSION_CAP + 2 }, (_, i) => `unit${i}`);
+    const oversizedCards = oversizedIds.map((id) => makeCard(id));
+    const oversizedMap = Object.fromEntries(oversizedCards.map((c) => [c.id, c]));
+    const savedSession = {
+      unitId: "it-a1u01",
+      queueIds: oversizedIds,
+      position: 1,
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: oversizedCards,
+          allCardMap: oversizedMap,
+          isInterrupt: false,
+          getResumableSession: vi.fn(() => savedSession),
+          peekResumableSession: vi.fn(() => savedSession),
+        }),
+      ),
+    );
+
+    act(() => {
+      result.current.setResumeDecision("accepted");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP + 2);
+  });
 });
 
 // ── resume decision hydration gating (Task #608/#609, Wave 6) ─────────────────────
@@ -406,6 +512,27 @@ describe("useStudySession — handleRate", () => {
     });
 
     expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP); // grew by exactly 1, up to the cap
+  });
+
+  // Round-12 audit finding (Agent V): the two tests above both use isInterrupt: true, so
+  // neither isolates the `isInterrupt &&` half of the guard — a regression that simplified
+  // `isInterrupt && queue.length >= INTERRUPT_SESSION_CAP` down to just
+  // `queue.length >= INTERRUPT_SESSION_CAP` would silently break requeue-on-wrong for
+  // long non-interrupt (unit/global) sessions with no test catching it. Deletion Test:
+  // that exact simplification makes this test's length assertion fail (queue would stay
+  // at CAP instead of growing to CAP + 1).
+  it("'again' answer in a non-interrupt session at or above INTERRUPT_SESSION_CAP length still re-inserts the card (guard is isInterrupt-scoped, not just a length check)", () => {
+    const atCapQueue = Array.from({ length: INTERRUPT_SESSION_CAP }, (_, i) => makeCard(`unit${i}`));
+    const atCapMap = Object.fromEntries(atCapQueue.map((c) => [c.id, c]));
+    const { result } = renderHook(() =>
+      useStudySession(defaultParams({ initialQueue: atCapQueue, allCardMap: atCapMap, isInterrupt: false })),
+    );
+
+    act(() => {
+      result.current.handleRate("again");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP + 1);
   });
 
   it("final card: commitSession receives correct unitId, queueIds, and sessionTotal === 1", () => {
