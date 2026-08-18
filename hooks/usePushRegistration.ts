@@ -76,6 +76,18 @@ export function usePushRegistration(): void {
   // unregister without its own closure ever having seen a live userId.
   const registeredForRef = useRef<{ userId: string; deviceId: string } | null>(null);
 
+  // Round-17 audit finding (Agent W): the empty-deps true-unmount cleanup below fires
+  // exactly once, at the real final unmount — if uploadToken's registerPushToken() call
+  // is still in flight at that moment (a real network round-trip, easily still pending
+  // seconds after mount), the cleanup finds registeredForRef.current still null and
+  // no-ops; when the registration THEN resolves, uploadToken sets the ref, but no code
+  // will ever run again for this hook instance to read it — the just-created server row
+  // is permanently orphaned, kept alive forever by uploadToken's own success branch below
+  // once it detects this flag. Set ONLY by the true-unmount cleanup (never by the
+  // multi-dep effect's own cleanup), so an ordinary dep-change-while-mounted re-run is
+  // unaffected — the next effect instance still owns re-registering normally.
+  const trulyUnmountedRef = useRef(false);
+
   useEffect(() => {
     if (!isTauri) return;
     if (!entitlementHydrated || !settingsHydrated) return;
@@ -117,9 +129,17 @@ export function usePushRegistration(): void {
       });
       if (!result.ok) {
         console.error(`[ERR-PUSHREG-UPLOAD-${Date.now()}] push token upload failed: ${result.error}`);
-      } else {
-        registeredForRef.current = { userId, deviceId };
+        return;
       }
+      if (trulyUnmountedRef.current) {
+        // The true-unmount cleanup already ran and found nothing to unregister — no
+        // future code path will ever run again for this hook instance. Self-clean the
+        // row this call just created instead of orphaning it (see trulyUnmountedRef's
+        // own comment above).
+        void unregisterFor(userId);
+        return;
+      }
+      registeredForRef.current = { userId, deviceId };
     }
 
     (async () => {
@@ -189,6 +209,7 @@ export function usePushRegistration(): void {
   // or duplicate the gate-failure branch's own call.
   useEffect(() => {
     return () => {
+      trulyUnmountedRef.current = true;
       const prev = registeredForRef.current;
       if (prev) {
         registeredForRef.current = null;

@@ -48,6 +48,8 @@
 import { create } from "zustand";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { isTauri, openExternalUrl, onDeepLinkUrl, getCurrentDeepLinkUrls } from "@/lib/tauri";
+import { unregisterPushToken } from "@/lib/pushTokenClient";
+import { useSyncStore } from "@/store/syncStore";
 import type { Provider } from "@supabase/supabase-js";
 
 export type AuthStatus = "loading" | "signed-out" | "signed-in";
@@ -144,6 +146,29 @@ export const useAuthStore = create<AuthState>()(() => ({
   signOut: async () => {
     const client = getSupabaseClient();
     if (!client) return { ok: false, error: "Sync is not configured." };
+
+    // Round-17 audit finding (Security Agent S): unregistering the device's push
+    // token used to happen ONLY reactively, from hooks/usePushRegistration.ts's
+    // gate-failure branch once userId transitions to null — but that transition
+    // fires from the SIGNED_OUT event below, and Supabase's real GoTrueClient
+    // (_removeSession()) clears local session storage BEFORE notifying
+    // subscribers of SIGNED_OUT. So by the time that reactive unregister call
+    // reached Supabase, it carried no valid session; push_tokens' RLS delete
+    // policy (auth.uid() = user_id) silently matched zero rows under the
+    // fallback anon key, and unregisterPushToken has no way to distinguish that
+    // from "nothing was registered" — it returned {ok:true} having deleted
+    // nothing. Every ordinary sign-out of a Pro user with push registered left
+    // their token alive indefinitely. Fixed by unregistering HERE, first, while
+    // the session (and thus the DELETE's RLS authorization) is still valid — a
+    // harmless no-op if nothing was ever registered on this device.
+    const { userId } = useAuthStore.getState();
+    const deviceId = useSyncStore.getState().deviceId;
+    if (userId && deviceId) {
+      const result = await unregisterPushToken(userId, deviceId);
+      if (!result.ok) {
+        console.error(`[ERR-AUTH-SIGNOUT-PUSH-${Date.now()}] pre-signout push token cleanup failed: ${result.error}`);
+      }
+    }
 
     const { error } = await client.auth.signOut();
     if (error) {

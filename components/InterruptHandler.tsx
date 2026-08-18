@@ -74,10 +74,15 @@ function InterruptHandlerCore() {
   // concurrent callback invocations.
   // Task #650: this ref is per-component-instance, not module-scoped, so it cannot
   // guard against a fresh InterruptHandlerCore instance racing an orphaned callback
-  // left running by a just-unmounted prior instance. Not module-scoped deliberately:
-  // this component mounts once at the root layout and is not expected to unmount
-  // during normal app lifetime, so that race has no real trigger today. Flagged for
-  // completeness only, not fixed — see .autocode/debt.md.
+  // left running by a just-unmounted prior instance. Round-17 audit correction (Agent
+  // W): the "not expected to unmount during normal app lifetime" premise this comment
+  // used to state is FALSE as of the same-day Pro-gate fix (components/InterruptHandler
+  // ()'s own early-return above) — InterruptHandlerCore genuinely unmounts on an
+  // ordinary licenseType/validUntil change (Deactivate, a subscription downgrade), the
+  // exact transition hooks/usePushRegistration.ts needed three audit rounds to handle
+  // correctly for its own analogous per-instance ref. This cross-instance race for
+  // interruptFireInFlightRef has not been independently evaluated against that real
+  // trigger — flagged for a dedicated investigation, not fixed here — see .autocode/debt.md.
   const interruptFireInFlightRef = useRef(false);
 
   // Keep the Rust thread in sync whenever relevant settings change.

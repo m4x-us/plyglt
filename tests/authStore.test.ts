@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-const { tauriState, mockOpenExternalUrl, mockOnDeepLinkUrl, mockGetCurrentDeepLinkUrls } = vi.hoisted(() => ({
+const { tauriState, mockOpenExternalUrl, mockOnDeepLinkUrl, mockGetCurrentDeepLinkUrls, mockUnregisterPushToken } = vi.hoisted(() => ({
   tauriState: { isTauri: false as boolean },
   mockOpenExternalUrl: vi.fn().mockResolvedValue(undefined),
   mockOnDeepLinkUrl: vi.fn().mockResolvedValue(() => {}),
   mockGetCurrentDeepLinkUrls: vi.fn().mockResolvedValue(null),
+  // Round-17 audit fix: authStore.ts's signOut() now unregisters the device's push
+  // token BEFORE calling the real client.auth.signOut() (see the dedicated describe
+  // block below) — mocked here so tests can assert it's called with the right args
+  // and in the right order, without a real Supabase round-trip.
+  mockUnregisterPushToken: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 // isTauri is a getter so it reflects tauriState.isTauri at read time, matching the
@@ -15,6 +20,10 @@ vi.mock("@/lib/tauri", () => ({
   openExternalUrl: (...args: unknown[]) => mockOpenExternalUrl(...args),
   onDeepLinkUrl: (...args: unknown[]) => mockOnDeepLinkUrl(...args),
   getCurrentDeepLinkUrls: (...args: unknown[]) => mockGetCurrentDeepLinkUrls(...args),
+}));
+
+vi.mock("@/lib/pushTokenClient", () => ({
+  unregisterPushToken: (...args: unknown[]) => mockUnregisterPushToken(...args),
 }));
 
 function makeMockClient() {
@@ -38,6 +47,12 @@ afterEach(() => {
   mockOpenExternalUrl.mockClear();
   mockOnDeepLinkUrl.mockClear().mockResolvedValue(() => {});
   mockGetCurrentDeepLinkUrls.mockClear().mockResolvedValue(null);
+  mockUnregisterPushToken.mockClear().mockResolvedValue({ ok: true });
+  // useSyncStore persists deviceId to localStorage (lib/storage.ts's web-build path) —
+  // unlike the JS module registry, localStorage survives vi.resetModules(), so a
+  // deviceId set in one test would otherwise silently rehydrate into the next test's
+  // freshly re-imported syncStore instance.
+  localStorage.clear();
 });
 
 describe("authStore — not configured (getSupabaseClient returns null)", () => {
@@ -208,6 +223,97 @@ describe("authStore — configured", () => {
 
     // signOut() resolving does not itself clear state — only a real SIGNED_OUT event does.
     expect(useAuthStore.getState().status).toBe("signed-in");
+  });
+});
+
+// Round-17 audit finding (Security Agent S), independently verified against the real
+// @supabase/auth-js source (GoTrueClient's _removeSession() clears local session storage
+// BEFORE notifying SIGNED_OUT subscribers) and push_tokens' RLS delete policy
+// (auth.uid() = user_id): the reactive unregister that used to fire only from
+// hooks/usePushRegistration.ts once userId went null always ran AFTER the session was
+// already cleared, so its DELETE carried no authorization and silently matched zero rows
+// — every ordinary sign-out left a Pro user's push token registered forever. Fixed by
+// unregistering here, first, while the session is still valid.
+describe("authStore — signOut unregisters the device's push token before clearing the session (round-17 audit fix)", () => {
+  it("calls unregisterPushToken with the current userId/deviceId BEFORE client.auth.signOut(), while the session is still valid", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+    // Must be the SAME module instance authStore.ts itself resolved @/store/syncStore
+    // to after this test's vi.resetModules() call — a static top-of-file import would
+    // be a stale pre-reset instance authStore.ts never reads from.
+    const { useSyncStore } = await import("@/store/syncStore");
+    useSyncStore.setState({ deviceId: "device-1" });
+
+    mock.onAuthStateChangeCallbacks[0]!("SIGNED_IN", { user: { id: "user-1", email: "a@b.com" } });
+
+    const callOrder: string[] = [];
+    mockUnregisterPushToken.mockImplementationOnce(async () => {
+      callOrder.push("unregisterPushToken");
+      return { ok: true };
+    });
+    mock.auth.signOut.mockImplementationOnce(async () => {
+      callOrder.push("client.auth.signOut");
+      return { error: null };
+    });
+
+    await useAuthStore.getState().signOut();
+
+    expect(mockUnregisterPushToken).toHaveBeenCalledWith("user-1", "device-1");
+    // Deletion Test: moving the unregisterPushToken call to fire AFTER (or reactively
+    // from a userId->null transition following) client.auth.signOut() reproduces the
+    // exact bug this fix closes — this ordering assertion is what catches that
+    // regression; toHaveBeenCalledWith alone would not.
+    expect(callOrder).toEqual(["unregisterPushToken", "client.auth.signOut"]);
+  });
+
+  it("does not call unregisterPushToken when signed out already (no userId to unregister)", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+    const { useSyncStore } = await import("@/store/syncStore");
+    useSyncStore.setState({ deviceId: "device-1" });
+
+    await useAuthStore.getState().signOut();
+
+    expect(mockUnregisterPushToken).not.toHaveBeenCalled();
+    expect(mock.auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call unregisterPushToken when no local deviceId exists yet (nothing was ever registered on this device)", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+    // useSyncStore.deviceId defaults to null — no enqueueReviewEvent call in this test.
+
+    mock.onAuthStateChangeCallbacks[0]!("SIGNED_IN", { user: { id: "user-1", email: "a@b.com" } });
+    await useAuthStore.getState().signOut();
+
+    expect(mockUnregisterPushToken).not.toHaveBeenCalled();
+    expect(mock.auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs the failure but still proceeds with the real sign-out when unregisterPushToken fails", async () => {
+    vi.resetModules();
+    const mock = makeMockClient();
+    vi.doMock("@/lib/supabaseClient", () => ({ getSupabaseClient: () => mock }));
+    const { useAuthStore } = await import("@/store/authStore");
+    const { useSyncStore } = await import("@/store/syncStore");
+    useSyncStore.setState({ deviceId: "device-1" });
+    mockUnregisterPushToken.mockResolvedValueOnce({ ok: false, error: "network error" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mock.onAuthStateChangeCallbacks[0]!("SIGNED_IN", { user: { id: "user-1", email: "a@b.com" } });
+    const result = await useAuthStore.getState().signOut();
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("ERR-AUTH-SIGNOUT-PUSH"));
+    expect(mock.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ ok: true });
+
+    errorSpy.mockRestore();
   });
 });
 

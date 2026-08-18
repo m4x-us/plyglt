@@ -298,6 +298,67 @@ describe("usePushRegistration — cleans up a stale token when the gate no longe
     expect(mocks.unregisterPushToken).toHaveBeenCalledTimes(1);
   });
 
+  // Round-17 audit finding (Agent W): the true-unmount cleanup above fires exactly once —
+  // if registerPushToken() is STILL IN FLIGHT at that moment, the cleanup finds
+  // registeredForRef.current still null and no-ops (nothing to unregister yet). When the
+  // registration THEN resolves, uploadToken's success branch used to set the ref
+  // unconditionally — but no code will ever run again for this hook instance to read it,
+  // permanently orphaning the row just created on the server. Deletion Test: removing the
+  // `trulyUnmountedRef.current` check in uploadToken's success branch (reverting to an
+  // unconditional `registeredForRef.current = {...}`) makes this test fail — no
+  // unregisterPushToken call at all, since the ref would be set post-unmount with nothing
+  // left to ever read or clean it up.
+  it("self-cleans an in-flight registration that resolves AFTER the hook has already truly unmounted, instead of orphaning the row", async () => {
+    let resolveRegister!: (v: { ok: true }) => void;
+    mocks.registerPushToken.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRegister = resolve; }),
+    );
+
+    const { unmount } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3"); // triggers uploadToken -> registerPushToken (now pending)
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
+
+    // True unmount happens WHILE the registration is still in flight.
+    unmount();
+    // Nothing to unregister yet — the ref was never populated (registration hadn't
+    // resolved when the true-unmount cleanup ran).
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+
+    // The registration now resolves, AFTER the true-unmount cleanup already ran and found
+    // nothing to clean up.
+    resolveRegister({ ok: true });
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  // Control case for the fix above: an in-flight registration that resolves BEFORE a dep
+  // change (not a true unmount) must NOT self-clean via the same path — the next effect
+  // instance still owns re-registering normally. trulyUnmountedRef is set ONLY by the
+  // true-unmount cleanup, never by the multi-dep effect's own cleanup, specifically so
+  // this case is unaffected.
+  it("does not self-clean an in-flight registration that resolves after an ordinary dep change (not a true unmount)", async () => {
+    let resolveRegister!: (v: { ok: true }) => void;
+    mocks.registerPushToken.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRegister = resolve; }),
+    );
+
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3");
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
+
+    // Gate-preserving dep change (validUntil advances) — a real re-render, not an unmount.
+    state.entitlement.validUntil = Date.now() + 86_400_000;
+    rerender();
+
+    resolveRegister({ ok: true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+  });
+
   // Round-16 audit finding (4-way convergence: Agent N, Security Agent S, Agent B, Red
   // Agent R): round 15's cleanup lived inside the multi-dep effect, so it fired on EVERY
   // dependency change, not only a true unmount. A dep change that leaves the gate TRUE
