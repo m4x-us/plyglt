@@ -1,0 +1,32 @@
+-- ===========================================
+-- PUSH TOKENS — registration_nonce column (Batch 23 audit round 18)
+-- ===========================================
+-- Closes the cross-instance Deactivate-then-Reactivate race logged in
+-- .autocode/debt.md (Batch 23 audit round 16/17): a rapid Deactivate then
+-- Reactivate creates two component instances registering the SAME
+-- (user_id, device_id) row, often with the SAME OS-issued APNs token (device
+-- tokens are stable per install, not per launch) — so a token-value-based
+-- compare-and-swap would not distinguish the old, superseded registration
+-- from the new, current one. registration_nonce is a fresh, client-generated
+-- identifier (crypto.randomUUID()) written on every registerPushToken()
+-- call, independent of the token's actual value. unregisterPushToken() can
+-- now condition its DELETE on this column still matching the specific
+-- registration attempt that's tearing down — a stale, late-resolving DELETE
+-- from a superseded instance becomes a no-op once a newer instance's own
+-- registerPushToken() call has overwritten it with a fresh nonce, instead of
+-- silently deleting a row a newer, still-valid registration just created.
+--
+-- Nullable: existing rows written before this migration have no nonce and
+-- cannot be targeted by a nonce-conditioned delete — lib/pushTokenClient.ts's
+-- unregisterPushToken() falls back to the pre-existing unconditional delete
+-- when no nonce is supplied (the same fallback hooks/usePushRegistration.ts
+-- already uses for its own "no ref this session, cold-start historical
+-- cleanup" case), so this is not a regression for pre-migration rows — they
+-- self-heal to having a nonce on their next registration.
+-- ===========================================
+-- DEPENDS ON: 20260808000000_push_tokens.sql
+-- USED BY: lib/pushTokenClient.ts, hooks/usePushRegistration.ts
+-- ===========================================
+
+alter table public.push_tokens
+  add column if not exists registration_nonce text;

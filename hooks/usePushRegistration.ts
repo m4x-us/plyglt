@@ -44,10 +44,15 @@ import { useSyncStore } from "@/store/syncStore";
 // Module-scope, not per-render: uses no effect-closure state — reads deviceId fresh off
 // useSyncStore.getState() every call — so both usePushRegistration's effects below (the
 // gate-failure branch and the true-unmount-only cleanup) can share one implementation.
-async function unregisterFor(targetUserId: string): Promise<void> {
+//
+// `expectedNonce` (round-18 audit fix): passed through to unregisterPushToken's own
+// compare-and-swap delete — see that function's doc comment in lib/pushTokenClient.ts.
+// Omitted only by the gate-failure branch's cold-start fallback (registeredForRef is
+// null this session, so there is no nonce to compare against — see that call site).
+async function unregisterFor(targetUserId: string, expectedNonce?: string): Promise<void> {
   const deviceId = useSyncStore.getState().deviceId;
   if (!deviceId) return;
-  const result = await unregisterPushToken(targetUserId, deviceId);
+  const result = await unregisterPushToken(targetUserId, deviceId, expectedNonce);
   if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
 }
 
@@ -73,8 +78,12 @@ export function usePushRegistration(): void {
   // before the multi-dep effect body ever gets a chance to re-run and reach the branch
   // below (Agent A/B/W). Round 16 split the true-unmount cleanup into its own empty-deps
   // effect (see below) — this ref is what lets that separate effect still know who to
-  // unregister without its own closure ever having seen a live userId.
-  const registeredForRef = useRef<{ userId: string; deviceId: string } | null>(null);
+  // unregister without its own closure ever having seen a live userId. `nonce` (round-18
+  // audit fix) is this specific registration attempt's own compare-and-swap identifier —
+  // see unregisterPushToken's doc comment in lib/pushTokenClient.ts for why the token
+  // value itself cannot serve this purpose (device tokens are stable per install, not
+  // per registration attempt, so two racing registrations often share the same token).
+  const registeredForRef = useRef<{ userId: string; deviceId: string; nonce: string } | null>(null);
 
   // Round-17 audit finding (Agent W): the empty-deps true-unmount cleanup below fires
   // exactly once, at the real final unmount — if uploadToken's registerPushToken() call
@@ -99,10 +108,13 @@ export function usePushRegistration(): void {
       // if `userId` has since gone null via sign-out); fall back to the CURRENT userId so
       // a genuinely-Free cold start still catches a stale row from a PRIOR app launch
       // (e.g. cancelled via the external customer portal while the app was fully closed).
+      // No ref this session means no nonce to compare against either — that fallback
+      // path stays an unconditional delete, exactly as before the round-18 CAS fix.
       const target = registeredForRef.current?.userId ?? userId;
+      const targetNonce = registeredForRef.current?.nonce;
       if (target) {
         registeredForRef.current = null;
-        void unregisterFor(target);
+        void unregisterFor(target, targetNonce);
       }
       return;
     }
@@ -115,11 +127,16 @@ export function usePushRegistration(): void {
       if (!userId) return;
       const deviceId = useSyncStore.getState().deviceId;
       if (!deviceId) return; // no sync identity yet — see header
+      // Round-18 audit fix: a fresh nonce per registration attempt, independent of the
+      // token value — see registeredForRef's own comment above for why the token can't
+      // serve this purpose.
+      const nonce = crypto.randomUUID();
       const result = await registerPushToken({
         userId,
         platform: "ios",
         deviceId,
         token,
+        registrationNonce: nonce,
         // Debug/dev builds are signed with aps-environment=development, which
         // routes through Apple's sandbox APNs; TestFlight/App Store signing
         // rewrites the entitlement to production. NODE_ENV mirrors that split:
@@ -135,11 +152,14 @@ export function usePushRegistration(): void {
         // The true-unmount cleanup already ran and found nothing to unregister — no
         // future code path will ever run again for this hook instance. Self-clean the
         // row this call just created instead of orphaning it (see trulyUnmountedRef's
-        // own comment above).
-        void unregisterFor(userId);
+        // own comment above). Scoped to exactly this attempt's own nonce, so it can
+        // never delete a DIFFERENT, newer registration that happens to share the same
+        // (userId, deviceId) — the same CAS protection the true-unmount cleanup itself
+        // now uses below.
+        void unregisterFor(userId, nonce);
         return;
       }
-      registeredForRef.current = { userId, deviceId };
+      registeredForRef.current = { userId, deviceId, nonce };
     }
 
     (async () => {
@@ -207,13 +227,24 @@ export function usePushRegistration(): void {
   // dependency array: an effect with no deps never re-runs — its cleanup fires exclusively
   // on a genuine unmount, so it can no longer fire alongside a still-mounted re-registration
   // or duplicate the gate-failure branch's own call.
+  //
+  // Round-18 audit fix (Agent W, deepened from the round-16/17 cross-instance debt row):
+  // this call now passes prev.nonce through to unregisterFor's compare-and-swap delete —
+  // a stale DELETE from THIS unmounting instance can resolve after a brand-new instance
+  // (a fast Deactivate-then-Reactivate) has already re-registered the same
+  // (userId, deviceId) pair, often with the identical OS-issued token (device tokens are
+  // stable per install, not per registration attempt). Without the nonce, that late
+  // DELETE would silently wipe the newer, still-valid registration. With it, the DELETE
+  // only matches if the row's registration_nonce still equals what THIS instance wrote —
+  // once a newer instance's own registerPushToken() call has overwritten it with a fresh
+  // nonce, this becomes a harmless no-op instead.
   useEffect(() => {
     return () => {
       trulyUnmountedRef.current = true;
       const prev = registeredForRef.current;
       if (prev) {
         registeredForRef.current = null;
-        void unregisterFor(prev.userId);
+        void unregisterFor(prev.userId, prev.nonce);
       }
     };
   }, []);

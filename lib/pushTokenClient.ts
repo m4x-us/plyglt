@@ -31,6 +31,13 @@ export interface RegisterPushTokenParams {
   token: string;
   appEnv: "production" | "sandbox";
   timezone: string;
+  // Round-18 audit fix: a fresh, caller-generated identifier (crypto.randomUUID()),
+  // independent of the OS-issued token's actual value — device tokens are stable per
+  // install, not per launch, so a rapid Deactivate-then-Reactivate can legitimately
+  // re-register the SAME token, which a token-value-based compare-and-swap couldn't
+  // distinguish from a stale, superseded registration. See
+  // supabase/migrations/20260818000000_push_tokens_registration_nonce.sql.
+  registrationNonce: string;
   interruptIntervalMinutes?: number;
   wakingHoursStartLocal?: number;
   wakingHoursEndLocal?: number;
@@ -44,6 +51,7 @@ function toRow(params: RegisterPushTokenParams) {
     token: params.token,
     app_env: params.appEnv,
     timezone: params.timezone,
+    registration_nonce: params.registrationNonce,
     // Round-15 audit finding (Red Agent R, DECAY lens): an upsert only SETs columns present
     // in the payload — omitting this left a row dispatch had marked deactivated_at (on a
     // permanent APNs/FCM delivery failure) excluded from all future dispatch FOREVER, even
@@ -94,16 +102,38 @@ export async function registerPushToken(params: RegisterPushTokenParams): Promis
  * revoked, app uninstall detected). Scoped to BOTH user_id and device_id —
  * a filter on user_id alone would delete every device the user has ever
  * registered, not just the one being unregistered.
+ *
+ * `expectedNonce` (round-18 audit fix, closing the cross-instance
+ * Deactivate-then-Reactivate race logged in .autocode/debt.md, Batch 23
+ * round 16/17): when supplied, the DELETE is additionally conditioned on
+ * `registration_nonce` still matching — a compare-and-swap against whichever
+ * registration attempt actually wrote the row most recently. A stale, fire-
+ * and-forget DELETE issued by a just-unmounted component instance can then
+ * resolve AFTER a newer instance's own registerPushToken() has overwritten
+ * the row with a fresh nonce, and correctly becomes a no-op (0 rows matched)
+ * instead of deleting a still-valid, newer registration. Omit `expectedNonce`
+ * for the intentional cold-start fallback case (no ref this session, cleaning
+ * up a stale row from a PRIOR app launch this JS heap never registered) —
+ * there is no nonce to compare against there, so the delete stays
+ * unconditional exactly as before this fix.
  */
-export async function unregisterPushToken(userId: string, deviceId: string): Promise<PushTokenResult> {
+export async function unregisterPushToken(
+  userId: string,
+  deviceId: string,
+  expectedNonce?: string
+): Promise<PushTokenResult> {
   const client = getSupabaseClient();
   if (!client) return { ok: false, error: "Sync is not configured." };
 
-  const { error } = await client
+  let query = client
     .from("push_tokens")
     .delete()
     .eq("user_id", userId)
     .eq("device_id", deviceId);
+  if (expectedNonce !== undefined) {
+    query = query.eq("registration_nonce", expectedNonce);
+  }
+  const { error } = await query;
   if (error) {
     console.error(`[ERR-PUSHTOKEN-UNREGISTER-${Date.now()}] unregisterPushToken failed:`, error);
     return { ok: false, error: error.message };
