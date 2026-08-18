@@ -11,6 +11,7 @@ import { runEntitlementValidation } from "@/components/EntitlementValidator";
 import { isTauri, enableAutostart, disableAutostart, openExternalUrl } from "@/lib/tauri";
 import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
 import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 import { Section } from "@/components/settings/Section";
 import { Toggle } from "@/components/settings/Toggle";
 import { NotificationPermissionGate } from "@/components/NotificationPermissionGate";
@@ -87,7 +88,7 @@ export default function SettingsPage() {
           </Section>
           {isPro && interruptEnabled && (
             <Section title="Mandatory Mode">
-              <Toggle label="Block screen until review complete" description="Window locks until you finish 5 cards — always includes a Snooze button" checked={mandatory} onChange={setMandatory} />
+              <Toggle label="Block screen until review complete" description={`Window locks until you finish ${INTERRUPT_SESSION_FLOOR}-${INTERRUPT_SESSION_CAP} cards — always includes a Snooze button`} checked={mandatory} onChange={setMandatory} />
               {mandatory && (
                 <div className="pt-2">
                   <label className="text-sm text-gray-400 block mb-2">Snooze duration</label>
@@ -147,10 +148,17 @@ export default function SettingsPage() {
                     <div className="text-sm font-medium text-white capitalize">{licenseType === "subscription" ? "Subscription" : "Free"} license</div>{/* display label — not a feature gate */}
                     <div className="text-xs text-gray-500 mt-0.5">
                       {ALL_PACK_CODES.every(c => unlockedPacks.includes(c)) ? "All languages unlocked" : `${unlockedPacks.join(", ").toUpperCase()} unlocked`}
-                      {validUntil && <> · active until {new Date(validUntil).toLocaleDateString()}</>}
+                      {validUntil && <> · {licenseType === "subscription" && !isPro ? "expired" : "active until"} {new Date(validUntil).toLocaleDateString()}</>}
                     </div>
                   </div>
-                  <span className="text-xs bg-green-900 text-green-400 rounded-full px-2.5 py-0.5 font-semibold">Active</span>
+                  {/* Round-15 audit finding (Agent N): this badge previously read purely off
+                      licenseKey/validUntil truthiness with no expiry check — inconsistent with
+                      the isPro gate two sections up, so a lapsed-past-grace-period subscriber
+                      saw "Proactive interruptions are a Pro feature" above and "Active" here on
+                      the same page. Now reflects the same isProEnabled expiry check. */}
+                  <span className={`text-xs rounded-full px-2.5 py-0.5 font-semibold ${licenseType === "subscription" && !isPro ? "bg-red-900 text-red-400" : "bg-green-900 text-green-400"}`}>
+                    {licenseType === "subscription" && !isPro ? "Expired" : "Active"}
+                  </span>
                 </div>
                 <div className="flex gap-2 pt-1">
                   {/* subscription-only action — no feature flag, always visible to subscription users; isProEnabled() does not apply */}

@@ -16,6 +16,12 @@ const { state, mocks } = vi.hoisted(() => ({
     entitlement: { licenseType: "subscription" as string, validUntil: null as number | null },
     settings: { interruptEnabled: true as boolean },
     sync: { deviceId: "device-1" as string | null },
+    // Round-15 audit fix: usePushRegistration now gates on useIsHydrated(useEntitlementStore)
+    // and useIsHydrated(useSettingsStore) — defaults to hydrated=true so every pre-existing
+    // test in this file, written before hydration mattered here, is unaffected; the
+    // dedicated hydration-race describe block below overrides these per-test.
+    entitlementHydrated: true as boolean,
+    settingsHydrated: true as boolean,
   },
   mocks: {
     registerPushToken: vi.fn(() => Promise.resolve({ ok: true as const })),
@@ -59,11 +65,26 @@ vi.mock("@/lib/featureFlags", async (importOriginal) => {
 vi.mock("@/store/authStore", () => ({
   useAuthStore: (selector: (s: typeof state.auth) => unknown) => selector(state.auth),
 }));
+// useEntitlementStore/useSettingsStore are called both as selector hooks AND passed whole
+// to useIsHydrated(store) (lib/storage.ts), which reads store.persist.hasHydrated()/
+// onFinishHydration() directly on the function object itself — a plain arrow function
+// mock throws. Object.assign attaches the .persist shape onto the callable mock.
 vi.mock("@/store/entitlementStore", () => ({
-  useEntitlementStore: (selector: (s: typeof state.entitlement) => unknown) => selector(state.entitlement),
+  useEntitlementStore: Object.assign(
+    (selector: (s: typeof state.entitlement) => unknown) => selector(state.entitlement),
+    { persist: { hasHydrated: () => state.entitlementHydrated, onFinishHydration: () => () => {} } },
+  ),
 }));
 vi.mock("@/store/settingsStore", () => ({
-  useSettingsStore: (selector: (s: typeof state.settings) => unknown) => selector(state.settings),
+  useSettingsStore: Object.assign(
+    // Mirrors real Zustand persist behavior (store/settingsStore.ts's actual pre-hydration
+    // default is interruptEnabled: false) — while !settingsHydrated, the selector must see
+    // that default, not the real persisted value, or the hydration-race test can't reproduce
+    // the scenario it's named after (a real Pro+enabled user reading as gate-failed).
+    (selector: (s: typeof state.settings) => unknown) =>
+      selector(state.settingsHydrated ? state.settings : { interruptEnabled: false }),
+    { persist: { hasHydrated: () => state.settingsHydrated, onFinishHydration: () => () => {} } },
+  ),
 }));
 vi.mock("@/store/syncStore", () => ({
   useSyncStore: { getState: () => state.sync },
@@ -83,6 +104,8 @@ beforeEach(() => {
   state.entitlement.validUntil = null;
   state.settings.interruptEnabled = true;
   state.sync.deviceId = "device-1";
+  state.entitlementHydrated = true;
+  state.settingsHydrated = true;
 });
 
 describe("usePushRegistration — happy path", () => {
@@ -211,8 +234,23 @@ describe("usePushRegistration — gates", () => {
 // notifications indefinitely after sign-out, a subscription lapse, or disabling interrupts,
 // since the server-side dispatch has no entitlement concept at all and never learns the
 // client-side gate closed. Fixed by proactively cleaning up whenever the gate no longer holds.
-describe("usePushRegistration — cleans up a stale token when the gate no longer holds (round-14 audit fix)", () => {
-  it("unregisters the token when a Pro user's license downgrades to free", async () => {
+//
+// Round-15 audit finding (5-way convergence: Agent A, B, K, S, V — the round's headline):
+// round 14's fix only worked when THIS hook's own effect body got a chance to re-run with
+// new deps while still mounted (the interruptEnabled-toggle case below). It silently failed
+// for its two most direct, most emphasized scenarios: (1) a licenseType/validUntil change
+// (Deactivate, background revalidation) causes components/InterruptHandler.tsx's OWN
+// Pro-gate to unmount InterruptHandlerCore — and this hook inside it — in the SAME commit,
+// before the effect body ever runs again to reach the round-14 cleanup branch; only the
+// effect's CLEANUP FUNCTION still fires, and round 14 never called unregisterPushToken from
+// there. (2) sign-out sets `userId` to null BEFORE the effect re-runs, so the round-14
+// `if (userId)` guard (reading the now-null CURRENT value) always skipped the call — there
+// was no way to recover WHO to unregister. Separately, Agent S found the proactive branch
+// could itself fire a spurious DELETE during a cross-store hydration race on cold start.
+// Fixed by tracking who was actually registered in a ref (correct even across an unmount or
+// a userId->null transition) and gating the whole effect behind both stores' real hydration.
+describe("usePushRegistration — cleans up a stale token when the gate no longer holds (round-14/15 audit fix)", () => {
+  it("unregisters the token when a Pro user's license downgrades to free (dep change, stays mounted)", async () => {
     const { rerender } = renderHook(() => usePushRegistration());
     await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
     expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
@@ -233,15 +271,47 @@ describe("usePushRegistration — cleans up a stale token when the gate no longe
     await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
   });
 
-  // Deletion Test: removing the `if (userId) { ... }` guard (or the cleanup block entirely)
-  // makes this test fail differently — either a TypeError from unregisterPushToken(null, ...)
-  // or, if the guard is removed but the block stays, a spurious call this test asserts against.
-  it("does not attempt to unregister when the user signs out — no userId to scope the delete to", async () => {
+  // Round-15 headline regression test: this is the REAL production shape of the bug — the
+  // parent component (components/InterruptHandler.tsx) stops rendering this hook's owner
+  // ENTIRELY when its own Pro-gate flips, an actual unmount, not a dep change on an
+  // already-mounted instance (which `rerender()` above tests, and which was never broken).
+  // Deletion Test: removing the effect-cleanup's `void unregisterFor(prev.userId)` call
+  // (leaving only `cancelled = true; unlisten?.();`) makes this test fail — no call at all.
+  it("unregisters the token when the whole hook unmounts after a successful registration — the real InterruptHandler Pro-gate shape, not just a dep change while mounted", async () => {
+    const { unmount } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3"); // deliver a real token so registeredForRef gets set
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+
+    unmount();
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  // Round-15 regression test: sign-out AFTER a real registration must still target the
+  // account that was actually registered — the CURRENT userId is already null by the time
+  // this fires, so only the ref (not the closure's userId) can supply the right target.
+  // Deletion Test: reverting to reading the current `userId` instead of the ref's captured
+  // value makes this test fail (would try to call with `null` or skip the call entirely).
+  it("unregisters the PREVIOUSLY-registered account when the user signs out after a real registration", async () => {
     const { rerender } = renderHook(() => usePushRegistration());
     await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3");
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
 
     state.auth.userId = null;
     rerender();
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  // Deletion Test: removing the `if (target)` guard (or the cleanup block entirely) makes
+  // this test fail differently — either a TypeError from unregisterPushToken(null, ...) or,
+  // if the guard is removed but the block stays, a spurious call this test asserts against.
+  it("does not attempt to unregister when the user signs out with no prior registration in this session and no current userId to fall back to", async () => {
+    state.auth.userId = null; // never signed in this render — nothing was ever registered
+    renderHook(() => usePushRegistration());
 
     await Promise.resolve();
     await Promise.resolve();
@@ -253,5 +323,21 @@ describe("usePushRegistration — cleans up a stale token when the gate no longe
     renderHook(() => usePushRegistration());
 
     await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  // Round-15 audit finding (Agent S): entitlementStore/settingsStore hydrate independently
+  // via separate Tauri IPC loads — interruptEnabled's pre-hydration default (false) could
+  // make a real Pro+enabled user look gate-failed for one render, firing a spurious DELETE
+  // against a currently-valid registration. Deletion Test: removing the
+  // `if (!entitlementHydrated || !settingsHydrated) return;` guard makes this test fail —
+  // unregisterPushToken would be called during the still-hydrating render.
+  it("does not fire a destructive unregister while settingsStore is still hydrating, even though the not-yet-loaded interruptEnabled default would otherwise read as gate-failed", async () => {
+    state.settingsHydrated = false; // entitlementStore already resolved subscription+true; settingsStore hasn't
+    renderHook(() => usePushRegistration());
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+    expect(mocks.registerPushToken).not.toHaveBeenCalled(); // also doesn't register prematurely
   });
 });

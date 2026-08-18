@@ -53,10 +53,27 @@ describe("registerPushToken", () => {
         token: "raw-token-abc",
         app_env: "production",
         timezone: "Europe/Rome",
+        deactivated_at: null,
       },
       { onConflict: "user_id,device_id" }
     );
     expect(result).toEqual({ ok: true });
+  });
+
+  // Round-15 audit finding (Red Agent R, DECAY lens): an upsert only SETs columns present
+  // in the payload — if this row previously had deactivated_at set (a permanent APNs/FCM
+  // delivery failure, e.g. the old token became invalid), omitting the field here would
+  // leave that row excluded from all future dispatch FOREVER, even after the device
+  // received a genuinely fresh, valid token. Deletion Test: removing `deactivated_at: null`
+  // from toRow() makes this test fail (the key would be absent from the actual call).
+  it("resets deactivated_at to null on every registration, clearing any prior permanent-failure flag", async () => {
+    const mock = makeMockClient();
+    mockGetSupabaseClient.mockReturnValue(mock);
+
+    await registerPushToken(makeParams());
+
+    const [row] = mock.upsertMock.mock.calls[0] as [Record<string, unknown>, unknown];
+    expect(row.deactivated_at).toBe(null);
   });
 
   it("includes optional schedule fields in the upsert row only when explicitly provided", async () => {
@@ -75,6 +92,7 @@ describe("registerPushToken", () => {
         token: "raw-token-abc",
         app_env: "production",
         timezone: "Europe/Rome",
+        deactivated_at: null,
         interrupt_interval_minutes: 60,
         waking_hours_start_local: 7,
         waking_hours_end_local: 22,

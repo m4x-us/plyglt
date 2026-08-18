@@ -132,6 +132,51 @@ describe("useLicenseActivation — handleActivate", () => {
     expect(result.current.licenseStatus.type).toBe("error");
   });
 
+  // Round-15 audit finding (Red Agent R): the Activate button's `disabled` attribute only
+  // guards a second mouse click — the license-key input's onKeyDown handler
+  // (app/settings/page.tsx) calls handleActivate() on every Enter keypress unconditionally,
+  // so two ordinary taps before the round-trip resolves fired two concurrent
+  // activateLicense() calls, each potentially consuming a real activation seat. Deletion
+  // Test: removing the `if (licenseStatus.type === "loading") return;` guard makes this
+  // test fail — mockActivateLicense would be called twice instead of once.
+  it("ignores a second handleActivate call while the first is still in flight (re-entrancy guard)", async () => {
+    let resolveActivate!: (value: unknown) => void;
+    mockActivateLicense.mockImplementation(
+      () => new Promise((resolve) => { resolveActivate = resolve; }),
+    );
+
+    const { result } = renderHook(() => useLicenseActivation());
+    act(() => { result.current.setLicenseInput("TEST-LICENSE-KEY"); });
+
+    let firstCallPromise!: Promise<void>;
+    act(() => {
+      firstCallPromise = result.current.handleActivate();
+    });
+    expect(result.current.licenseStatus.type).toBe("loading");
+
+    // Second "Enter" tap, simulated before the first round-trip resolves.
+    await act(async () => {
+      await result.current.handleActivate();
+    });
+
+    expect(mockActivateLicense).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveActivate({
+        ok: true,
+        licenseKey: "test-key-123",
+        instanceId: "test-instance-456",
+        licenseType: "subscription",
+        unlockedPacks: ["it"],
+        validUntil: null,
+      });
+      await firstCallPromise;
+    });
+
+    expect(result.current.licenseStatus.type).toBe("success");
+    expect(mockSetEntitlement).toHaveBeenCalledTimes(1); // not double-applied
+  });
+
   it("error path: transitions to error with server message when activation returns ok:false", async () => {
     mockActivateLicense.mockResolvedValue({
       ok: false,

@@ -491,6 +491,31 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "Manage subscription →" })).toBeInTheDocument();
   });
 
+  // Round-15 audit finding (Agent N): this badge previously read purely off licenseKey/
+  // validUntil truthiness with no expiry check — a subscriber whose grace period had
+  // fully lapsed saw "Proactive interruptions are a Pro feature" in the Review Reminders
+  // section above and a green "Active" badge with a PAST date here, on the same page.
+  // Deletion Test: reverting the badge to unconditional "Active"/green makes this test's
+  // "Expired" and red-badge-class assertions fail.
+  it("shows Expired (not Active) for a subscription whose grace period has fully lapsed", () => {
+    const validUntil = Date.now() - 1000 * 60 * 60 * 24 * 365; // a year in the past
+    useEntitlementStore.setState({
+      licenseKey: "PLYGLT-ABCD-1234-EFGH",
+      instanceId: "inst-1",
+      licenseType: "subscription",
+      unlockedPacks: [...ALL_KNOWN_PACKS],
+      lastValidated: Date.now(),
+      validUntil,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Active")).toBeNull();
+    expect(screen.getByText("Expired").className).toContain("bg-red-900");
+    expect(screen.getByText(`· expired ${new Date(validUntil).toLocaleDateString()}`, { exact: false })).toBeInTheDocument();
+  });
+
   // Test 13: Free license (licenseType !== "subscription") shows "Free license" and hides
   // the Manage subscription button; partial unlockedPacks lists specific codes
   it("renders free license type without a Manage subscription button, listing specific unlocked packs", () => {
@@ -665,6 +690,19 @@ describe("SettingsPage", () => {
   });
 
   // Test 21: Mandatory mode toggle reveals snooze duration buttons; clicking one updates snoozeMinutes
+  // Round-15 audit finding (Agent N): this description used to say "finish 5 cards" —
+  // stale since Batch 23 raised the interrupt session floor from 5 to 6 (lib/queue.ts's
+  // INTERRUPT_SESSION_FLOOR/CAP, currently 6-8). Pins the real, current literal values so a
+  // future constant change would need a matching test update, not silently drift again.
+  it("Mandatory Mode description reflects the real interrupt session floor/cap (6-8 cards, not the stale 5)", () => {
+    useSettingsStore.setState({ interruptEnabled: true });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText("Window locks until you finish 6-8 cards — always includes a Snooze button")).toBeInTheDocument();
+    expect(screen.queryByText(/finish 5 cards/)).toBeNull();
+  });
+
   it("enabling mandatory mode reveals snooze duration options and updates snoozeMinutes on click", () => {
     useSettingsStore.setState({ interruptEnabled: true, mandatory: true, snoozeMinutes: 15 });
 

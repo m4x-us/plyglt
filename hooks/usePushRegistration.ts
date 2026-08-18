@@ -26,7 +26,7 @@
 // ============================================================
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { isTauri, isNotificationPermissionGranted } from "@/lib/tauri";
 import {
   getPushToken,
@@ -35,6 +35,7 @@ import {
 } from "@/lib/tauriPush";
 import { registerPushToken, unregisterPushToken } from "@/lib/pushTokenClient";
 import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { useIsHydrated } from "@/lib/storage";
 import { useAuthStore } from "@/store/authStore";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -45,24 +46,47 @@ export function usePushRegistration(): void {
   const licenseType = useEntitlementStore((s) => s.licenseType);
   const validUntil = useEntitlementStore((s) => s.validUntil);
   const interruptEnabled = useSettingsStore((s) => s.interruptEnabled);
+  // Round-15 audit finding (Agent S): entitlementStore and settingsStore hydrate
+  // independently via separate Tauri IPC loads (lib/storage.ts) — interruptEnabled's
+  // pre-hydration default (false) can make a real Pro+enabled user look gate-failed for
+  // one render, which was enough to fire a real unregisterPushToken DELETE before this fix.
+  const entitlementHydrated = useIsHydrated(useEntitlementStore);
+  const settingsHydrated = useIsHydrated(useSettingsStore);
+
+  // Round-15 audit finding (3-way convergence: Agent A, B, K, sharpened by Agent W):
+  // persists the (userId, deviceId) this hook instance actually registered, across
+  // renders AND across the unmount this effect's own cleanup runs in. Needed because
+  // neither the gate-failure branch nor the effect cleanup can trust the CURRENT `userId`
+  // closure value to still identify who was registered — a sign-out sets it to null before
+  // cleanup runs (Agent K), and components/InterruptHandler.tsx's OWN Pro-gate unmounts
+  // this whole hook in the SAME commit a licenseType/validUntil change makes gateOk false,
+  // before the effect body ever gets a chance to re-run and reach the branch below
+  // (Agent A/B/W) — the effect's cleanup function, which DOES still fire on unmount, is
+  // the only place code can run in that case.
+  const registeredForRef = useRef<{ userId: string; deviceId: string } | null>(null);
 
   useEffect(() => {
     if (!isTauri) return;
+    if (!entitlementHydrated || !settingsHydrated) return;
 
     const gateOk = !!userId && interruptEnabled && isProEnabled(getFeatureFlags().interruptEngine, licenseType, validUntil);
+
+    async function unregisterFor(targetUserId: string) {
+      const deviceId = useSyncStore.getState().deviceId;
+      if (!deviceId) return;
+      const result = await unregisterPushToken(targetUserId, deviceId);
+      if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
+    }
+
     if (!gateOk) {
-      // Round-14 audit finding (3-way convergence: Agent A, B, W): nothing anywhere in the
-      // app ever called unregisterPushToken, so a device that registered while Pro/signed-in
-      // kept receiving push notifications indefinitely after sign-out, a subscription lapse,
-      // or disabling interrupts. Proactively clean up whenever the gate no longer holds — a
-      // DELETE with no matching row (never registered) is a harmless no-op.
-      if (userId) {
-        const deviceId = useSyncStore.getState().deviceId;
-        if (deviceId) {
-          void unregisterPushToken(userId, deviceId).then((result) => {
-            if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
-          });
-        }
+      // Prefer whoever we know was actually registered this session (ref — correct even
+      // if `userId` has since gone null via sign-out); fall back to the CURRENT userId so
+      // a genuinely-Free cold start still catches a stale row from a PRIOR app launch
+      // (e.g. cancelled via the external customer portal while the app was fully closed).
+      const target = registeredForRef.current?.userId ?? userId;
+      if (target) {
+        registeredForRef.current = null;
+        void unregisterFor(target);
       }
       return;
     }
@@ -89,6 +113,8 @@ export function usePushRegistration(): void {
       });
       if (!result.ok) {
         console.error(`[ERR-PUSHREG-UPLOAD-${Date.now()}] push token upload failed: ${result.error}`);
+      } else {
+        registeredForRef.current = { userId, deviceId };
       }
     }
 
@@ -133,6 +159,14 @@ export function usePushRegistration(): void {
     return () => {
       cancelled = true;
       unlisten?.();
+      // Round-15 fix: see registeredForRef's own comment above — this is the only place
+      // code can run when a licenseType/validUntil change unmounts this hook's parent in
+      // the same commit, before the branch above ever gets to run again.
+      const prev = registeredForRef.current;
+      if (prev) {
+        registeredForRef.current = null;
+        void unregisterFor(prev.userId);
+      }
     };
-  }, [userId, licenseType, validUntil, interruptEnabled]);
+  }, [userId, licenseType, validUntil, interruptEnabled, entitlementHydrated, settingsHydrated]);
 }

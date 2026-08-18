@@ -44,6 +44,14 @@ function toRow(params: RegisterPushTokenParams) {
     token: params.token,
     app_env: params.appEnv,
     timezone: params.timezone,
+    // Round-15 audit finding (Red Agent R, DECAY lens): an upsert only SETs columns present
+    // in the payload — omitting this left a row dispatch had marked deactivated_at (on a
+    // permanent APNs/FCM delivery failure) excluded from all future dispatch FOREVER, even
+    // after the device received a genuinely fresh, valid token (an OS token-rotation event,
+    // or the ordinary "new phone via Transfer/Restore" flow, which keeps the same local
+    // device_id but always yields a new OS-issued token). A live re-registration is
+    // definitionally proof the device is reachable again.
+    deactivated_at: null,
   };
   // Omit optional fields entirely rather than writing `undefined` — the DB
   // column defaults (90 / 8 / 21) apply only when the column is absent from

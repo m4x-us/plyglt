@@ -29,6 +29,14 @@ export function useLicenseActivation() {
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus>({ type: "idle" });
 
   async function handleActivate() {
+    // Round-15 audit finding (Red Agent R): the Activate BUTTON's `disabled` attribute
+    // guards against a double mouse-click, but the license-key input's onKeyDown handler
+    // (app/settings/page.tsx) calls handleActivate() on every Enter keypress unconditionally
+    // — no OS key-repeat needed, just two ordinary taps before the first round-trip resolves.
+    // Two concurrent activateLicense() calls with the same key can both succeed against
+    // Lemon Squeezy (each registering a distinct instance), silently consuming two of the
+    // license's finite activation seats for what the user believes was one activation.
+    if (licenseStatus.type === "loading") return;
     const key = licenseInput.trim();
     if (!key) return;
     // Local validation before IPC — LS keys are alphanumeric+hyphens, max ~64 chars.
@@ -64,6 +72,10 @@ export function useLicenseActivation() {
   }
 
   async function handleValidate() {
+    // Round-15 fix: same re-entrancy guard as handleActivate — the Re-validate button's
+    // own `disabled` attribute only blocks a second mouse click, not a second call from
+    // any other trigger before the first round-trip resolves.
+    if (licenseStatus.type === "loading") return;
     // sev:6 fix — read from getState() instead of reactive state captured at mount time.
     // persist middleware may not have hydrated when the component first mounts.
     const { licenseKey, instanceId, markValidated } = useEntitlementStore.getState();
@@ -84,6 +96,8 @@ export function useLicenseActivation() {
   }
 
   async function handleDeactivate() {
+    // Round-15 fix: same re-entrancy guard as handleActivate/handleValidate.
+    if (licenseStatus.type === "loading") return;
     // sev:6 fix — read from getState() at call time, not reactive state from mount.
     const { licenseKey, instanceId, clearEntitlement } = useEntitlementStore.getState();
     if (!licenseKey || !instanceId) return;
