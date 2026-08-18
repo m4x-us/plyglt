@@ -19,6 +19,7 @@ const { state, mocks } = vi.hoisted(() => ({
   },
   mocks: {
     registerPushToken: vi.fn(() => Promise.resolve({ ok: true as const })),
+    unregisterPushToken: vi.fn(() => Promise.resolve({ ok: true as const })),
     registerForPushNotifications: vi.fn(() => Promise.resolve(state.registerSupported)),
     onPushToken: vi.fn((handler: (token: string) => void) => {
       state.tokenHandler = handler;
@@ -44,6 +45,7 @@ vi.mock("@/lib/tauriPush", () => ({
 
 vi.mock("@/lib/pushTokenClient", () => ({
   registerPushToken: mocks.registerPushToken,
+  unregisterPushToken: mocks.unregisterPushToken,
 }));
 
 vi.mock("@/lib/featureFlags", async (importOriginal) => {
@@ -201,5 +203,55 @@ describe("usePushRegistration — gates", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(mocks.registerPushToken).not.toHaveBeenCalled();
+  });
+});
+
+// Round-14 audit finding (3-way convergence: Agent A, B, W): nothing in the app ever called
+// unregisterPushToken — a device that registered while Pro/signed-in kept receiving push
+// notifications indefinitely after sign-out, a subscription lapse, or disabling interrupts,
+// since the server-side dispatch has no entitlement concept at all and never learns the
+// client-side gate closed. Fixed by proactively cleaning up whenever the gate no longer holds.
+describe("usePushRegistration — cleans up a stale token when the gate no longer holds (round-14 audit fix)", () => {
+  it("unregisters the token when a Pro user's license downgrades to free", async () => {
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+
+    state.entitlement.licenseType = "free";
+    rerender();
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  it("unregisters the token when interrupts are disabled after being enabled", async () => {
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+
+    state.settings.interruptEnabled = false;
+    rerender();
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+  });
+
+  // Deletion Test: removing the `if (userId) { ... }` guard (or the cleanup block entirely)
+  // makes this test fail differently — either a TypeError from unregisterPushToken(null, ...)
+  // or, if the guard is removed but the block stays, a spurious call this test asserts against.
+  it("does not attempt to unregister when the user signs out — no userId to scope the delete to", async () => {
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+
+    state.auth.userId = null;
+    rerender();
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+  });
+
+  it("cleans up on mount even when the gate never held (e.g. already Free) — a harmless no-op DELETE, not conditioned on a prior real registration", async () => {
+    state.entitlement.licenseType = "free";
+    renderHook(() => usePushRegistration());
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
   });
 });

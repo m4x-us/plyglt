@@ -151,7 +151,13 @@ function resetStores() {
   useEntitlementStore.setState({
     licenseKey:    null,
     instanceId:    null,
-    licenseType:   "free",
+    // Round-14 audit fix: the Review Reminders section (and its Mandatory Mode/DnD/OS Triggers
+    // dependents) are now Pro-gated (isPro in page.tsx). Every pre-existing test in this file
+    // was written before that gate existed and exercises those controls directly, so default
+    // to Pro here; the gate's own behavior gets its own dedicated tests (Free hides the
+    // controls behind an upgrade prompt) below. Tests targeting the License section's own
+    // Free/Pro display differences already set licenseType explicitly and are unaffected.
+    licenseType:   "subscription",
     unlockedPacks: ["it"],
     lastValidated: 0,
     validUntil:    null,
@@ -274,6 +280,66 @@ describe("SettingsPage", () => {
 
     expect(useSettingsStore.getState().interruptEnabled).toBe(true);
     expect(interruptSwitch.getAttribute("aria-checked")).toBe("true");
+  });
+
+  // Round-14 audit finding (4-way convergence: Agent A, B, K, W): before this fix, a Free
+  // user saw the exact same fully-interactive toggle/interval/Mandatory-Mode/DnD/OS-Triggers
+  // controls as a Pro user, silently inert since components/InterruptHandler.tsx's Pro gate
+  // (round 13) never lets InterruptHandlerCore mount for them. Deletion Test: reverting the
+  // isPro ternary back to always rendering the functional toggle makes this test's "Upgrade"
+  // button assertion fail (no such button exists) and the switch-role query below succeed
+  // instead of throwing.
+  describe("Review Reminders — Pro gate (round-14 audit fix)", () => {
+    it("shows an upgrade prompt instead of the functional toggle for a Free license", () => {
+      useEntitlementStore.setState({ licenseType: "free", validUntil: null });
+
+      render(<SettingsPage />);
+
+      expect(screen.getByText("Proactive interruptions are a Pro feature")).toBeInTheDocument();
+      expect(screen.queryByRole("switch", { name: "Enable review reminders" })).toBeNull();
+    });
+
+    it("clicking the upgrade prompt opens the checkout URL, and requests no OS notification permission", () => {
+      useEntitlementStore.setState({ licenseType: "free", validUntil: null });
+
+      render(<SettingsPage />);
+
+      fireEvent.click(screen.getByText(/Upgrade/));
+
+      expect(openExternalUrl).toHaveBeenCalledWith(expect.stringContaining("http"));
+      // requestNotificationPermission only fires from handleInterruptToggle, which a Free
+      // user can no longer reach at all — confirms no permission prompt was triggered.
+      expect(mockRequestNotificationPermission).not.toHaveBeenCalled();
+    });
+
+    it("does not render Mandatory Mode, Do Not Disturb, or OS Triggers for a Free license, even with interruptEnabled true from a prior Pro session", () => {
+      useEntitlementStore.setState({ licenseType: "free", validUntil: null });
+      useSettingsStore.setState({ interruptEnabled: true, mandatory: true });
+      tauriState.isTauri = true;
+
+      render(<SettingsPage />);
+
+      expect(screen.queryByText("Mandatory Mode")).toBeNull();
+      expect(screen.queryByText("Do Not Disturb")).toBeNull();
+      expect(screen.queryByText("OS Triggers")).toBeNull();
+    });
+
+    it("shows the functional toggle for an active subscription — control case for the gate itself", () => {
+      useEntitlementStore.setState({ licenseType: "subscription", validUntil: null });
+
+      render(<SettingsPage />);
+
+      expect(screen.queryByText("Proactive interruptions are a Pro feature")).toBeNull();
+      expect(getSwitchByLabel("Enable review reminders")).toBeInTheDocument();
+    });
+
+    it("does not render the functional toggle once a subscription's grace period has expired", () => {
+      useEntitlementStore.setState({ licenseType: "subscription", validUntil: Date.now() - 1000 * 60 * 60 * 24 * 365 });
+
+      render(<SettingsPage />);
+
+      expect(screen.getByText("Proactive interruptions are a Pro feature")).toBeInTheDocument();
+    });
   });
 
   // Test 6: OS Triggers section is absent in web mode even when interruptEnabled=true

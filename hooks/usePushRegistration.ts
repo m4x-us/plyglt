@@ -33,7 +33,7 @@ import {
   onPushToken,
   registerForPushNotifications,
 } from "@/lib/tauriPush";
-import { registerPushToken } from "@/lib/pushTokenClient";
+import { registerPushToken, unregisterPushToken } from "@/lib/pushTokenClient";
 import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
 import { useAuthStore } from "@/store/authStore";
 import { useEntitlementStore } from "@/store/entitlementStore";
@@ -47,8 +47,25 @@ export function usePushRegistration(): void {
   const interruptEnabled = useSettingsStore((s) => s.interruptEnabled);
 
   useEffect(() => {
-    if (!isTauri || !userId || !interruptEnabled) return;
-    if (!isProEnabled(getFeatureFlags().interruptEngine, licenseType, validUntil)) return;
+    if (!isTauri) return;
+
+    const gateOk = !!userId && interruptEnabled && isProEnabled(getFeatureFlags().interruptEngine, licenseType, validUntil);
+    if (!gateOk) {
+      // Round-14 audit finding (3-way convergence: Agent A, B, W): nothing anywhere in the
+      // app ever called unregisterPushToken, so a device that registered while Pro/signed-in
+      // kept receiving push notifications indefinitely after sign-out, a subscription lapse,
+      // or disabling interrupts. Proactively clean up whenever the gate no longer holds — a
+      // DELETE with no matching row (never registered) is a harmless no-op.
+      if (userId) {
+        const deviceId = useSyncStore.getState().deviceId;
+        if (deviceId) {
+          void unregisterPushToken(userId, deviceId).then((result) => {
+            if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
+          });
+        }
+      }
+      return;
+    }
 
     let cancelled = false;
     let unlisten: (() => void) | undefined;

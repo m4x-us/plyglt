@@ -8,16 +8,16 @@
 // without throwing; a Supabase-level error is logged with a ref ID and surfaced
 // in the return value, never swallowed.
 //
-// NO PRODUCTION CALLER EXISTS YET. This is greenfield library code written for
-// the not-yet-built iOS/Android clients (Tasks #171/#172) — once the OS grants
-// notification permission and hands the app a real APNs/FCM device token, that
-// client calls registerPushToken() using useAuthStore().userId. Desktop (Tauri)
-// deliberately does NOT call this: desktop already has a working local,
-// client-side interrupt scheduler (BRAND.md's Proactive Interruption Model) and
-// has no APNs/FCM-shaped credential to register.
+// registerPushToken is called live in production by hooks/usePushRegistration.ts (Task #522,
+// iOS live-verified end-to-end on a real device) once notification permission is granted and
+// a Pro user's APNs device token is available. Desktop (Tauri) deliberately does NOT call
+// this: desktop already has a working local, client-side interrupt scheduler (BRAND.md's
+// Proactive Interruption Model) and has no APNs/FCM-shaped credential to register.
+// unregisterPushToken is called by the same hook (round-14 audit fix) whenever the
+// registration gate no longer holds — sign-out, a subscription lapse, or interrupts disabled.
 // ============================================================
 // DEPENDS ON: lib/supabaseClient.ts (getSupabaseClient)
-// USED BY: (none yet — see note above; iOS/Android clients, Tasks #171/#172)
+// USED BY: hooks/usePushRegistration.ts
 // ============================================================
 
 import { getSupabaseClient } from "@/lib/supabaseClient";

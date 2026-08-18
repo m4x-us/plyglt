@@ -10,6 +10,7 @@ import { ALL_PACK_CODES } from "@/lib/langRegistry";
 import { runEntitlementValidation } from "@/components/EntitlementValidator";
 import { isTauri, enableAutostart, disableAutostart, openExternalUrl } from "@/lib/tauri";
 import { CHECKOUT_URLS, CUSTOMER_PORTAL_URL, PRICING } from "@/lib/entitlement";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
 import { Section } from "@/components/settings/Section";
 import { Toggle } from "@/components/settings/Toggle";
 import { NotificationPermissionGate } from "@/components/NotificationPermissionGate";
@@ -25,6 +26,12 @@ export default function SettingsPage() {
   const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes, setLaunchAtLogin, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes, setWakeEnabled, setUnlockEnabled, setIdleEnabled, setIdleThresholdMinutes } = useSettingsStore();
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
   useEffect(() => { runEntitlementValidation(useEntitlementStore.getState); }, []);
+  // Round-14 audit finding (4-way convergence: Agent A, B, K, W): components/InterruptHandler.tsx
+  // gates the whole engine on isProEnabled, but this page never did — a Free user could flip
+  // "Enable review reminders" on, grant a real OS notification-permission prompt, and configure
+  // interval/Mandatory Mode/DnD/OS Triggers, all silently inert since InterruptHandlerCore never
+  // mounts for them. isPro below hides the functional controls behind an upgrade prompt instead.
+  const isPro = isProEnabled(getFeatureFlags().interruptEngine, licenseType, validUntil);
   const { notifPermission, handleInterruptToggle } = useNotificationPermission();
   const { importRef, dataStatus, handleExport, handleImportFile } = useExportImport();
   const { licenseInput, setLicenseInput, licenseStatus, setLicenseStatus, handleActivate, handleValidate, handleDeactivate } = useLicenseActivation();
@@ -53,20 +60,32 @@ export default function SettingsPage() {
 
         <div className="space-y-8">
           <Section title="Review Reminders">
-            <Toggle label="Enable review reminders" description="Get reminded to review when cards are ready" checked={interruptEnabled} onChange={handleInterruptToggle} />
-            <NotificationPermissionGate permission={notifPermission} />
-            {interruptEnabled && (
-              <div className="pt-2">
-                <label className="text-sm text-gray-400 block mb-2">Remind me every</label>
-                <div className="flex gap-2">
-                  {INTERVAL_OPTIONS.map((h) => (
-                    <button key={h} onClick={() => setIntervalHours(h)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${intervalHours === h ? "bg-yellow-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>{h}h</button>
-                  ))}
+            {isPro ? (
+              <>
+                <Toggle label="Enable review reminders" description="Get reminded to review when cards are ready" checked={interruptEnabled} onChange={handleInterruptToggle} />
+                <NotificationPermissionGate permission={notifPermission} />
+                {interruptEnabled && (
+                  <div className="pt-2">
+                    <label className="text-sm text-gray-400 block mb-2">Remind me every</label>
+                    <div className="flex gap-2">
+                      {INTERVAL_OPTIONS.map((h) => (
+                        <button key={h} onClick={() => setIntervalHours(h)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${intervalHours === h ? "bg-yellow-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>{h}h</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-400">Enable review reminders</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Proactive interruptions are a Pro feature</div>
                 </div>
+                <button onClick={() => openExternalUrl(CHECKOUT_URLS.annual)} className="text-xs text-yellow-600 hover:text-yellow-500 underline whitespace-nowrap">Upgrade {PRICING.annual} →</button>
               </div>
             )}
           </Section>
-          {interruptEnabled && (
+          {isPro && interruptEnabled && (
             <Section title="Mandatory Mode">
               <Toggle label="Block screen until review complete" description="Window locks until you finish 5 cards — always includes a Snooze button" checked={mandatory} onChange={setMandatory} />
               {mandatory && (
@@ -81,7 +100,7 @@ export default function SettingsPage() {
               )}
             </Section>
           )}
-          {interruptEnabled && (
+          {isPro && interruptEnabled && (
             // Task #532: this window is now the single canonical quiet-hours setting shared
             // with mobile's waking-hours concept (opposite framing, same real window — see
             // store/settingsStore.ts's dndWindowToWakingHours/wakingHoursToDndWindow and
@@ -104,7 +123,7 @@ export default function SettingsPage() {
               </div>
             </Section>
           )}
-          {interruptEnabled && isMacOS && (
+          {isPro && interruptEnabled && isMacOS && (
             <Section title="OS Triggers">
               <Toggle label="Remind on wake" description="Interrupt when your Mac wakes from sleep" checked={wakeEnabled} onChange={setWakeEnabled} />
               <Toggle label="Remind on unlock" description="Interrupt when you unlock your screen" checked={unlockEnabled} onChange={setUnlockEnabled} />
