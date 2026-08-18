@@ -15,9 +15,11 @@
 // Proactive Interruption Model) and has no APNs/FCM-shaped credential to register.
 // unregisterPushToken is called by the same hook (round-14 audit fix) whenever the
 // registration gate no longer holds — sign-out, a subscription lapse, or interrupts disabled.
+// Round-17 audit fix: also called directly by store/authStore.ts's signOut(), which has no
+// access to the hook's per-instance nonce ref and uses the notUpdatedSince guard instead.
 // ============================================================
 // DEPENDS ON: lib/supabaseClient.ts (getSupabaseClient)
-// USED BY: hooks/usePushRegistration.ts
+// USED BY: hooks/usePushRegistration.ts, store/authStore.ts
 // ============================================================
 
 import { getSupabaseClient } from "@/lib/supabaseClient";
@@ -131,14 +133,29 @@ export async function registerPushToken(params: RegisterPushTokenParams): Promis
  * nonce can't protect this case (there is no "expected current nonce" for a
  * row this JS heap has never registered) — `notUpdatedSince` (an ISO
  * timestamp the caller captures synchronously, BEFORE firing this delete)
- * closes it instead: the DELETE only matches rows whose `updated_at` is still
- * at or before that moment. Any registration that lands AFTER the caller
- * decided to fire this cleanup necessarily bumps `updated_at` (see toRow()
- * above) to a later timestamp, making the delete's condition fail — a correct
- * no-op — while a genuinely stale row (never touched since before the caller
- * captured its timestamp) still matches and gets cleaned up as intended. Both
- * timestamps are captured on the SAME client device across this whole
- * causal chain, so there is no cross-device clock-skew concern.
+ * closes it instead: the DELETE only matches rows whose `updated_at` is
+ * strictly before that moment. A registration that lands AFTER the caller
+ * decided to fire this cleanup bumps `updated_at` (see toRow() above) to a
+ * later timestamp, making the delete's condition fail — a correct no-op —
+ * while a genuinely stale row (never touched since before the caller
+ * captured its timestamp) still matches and gets cleaned up as intended.
+ *
+ * Round-19 audit correction (4-way convergence: Security Agent S, Agent K,
+ * Agent A, Agent W): this comparison is intentionally strict (`lt`, not
+ * `lte`) — an earlier draft used `lte`, which let an exact-millisecond tie
+ * between the two captures favor deletion. Since `Date.toISOString()` has
+ * only millisecond resolution and this guard's entire purpose is protecting
+ * anything written at-or-after the cleanup decision, a tie must favor
+ * PRESERVING the row, not deleting it. Confirmed unreachable via any trigger
+ * the code currently ships (every real path from a cleanup decision to a
+ * competing registration crosses several real async hops — a permission
+ * check, at least one Tauri IPC round-trip, a network upsert — well over 1ms
+ * in practice), but `lt` closes the theoretical gap outright rather than
+ * resting on that latency argument. Both timestamps are captured on the SAME
+ * client device across this whole causal chain, so there is no cross-device
+ * clock-skew concern — same-device clock non-monotonicity (an NTP resync, a
+ * sleep/wake correction) remains a real, if narrow and unmitigated, residual
+ * risk; see .autocode/debt.md.
  */
 export async function unregisterPushToken(
   userId: string,
@@ -158,7 +175,7 @@ export async function unregisterPushToken(
     query = query.eq("registration_nonce", expectedNonce);
   }
   if (notUpdatedSince !== undefined) {
-    query = query.lte("updated_at", notUpdatedSince);
+    query = query.lt("updated_at", notUpdatedSince);
   }
   const { error } = await query;
   if (error) {

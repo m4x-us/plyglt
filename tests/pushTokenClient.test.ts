@@ -14,8 +14,8 @@ function makeParams(overrides: Partial<RegisterPushTokenParams> = {}): RegisterP
   };
 }
 
-// unregisterPushToken's delete chain now has a variable number of .eq()/.lte() calls (2
-// .eq() with no expectedNonce/notUpdatedSince, up to 3 .eq() + 1 .lte() with both) — real
+// unregisterPushToken's delete chain now has a variable number of .eq()/.lt() calls (2
+// .eq() with no expectedNonce/notUpdatedSince, up to 3 .eq() + 1 .lt() with both) — real
 // @supabase/postgrest-js query builders are themselves thenable, resolving whenever awaited
 // regardless of how many filter calls preceded it, so this mock mirrors that: every filter
 // call is recorded (tagged by method name) and returns the SAME self-referential builder,
@@ -26,19 +26,19 @@ function makeMockClient(deleteResult: { error: null | { message: string } } = { 
     filterCalls.push(["eq", column, value]);
     return builder;
   });
-  const lteMock = vi.fn((column: string, value: unknown) => {
-    filterCalls.push(["lte", column, value]);
+  const ltMock = vi.fn((column: string, value: unknown) => {
+    filterCalls.push(["lt", column, value]);
     return builder;
   });
-  const builder: { eq: typeof eqMock; lte: typeof lteMock; then: (resolve: (v: unknown) => void) => void } = {
+  const builder: { eq: typeof eqMock; lt: typeof ltMock; then: (resolve: (v: unknown) => void) => void } = {
     eq: eqMock,
-    lte: lteMock,
+    lt: ltMock,
     then: (resolve) => resolve(deleteResult),
   };
   const upsertMock = vi.fn().mockResolvedValue({ error: null });
   const deleteMock = vi.fn(() => builder);
   const fromMock = vi.fn(() => ({ upsert: upsertMock, delete: deleteMock }));
-  return { from: fromMock, upsertMock, deleteMock, eqMock, lteMock, filterCalls, fromMock };
+  return { from: fromMock, upsertMock, deleteMock, eqMock, ltMock, filterCalls, fromMock };
 }
 
 const mockGetSupabaseClient = vi.fn<() => ReturnType<typeof makeMockClient> | null>();
@@ -216,8 +216,8 @@ describe("unregisterPushToken", () => {
   // Round-18 audit fix, second finding (8-way convergence — see the function's own doc
   // comment): the cold-start fallback (no known nonce) needs a different guard.
   // Deletion Test: removing the `if (notUpdatedSince !== undefined)` branch makes this
-  // test fail — the lte() call would never happen.
-  it("adds an lte('updated_at', ...) filter when a notUpdatedSince timestamp is supplied, with no nonce filter", async () => {
+  // test fail — the lt() call would never happen.
+  it("adds an lt('updated_at', ...) filter when a notUpdatedSince timestamp is supplied, with no nonce filter", async () => {
     const mock = makeMockClient();
     mockGetSupabaseClient.mockReturnValue(mock);
 
@@ -226,9 +226,24 @@ describe("unregisterPushToken", () => {
     expect(mock.filterCalls).toEqual([
       ["eq", "user_id", "user-1"],
       ["eq", "device_id", "device-1"],
-      ["lte", "updated_at", "2026-08-18T00:00:00.000Z"],
+      ["lt", "updated_at", "2026-08-18T00:00:00.000Z"],
     ]);
     expect(result).toEqual({ ok: true });
+  });
+
+  // Round-19 audit fix (4-way convergence: Security Agent S, Agent K, Agent A, Agent W):
+  // a same-millisecond tie between the cleanup's notUpdatedSince capture and a competing
+  // registration's updated_at write must favor PRESERVING the row, not deleting it — this
+  // is why the comparison is strict (lt), not inclusive (lte). Deletion Test: reverting to
+  // `.lte()` makes this test's use of the "lt" tag fail against the mock, and more
+  // precisely demonstrates the semantic gap the round-18 doc comment overclaimed away.
+  it("uses a strict less-than comparison so an exact-millisecond tie favors preserving the row, not deleting it", async () => {
+    const mock = makeMockClient();
+    mockGetSupabaseClient.mockReturnValue(mock);
+
+    await unregisterPushToken("user-1", "device-1", undefined, "2026-08-18T00:00:00.000Z");
+
+    expect(mock.ltMock).toHaveBeenCalledWith("updated_at", "2026-08-18T00:00:00.000Z");
   });
 
   it("applies both the nonce and notUpdatedSince filters together when both are supplied", async () => {
@@ -241,7 +256,7 @@ describe("unregisterPushToken", () => {
       ["eq", "user_id", "user-1"],
       ["eq", "device_id", "device-1"],
       ["eq", "registration_nonce", "nonce-xyz"],
-      ["lte", "updated_at", "2026-08-18T00:00:00.000Z"],
+      ["lt", "updated_at", "2026-08-18T00:00:00.000Z"],
     ]);
   });
 
