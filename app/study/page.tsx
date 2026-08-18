@@ -79,7 +79,7 @@ function StudyInner() {
     const saved = peekResumableSession();
     return (
       <StudyResumePrompt
-        resumePos={saved?.position ?? 0}
+        resumePos={isInterrupt ? Math.min(saved?.position ?? 0, INTERRUPT_SESSION_CAP - 1) : (saved?.position ?? 0)}
         resumeTotal={isInterrupt ? Math.min(saved?.queueIds.length ?? 0, INTERRUPT_SESSION_CAP) : (saved?.queueIds.length ?? 0)}
         onDecline={() => setResumeDecision("declined")}
         onAccept={() => setResumeDecision("accepted")}

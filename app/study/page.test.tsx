@@ -200,8 +200,8 @@ vi.mock("@/components/StudyDoneScreen", () => ({
 // ── @/components/StudyResumePrompt — test double ─────────────────────────────
 vi.mock("@/components/StudyResumePrompt", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  default: ({ onDecline, resumeTotal }: any) => (
-    <div data-testid="study-resume" data-resume-total={resumeTotal}>
+  default: ({ onDecline, resumeTotal, resumePos }: any) => (
+    <div data-testid="study-resume" data-resume-total={resumeTotal} data-resume-pos={resumePos}>
       <button onClick={onDecline}>Decline</button>
     </div>
   ),
@@ -358,6 +358,37 @@ describe("StudyPage — app/study/page.tsx", () => {
     render(<StudyPage />);
 
     expect(screen.getByTestId("study-resume").dataset.resumeTotal).toBe(String(INTERRUPT_SESSION_CAP));
+
+    useSRSStore.setState({ activeSession: null });
+  });
+
+  // Round-13 audit finding (Agent V): round 12 clamped resumeTotal but left resumePos (the
+  // SAME prompt's "Card X of Y" numerator, on the same call) fully raw — for an oversized
+  // session with position >= CAP, the prompt showed a self-contradictory "Card 10 of 8"
+  // (numerator exceeding the denominator). Deletion Test: removing the
+  // `isInterrupt ? Math.min(saved?.position ?? 0, INTERRUPT_SESSION_CAP - 1) : ...` clamp
+  // restores the raw position (9), making this test's resumePos assertion fail.
+  it("clamps the resume prompt's position to stay within its own clamped total (no 'Card 10 of 8')", () => {
+    searchParamsState.mode = "interrupt";
+    sessionCfg.resumeDecision = "pending";
+    const oversizedIds = Array.from({ length: INTERRUPT_SESSION_CAP + 2 }, (_, i) => `pos${i}`);
+    useSRSStore.setState({
+      activeSession: {
+        unitId: "",
+        queueIds: oversizedIds,
+        position: INTERRUPT_SESSION_CAP + 1, // 9 — beyond the CAP boundary
+        sessionCorrect: 1,
+        sessionTotal: 1,
+        startedAt: Date.now(),
+      },
+    });
+
+    render(<StudyPage />);
+
+    const resume = screen.getByTestId("study-resume");
+    expect(resume.dataset.resumePos).toBe(String(INTERRUPT_SESSION_CAP - 1)); // clamped, not the raw 9
+    // The real invariant: displayed "Card {pos+1} of {total}" must never have pos+1 > total.
+    expect(Number(resume.dataset.resumePos) + 1).toBeLessThanOrEqual(Number(resume.dataset.resumeTotal));
 
     useSRSStore.setState({ activeSession: null });
   });

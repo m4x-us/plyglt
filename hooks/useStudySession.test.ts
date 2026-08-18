@@ -167,6 +167,51 @@ describe("useStudySession — resume path", () => {
     expect(result.current.queue.map((c) => c.id)).toEqual(oversizedIds.slice(0, INTERRUPT_SESSION_CAP));
   });
 
+  // Round-13 audit finding (6-way convergent: Agent A, B, K, N, V, and independently cited by
+  // S/W) — this is the headline finding of round 13, and a fresh regression WITHIN round 12's
+  // own remediation: round 12 clamped resumedQueue to INTERRUPT_SESSION_CAP but never clamped
+  // its sibling resumedPos to match. An oversized legacy session (queueIds.length > CAP, no
+  // dropped ids) resumed at a position >= CAP produced pos >= queue.length immediately —
+  // isDone fired on the very next render, silently discarding every unreviewed card and
+  // rendering "session complete" with stale sessionCorrect/sessionTotal, with no recovery path
+  // (clearActiveSession then deletes the persisted record). Deletion Test: removing the
+  // `isInterrupt ? Math.min(rawPos, INTERRUPT_SESSION_CAP) : rawPos` clamp restores pos=9,
+  // which is >= queue.length (8) — the "does not indicate done" assertion below would fail.
+  it("clamps resumedPos to match resumedQueue's CAP so an oversized session at a high position does not resume as immediately 'done'", () => {
+    const oversizedIds = Array.from({ length: INTERRUPT_SESSION_CAP + 2 }, (_, i) => `pos${i}`); // 10 ids
+    const oversizedCards = oversizedIds.map((id) => makeCard(id));
+    const oversizedMap = Object.fromEntries(oversizedCards.map((c) => [c.id, c]));
+    const savedSession = {
+      unitId: "",
+      queueIds: oversizedIds,
+      position: INTERRUPT_SESSION_CAP + 1, // 9 — beyond the CAP boundary, nothing dropped
+      sessionCorrect: 1,
+      sessionTotal: 1,
+      startedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: oversizedCards,
+          allCardMap: oversizedMap,
+          isInterrupt: true,
+          getResumableSession: vi.fn(() => savedSession),
+          peekResumableSession: vi.fn(() => savedSession),
+        }),
+      ),
+    );
+
+    act(() => {
+      result.current.setResumeDecision("accepted");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_CAP);
+    expect(result.current.pos).toBe(INTERRUPT_SESSION_CAP); // clamped to match, not the raw 9
+    // The real invariant this bug violated: pos must never be >= queue.length on a resume
+    // that still has real (if truncated) content — that's what silently renders "done".
+    expect(result.current.pos).toBeLessThanOrEqual(result.current.queue.length);
+  });
+
   // Control case, same fix: a non-interrupt (unit/global) resumed session must NOT be
   // clamped — only isInterrupt sessions have a length promise to protect.
   it("does not clamp a resumed non-interrupt session's queue, even if it exceeds INTERRUPT_SESSION_CAP", () => {

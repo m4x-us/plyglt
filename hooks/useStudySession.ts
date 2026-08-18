@@ -17,9 +17,8 @@ type UseStudySessionParams = {
   initialQueue: Card[];
   allCardMap: Record<string, Card>;
   isGlobal: boolean;
-  // Scopes the interrupt-floor flex fallback (see the mount effect below) to proactive
-  // interrupt sessions only — a manually-opened Global Review with nothing due is allowed to
-  // show the normal empty-queue screen; only the daily-interrupt promise is a hard floor.
+  // Scopes the interrupt-floor flex fallback to proactive interrupt sessions only — a
+  // manually-opened Global Review with nothing due shows the normal empty-queue screen.
   isInterrupt: boolean;
   unitId: string;
   getResumableSession: () => ActiveSession | null;
@@ -86,14 +85,15 @@ export function useStudySession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeDecision]);
 
-  // Fixes the resumedQueue/resumedPos desync (debt.md, round 9): saved.position indexes the
-  // RAW queueIds, not resumedQueue (drops ids no longer in allCardMap). Recomputed by
-  // counting surviving entries before the saved position.
+  // Fixes resumedQueue/resumedPos desync (debt.md, round 9): saved.position indexes the RAW
+  // queueIds; recomputed via surviving-entries-before-position, then clamped to CAP (round 13)
+  // to mirror resumedQueue's own slice — else pos could exceed queue.length, forcing isDone.
   const resumedPos = useMemo((): number => {
     if (resumeDecision !== "accepted") return 0;
     const saved = peekResumableSession();
     if (!saved) return 0;
-    return saved.queueIds.slice(0, saved.position).filter((id) => allCardMap[id]).length;
+    const rawPos = saved.queueIds.slice(0, saved.position).filter((id) => allCardMap[id]).length;
+    return isInterrupt ? Math.min(rawPos, INTERRUPT_SESSION_CAP) : rawPos;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeDecision]);
 
@@ -102,8 +102,8 @@ export function useStudySession({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
 
-  // True once the mount-fill effect below has CLAIMED its one real attempt (set
-  // before any fill logic that can throw runs — see that effect's try/catch/finally).
+  // True once the mount-fill effect CLAIMED its one attempt (set before any fill logic that
+  // can throw — see that effect's try/catch/finally).
   const mountFillStartedRef = useRef(false);
   // Must be useIsHydratedStrict: this effect WRITES persisted state (introduceCard) — pre-
   // hydration writes on Tauri's async IPC would silently lose the write. Only the strict
