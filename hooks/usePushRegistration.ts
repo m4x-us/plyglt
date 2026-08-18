@@ -41,6 +41,16 @@ import { useEntitlementStore } from "@/store/entitlementStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSyncStore } from "@/store/syncStore";
 
+// Module-scope, not per-render: uses no effect-closure state — reads deviceId fresh off
+// useSyncStore.getState() every call — so both usePushRegistration's effects below (the
+// gate-failure branch and the true-unmount-only cleanup) can share one implementation.
+async function unregisterFor(targetUserId: string): Promise<void> {
+  const deviceId = useSyncStore.getState().deviceId;
+  if (!deviceId) return;
+  const result = await unregisterPushToken(targetUserId, deviceId);
+  if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
+}
+
 export function usePushRegistration(): void {
   const userId = useAuthStore((s) => s.userId);
   const licenseType = useEntitlementStore((s) => s.licenseType);
@@ -55,14 +65,15 @@ export function usePushRegistration(): void {
 
   // Round-15 audit finding (3-way convergence: Agent A, B, K, sharpened by Agent W):
   // persists the (userId, deviceId) this hook instance actually registered, across
-  // renders AND across the unmount this effect's own cleanup runs in. Needed because
-  // neither the gate-failure branch nor the effect cleanup can trust the CURRENT `userId`
-  // closure value to still identify who was registered — a sign-out sets it to null before
-  // cleanup runs (Agent K), and components/InterruptHandler.tsx's OWN Pro-gate unmounts
-  // this whole hook in the SAME commit a licenseType/validUntil change makes gateOk false,
-  // before the effect body ever gets a chance to re-run and reach the branch below
-  // (Agent A/B/W) — the effect's cleanup function, which DOES still fire on unmount, is
-  // the only place code can run in that case.
+  // renders AND across the true-unmount-only cleanup below. Needed because neither the
+  // gate-failure branch nor that cleanup can trust the CURRENT `userId` closure value to
+  // still identify who was registered — a sign-out sets it to null before the effect
+  // re-runs (Agent K), and components/InterruptHandler.tsx's OWN Pro-gate unmounts this
+  // whole hook in the SAME commit a licenseType/validUntil change makes gateOk false,
+  // before the multi-dep effect body ever gets a chance to re-run and reach the branch
+  // below (Agent A/B/W). Round 16 split the true-unmount cleanup into its own empty-deps
+  // effect (see below) — this ref is what lets that separate effect still know who to
+  // unregister without its own closure ever having seen a live userId.
   const registeredForRef = useRef<{ userId: string; deviceId: string } | null>(null);
 
   useEffect(() => {
@@ -70,13 +81,6 @@ export function usePushRegistration(): void {
     if (!entitlementHydrated || !settingsHydrated) return;
 
     const gateOk = !!userId && interruptEnabled && isProEnabled(getFeatureFlags().interruptEngine, licenseType, validUntil);
-
-    async function unregisterFor(targetUserId: string) {
-      const deviceId = useSyncStore.getState().deviceId;
-      if (!deviceId) return;
-      const result = await unregisterPushToken(targetUserId, deviceId);
-      if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
-    }
 
     if (!gateOk) {
       // Prefer whoever we know was actually registered this session (ref — correct even
@@ -159,14 +163,37 @@ export function usePushRegistration(): void {
     return () => {
       cancelled = true;
       unlisten?.();
-      // Round-15 fix: see registeredForRef's own comment above — this is the only place
-      // code can run when a licenseType/validUntil change unmounts this hook's parent in
-      // the same commit, before the branch above ever gets to run again.
+      // Round-16 fix: this cleanup used to also call unregisterFor(prev.userId) here — see
+      // the dedicated empty-deps effect below for why that was wrong and where it moved.
+    };
+  }, [userId, licenseType, validUntil, interruptEnabled, entitlementHydrated, settingsHydrated]);
+
+  // Round-16 audit finding (4-way convergence: Agent N, Security Agent S, Agent B, Red
+  // Agent R): round 15 put the "must survive teardown" unregister inside the multi-dep
+  // effect's cleanup above. React runs that cleanup before EVERY dependency-triggered
+  // re-run, not only before a true unmount — so it fired on ordinary, expected transitions
+  // this hook was never supposed to react to that way:
+  //   1. A dep change that leaves gateOk TRUE (e.g. validUntil advancing on a routine
+  //      background license revalidation while licenseType/interruptEnabled stay put) fired
+  //      a real DELETE against a still-valid registration, immediately followed by the new
+  //      effect run's own fresh upsert to re-create it. Nothing ordered the two network
+  //      calls — if the DELETE resolved after the UPSERT, a fully entitled, unchanged Pro
+  //      user's push registration was silently, permanently wiped.
+  //   2. A dep change that flips gateOk TRUE->FALSE while still mounted (e.g. toggling
+  //      interrupts off) fired this cleanup's unregister AND the gate-failure branch's own
+  //      explicit unregister above in the same transition — one logical event, two DELETE
+  //      calls, racing each other with no ordering guarantee either.
+  // Fixed by moving the true-unmount-only unregister into its own effect with an empty
+  // dependency array: an effect with no deps never re-runs — its cleanup fires exclusively
+  // on a genuine unmount, so it can no longer fire alongside a still-mounted re-registration
+  // or duplicate the gate-failure branch's own call.
+  useEffect(() => {
+    return () => {
       const prev = registeredForRef.current;
       if (prev) {
         registeredForRef.current = null;
         void unregisterFor(prev.userId);
       }
     };
-  }, [userId, licenseType, validUntil, interruptEnabled, entitlementHydrated, settingsHydrated]);
+  }, []);
 }

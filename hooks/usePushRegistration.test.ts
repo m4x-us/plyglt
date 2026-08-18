@@ -287,6 +287,70 @@ describe("usePushRegistration — cleans up a stale token when the gate no longe
     unmount();
 
     await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+    // Round-16 audit finding (Agent K/B): the pre-round-16 combined-effect design could
+    // double-fire this call (once from the multi-dep effect's cleanup, once more from a
+    // dep-change re-run's gate-failure branch) — no prior test asserted call COUNT here,
+    // only that it was called WITH the right args at least once, so a double-fire would
+    // have passed silently. Deletion Test: reintroducing the unregister call inside the
+    // multi-dep effect's own cleanup (in addition to the empty-deps effect below) makes
+    // this specific assertion fail with 2 calls, even though the .toHaveBeenCalledWith
+    // assertion above still passes either way.
+    expect(mocks.unregisterPushToken).toHaveBeenCalledTimes(1);
+  });
+
+  // Round-16 audit finding (4-way convergence: Agent N, Security Agent S, Agent B, Red
+  // Agent R): round 15's cleanup lived inside the multi-dep effect, so it fired on EVERY
+  // dependency change, not only a true unmount. A dep change that leaves the gate TRUE
+  // (e.g. validUntil advancing on a routine background license revalidation, licenseType/
+  // interruptEnabled unchanged) spuriously deleted a still-valid registration, racing an
+  // unordered re-registration attempt that could leave a fully entitled Pro user's push
+  // registration permanently wiped if the network calls resolved out of order. Deletion
+  // Test: reintroducing the round-15 cleanup's `void unregisterFor(prev.userId)` inside
+  // the multi-dep effect makes this test fail — a validUntil-only change would fire it.
+  it("does not unregister when a dependency changes but the gate stays true (e.g. a license revalidation refreshing validUntil)", async () => {
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3");
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+
+    // Gate stays true throughout: licenseType/interruptEnabled unchanged, only validUntil
+    // advances (a real markValidated() call from a routine background revalidation).
+    state.entitlement.validUntil = Date.now() + 86_400_000;
+    rerender();
+
+    // Let any (incorrect) async unregister work surface before asserting.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+  });
+
+  // Round-16 audit finding, second half of the same headline bug (Agent B, Red Agent R):
+  // a dep change that flips the gate TRUE->FALSE while the hook stays mounted (toggling
+  // interrupts off, a license downgrade) fired the round-15 cleanup's unregister AND the
+  // gate-failure branch's own explicit unregister for the same transition — one logical
+  // event, two racing DELETE calls. The two pre-existing "dep change, stays mounted" tests
+  // above never populate registeredForRef via a real token delivery first, so the
+  // double-fire was structurally unreachable in either of them (registeredForRef.current
+  // was already null going in) — this test closes that gap by delivering a token first.
+  // Deletion Test: reintroducing the round-15 cleanup's unregister call inside the
+  // multi-dep effect makes mockUnregisterPushToken fire twice instead of once here.
+  it("unregisters exactly once when the gate flips from true to false while the hook stays mounted, after a real prior registration", async () => {
+    const { rerender } = renderHook(() => usePushRegistration());
+    await vi.waitFor(() => expect(typeof state.tokenHandler).toBe("function"));
+    state.tokenHandler!("a1b2c3");
+    await vi.waitFor(() => expect(mocks.registerPushToken).toHaveBeenCalledTimes(1));
+    expect(mocks.unregisterPushToken).not.toHaveBeenCalled();
+
+    state.entitlement.licenseType = "free";
+    rerender();
+
+    await vi.waitFor(() => expect(mocks.unregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+    // Give any second, racing call a chance to surface before asserting the count.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.unregisterPushToken).toHaveBeenCalledTimes(1);
   });
 
   // Round-15 regression test: sign-out AFTER a real registration must still target the

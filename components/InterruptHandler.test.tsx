@@ -36,6 +36,10 @@ const {
   mockRequestNotificationPermission,
   mockSendNativeNotification,
   srsStoreState,
+  mockRegisterForPushNotifications,
+  mockOnPushToken,
+  mockRegisterPushToken,
+  mockUnregisterPushToken,
 } = vi.hoisted(() => ({
   tauriState: {
     isTauri: false as boolean,
@@ -62,6 +66,15 @@ const {
   // without redefining the whole srsStore mock. Reset to the original default (1) in
   // beforeEach.
   srsStoreState: { due: 1 },
+  // Round-16 audit: hooks/usePushRegistration.ts's own mocks — needed to drive round 15/16's
+  // fix through the REAL <InterruptHandler/> tree (this file's pre-round-16 `invoke: vi.fn()`
+  // mock has no per-command implementation, so registerForPushNotifications() always resolved
+  // false here and registeredForRef could never be populated — see the dedicated describe
+  // block below for why that made the fix's own tests unable to observe it at this layer).
+  mockRegisterForPushNotifications: vi.fn().mockResolvedValue(true),
+  mockOnPushToken: vi.fn().mockResolvedValue(() => {}),
+  mockRegisterPushToken: vi.fn().mockResolvedValue({ ok: true }),
+  mockUnregisterPushToken: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 // ── tauri mock ────────────────────────────────────────────────────────────────
@@ -100,6 +113,32 @@ vi.mock("@/lib/tauriInterrupt", () => ({
 vi.mock("@/lib/interruptGate", () => ({
   readInterruptGateState: mockReadInterruptGateState,
   recordInterruptGateEvent: mockRecordInterruptGateEvent,
+}));
+
+// ── tauriPush mock (round-16 audit) — needed to drive hooks/usePushRegistration.ts's
+// round-15/16 fix through the real component tree. onPushTap/takePendingPushTap are
+// stubbed to harmless no-ops so hooks/usePushInterruptTap.ts (mounted in the same
+// InterruptHandlerCore) never fires an unrelated mockPush call and pollutes every other
+// test's navigation assertions — the specific trap identified during this round's
+// investigation (a blanket real-invoke() branch would have made takePendingPushTap()
+// resolve inconsistently across tests).
+vi.mock("@/lib/tauriPush", () => ({
+  registerForPushNotifications: mockRegisterForPushNotifications,
+  getPushToken: vi.fn().mockResolvedValue(null),
+  onPushToken: mockOnPushToken,
+  onPushTap: vi.fn().mockResolvedValue(() => {}),
+  takePendingPushTap: vi.fn().mockResolvedValue(false),
+}));
+
+// ── pushTokenClient mock (round-16 audit) — the missing piece: this file previously had
+// no mock for this module at all, so every registerPushToken/unregisterPushToken call
+// silently fell through to the real getSupabaseClient() (which returns null in tests,
+// short-circuiting to {ok:false, error:"Sync is not configured."}) before ever reaching
+// round 15's fix logic. No test in this file could observe the fix firing through the
+// real <InterruptHandler/> tree until now.
+vi.mock("@/lib/pushTokenClient", () => ({
+  registerPushToken: mockRegisterPushToken,
+  unregisterPushToken: mockUnregisterPushToken,
 }));
 
 // ── next/navigation ───────────────────────────────────────────────────────────
@@ -175,6 +214,10 @@ beforeEach(() => {
   mockRequestNotificationPermission.mockResolvedValue("granted");
   mockSendNativeNotification.mockResolvedValue(undefined);
   srsStoreState.due = 1;
+  mockRegisterForPushNotifications.mockResolvedValue(true);
+  mockOnPushToken.mockResolvedValue(() => {});
+  mockRegisterPushToken.mockResolvedValue({ ok: true });
+  mockUnregisterPushToken.mockResolvedValue({ ok: true });
   // Reset settings to deterministic defaults
   useSettingsStore.setState({
     interruptEnabled: true,
@@ -911,6 +954,62 @@ describe("InterruptHandler", () => {
       await act(async () => { rerender(<InterruptHandler />); });
       if (callback) await act(async () => { callback(false); });
       expect(mockSendNativeNotification).toHaveBeenCalledWith("plyglt", "6 cards ready — 2 min study break?");
+    });
+  });
+
+  // ── Round-16 audit: closes the verification gap round 15 left open ─────────────────────
+  // Round 15 fixed hooks/usePushRegistration.ts's cleanup so a REAL unmount (not just a dep
+  // change on an already-mounted instance) unregisters a stale push token, and proved it with
+  // renderHook(...).unmount() at the isolated hook level. But this file — the one that
+  // exercises the REAL, wired-together <InterruptHandler/> -> InterruptHandlerCore ->
+  // usePushRegistration() tree — never mocked @/lib/pushTokenClient at all, so every call in
+  // every test here silently fell through to the real (null in tests) Supabase client before
+  // reaching any of round 14/15's logic. No test anywhere proved the fix actually fires when
+  // driven by components/InterruptHandler.tsx's own Pro-gate unmounting the tree, as opposed
+  // to a bare hook test harness calling unmount() directly. Round 16 closes that gap.
+  describe("push-registration cleanup through the real component tree (round-16 audit)", () => {
+    it("unregisters the push token when a Pro user's license downgrades to free — driven by InterruptHandler's own Pro-gate unmounting InterruptHandlerCore, not a bare hook unmount()", async () => {
+      useAuthStore.setState({ status: "signed-in", userId: "user-1", email: null });
+      useSyncStore.setState({ deviceId: "device-1" });
+      useSettingsStore.setState({ interruptEnabled: true, dndStart: "22:00", dndEnd: "22:00" });
+      useEntitlementStore.setState({ licenseType: "subscription", validUntil: null });
+      tauriState.isTauri = true;
+
+      await act(async () => {
+        render(<InterruptHandler />);
+      });
+      // The real component tree is mounted and Pro-gated in — confirm before proceeding,
+      // so a failure below can't be misread as "the gate never let it mount."
+      expect(tauriState.listeners.has("interrupt:fire")).toBe(true);
+
+      // Let usePushRegistration's real async chain (permission check -> registration ->
+      // onPushToken subscription) run to completion.
+      await vi.waitFor(() => expect(mockOnPushToken).toHaveBeenCalledTimes(1));
+      const tokenHandler = mockOnPushToken.mock.calls[0]![0] as (token: string) => void;
+
+      // Deliver a real token — this is what actually populates registeredForRef.current;
+      // without it, a passing assertion below would only prove the round-14 cold-start
+      // fallback path (registeredForRef still null, falling back to the current userId),
+      // not round 15/16's actual novelty (a ref surviving a real unmount).
+      await act(async () => { tokenHandler("a1b2c3"); });
+      await vi.waitFor(() => expect(mockRegisterPushToken).toHaveBeenCalledTimes(1));
+      expect(mockUnregisterPushToken).not.toHaveBeenCalled();
+
+      // The real production trigger: InterruptHandler() re-reads licenseType via the real
+      // store, isProEnabled(...) flips to false, InterruptHandler() returns null, and React
+      // unmounts InterruptHandlerCore (and usePushRegistration inside it) in the SAME commit
+      // — exactly the shape round 14's rerender()-based tests missed entirely.
+      await act(async () => {
+        useEntitlementStore.setState({ licenseType: "free" });
+      });
+
+      await vi.waitFor(() => expect(mockUnregisterPushToken).toHaveBeenCalledWith("user-1", "device-1"));
+      // Exactly once — round 16 also fixed a sibling double-fire bug in the same cleanup;
+      // this real-tree test doubles as a regression guard for that fix too.
+      expect(mockUnregisterPushToken).toHaveBeenCalledTimes(1);
+      // Proves the WHOLE subtree actually unmounted, not just that usePushRegistration
+      // happened to behave correctly in isolation.
+      expect(tauriState.listeners.has("interrupt:fire")).toBe(false);
     });
   });
 });
