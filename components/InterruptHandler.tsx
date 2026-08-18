@@ -13,13 +13,19 @@ import { useInterruptDeepLink } from "@/hooks/useInterruptDeepLink";
 import { usePushInterruptTap } from "@/hooks/usePushInterruptTap";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useLangPack } from "@/hooks/useLangPack";
-import { getFeatureFlags } from "@/lib/featureFlags";
+import { getFeatureFlags, isProEnabled } from "@/lib/featureFlags";
+import { useEntitlementStore } from "@/store/entitlementStore";
 import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 
-/** Mounted in the root layout. Returns null immediately when the interrupt engine flag is off. */
+/** Mounted in the root layout. Returns null immediately unless interruptEngine is both flagged
+ *  on and Pro-entitled — owner decision, Batch 23 round 13 audit: closes a gap open across 5
+ *  rounds where any Free user could enable the full engine (BRAND.md lists it Pro-only), and
+ *  where the sibling hooks/usePushRegistration.ts already gated the identical flag this way. */
 export function InterruptHandler() {
   const flags = getFeatureFlags();
-  if (!flags.interruptEngine) return null;
+  const licenseType = useEntitlementStore((s) => s.licenseType);
+  const validUntil = useEntitlementStore((s) => s.validUntil);
+  if (!isProEnabled(flags.interruptEngine, licenseType, validUntil)) return null;
   return <InterruptHandlerCore />;
 }
 

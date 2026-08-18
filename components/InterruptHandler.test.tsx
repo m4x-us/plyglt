@@ -11,6 +11,7 @@ import { render, act, cleanup } from "@testing-library/react";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
+import { useEntitlementStore } from "@/store/entitlementStore";
 import { validateLicense } from "@/lib/entitlement";
 import { onDeepLinkUrl, getCurrentDeepLinkUrls, listen } from "@/lib/tauri";
 import { InterruptHandler } from "./InterruptHandler";
@@ -191,10 +192,49 @@ beforeEach(() => {
   // anyway" path, so their assertions are unaffected by this reset.
   useAuthStore.setState({ status: "signed-out", userId: null, email: null });
   useSyncStore.setState({ deviceId: null });
+  // Round-13 audit fix: InterruptHandler() now gates on isProEnabled — every pre-existing
+  // test in this file (written before this gate existed) exercises InterruptHandlerCore's
+  // behavior directly and expects it to render, so default to Pro here; the gate's own
+  // behavior (Free/expired blocking) gets its own dedicated describe block below.
+  useEntitlementStore.setState({ licenseType: "subscription", validUntil: null });
 });
 
 afterEach(() => {
   cleanup();
+});
+
+// Round-13 audit fix: InterruptHandler() previously gated activation on nothing but the raw
+// getFeatureFlags().interruptEngine boolean — any Free user could enable the full engine,
+// unlike its sibling hooks/usePushRegistration.ts, which already gated the identical flag
+// through isProEnabled. Owner-decided fix (Batch 23 round 13): wire the same combinator in.
+describe("InterruptHandler — Pro gate (round-13 audit fix)", () => {
+  it("does not mount InterruptHandlerCore for a Free license — no listener registered even with isTauri true", async () => {
+    useEntitlementStore.setState({ licenseType: "free", validUntil: null });
+    tauriState.isTauri = true;
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    expect(tauriState.listeners.has("interrupt:fire")).toBe(false);
+    expect(mockOnDeepLinkUrl).not.toHaveBeenCalled();
+  });
+
+  it("does not mount InterruptHandlerCore once a subscription's grace period has expired", async () => {
+    useEntitlementStore.setState({ licenseType: "subscription", validUntil: Date.now() - 1000 * 60 * 60 * 24 * 365 });
+    tauriState.isTauri = true;
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    expect(tauriState.listeners.has("interrupt:fire")).toBe(false);
+  });
+
+  it("mounts InterruptHandlerCore for an active subscription — deletion test for the gate itself", async () => {
+    useEntitlementStore.setState({ licenseType: "subscription", validUntil: null });
+    tauriState.isTauri = true;
+    await act(async () => {
+      render(<InterruptHandler />);
+    });
+    expect(tauriState.listeners.has("interrupt:fire")).toBe(true);
+  });
 });
 
 describe("InterruptHandler", () => {
