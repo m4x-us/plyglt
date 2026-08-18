@@ -47,12 +47,13 @@ import { useSyncStore } from "@/store/syncStore";
 //
 // `expectedNonce` (round-18 audit fix): passed through to unregisterPushToken's own
 // compare-and-swap delete — see that function's doc comment in lib/pushTokenClient.ts.
-// Omitted only by the gate-failure branch's cold-start fallback (registeredForRef is
-// null this session, so there is no nonce to compare against — see that call site).
-async function unregisterFor(targetUserId: string, expectedNonce?: string): Promise<void> {
+// `notUpdatedSince` (round-18 audit fix, second finding): the fallback timestamp guard
+// used ONLY when no nonce is known — see the gate-failure branch's own call site and
+// unregisterPushToken's doc comment for the full reasoning.
+async function unregisterFor(targetUserId: string, expectedNonce?: string, notUpdatedSince?: string): Promise<void> {
   const deviceId = useSyncStore.getState().deviceId;
   if (!deviceId) return;
-  const result = await unregisterPushToken(targetUserId, deviceId, expectedNonce);
+  const result = await unregisterPushToken(targetUserId, deviceId, expectedNonce, notUpdatedSince);
   if (!result.ok) console.error(`[ERR-PUSHREG-UNREGISTER-${Date.now()}] push token cleanup failed: ${result.error}`);
 }
 
@@ -85,18 +86,13 @@ export function usePushRegistration(): void {
   // per registration attempt, so two racing registrations often share the same token).
   const registeredForRef = useRef<{ userId: string; deviceId: string; nonce: string } | null>(null);
 
-  // Round-17 audit finding (Agent W): the empty-deps true-unmount cleanup below fires
-  // exactly once, at the real final unmount — if uploadToken's registerPushToken() call
-  // is still in flight at that moment (a real network round-trip, easily still pending
-  // seconds after mount), the cleanup finds registeredForRef.current still null and
-  // no-ops; when the registration THEN resolves, uploadToken sets the ref, but no code
-  // will ever run again for this hook instance to read it — the just-created server row
-  // is permanently orphaned, kept alive forever by uploadToken's own success branch below
-  // once it detects this flag. Set ONLY by the true-unmount cleanup (never by the
-  // multi-dep effect's own cleanup), so an ordinary dep-change-while-mounted re-run is
-  // unaffected — the next effect instance still owns re-registering normally.
-  const trulyUnmountedRef = useRef(false);
-
+  // Round-17 audit finding (Agent W): if uploadToken's registerPushToken() call is still
+  // in flight when this hook instance's effect is torn down (a real network round-trip,
+  // easily still pending seconds after mount), whichever cleanup runs first can find
+  // registeredForRef.current still null and no-op; when the registration THEN resolves,
+  // uploadToken must self-clean the row it just created instead of writing to the ref —
+  // see uploadToken's own `if (cancelled)` branch below, which round 18 broadened from
+  // round 17's narrower unmount-only check (see that branch's comment for why).
   useEffect(() => {
     if (!isTauri) return;
     if (!entitlementHydrated || !settingsHydrated) return;
@@ -108,13 +104,26 @@ export function usePushRegistration(): void {
       // if `userId` has since gone null via sign-out); fall back to the CURRENT userId so
       // a genuinely-Free cold start still catches a stale row from a PRIOR app launch
       // (e.g. cancelled via the external customer portal while the app was fully closed).
-      // No ref this session means no nonce to compare against either — that fallback
-      // path stays an unconditional delete, exactly as before the round-18 CAS fix.
       const target = registeredForRef.current?.userId ?? userId;
       const targetNonce = registeredForRef.current?.nonce;
       if (target) {
         registeredForRef.current = null;
-        void unregisterFor(target, targetNonce);
+        // Round-18 audit fix, second finding (8-way convergence: Security Agent S, Agent
+        // V, Agent K, Agent N, Agent A, Agent W, Red Agent R, Agent B): when no ref exists
+        // this session, there's no nonce to compare-and-swap against — but leaving this
+        // delete fully unconditional (the original round-18 shape) let it race and silently
+        // wipe a FRESH same-session registration. Concrete trigger (Agent A/B): a signed-in
+        // Pro user's first mount with interruptEnabled=false fires this branch with no
+        // ref/nonce; if the user then toggles interrupts on before this delete resolves,
+        // the new registration's upsert can land first, and this stale unconditional
+        // delete would otherwise wipe it. Capturing "now" synchronously, BEFORE firing,
+        // and conditioning the delete on updated_at not having advanced since closes this
+        // — see unregisterPushToken's own doc comment for the full reasoning. Only applies
+        // when targetNonce is itself undefined; when a nonce IS known, that CAS is already
+        // sufficient and this extra guard is redundant (harmless either way, since a nonce
+        // match already proves the row hasn't been touched by anyone else).
+        const notUpdatedSince = targetNonce === undefined ? new Date().toISOString() : undefined;
+        void unregisterFor(target, targetNonce, notUpdatedSince);
       }
       return;
     }
@@ -148,14 +157,23 @@ export function usePushRegistration(): void {
         console.error(`[ERR-PUSHREG-UPLOAD-${Date.now()}] push token upload failed: ${result.error}`);
         return;
       }
-      if (trulyUnmountedRef.current) {
-        // The true-unmount cleanup already ran and found nothing to unregister — no
-        // future code path will ever run again for this hook instance. Self-clean the
-        // row this call just created instead of orphaning it (see trulyUnmountedRef's
-        // own comment above). Scoped to exactly this attempt's own nonce, so it can
-        // never delete a DIFFERENT, newer registration that happens to share the same
-        // (userId, deviceId) — the same CAS protection the true-unmount cleanup itself
-        // now uses below.
+      // Round-18 audit fix (Agent B, "ghost registration" finding — deepens round 17's
+      // trulyUnmountedRef fix): checking `cancelled` here (instead of the narrower,
+      // unmount-only signal round 17 used) closes a second, distinct leak. `cancelled` is
+      // set by THIS SAME effect run's own cleanup, which fires both on a true unmount AND
+      // on an ordinary dep-change re-run (e.g. the user toggles interrupts off while this
+      // registration is still in flight) — round 17's fix only caught the former. Without
+      // this check, an in-flight registration that resolves after the user has ALREADY
+      // opted out left a "ghost" row alive with no future cleanup opportunity — the newer
+      // effect run's own gate-failure branch already ran and found nothing to unregister
+      // (this ref was still null at that moment), so nothing else would ever catch it.
+      // Self-cleaning here is safe in EVERY case, including the ordinary "dep changed but
+      // gate is still true" case (e.g. a validUntil-only revalidation): it's scoped to
+      // this exact attempt's own nonce, so it can only ever delete a row that still holds
+      // that exact value — a newer effect run's own fresh registration (a different
+      // nonce) is untouched regardless of resolution order, the same CAS guarantee
+      // verified for the true-unmount cleanup below.
+      if (cancelled) {
         void unregisterFor(userId, nonce);
         return;
       }
@@ -240,7 +258,6 @@ export function usePushRegistration(): void {
   // nonce, this becomes a harmless no-op instead.
   useEffect(() => {
     return () => {
-      trulyUnmountedRef.current = true;
       const prev = registeredForRef.current;
       if (prev) {
         registeredForRef.current = null;

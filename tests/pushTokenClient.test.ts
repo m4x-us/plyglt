@@ -14,25 +14,31 @@ function makeParams(overrides: Partial<RegisterPushTokenParams> = {}): RegisterP
   };
 }
 
-// unregisterPushToken's delete chain now has a variable number of .eq() calls (2 without
-// an expectedNonce, 3 with) — real @supabase/postgrest-js query builders are themselves
-// thenable, resolving whenever awaited regardless of how many .eq() calls preceded it, so
-// this mock mirrors that: every .eq() call is recorded and returns the SAME self-referential
-// builder, which is directly awaitable via its own `then`.
+// unregisterPushToken's delete chain now has a variable number of .eq()/.lte() calls (2
+// .eq() with no expectedNonce/notUpdatedSince, up to 3 .eq() + 1 .lte() with both) — real
+// @supabase/postgrest-js query builders are themselves thenable, resolving whenever awaited
+// regardless of how many filter calls preceded it, so this mock mirrors that: every filter
+// call is recorded (tagged by method name) and returns the SAME self-referential builder,
+// which is directly awaitable via its own `then`.
 function makeMockClient(deleteResult: { error: null | { message: string } } = { error: null }) {
-  const eqCalls: [string, unknown][] = [];
+  const filterCalls: [string, string, unknown][] = [];
   const eqMock = vi.fn((column: string, value: unknown) => {
-    eqCalls.push([column, value]);
+    filterCalls.push(["eq", column, value]);
     return builder;
   });
-  const builder: { eq: typeof eqMock; then: (resolve: (v: unknown) => void) => void } = {
+  const lteMock = vi.fn((column: string, value: unknown) => {
+    filterCalls.push(["lte", column, value]);
+    return builder;
+  });
+  const builder: { eq: typeof eqMock; lte: typeof lteMock; then: (resolve: (v: unknown) => void) => void } = {
     eq: eqMock,
+    lte: lteMock,
     then: (resolve) => resolve(deleteResult),
   };
   const upsertMock = vi.fn().mockResolvedValue({ error: null });
   const deleteMock = vi.fn(() => builder);
   const fromMock = vi.fn(() => ({ upsert: upsertMock, delete: deleteMock }));
-  return { from: fromMock, upsertMock, deleteMock, eqMock, eqCalls, fromMock };
+  return { from: fromMock, upsertMock, deleteMock, eqMock, lteMock, filterCalls, fromMock };
 }
 
 const mockGetSupabaseClient = vi.fn<() => ReturnType<typeof makeMockClient> | null>();
@@ -68,10 +74,29 @@ describe("registerPushToken", () => {
         timezone: "Europe/Rome",
         deactivated_at: null,
         registration_nonce: "nonce-abc",
+        updated_at: expect.any(String),
       },
       { onConflict: "user_id,device_id" }
     );
     expect(result).toEqual({ ok: true });
+  });
+
+  // Round-18 audit fix, second finding: updated_at must be bumped on every registration —
+  // the column's own DB default only applies at INSERT time, never on an UPDATE/upsert, so
+  // without this explicit write unregisterPushToken's notUpdatedSince guard would have no
+  // reliable signal to condition against. Deletion Test: removing `updated_at: new Date()...`
+  // from toRow() makes this test fail (the key would be absent from the actual call).
+  it("bumps updated_at to a fresh timestamp on every registration", async () => {
+    const mock = makeMockClient();
+    mockGetSupabaseClient.mockReturnValue(mock);
+    const before = Date.now();
+
+    await registerPushToken(makeParams());
+
+    const [row] = mock.upsertMock.mock.calls[0] as [Record<string, unknown>, unknown];
+    const updatedAt = new Date(row.updated_at as string).getTime();
+    expect(updatedAt).toBeGreaterThanOrEqual(before);
+    expect(updatedAt).toBeLessThanOrEqual(Date.now());
   });
 
   // Round-18 audit finding: registration_nonce is the compare-and-swap identifier
@@ -122,6 +147,7 @@ describe("registerPushToken", () => {
         timezone: "Europe/Rome",
         deactivated_at: null,
         registration_nonce: "nonce-abc",
+        updated_at: expect.any(String),
         interrupt_interval_minutes: 60,
         waking_hours_start_local: 7,
         waking_hours_end_local: 22,
@@ -152,7 +178,7 @@ describe("unregisterPushToken", () => {
     expect(result).toEqual({ ok: false, error: "Sync is not configured." });
   });
 
-  it("deletes the row scoped to both user_id and device_id, with no third filter, when no expectedNonce is supplied", async () => {
+  it("deletes the row scoped to both user_id and device_id, with no third/fourth filter, when neither expectedNonce nor notUpdatedSince is supplied", async () => {
     const mock = makeMockClient();
     mockGetSupabaseClient.mockReturnValue(mock);
 
@@ -160,9 +186,9 @@ describe("unregisterPushToken", () => {
 
     expect(mock.fromMock).toHaveBeenCalledWith("push_tokens");
     expect(mock.deleteMock).toHaveBeenCalledTimes(1);
-    expect(mock.eqCalls).toEqual([
-      ["user_id", "user-1"],
-      ["device_id", "device-1"],
+    expect(mock.filterCalls).toEqual([
+      ["eq", "user_id", "user-1"],
+      ["eq", "device_id", "device-1"],
     ]);
     expect(result).toEqual({ ok: true });
   });
@@ -179,12 +205,44 @@ describe("unregisterPushToken", () => {
 
     const result = await unregisterPushToken("user-1", "device-1", "nonce-xyz");
 
-    expect(mock.eqCalls).toEqual([
-      ["user_id", "user-1"],
-      ["device_id", "device-1"],
-      ["registration_nonce", "nonce-xyz"],
+    expect(mock.filterCalls).toEqual([
+      ["eq", "user_id", "user-1"],
+      ["eq", "device_id", "device-1"],
+      ["eq", "registration_nonce", "nonce-xyz"],
     ]);
     expect(result).toEqual({ ok: true });
+  });
+
+  // Round-18 audit fix, second finding (8-way convergence — see the function's own doc
+  // comment): the cold-start fallback (no known nonce) needs a different guard.
+  // Deletion Test: removing the `if (notUpdatedSince !== undefined)` branch makes this
+  // test fail — the lte() call would never happen.
+  it("adds an lte('updated_at', ...) filter when a notUpdatedSince timestamp is supplied, with no nonce filter", async () => {
+    const mock = makeMockClient();
+    mockGetSupabaseClient.mockReturnValue(mock);
+
+    const result = await unregisterPushToken("user-1", "device-1", undefined, "2026-08-18T00:00:00.000Z");
+
+    expect(mock.filterCalls).toEqual([
+      ["eq", "user_id", "user-1"],
+      ["eq", "device_id", "device-1"],
+      ["lte", "updated_at", "2026-08-18T00:00:00.000Z"],
+    ]);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("applies both the nonce and notUpdatedSince filters together when both are supplied", async () => {
+    const mock = makeMockClient();
+    mockGetSupabaseClient.mockReturnValue(mock);
+
+    await unregisterPushToken("user-1", "device-1", "nonce-xyz", "2026-08-18T00:00:00.000Z");
+
+    expect(mock.filterCalls).toEqual([
+      ["eq", "user_id", "user-1"],
+      ["eq", "device_id", "device-1"],
+      ["eq", "registration_nonce", "nonce-xyz"],
+      ["lte", "updated_at", "2026-08-18T00:00:00.000Z"],
+    ]);
   });
 
   it("logs [ERR-PUSHTOKEN-UNREGISTER-...] and returns ok:false with the Supabase error message on delete failure", async () => {

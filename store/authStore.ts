@@ -164,7 +164,18 @@ export const useAuthStore = create<AuthState>()(() => ({
     const { userId } = useAuthStore.getState();
     const deviceId = useSyncStore.getState().deviceId;
     if (userId && deviceId) {
-      const result = await unregisterPushToken(userId, deviceId);
+      // Round-18 audit fix (3-way convergence: Agent W, Agent N, Agent A): this call had
+      // no protection against racing a concurrent registration — e.g. a fast Sign-Out then
+      // Sign-In (or an in-flight registration from before sign-out that resolves after this
+      // delete already ran) could leave this unconditional DELETE wiping a freshly, validly
+      // re-registered row. This store has no access to hooks/usePushRegistration.ts's
+      // per-instance nonce ref (a different module, no shared state), so it uses the same
+      // fallback guard that hook's own gate-failure branch uses when no nonce is known:
+      // capture "now" synchronously, before firing, and let unregisterPushToken condition
+      // the delete on updated_at not having advanced since — see that function's doc
+      // comment in lib/pushTokenClient.ts for the full reasoning.
+      const notUpdatedSince = new Date().toISOString();
+      const result = await unregisterPushToken(userId, deviceId, undefined, notUpdatedSince);
       if (!result.ok) {
         console.error(`[ERR-AUTH-SIGNOUT-PUSH-${Date.now()}] pre-signout push token cleanup failed: ${result.error}`);
       }

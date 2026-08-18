@@ -260,7 +260,10 @@ describe("authStore — signOut unregisters the device's push token before clear
 
     await useAuthStore.getState().signOut();
 
-    expect(mockUnregisterPushToken).toHaveBeenCalledWith("user-1", "device-1");
+    // Round-18 audit fix: authStore.ts has no access to hooks/usePushRegistration.ts's
+    // per-instance nonce ref, so this call passes a notUpdatedSince timestamp guard
+    // instead (undefined nonce, a real ISO string) — see that call site's own comment.
+    expect(mockUnregisterPushToken).toHaveBeenCalledWith("user-1", "device-1", undefined, expect.any(String));
     // Deletion Test: moving the unregisterPushToken call to fire AFTER (or reactively
     // from a userId->null transition following) client.auth.signOut() reproduces the
     // exact bug this fix closes — this ordering assertion is what catches that

@@ -52,6 +52,11 @@ function toRow(params: RegisterPushTokenParams) {
     app_env: params.appEnv,
     timezone: params.timezone,
     registration_nonce: params.registrationNonce,
+    // Round-18 audit fix, second finding: bumped on every registration so unregisterPushToken's
+    // notUpdatedSince guard (below) has a reliable signal — the column's own DB default only
+    // applies at INSERT time, never on an UPDATE/upsert, so without this explicit write here
+    // updated_at would silently stop advancing after a row's first creation.
+    updated_at: new Date().toISOString(),
     // Round-15 audit finding (Red Agent R, DECAY lens): an upsert only SETs columns present
     // in the payload — omitting this left a row dispatch had marked deactivated_at (on a
     // permanent APNs/FCM delivery failure) excluded from all future dispatch FOREVER, even
@@ -111,16 +116,35 @@ export async function registerPushToken(params: RegisterPushTokenParams): Promis
  * and-forget DELETE issued by a just-unmounted component instance can then
  * resolve AFTER a newer instance's own registerPushToken() has overwritten
  * the row with a fresh nonce, and correctly becomes a no-op (0 rows matched)
- * instead of deleting a still-valid, newer registration. Omit `expectedNonce`
- * for the intentional cold-start fallback case (no ref this session, cleaning
- * up a stale row from a PRIOR app launch this JS heap never registered) —
- * there is no nonce to compare against there, so the delete stays
- * unconditional exactly as before this fix.
+ * instead of deleting a still-valid, newer registration.
+ *
+ * `notUpdatedSince` (round-18 audit fix, second finding — 8-way convergence:
+ * Security Agent S, Agent V, Agent K, Agent N, Agent A, Agent W, Red Agent R,
+ * Agent B): the ORIGINAL cold-start-fallback case (no ref this session, so no
+ * expectedNonce is known — cleaning up a stale row from a PRIOR app launch)
+ * still shipped as a fully unconditional delete, and every one of those 8
+ * agents independently confirmed it can still race and silently wipe a FRESH,
+ * same-session registration — e.g. a Pro user's first mount with
+ * interruptEnabled=false fires this fallback, then the user toggles interrupts
+ * on moments later; if the fallback's in-flight delete resolves after the new
+ * registration's upsert, it wiped the fresh row with nothing to stop it. A
+ * nonce can't protect this case (there is no "expected current nonce" for a
+ * row this JS heap has never registered) — `notUpdatedSince` (an ISO
+ * timestamp the caller captures synchronously, BEFORE firing this delete)
+ * closes it instead: the DELETE only matches rows whose `updated_at` is still
+ * at or before that moment. Any registration that lands AFTER the caller
+ * decided to fire this cleanup necessarily bumps `updated_at` (see toRow()
+ * above) to a later timestamp, making the delete's condition fail — a correct
+ * no-op — while a genuinely stale row (never touched since before the caller
+ * captured its timestamp) still matches and gets cleaned up as intended. Both
+ * timestamps are captured on the SAME client device across this whole
+ * causal chain, so there is no cross-device clock-skew concern.
  */
 export async function unregisterPushToken(
   userId: string,
   deviceId: string,
-  expectedNonce?: string
+  expectedNonce?: string,
+  notUpdatedSince?: string
 ): Promise<PushTokenResult> {
   const client = getSupabaseClient();
   if (!client) return { ok: false, error: "Sync is not configured." };
@@ -132,6 +156,9 @@ export async function unregisterPushToken(
     .eq("device_id", deviceId);
   if (expectedNonce !== undefined) {
     query = query.eq("registration_nonce", expectedNonce);
+  }
+  if (notUpdatedSince !== undefined) {
+    query = query.lte("updated_at", notUpdatedSince);
   }
   const { error } = await query;
   if (error) {
