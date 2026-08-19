@@ -3,7 +3,7 @@
 Generated: 2026-06-24 | Method: /meet
 Last updated: 2026-08-14 (Batch 22 COMPLETE — Task #533, the interrupt content-supply floor: 6-10 interrupts/day is now a hard guarantee, never skipped for lack of "due" content. Live-verified working on the Windows VM same session. Task #522 (iOS) made real, substantial progress — Xcode installed, Simulator build compiles/launches/runs without crashing, blank-screen issue root-caused precisely to a known WebKit mixed-content limitation with a scoped, not-yet-built fix (HTTPS dev server). Task #166 (Windows) found one new open finding: idle-trigger foreground-forcing works, unlock-trigger's doesn't (1 occurrence each, unconfirmed as reproducible) — wake-from-sleep still never tested. Also closed 3 small debt items (timing-safe cron-secret compare, notification-permission hook extraction, devtools dropped from release builds) and fixed a live production gap (the `interrupt_gate_events` cross-device gate table existed in the repo's migration but was never applied to the real Supabase project). Mac and Windows now both running the same `v0.1.0-beta.12` build.)
 
-**2026-08-18 addendum (not a full rewrite of the summary above — see `.autocode/agents/cto.md` for the fuller narrative):** Task #522 (iOS) is now live-verified end-to-end on a real iPhone via TestFlight, App Store submission is its only remaining step. Batch 23 (interrupt session floor + push registration hardening) ran 19 audit rounds and CLOSED 2026-08-18, accepted as debt; its one significant open finding was spun into **Task #654** (OPEN). **Batch 24 — Go-Live / Operational Readiness** was added the same day: real payments have never been processed (LS store still test-mode, Task #655), there's no production monitoring on the push pipeline (Task #656), the local branch is unpushed to `origin/main` (Task #657), and no independent security review has been done (Task #658) — see that batch for the full go-live checklist.
+**2026-08-18 addendum (not a full rewrite of the summary above — see `.autocode/agents/cto.md` for the fuller narrative):** Task #522 (iOS) is now live-verified end-to-end on a real iPhone via TestFlight, App Store submission is its only remaining step. Batch 23 (interrupt session floor + push registration hardening) ran 19 audit rounds and CLOSED 2026-08-18, accepted as debt; its one significant open finding was spun into **Task #654**, now COMPLETE the same day (fix shape (a) — keying `<StudyInner>` on session identity so a push-tap/deep-link navigation forces a real remount instead of reusing a stale hook instance). **Task #657 also COMPLETE** — local `main` pushed to `origin/main`. **Batch 24 — Go-Live / Operational Readiness** was added the same day: real payments have never been processed (LS store still test-mode, Task #655), there's no production monitoring on the push pipeline (Task #656 — still OPEN), and no independent security review has been done (Task #658 — still OPEN) — see that batch for the full go-live checklist.
 
 ## Summary
 Batches 1–14, 16, 18, 19, 20, 21, 22 COMPLETE; Batch 15 IN PROGRESS (Task #166: unlock trigger confirmed working, but a new foreground-forcing discrepancy vs. the idle trigger needs reproduction — see debt.md; wake-from-sleep still never tested; #167 Linux still not manually tested at all; #165 Windows code-signing still separately blocked on Max's Azure Portal setup); Batch 16 fully COMPLETE (#168/#169/#170/#520/#521 all done); Batch 17 (Mobile) has #171 COMPLETE (rescoped) — #522 (iOS) now has Xcode installed and a working, non-crashing Simulator build; the one remaining blocker (live-dev blank screen, WebKit mixed-content) is root-caused with a scoped fix (HTTPS dev server) not yet built; #172 (Android, blocked on #522) remains open; Batch 21 COMPLETE (2026-08-13) — the interrupt trigger/cross-device scheduling redesign; **Batch 22 COMPLETE (2026-08-14)** — the interrupt content-supply floor (Task #533), BRAND.md's "6-10 interrupts every day" is now a real, tested, live-verified guarantee.
@@ -13262,7 +13262,7 @@ Fixed with a column-level `revoke update (last_sent_at) on public.push_tokens fr
 **Owner:** —
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-08-18
 
 **What:**
 Found in Batch 23 audit round 13 (Red Agent R, independently re-verified against the real files by the orchestrating session — not taken on trust) and deliberately left unfixed at the time, pending its own dedicated task. Re-confirmed still open through round 19; no round since 13 has touched this code path.
@@ -13278,10 +13278,16 @@ Two candidate fix shapes (from the original finding, needing a real design decis
 `hooks/useStudySession.test.ts`'s own existing test ("runs the real fill pass exactly once, even if allCardMap keeps changing reference after real data first arrives") names this exact scenario in its own comment but only asserts `introduceCard` isn't double-called — it never asserts what `queue` actually contains post-navigation, so this defect has zero test coverage in either direction today.
 
 **Acceptance Criteria:**
-- [ ] A push tap or deep link received while mid-session on a different `/study` route produces a real, correctly-filled interrupt session (or, if choice (a) is taken, a clean remount) — not a stale, mislabeled one
-- [ ] The resume-decision effect correctly re-evaluates for the new session identity, not just the mount-fill effect
-- [ ] A regression test exercises the actual reported scenario end to end (navigating into interrupt mode from an active unit/global session without a full remount) and asserts on `queue` contents, not just call counts
-- [ ] `npx tsc --noEmit` clean, full test suite passing, `npm run lint` clean, weak-assertion gate clean
+- [x] A push tap or deep link received while mid-session on a different `/study` route produces a real, correctly-filled interrupt session (or, if choice (a) is taken, a clean remount) — not a stale, mislabeled one
+- [x] The resume-decision effect correctly re-evaluates for the new session identity, not just the mount-fill effect
+- [x] A regression test exercises the actual reported scenario end to end (navigating into interrupt mode from an active unit/global session without a full remount) and asserts on `queue` contents, not just call counts
+- [x] `npx tsc --noEmit` clean, full test suite passing, `npm run lint` clean, weak-assertion gate clean
+
+**Resolution (2026-08-18):** Took fix shape (a) — the simpler, more robust option the task itself already favored. `app/study/page.tsx`'s `useSearchParams()` read was split out into a new outer component (`StudyPageKeyed`) that computes `sessionKey = ${mode ?? "unit"}-${unitId}` and renders `<StudyInner key={sessionKey} />`; `StudyInner` itself is unchanged and still reads `useSearchParams()` for its own `unitId`/`mode` (a second, cheap context read — not a restructured Suspense boundary). Keying on session identity forces React to fully unmount/remount `StudyInner` whenever `mode`/`unitId` actually changes, which resets `useStudySession`'s entire hook instance — `mountFillStartedRef` back to `false`, `resumeDecision` back to `null` (so its `[hydrated]`-keyed effect re-fires fresh on the new mount and correctly re-evaluates `hasPendingResumableSession()` for the new session key), and `queue`/`pos` re-initialized from the new `initialQueue`. This closes both acceptance-criteria bullets (the stale-session bug and the resume-decision re-evaluation gap) with the same single change — shape (b)'s manual ref-reset/effect-re-trigger was not needed.
+
+New regression test: `app/study/pageSessionRemount.test.tsx` (2 tests) — uses the REAL `useStudySession` hook and real `srsStore` (unlike `app/study/page.test.tsx`, which mocks `useStudySession` entirely and so cannot observe this class of bug) against a minimal two-unit fixture, driving the page through testing-library's `rerender()` — which mirrors Next.js App Router's real behavior of NOT unmounting a client component on a same-pathname navigation unless a `key` forces it. Test 1 rates unit A's only card to completion, navigates to unit B via a query-param-only change, and asserts unit B's fresh `StudyCard` renders (not unit A's stale `StudyDoneScreen`). Test 2 confirms no stray resume prompt leaks across the navigation. Deletion Test performed and verified live: reverting `<StudyInner key={sessionKey} />` back to `<StudyInner />` makes both new tests fail with the exact predicted symptom (unit A's stale "Done: 1/1" screen still showing after navigating to unit B) — confirming the test is load-bearing, not vacuous.
+
+Verification gate: `npx tsc --noEmit` clean; full suite `npm test` 2077/2077 passing (104 files) plus a dedicated `--coverage` run confirming all four thresholds hold well above floor (stmts 92.7%, branches 89.24%, funcs 92.39%, lines 94.05% vs. the 82/81/79/84 floors); `npm run lint` 0 errors (7 pre-existing unrelated warnings, none touched by this fix); weak-assertion gate clean.
 
 **Source:** debt.md 2026-08-18 (Batch 23 audit round 13, Red Agent R) — severity 7
 
@@ -13343,14 +13349,14 @@ The push dispatch Edge Function (Task #170) runs on a 5-minute pg_cron schedule 
 **Owner:** Max (push authorization) — see AGENTS.md Git Safety Protocol, pushing is never done unilaterally
 **Blocked by:** Nothing
 **Priority:** P1
-**Status:** OPEN
+**Status:** COMPLETE — 2026-08-18
 
 **What:**
 As of 2026-08-18 the local branch is dozens of commits ahead of `origin/main`, including all of Batch 23's work and both live-production database migrations. This means the canonical GitHub remote does not reflect what's actually running in production — a real risk (single point of failure: this one machine's local git history) and a real hygiene gap for a project claiming enterprise-grade process.
 
 **Acceptance Criteria:**
-- [ ] Local `main` pushed to `origin/main`, confirmed via `git log origin/main..HEAD` returning empty
-- [ ] A standing habit or lightweight check established so the branch doesn't silently drift this far again (e.g. push at the end of every session, or a periodic reminder) — process, not necessarily code
+- [x] Local `main` pushed to `origin/main`, confirmed via `git log origin/main..HEAD` returning empty — pushed `f5f1305..ff5d266`, 28 commits, confirmed empty diff post-push
+- [x] A standing habit or lightweight check established so the branch doesn't silently drift this far again — adopted: push local `main` to `origin/main` at the end of any session that produced commits, with Max's explicit go-ahead per session (not automatic/unattended), rather than letting drift accumulate silently across sessions
 
 **Source:** 2026-08-18 roadmap discussion (operational-maturity assessment)
 
@@ -13382,7 +13388,7 @@ Every security review plyglt has had to date is the same AI-agent audit process,
 - **Task #167** — Linux OS-hook triggers have never been verified on real hardware/VM at all.
 - **Task #172** — Android hasn't been started (unblocked since Task #522, not yet picked up).
 - **Task #522** — the only remaining iOS work is App Store submission itself (export compliance, screenshots, review) — an owner/business step, not engineering.
-- **Task #654** — the round-13 severity-7 stale-interrupt-session-on-navigation bug, accepted as debt when Batch 23 closed; still a real, reachable defect in production code.
+- **Task #654** — the round-13 severity-7 stale-interrupt-session-on-navigation bug, accepted as debt when Batch 23 closed; fixed 2026-08-18 (see the task's own entry for the full resolution).
 
 **Named but deliberately NOT a task here:** team/bus-factor redundancy (plyglt is built and operated by one person plus AI agents, with no backup if Max is unavailable) is a real organizational gap this assessment surfaced, but it isn't something a task with acceptance criteria can close — it's a business decision (hire, contract, or formally accept the risk) left for Max to make on his own timeline, not tracked as engineering work.
 

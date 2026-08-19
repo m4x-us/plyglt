@@ -145,6 +145,23 @@ function StudyInner() {
   );
 }
 
+// Task #654: Next.js App Router does not remount a component on a same-pathname,
+// query-string-only navigation (e.g. a push tap's router.push("/study?mode=interrupt")
+// while already on "/study?unit=X"). Without a key, StudyInner's underlying
+// useStudySession() hook instance survives that navigation untouched — its one-shot
+// mountFillStartedRef stays spent and its resume-decision effect (keyed only on
+// [hydrated]) never re-evaluates for the new session identity, so `queue`/`pos` stay
+// frozen at the PRIOR session's values while the header/badge relabel to the new mode.
+// Keying on mode+unitId forces a full unmount/remount of StudyInner (and therefore a
+// fresh useStudySession instance) whenever the session identity actually changes.
+function StudyPageKeyed() {
+  const searchParams = useSearchParams();
+  const unitId = searchParams.get("unit") ?? "";
+  const mode = searchParams.get("mode");
+  const sessionKey = `${mode ?? "unit"}-${unitId}`;
+  return <StudyInner key={sessionKey} />;
+}
+
 export default function StudyPage() {
-  return <Suspense><StudyInner /></Suspense>;
+  return <Suspense><StudyPageKeyed /></Suspense>;
 }
