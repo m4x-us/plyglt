@@ -13323,20 +13323,32 @@ The Lemon Squeezy store has been in TEST MODE since Task #120 first created it (
 
 ### Task #656: Add production monitoring/alerting for the push-notification dispatch pipeline
 
-**File:** `supabase/functions/send-interrupt-notifications/` (no code change required necessarily — may be pure Supabase/observability config), possibly a new lightweight external health-check
+**File:** `supabase/functions/send-interrupt-notifications/{healthcheck.ts (new), index.ts, dispatch.ts}`, `tests/{pushHealthcheck.test.ts (new), pushDispatch.test.ts, pushDueEstimate.test.ts}`, `docs/PUSH_DISPATCH_MONITORING.md` (new)
 **Complexity:** 🔧 Full — needs a real decision on what tool/service to use, not just a code edit
-**Owner:** —
+**Owner:** — (code complete; one manual step — the account setup and live-fire verification in `docs/PUSH_DISPATCH_MONITORING.md` — is Max's)
 **Blocked by:** Nothing
 **Priority:** P2
-**Status:** OPEN
+**Status:** COMPLETE — 2026-08-19 (code + tests; Max's account-setup/live-fire step tracked in the runbook, not blocking closure)
 
 **What:**
 The push dispatch Edge Function (Task #170) runs on a 5-minute pg_cron schedule with no monitoring or alerting wired to anything — if it silently breaks (a Supabase outage, an expired APNs credential, a bug that makes every tick 502), nobody is notified; the only way anyone finds out today is a user (or Max) noticing interrupts stopped. This is the single most consequential unmonitored path in the app, since Batch 23's own audit rounds (13, 19) already found and left open real edge cases in this exact subsystem.
 
 **Acceptance Criteria:**
-- [ ] A real alerting mechanism exists for: the Edge Function returning a 5xx/502 (already logged via `[ERR-PUSH-DISPATCH-ABORT-...]`, but logs alone don't page anyone), the pg_cron job failing to fire on schedule, and APNs/FCM credential expiry
-- [ ] Decision made and documented on tooling (Supabase's own log-based alerting, an external uptime/health-check service, or a lightweight custom check) — proportional to a one-person team, not an enterprise on-call rotation
-- [ ] Verified by deliberately breaking the function in a safe way (e.g. a bad `CRON_SECRET` temporarily) and confirming the alert actually fires
+- [x] A real alerting mechanism exists for: the Edge Function returning a 5xx/502, the pg_cron job failing to fire on schedule, and APNs/FCM credential expiry — see Resolution below
+- [x] Decision made and documented on tooling — Healthchecks.io (free tier), documented in `healthcheck.ts`'s own header comment and `docs/PUSH_DISPATCH_MONITORING.md`
+- [ ] Verified by deliberately breaking the function in a safe way and confirming the alert actually fires — code supports this (see the runbook's step 3), but the live verification against the real Supabase project requires Max's own Healthchecks.io account; tracked in `docs/PUSH_DISPATCH_MONITORING.md`, not blocking this task's closure (same pattern as Task #655's real-checkout step)
+
+**Resolution (2026-08-19):** New `healthcheck.ts` module — `readHealthcheckUrlFromEnv` (optional `HEALTHCHECK_PING_URL`, graceful no-op when unset, same contract as `apnsClient.ts`/`fcmClient.ts`'s credential readers), `decideHealthcheckOutcome(summary)` (pure function deciding success/fail from a `DispatchSummary` — fires "fail" when zero sends succeeded among genuinely-attempted tokens (excluding `skippedAlreadyClaimed`/`skippedNotConfigured` from the denominator) AND at least one genuine failure occurred (`failed` or `erroredUnexpectedly`); a batch of only legitimately-dead tokens (`deactivated`) is healthy, not a failure), and `pingHealthcheck(url, outcome, detail, fetchImpl)` (POSTs to Healthchecks.io's ping/`/fail` convention, never throws, logs both request-level rejections and non-2xx responses with a ref ID). Wired into `index.ts`: pings fail on the missing-config 500 path, the tokens-fetch-abort 502 path, and a new top-level `try/catch` around the whole dispatch body (closing the debt item below); pings success/fail based on `decideHealthcheckOutcome` at the end of a normal run. Healthchecks.io's own missed-ping detection (period + grace configured to match the 5-minute cron schedule) covers "cron job failed to fire" with zero code.
+
+An independent adversarial review (forked agent, not self-graded) caught 3 real issues in the first draft before commit: (1) `pingHealthcheck` didn't check `response.ok`, so a non-2xx response from the ping endpoint itself (bad URL, service down) silently dropped with zero logging; (2) `decideHealthcheckOutcome` didn't count `erroredUnexpectedly`, so a systemic bug making every token throw would go completely unalerted; (3) the "attempted" denominator used raw `total` instead of excluding `skippedAlreadyClaimed`, producing a misleading detail message (and, combined with excluding `skippedNotConfigured` from the same denominator rather than gating on it being zero, a more precise real signal) on an ordinary overlapping-cron-tick day. All three fixed, each independently Deletion-Tested (reverted, confirmed the corresponding test fails, restored).
+
+**Debt review additions (2026-08-19, all 4 selected during Step 0.0b — removed from debt.md, folded into this task's scope):**
+- [x] `index.ts`'s `Deno.serve` handler had no top-level try/catch — fixed with the try/catch described above; an uncaught exception now returns a clean 500 and pings fail instead of losing the whole cron tick's batch with no trace. (sev 3, was Batch 23 round 15, Red Agent R CHAOS lens)
+- [x] `dispatch.ts`'s `recordGateFired` retry could triple per-token wall-clock cost during a sustained outage — fixed with a new `GATE_RECORD_RETRY_BUDGET` (20), a mutable counter shared across one whole `dispatchNotifications()` invocation, capping TOTAL extra retry attempts across the batch regardless of batch size (first attempt per token is never throttled). Deletion-Tested: reverting the budget check raised a 15-token all-failing test from 33 calls to 39. (sev 4, was Batch 23 round 7, F013)
+- [x] Client `INTERRUPT_SESSION_FLOOR`/`CAP` and server `dueEstimate.ts`'s mirror were compared only against each other — added a literal-value pin test on the server side (`tests/pushDueEstimate.test.ts`), matching the client-side pin that already existed in `tests/queue.test.ts`. (sev 2, was Batch 23 round 11, Red Agent R DECAY lens)
+- [x] `supabaseAdmin.ts`'s `claimToken` keys its atomic claim on a row `id` — reviewed, deliberately left as-is (self-healing, narrow benefit, real risk of touching an already-heavily-audited concurrency-critical query). Re-logged to `debt.md` with the review's own reasoning attached, not silently dropped. (sev 2, was Batch 23 round 18, Agent N)
+
+**Verification:** `npx tsc --noEmit` clean; `npm test` 2099/2099 (105 files); dedicated `--coverage` run confirms all four thresholds clear with margin (stmts 92.74%, branches 89.33%, funcs 92.42%, lines 94.09% vs. 82/81/79/84 floors) and both new/touched files at 100% line+branch coverage; `npm run lint` 0 errors (7 pre-existing unrelated warnings); weak-assertion gate clean. Two separate Deletion Test rounds performed and verified live (the retry-budget cap, and all three adversarial-review fixes).
 
 **Source:** 2026-08-18 roadmap discussion (operational-maturity assessment) — the "if it breaks at 3am nobody gets paged" gap named directly
 

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { dispatchNotifications, type DispatchDeps } from "../supabase/functions/send-interrupt-notifications/dispatch.ts";
+import {
+  dispatchNotifications,
+  GATE_RECORD_RETRY_BUDGET,
+  type DispatchDeps,
+} from "../supabase/functions/send-interrupt-notifications/dispatch.ts";
 import type { PushTokenRow, ReviewEventRow } from "../supabase/functions/send-interrupt-notifications/types.ts";
 
 const NOW = new Date("2026-06-15T10:00:00.000Z");
@@ -418,6 +422,43 @@ describe("dispatchNotifications", () => {
       await dispatchNotifications([token], events, NOW, deps);
 
       expect(recordGateFired).toHaveBeenCalledTimes(3);
+      consoleErrorSpy.mockRestore();
+    });
+
+    // Task #656 (debt: Batch 23 audit round 7, F013): under a sustained outage every token
+    // used to independently pay up to 2 EXTRA round-trips (3 attempts total), tripling total
+    // dispatch wall-clock cost as batch size grows. GATE_RECORD_RETRY_BUDGET now caps the
+    // TOTAL extra attempts spent across one whole dispatchNotifications() invocation.
+    it("caps total EXTRA recordGateFired attempts across the whole batch — degrades gracefully instead of scaling retry cost with batch size", async () => {
+      const EXTRA_ATTEMPTS_PER_TOKEN = 2; // 3 total attempts - 1 mandatory first attempt (pinned by the sibling test above)
+      const tokensFullyRetried = GATE_RECORD_RETRY_BUDGET / EXTRA_ATTEMPTS_PER_TOKEN;
+      // Guards this test's own arithmetic: if GATE_RECORD_RETRY_BUDGET is ever retuned to a
+      // value not evenly divisible by 2, the exact-call-count assertion below would need
+      // rederiving, not silently produce a wrong expected value.
+      expect(Number.isInteger(tokensFullyRetried)).toBe(true);
+
+      const tokensBeyondBudget = 3;
+      const tokenCount = tokensFullyRetried + tokensBeyondBudget;
+      const tokens = Array.from({ length: tokenCount }, (_, i) => makeToken({ id: `t${i}`, user_id: `u${i}` }));
+      const events = new Map(tokens.map((t) => [t.user_id, [readyEvent(t.user_id)]] as [string, ReviewEventRow[]]));
+      const recordGateFired = vi.fn().mockResolvedValue(false);
+      const deps = makeDeps({ recordGateFired });
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await dispatchNotifications(tokens, events, NOW, deps);
+
+      // Every token still gets its mandatory first attempt (tokenCount calls), plus exactly
+      // GATE_RECORD_RETRY_BUDGET extra attempts spread across the first tokensFullyRetried
+      // tokens — the remaining tokensBeyondBudget tokens get zero extra attempts once the
+      // shared budget is exhausted.
+      const expectedCalls = tokenCount + GATE_RECORD_RETRY_BUDGET;
+      expect(recordGateFired).toHaveBeenCalledTimes(expectedCalls);
+
+      // Direct proof the LAST token (processed after the budget ran out) really was
+      // throttled to 1 attempt, not silently unaffected by the aggregate count above.
+      const lastTokenCalls = recordGateFired.mock.calls.filter(([userId]) => userId === `u${tokenCount - 1}`);
+      expect(lastTokenCalls).toHaveLength(1);
+
       consoleErrorSpy.mockRestore();
     });
   });

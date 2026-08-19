@@ -52,6 +52,21 @@ export interface DispatchDeps {
   recordGateFired: (userId: string, deviceId: string, occurredAt: string, effectiveUntil: string) => Promise<boolean>;
 }
 
+// Task #656: a shared, mutable counter passed to every sendAndRecord() call within one
+// dispatchNotifications() invocation, capping the TOTAL extra recordGateFired retry
+// attempts across the whole batch — see its use in sendAndRecord for the full reasoning.
+// A plain mutable object, not a class: the only consumer is this same file, and a class
+// would be an unearned abstraction for a single shared counter.
+interface RetryBudget {
+  remaining: number;
+}
+
+// 20 extra round-trips is a deliberately generous but bounded ceiling — small compared to
+// a typical batch size at any scale this pipeline runs at today, while still capping the
+// worst case (previously 2x batch size in extra attempts) to a constant independent of
+// batch size.
+export const GATE_RECORD_RETRY_BUDGET = 20;
+
 /**
  * Processes one already-claimed token: send, then record the outcome.
  * Split out from the loop body specifically so it can be wrapped in a
@@ -69,7 +84,8 @@ async function sendAndRecord(
   estimateCardCount: number,
   deps: DispatchDeps,
   summary: DispatchSummary,
-  now: Date
+  now: Date,
+  retryBudget: RetryBudget
 ): Promise<void> {
   const send = token.platform === "ios" ? deps.sendApns : deps.sendFcm;
   const result = await send(token, payload);
@@ -132,9 +148,24 @@ async function sendAndRecord(
     // accumulation is a storage-growth/audit-cleanliness concern, not a
     // correctness or security issue — revisit with a dedup mechanism only if
     // dispatch volume makes the row count itself a problem.
+    // Task #656 (Batch 23 round 7 debt): the retry count above was reasoned about only
+    // for a single-token transient blip. Under a SUSTAINED outage, every token in the
+    // batch independently pays up to 3x round-trip cost, tripling total dispatch
+    // wall-clock time exactly when the system is already degraded. retryBudget is
+    // shared across the whole dispatchNotifications() invocation (see its call site) —
+    // once GATE_RECORD_RETRY_BUDGET extra attempts have been spent across the batch,
+    // every remaining token falls back to a single attempt instead of retrying, capping
+    // the invocation's TOTAL added cost regardless of batch size. The first attempt is
+    // never throttled — a normal transient blip on an otherwise-healthy run is
+    // unaffected; only a sustained, batch-wide outage degrades gracefully instead of
+    // multiplying cost with batch size.
     const GATE_RECORD_MAX_ATTEMPTS = 3;
     let recorded = false;
     for (let attempt = 1; attempt <= GATE_RECORD_MAX_ATTEMPTS && !recorded; attempt++) {
+      if (attempt > 1) {
+        if (retryBudget.remaining <= 0) break;
+        retryBudget.remaining--;
+      }
       recorded = await deps.recordGateFired(token.user_id, token.device_id, occurredAt, effectiveUntil);
     }
     if (!recorded) {
@@ -192,6 +223,10 @@ export async function dispatchNotifications(
     total: candidateTokens.length,
   };
 
+  // Task #656: shared across every token in this invocation — see RetryBudget's
+  // declaration and sendAndRecord's use of it for the full reasoning.
+  const retryBudget: RetryBudget = { remaining: GATE_RECORD_RETRY_BUDGET };
+
   for (const token of candidateTokens) {
     try {
       const events = reviewEventsByUser.get(token.user_id) ?? [];
@@ -211,7 +246,7 @@ export async function dispatchNotifications(
         continue;
       }
 
-      await sendAndRecord(token, payload, estimate.cardCount, deps, summary, now);
+      await sendAndRecord(token, payload, estimate.cardCount, deps, summary, now, retryBudget);
     } catch (e) {
       // Defensive backstop only — every known throwing call in this chain
       // is already caught at its source. If something still slips through,

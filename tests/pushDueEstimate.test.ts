@@ -3,8 +3,26 @@ import {
   groupReviewEventsByUserId,
   computeDueEstimate,
   buildNotificationPayload,
+  INTERRUPT_SESSION_FLOOR,
+  INTERRUPT_SESSION_CAP,
 } from "../supabase/functions/send-interrupt-notifications/dueEstimate.ts";
 import type { ReviewEventRow } from "../supabase/functions/send-interrupt-notifications/types.ts";
+
+// Task #656 (debt: Batch 23 round 11, Red Agent R DECAY lens): tests/interruptFloorSync.test.ts
+// only ever compared this file's copy against lib/queue.ts's copy — a coordinated bump of both
+// to the same wrong value would pass that test. tests/queue.test.ts already pins the client
+// side against an independently-sourced literal (INTERRUPT_SESSION_FLOOR is exactly 6); this
+// pins the server side the same way, so a future edit to either constant alone — or both,
+// moved to the same wrong number — fails at least one of these two literal pins.
+describe("dueEstimate.ts session floor/cap constants — literal pin (Task #656)", () => {
+  it("INTERRUPT_SESSION_FLOOR is exactly 6 — BRAND.md's ratified session-floor promise", () => {
+    expect(INTERRUPT_SESSION_FLOOR).toBe(6);
+  });
+
+  it("INTERRUPT_SESSION_CAP is exactly 8 — BRAND.md's ratified session-ceiling promise", () => {
+    expect(INTERRUPT_SESSION_CAP).toBe(8);
+  });
+});
 
 function makeEvent(overrides: Partial<ReviewEventRow> = {}): ReviewEventRow {
   return {
