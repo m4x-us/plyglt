@@ -51,8 +51,8 @@ describe("version constants", () => {
   it("ENTITLEMENT_VERSION is 3", () => {
     expect(ENTITLEMENT_VERSION).toBe(3);
   });
-  it("SETTINGS_VERSION is 3", () => {
-    expect(SETTINGS_VERSION).toBe(3);
+  it("SETTINGS_VERSION is 4", () => {
+    expect(SETTINGS_VERSION).toBe(4);
   });
   it("SYNC_VERSION is 2", () => {
     expect(SYNC_VERSION).toBe(2);
@@ -93,7 +93,7 @@ describe("future-version guard — storedVersion > CURRENT_VERSION throws instea
   it("migrateSettingsStore throws when storedVersion is newer than SETTINGS_VERSION", () => {
     const futureData = { intervalHours: "not-a-number-anymore" };
     expect(() => migrateSettingsStore(futureData, SETTINGS_VERSION + 1)).toThrow(
-      /Settings store version 4 is newer than this app build understands/
+      /Settings store version 5 is newer than this app build understands/
     );
   });
 
@@ -1054,5 +1054,75 @@ describe("migrateSettingsStore()", () => {
     expect(result.idleEnabled).toBe(false);
     expect(result.idleThresholdMinutes).toBe(45);
     expect(result.sourceLang).toBe("en");
+  });
+
+  // v3 → v4: adds sessionTargetSeconds (Task, 2026-08-21) — same defensive-validation
+  // pattern as v2→v3's sourceLang above.
+  it("v3 → v4: adds sessionTargetSeconds defaulting to 60 when absent", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "en" },
+      3
+    ) as Record<string, unknown>;
+    expect(result.sessionTargetSeconds).toBe(60);
+  });
+
+  it("v3 → v4: preserves an existing valid sessionTargetSeconds value (90)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "en", sessionTargetSeconds: 90 },
+      3
+    ) as Record<string, unknown>;
+    expect(result.sessionTargetSeconds).toBe(90);
+  });
+
+  it("v3 → v4: falls back to 60 for a sessionTargetSeconds value outside the offered slider steps (e.g. 100)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "en", sessionTargetSeconds: 100 },
+      3
+    ) as Record<string, unknown>;
+    expect(result.sessionTargetSeconds).toBe(60);
+  });
+
+  it("v3 → v4: falls back to 60 when sessionTargetSeconds is a non-number (corrupt persisted value)", () => {
+    const result = migrateSettingsStore(
+      { launchAtLogin: false, interruptEnabled: false, intervalHours: 3, mandatory: false, dndStart: "22:00", dndEnd: "08:00", snoozeMinutes: 30, wakeEnabled: true, unlockEnabled: true, idleEnabled: true, idleThresholdMinutes: 15, sourceLang: "en", sessionTargetSeconds: "sixty" },
+      3
+    ) as Record<string, unknown>;
+    expect(result.sessionTargetSeconds).toBe(60);
+  });
+
+  it("v0 → v4 (full chain): sessionTargetSeconds present with correct default", () => {
+    const result = migrateSettingsStore({}, 0) as Record<string, unknown>;
+    expect(result.sessionTargetSeconds).toBe(60);
+  });
+
+  it("v3 → v4: preserves every other SettingsState field a real v3 user had set, not just sessionTargetSeconds", () => {
+    const v3Data = {
+      launchAtLogin: true,
+      interruptEnabled: true,
+      intervalHours: 6,
+      mandatory: true,
+      dndStart: "23:15",
+      dndEnd: "06:45",
+      snoozeMinutes: 60,
+      wakeEnabled: false,
+      unlockEnabled: false,
+      idleEnabled: false,
+      idleThresholdMinutes: 45,
+      sourceLang: "es",
+    };
+    const result = migrateSettingsStore(v3Data, 3) as Record<string, unknown>;
+    expect(result.launchAtLogin).toBe(true);
+    expect(result.interruptEnabled).toBe(true);
+    expect(result.intervalHours).toBe(6);
+    expect(result.mandatory).toBe(true);
+    expect(result.dndStart).toBe("23:15");
+    expect(result.dndEnd).toBe("06:45");
+    expect(result.snoozeMinutes).toBe(60);
+    expect(result.wakeEnabled).toBe(false);
+    expect(result.unlockEnabled).toBe(false);
+    expect(result.idleEnabled).toBe(false);
+    expect(result.idleThresholdMinutes).toBe(45);
+    expect(result.sourceLang).toBe("es");
+    expect(result.sessionTargetSeconds).toBe(60);
   });
 });

@@ -4,7 +4,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect } from "react";
-import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS } from "@/store/settingsStore";
+import { useSettingsStore, INTERVAL_OPTIONS, SNOOZE_OPTIONS, SESSION_TARGET_SECONDS_OPTIONS } from "@/store/settingsStore";
 import { useEntitlementStore } from "@/store/entitlementStore";
 import { ALL_PACK_CODES } from "@/lib/langRegistry";
 import { runEntitlementValidation } from "@/components/EntitlementValidator";
@@ -24,7 +24,7 @@ const IDLE_THRESHOLD_MIN_MINUTES = 5;
 const IDLE_THRESHOLD_MAX_MINUTES = 120;
 
 export default function SettingsPage() {
-  const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes, setLaunchAtLogin, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes, setWakeEnabled, setUnlockEnabled, setIdleEnabled, setIdleThresholdMinutes } = useSettingsStore();
+  const { launchAtLogin, interruptEnabled, intervalHours, mandatory, dndStart, dndEnd, snoozeMinutes, wakeEnabled, unlockEnabled, idleEnabled, idleThresholdMinutes, sessionTargetSeconds, setLaunchAtLogin, setIntervalHours, setMandatory, setDndStart, setDndEnd, setSnoozeMinutes, setWakeEnabled, setUnlockEnabled, setIdleEnabled, setIdleThresholdMinutes, setSessionTargetSeconds } = useSettingsStore();
   const { licenseKey, licenseType, unlockedPacks, validUntil } = useEntitlementStore();
   useEffect(() => { runEntitlementValidation(useEntitlementStore.getState); }, []);
   // Round-14 audit finding (4-way convergence: Agent A, B, K, W): components/InterruptHandler.tsx
@@ -99,6 +99,21 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+            </Section>
+          )}
+          {isPro && interruptEnabled && (
+            // 2026-08-21 owner request: replaces a fixed interrupt-session card count with a
+            // user-chosen time budget (hooks/useInterruptSessionGrowth.ts grows the queue
+            // with one more near-due card per rating until this elapses) — a fast session
+            // gets more cards, a slow one still stops on time. Session floor stays 6 cards
+            // regardless of this setting.
+            <Section title="Session length">
+              <p className="text-gray-500 text-xs mb-4">A review session keeps going with more cards until this much time has passed.</p>
+              <div className="flex gap-2">
+                {SESSION_TARGET_SECONDS_OPTIONS.map((s) => (
+                  <button key={s} onClick={() => setSessionTargetSeconds(s)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${sessionTargetSeconds === s ? "bg-yellow-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>{s}s</button>
+                ))}
+              </div>
             </Section>
           )}
           {isPro && interruptEnabled && (

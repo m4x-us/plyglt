@@ -8,7 +8,7 @@ import { useStudySession } from "./useStudySession";
 import type { Card, Tier } from "@/content/types";
 import { useSRSStore } from "@/store/srsStore";
 import type { CardProgress } from "@/lib/srs";
-import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP, INTERRUPT_FLEX_DAILY_MAX } from "@/lib/queue";
+import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP, INTERRUPT_FLEX_DAILY_MAX, INTERRUPT_SESSION_GROWTH_CAP } from "@/lib/queue";
 import { ALL_UNITS } from "@/content/index";
 
 function makeCard(id: string, tier: Tier = 1, prerequisites?: string[]): Card {
@@ -25,6 +25,7 @@ function defaultParams(overrides: Partial<Parameters<typeof useStudySession>[0]>
     isGlobal: false,
     isInterrupt: false,
     unitId: "it-a1u01",
+    sessionTargetSeconds: 60,
     getResumableSession: vi.fn(() => null),
     peekResumableSession: vi.fn(() => null),
     clearExpiredResumableSession: vi.fn(),
@@ -604,6 +605,141 @@ describe("useStudySession — handleRate", () => {
     // and increments by 1 per call, so the exact value is provable, not just a lower bound.
     expect((session as { sessionTotal: number }).sessionTotal).toBe(1);
     expect((session as { queueIds: string[] }).queueIds).toContain("solo");
+  });
+});
+
+// Task (2026-08-21 owner request): time-based session growth — handleRate's wiring to
+// hooks/useInterruptSessionGrowth.ts. Unit coverage for the growth decision itself lives in
+// hooks/useInterruptSessionGrowth.test.ts; these tests prove useStudySession.ts actually
+// wires it in correctly (isInterrupt scoping, live queue/commitSession reflecting growth).
+//
+// initialQueue is deliberately sized AT the FLOOR (6 cards, INTERRUPT_SESSION_FLOOR) for
+// every isInterrupt test below — a queue that starts BELOW the floor would let the
+// mount-fill effect's own pre-existing near-due backfill (runFillPass, unrelated to this
+// feature) consume the same getNearDueCards mock before any rating happens, contaminating
+// these tests' ability to isolate handleRate's growth call specifically. First-round drafts
+// of these tests used the default 3-card initialQueue and passed even with the growth call
+// commented out entirely — caught only by an explicit Deletion Test, not by inspection.
+function sixCardInterruptQueue() {
+  const queue = Array.from({ length: INTERRUPT_SESSION_FLOOR }, (_, i) => makeCard(`base${i}`));
+  return { queue, map: Object.fromEntries(queue.map((c) => [c.id, c])) };
+}
+
+describe("useStudySession — handleRate time-based growth (Task, 2026-08-21)", () => {
+  it("appends a near-due card after rating in an interrupt session, within the time budget", () => {
+    const { queue, map } = sixCardInterruptQueue();
+    const growthCard = makeCard("grown-1");
+    const getNearDueCards = vi.fn(() => [growthCard]);
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({ initialQueue: queue, allCardMap: map, isInterrupt: true, sessionTargetSeconds: 60, getNearDueCards }),
+      ),
+    );
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR); // confirms no mount-time contamination
+
+    act(() => {
+      result.current.handleRate("good");
+    });
+
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR + 1);
+    expect(result.current.queue.map((c) => c.id)).toContain("grown-1");
+  });
+
+  it("does not grow a non-interrupt (unit) session, even with time and a near-due candidate available", () => {
+    const getNearDueCards = vi.fn(() => [makeCard("grown-1")]);
+    const { result } = renderHook(() =>
+      useStudySession(defaultParams({ isInterrupt: false, sessionTargetSeconds: 60, getNearDueCards })),
+    );
+    const queueLengthBefore = result.current.queue.length;
+
+    act(() => {
+      result.current.handleRate("good");
+    });
+
+    expect(result.current.queue).toHaveLength(queueLengthBefore);
+    expect(result.current.queue.map((c) => c.id)).not.toContain("grown-1");
+  });
+
+  it("grows before the time budget elapses, then stops growing once it does — same session, both sides of the boundary proven", () => {
+    vi.useFakeTimers();
+    try {
+      const { queue, map } = sixCardInterruptQueue();
+      const candidates = [makeCard("grown-early"), makeCard("grown-late")];
+      const getNearDueCards = vi.fn(() => candidates);
+      const { result } = renderHook(() =>
+        useStudySession(
+          defaultParams({ initialQueue: queue, allCardMap: map, isInterrupt: true, sessionTargetSeconds: 30, getNearDueCards }),
+        ),
+      );
+
+      // Well within the 30s budget — growth should fire.
+      vi.advanceTimersByTime(5_000);
+      act(() => {
+        result.current.handleRate("good");
+      });
+      expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR + 1);
+      expect(result.current.queue.map((c) => c.id)).toContain("grown-early");
+
+      // Past the 30s budget (measured from session start, not from the last rating) —
+      // growth must stop even though a second candidate is still available.
+      vi.advanceTimersByTime(30_000);
+      act(() => {
+        result.current.handleRate("good");
+      });
+      expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_FLOOR + 1); // unchanged — no 2nd growth card
+      expect(result.current.queue.map((c) => c.id)).not.toContain("grown-late");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("commitSession's persisted queueIds reflect the grown queue, not the pre-growth queue", () => {
+    const { queue, map } = sixCardInterruptQueue();
+    const growthCard = makeCard("grown-1");
+    const getNearDueCards = vi.fn(() => [growthCard]);
+    const commitSession = vi.fn();
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({ initialQueue: queue, allCardMap: map, isInterrupt: true, sessionTargetSeconds: 60, getNearDueCards, commitSession }),
+      ),
+    );
+
+    act(() => {
+      result.current.handleRate("good");
+    });
+
+    expect(commitSession).toHaveBeenCalledWith(
+      "base0",
+      "good",
+      expect.objectContaining({ queueIds: expect.arrayContaining(["grown-1"]) }),
+    );
+  });
+
+  it("grows to exactly INTERRUPT_SESSION_GROWTH_CAP and no further, even with abundant candidates and time remaining", () => {
+    const manyNearDue = Array.from({ length: 30 }, (_, i) => makeCard(`nd${i}`));
+    const getNearDueCards = vi.fn(() => manyNearDue);
+    const startQueue = Array.from({ length: INTERRUPT_SESSION_GROWTH_CAP - 1 }, (_, i) => makeCard(`start${i}`));
+    const startMap = Object.fromEntries(startQueue.map((c) => [c.id, c]));
+    const { result } = renderHook(() =>
+      useStudySession(
+        defaultParams({
+          initialQueue: startQueue,
+          allCardMap: startMap,
+          isInterrupt: true,
+          sessionTargetSeconds: 120,
+          getNearDueCards,
+        }),
+      ),
+    );
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_GROWTH_CAP - 1); // confirms no mount-time contamination
+
+    act(() => {
+      result.current.handleRate("good");
+    });
+
+    // Exact value, not a <= bound — a bound alone wouldn't distinguish "grew by one" from
+    // "didn't grow at all," both of which satisfy <= GROWTH_CAP.
+    expect(result.current.queue).toHaveLength(INTERRUPT_SESSION_GROWTH_CAP);
   });
 });
 
@@ -1392,6 +1528,7 @@ describe("useStudySession — seam: normal-cap intro consumes 1 of the 3 flex sl
         isGlobal: false,
         isInterrupt: true,
         unitId: UNIT.id,
+        sessionTargetSeconds: 60,
         getResumableSession: store.getResumableSession,
         peekResumableSession: store.peekResumableSession,
         clearExpiredResumableSession: store.clearExpiredResumableSession,

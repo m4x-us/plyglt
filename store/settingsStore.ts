@@ -4,8 +4,19 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createPlatformStorage } from "@/lib/storage";
-import { SETTINGS_VERSION, migrateSettingsStore, IDLE_THRESHOLD_DEFAULT_MINUTES } from "@/store/migrations";
+import {
+  SETTINGS_VERSION,
+  migrateSettingsStore,
+  IDLE_THRESHOLD_DEFAULT_MINUTES,
+  SESSION_TARGET_SECONDS_OPTIONS,
+  SESSION_TARGET_SECONDS_DEFAULT,
+} from "@/store/migrations";
 import { DEFAULT_SOURCE_LANG_CODE, isKnownSourceLangCode } from "@/lib/language";
+
+// Re-exported so app/settings/page.tsx can import the slider steps from this store, same as
+// INTERVAL_OPTIONS/SNOOZE_OPTIONS below — even though the values themselves live in
+// migrations.ts (see the comment further down for why).
+export { SESSION_TARGET_SECONDS_OPTIONS };
 
 // Task #531: 1.5h (90 minutes) added as the unified cross-platform default — matches mobile's
 // push_tokens.interrupt_interval_minutes default (90) exactly. See
@@ -14,9 +25,14 @@ export const INTERVAL_OPTIONS = [1.5, 2, 3, 4, 6] as const;
 export const SNOOZE_OPTIONS = [15, 30, 60] as const;
 export const IDLE_THRESHOLD_MIN = 5;
 export const IDLE_THRESHOLD_MAX = 120;
+// SESSION_TARGET_SECONDS_OPTIONS/_DEFAULT live in store/migrations.ts (re-exported below via
+// the import above) — same pattern as IDLE_THRESHOLD_DEFAULT_MINUTES, since the migration
+// needs the same values this store's initial state does, and migrations.ts can't import
+// FROM this file without a circular dependency.
 
 export type IntervalHours = (typeof INTERVAL_OPTIONS)[number];
 export type SnoozeMinutes = (typeof SNOOZE_OPTIONS)[number];
+export type SessionTargetSeconds = (typeof SESSION_TARGET_SECONDS_OPTIONS)[number];
 
 interface SettingsState {
   launchAtLogin: boolean;
@@ -42,6 +58,7 @@ interface SettingsState {
   unlockEnabled: boolean;
   idleEnabled: boolean;
   idleThresholdMinutes: number;
+  sessionTargetSeconds: SessionTargetSeconds; // see SESSION_TARGET_SECONDS_OPTIONS above
   // The learner's interface language for produce/recognize card prompts — deliberately
   // independent of target-language selection. See lib/language.ts's SOURCE_LANGUAGES doc
   // comment for why this must never be folded into lib/constants.ts's LANG_PAIR_KEY /
@@ -59,6 +76,7 @@ interface SettingsState {
   setUnlockEnabled: (v: boolean) => void;
   setIdleEnabled: (v: boolean) => void;
   setIdleThresholdMinutes: (v: number) => void;
+  setSessionTargetSeconds: (v: SessionTargetSeconds) => void;
   setSourceLang: (v: string) => void;
 }
 
@@ -85,6 +103,7 @@ export const useSettingsStore = create<SettingsState>()(
       unlockEnabled: true,
       idleEnabled: true,
       idleThresholdMinutes: IDLE_THRESHOLD_DEFAULT_MINUTES,
+      sessionTargetSeconds: SESSION_TARGET_SECONDS_DEFAULT,
       sourceLang: DEFAULT_SOURCE_LANG_CODE,
 
       setLaunchAtLogin: (v) => set({ launchAtLogin: v }),
@@ -98,6 +117,11 @@ export const useSettingsStore = create<SettingsState>()(
       setUnlockEnabled: (v) => set({ unlockEnabled: v }),
       setIdleEnabled: (v) => set({ idleEnabled: v }),
       setIdleThresholdMinutes: (v) => set({ idleThresholdMinutes: Math.min(IDLE_THRESHOLD_MAX, Math.max(IDLE_THRESHOLD_MIN, v)) }),
+      // Falls back to the default for any value outside the offered slider steps — the type
+      // already constrains callers at compile time, but a persisted/hand-edited value could
+      // still smuggle an arbitrary number through at runtime.
+      setSessionTargetSeconds: (v) =>
+        set({ sessionTargetSeconds: (SESSION_TARGET_SECONDS_OPTIONS as readonly number[]).includes(v) ? v : SESSION_TARGET_SECONDS_DEFAULT }),
       // Same defensive validation as the v2->v3 migration (store/migrations.ts) — a caller
       // passing an unrecognized code (a stale UI, a future build's code not yet supported
       // here) falls back to the default rather than reaching getPrompt/getAccepted with a

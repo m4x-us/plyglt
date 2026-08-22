@@ -6,6 +6,9 @@ import {
   INTERRUPT_SESSION_FLOOR,
   INTERRUPT_SESSION_CAP,
   INTERRUPT_SESSION_MAX_NEW,
+  INTERRUPT_SESSION_GROWTH_CAP,
+  shouldGrowInterruptSession,
+  selectNextGrowthCard,
 } from "@/lib/queue";
 import type { Card, Unit } from "@/content/types";
 
@@ -233,5 +236,73 @@ describe("interrupt session size constants — hardcoded value pins", () => {
 
   it("INTERRUPT_SESSION_MAX_NEW is exactly 3 — Cowan (2001) working-memory cap on new cards per session", () => {
     expect(INTERRUPT_SESSION_MAX_NEW).toBe(3);
+  });
+
+  it("INTERRUPT_SESSION_GROWTH_CAP is exactly 20 — the time-based growth safety backstop", () => {
+    expect(INTERRUPT_SESSION_GROWTH_CAP).toBe(20);
+  });
+});
+
+// Task (2026-08-21): time-based session growth — a fast interrupt session keeps pulling in
+// near-due cards after each rating until the user's own time budget elapses, instead of
+// stopping at a fixed card count. See hooks/useInterruptSessionGrowth.ts for the wiring.
+describe("shouldGrowInterruptSession", () => {
+  it("returns true when elapsed time is under the target and the queue is below the growth cap", () => {
+    expect(shouldGrowInterruptSession(10_000, 60, 8)).toBe(true);
+  });
+
+  it("returns false once elapsed time reaches the target (exact boundary, not just past it)", () => {
+    expect(shouldGrowInterruptSession(60_000, 60, 8)).toBe(false);
+  });
+
+  it("returns false once elapsed time exceeds the target", () => {
+    expect(shouldGrowInterruptSession(90_000, 60, 8)).toBe(false);
+  });
+
+  it("returns true one millisecond before the target elapses", () => {
+    expect(shouldGrowInterruptSession(59_999, 60, 8)).toBe(true);
+  });
+
+  it("returns false once the queue reaches INTERRUPT_SESSION_GROWTH_CAP, even with time remaining", () => {
+    expect(shouldGrowInterruptSession(1_000, 120, INTERRUPT_SESSION_GROWTH_CAP)).toBe(false);
+  });
+
+  it("returns true one card below the growth cap, with time remaining", () => {
+    expect(shouldGrowInterruptSession(1_000, 120, INTERRUPT_SESSION_GROWTH_CAP - 1)).toBe(true);
+  });
+
+  it("respects a user-selected larger target (120s) that a smaller target (60s) would already have cut off", () => {
+    expect(shouldGrowInterruptSession(90_000, 120, 8)).toBe(true);
+    expect(shouldGrowInterruptSession(90_000, 60, 8)).toBe(false);
+  });
+});
+
+describe("selectNextGrowthCard", () => {
+  it("returns the first near-due candidate not already in the queue", () => {
+    const queue = [card("a"), card("b")];
+    const nearDue = [card("b"), card("c"), card("d")];
+    expect(selectNextGrowthCard(queue, nearDue)).toEqual(card("c"));
+  });
+
+  it("returns the very first candidate when none are already queued", () => {
+    const queue = [card("a")];
+    const nearDue = [card("x"), card("y")];
+    expect(selectNextGrowthCard(queue, nearDue)).toEqual(card("x"));
+  });
+
+  it("returns null when every candidate is already in the queue", () => {
+    const queue = [card("a"), card("b")];
+    const nearDue = [card("b"), card("a")];
+    expect(selectNextGrowthCard(queue, nearDue)).toBeNull();
+  });
+
+  it("returns null when the candidate pool is empty", () => {
+    expect(selectNextGrowthCard([card("a")], [])).toBeNull();
+  });
+
+  it("preserves the caller's soonest-due-first ordering — never picks a later candidate over an earlier unqueued one", () => {
+    const queue: Card[] = [];
+    const nearDue = [card("soonest"), card("later")];
+    expect(selectNextGrowthCard(queue, nearDue)).toEqual(card("soonest"));
   });
 });

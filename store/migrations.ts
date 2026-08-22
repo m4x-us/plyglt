@@ -302,10 +302,17 @@ export function migrateEntitlementStore(persisted: unknown, storedVersion: numbe
 
 // ── Settings store ────────────────────────────────────────────────────────────
 
-export const SETTINGS_VERSION = 3;
+export const SETTINGS_VERSION = 4;
 /** Single source of truth for the idle-threshold default (minutes).
  *  Mirrored as IDLE_THRESHOLD_DEFAULT_SECS = 900 in src-tauri/src/interrupt.rs. */
 export const IDLE_THRESHOLD_DEFAULT_MINUTES = 15;
+// 2026-08-21 owner request: single source of truth for the user's interrupt-session time
+// budget (see store/settingsStore.ts's field doc and hooks/useInterruptSessionGrowth.ts) —
+// lives here, not settingsStore.ts, since both the v3->v4 migration below and that store's
+// initial state need it, and migrations.ts can't import from settingsStore.ts (circular).
+// 60s default matches BRAND.md's own "60-second sessions" framing.
+export const SESSION_TARGET_SECONDS_OPTIONS = [30, 45, 60, 90, 120] as const;
+export const SESSION_TARGET_SECONDS_DEFAULT = 60;
 
 const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
   1: (data: unknown) => {
@@ -355,6 +362,22 @@ const SETTINGS_MIGRATIONS: Record<number, (data: unknown) => unknown> = {
       sourceLang: typeof d.sourceLang === "string" && isKnownSourceLangCode(d.sourceLang)
         ? d.sourceLang
         : DEFAULT_SOURCE_LANG_CODE,
+    };
+  },
+  // v3 → v4: adds sessionTargetSeconds — the user's own interrupt-session time budget (see
+  // this file's own doc comment above and store/settingsStore.ts's field doc). Validated
+  // against the current offered slider steps, same defensive pattern as sourceLang above —
+  // a stored value from a future build offering a step this build doesn't recognize (or
+  // simple corruption) falls back to the default rather than reaching
+  // hooks/useInterruptSessionGrowth.ts with an arbitrary/corrupt number.
+  4: (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    const validOptions: readonly number[] = SESSION_TARGET_SECONDS_OPTIONS;
+    return {
+      ...d,
+      sessionTargetSeconds: typeof d.sessionTargetSeconds === "number" && validOptions.includes(d.sessionTargetSeconds)
+        ? d.sessionTargetSeconds
+        : SESSION_TARGET_SECONDS_DEFAULT,
     };
   },
 };

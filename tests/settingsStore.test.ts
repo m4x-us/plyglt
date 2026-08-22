@@ -5,6 +5,7 @@ import {
   SNOOZE_OPTIONS,
   IDLE_THRESHOLD_MIN,
   IDLE_THRESHOLD_MAX,
+  SESSION_TARGET_SECONDS_OPTIONS,
   dndWindowToWakingHours,
   wakingHoursToDndWindow,
 } from "@/store/settingsStore";
@@ -22,6 +23,7 @@ beforeEach(() => {
     unlockEnabled: true,
     idleEnabled: true,
     idleThresholdMinutes: 15,
+    sessionTargetSeconds: 60,
   });
 });
 
@@ -43,6 +45,14 @@ describe("useSettingsStore — default values", () => {
     expect(s.unlockEnabled).toBe(true);
     expect(s.idleEnabled).toBe(true);
     expect(s.idleThresholdMinutes).toBe(15);
+  });
+
+  // Task (2026-08-21): 60s matches BRAND.md's own "60-second sessions" framing — the
+  // number the product is already built and marketed around.
+  it("sessionTargetSeconds defaults to 60 on a fresh, never-persisted store", async () => {
+    vi.resetModules();
+    const { useSettingsStore: freshStore } = await import("@/store/settingsStore");
+    expect(freshStore.getState().sessionTargetSeconds).toBe(60);
   });
 
   // Task #531: the true module-level default (as opposed to this file's beforeEach, which
@@ -109,6 +119,20 @@ describe("useSettingsStore — setters", () => {
       useSettingsStore.getState().setSnoozeMinutes(mins);
       expect(useSettingsStore.getState().snoozeMinutes).toBe(mins);
     }
+  });
+
+  it("setSessionTargetSeconds accepts every valid slider option", () => {
+    for (const secs of SESSION_TARGET_SECONDS_OPTIONS) {
+      useSettingsStore.getState().setSessionTargetSeconds(secs);
+      expect(useSettingsStore.getState().sessionTargetSeconds).toBe(secs);
+    }
+  });
+
+  // Deletion Test target: removing the includes() guard in setSessionTargetSeconds and
+  // passing the value through unchecked would make this test fail (100, not 60).
+  it("setSessionTargetSeconds falls back to the default for a value outside the offered steps", () => {
+    useSettingsStore.getState().setSessionTargetSeconds(100 as never);
+    expect(useSettingsStore.getState().sessionTargetSeconds).toBe(60);
   });
 
   it("setWakeEnabled toggles the flag", () => {

@@ -57,6 +57,51 @@ export const INTERRUPT_SESSION_CAP = 8;
 // bounds the running total rather than a stale snapshot of it.
 export const INTERRUPT_FLEX_DAILY_MAX = INTERRUPT_SESSION_MAX_NEW * 3;
 
+// ── Time-based session growth (Task, 2026-08-21 owner request) ──────────────
+// The 6-card floor above assumes 8-15s/card; a user answering faster than that
+// (the common case — most sessions run well under the 45-90s target) hits the
+// floor and stops, well short of the time budget. Rather than raising the
+// floor to a new fixed number (which then overshoots on a slow/hard day),
+// hooks/useStudySession.ts's handleRate now grows the queue by one near-due
+// card after each rating, as long as the user's own configured time budget
+// (store/settingsStore.ts's sessionTargetSeconds) hasn't elapsed yet. This
+// growth cap is a safety backstop only — time is expected to bind first in
+// virtually every real session, even at the slider's fastest pace (30s) and
+// slowest per-card speed; it exists purely to prevent a pathological case
+// (e.g. a clock anomaly) from growing a session unboundedly. Deliberately
+// separate from INTERRUPT_SESSION_CAP above, which still governs the
+// up-front due-card fill at mount — untouched by this feature.
+export const INTERRUPT_SESSION_GROWTH_CAP = 20;
+
+/**
+ * Whether hooks/useStudySession.ts's handleRate should pull in one more
+ * near-due card after this rating. Pure — no I/O, no Date.now() call (the
+ * caller supplies elapsedMs so this stays independently testable with fixed
+ * inputs). targetSeconds is the user's own chosen value (settingsStore.ts's
+ * SESSION_TARGET_SECONDS_OPTIONS); currentQueueLength is the queue length
+ * AFTER this rating's own requeue logic (handleRate's "again" splice), so an
+ * at-cap queue never grows past INTERRUPT_SESSION_GROWTH_CAP.
+ */
+export function shouldGrowInterruptSession(elapsedMs: number, targetSeconds: number, currentQueueLength: number): boolean {
+  return elapsedMs < targetSeconds * 1000 && currentQueueLength < INTERRUPT_SESSION_GROWTH_CAP;
+}
+
+/**
+ * Picks the next near-due card to append when a session is growing (see
+ * shouldGrowInterruptSession above) — the first candidate, in the caller's
+ * own soonest-due-first order, not already present in the current queue.
+ * Returns null when every candidate is already queued (or the pool is
+ * empty) — growth simply stops there; not an error, same "floor is a
+ * target, not a guarantee" philosophy INTERRUPT_SESSION_FLOOR already uses.
+ */
+export function selectNextGrowthCard(currentQueue: readonly Card[], nearDueCandidates: readonly Card[]): Card | null {
+  const queuedIds = new Set(currentQueue.map((c) => c.id));
+  for (const candidate of nearDueCandidates) {
+    if (!queuedIds.has(candidate.id)) return candidate;
+  }
+  return null;
+}
+
 export function buildQueue(
   cards: Card[],
   getDueCards: (cards: Card[]) => string[],

@@ -11,6 +11,7 @@ import { INTERRUPT_SESSION_FLOOR, INTERRUPT_SESSION_CAP, INTERRUPT_SESSION_MAX_N
 import { useSRSStore, type ActiveSession } from "@/store/srsStore";
 import { useIsHydratedStrict } from "@/lib/storage";
 import { canFlexIntroduceToday } from "@/hooks/useInterruptConfig";
+import { useInterruptSessionGrowth } from "@/hooks/useInterruptSessionGrowth";
 import { localDateStr } from "@/lib/utils";
 
 type UseStudySessionParams = {
@@ -21,28 +22,25 @@ type UseStudySessionParams = {
   // manually-opened Global Review with nothing due shows the normal empty-queue screen.
   isInterrupt: boolean;
   unitId: string;
+  sessionTargetSeconds: number; // interrupt-only time budget — see useInterruptSessionGrowth.ts
   getResumableSession: () => ActiveSession | null;
-  // Task #608 (Wave 6): render-phase-safe pair (store/srsStore.ts, Task #597) — peekResumableSession
-  // never mutates state, safe from useState lazy initializers/useMemo/useEffect alike;
-  // clearExpiredResumableSession is the explicit, side-effecting purge, effect-only. Together
-  // they replace getResumableSession's render-phase set() call everywhere except the
-  // effect-scoped "apply resume" effect below (already safe there).
+  // Task #608 (Wave 6): render-phase-safe pair — never mutates state, safe from useState
+  // lazy initializers/useMemo/useEffect. Replaces getResumableSession's render-phase set()
+  // call everywhere except the effect-scoped "apply resume" effect below (already safe).
   peekResumableSession: () => ActiveSession | null;
   clearExpiredResumableSession: () => void;
   clearActiveSession: () => void;
   commitSession: (cardId: string, grade: Grade, session: ActiveSession) => CardProgress;
   canIntroduceNewCard: (today: string, maxPerDay?: number) => boolean;
   introduceCard: (cardId: string, today: string) => void;
-  // Batch 23 — interrupt-session floor fill: already-studied, not-yet-due cards
-  // ordered soonest-due first (store/srsStore.ts's getNearDueCards, bound by the
-  // page to the session's card scope). Injected like every other store-backed
-  // action here for testability.
+  // Batch 23 — already-studied, not-yet-due cards ordered soonest-due first
+  // (store/srsStore.ts's getNearDueCards, bound by the page to the session's card scope).
+  // Also the source pool for useInterruptSessionGrowth.ts. Injected for testability.
   getNearDueCards: (limit: number) => Card[];
   cards: Record<string, CardProgress>;
   introductions: Record<string, IntroductionRecord>;
-  // Task #169 — records the review as a local sync event, queued for upload once
-  // a live Supabase client exists. Injected (not a direct useSyncStore import)
-  // for the same testability reason every other store-backed action here is.
+  // Task #169 — records the review as a local sync event. Injected (not a direct
+  // useSyncStore import) for the same testability reason as every store-backed action here.
   enqueueReviewEvent: (cardId: string, grade: Grade, resultingProgress: CardProgress) => void;
 };
 
@@ -52,6 +50,7 @@ export function useStudySession({
   isGlobal,
   isInterrupt,
   unitId,
+  sessionTargetSeconds,
   getResumableSession,
   peekResumableSession,
   clearExpiredResumableSession,
@@ -105,6 +104,7 @@ export function useStudySession({
   // True once the mount-fill effect CLAIMED its one attempt (set before any fill logic that
   // can throw — see that effect's try/catch/finally).
   const mountFillStartedRef = useRef(false);
+  const growInterruptQueue = useInterruptSessionGrowth(getNearDueCards); // hooks/useInterruptSessionGrowth.ts
   // Must be useIsHydratedStrict: this effect WRITES persisted state (introduceCard) — pre-
   // hydration writes on Tauri's async IPC would silently lose the write. Only the strict
   // signal never resolves via HYDRATION_FAILSAFE_MS's timeout — see lib/storage.ts.
@@ -363,19 +363,25 @@ export function useStudySession({
     // wrong answer grew an interrupt queue unbounded, defeating INTERRUPT_SESSION_CAP.
     // At the cap, a wrong answer scores and returns via normal FSRS scheduling instead of
     // immediate in-session retry. Non-interrupt sessions are unaffected.
-    let newQueue = queue;
+    let finalQueue = queue;
     if (grade === "again") {
       const atInterruptCap = isInterrupt && queue.length >= INTERRUPT_SESSION_CAP;
       if (!atInterruptCap) {
-        newQueue = [...queue];
-        newQueue.splice(Math.min(pos + 3, newQueue.length), 0, currentCard);
-        setQueue(newQueue);
+        finalQueue = [...queue];
+        finalQueue.splice(Math.min(pos + 3, finalQueue.length), 0, currentCard);
       }
     }
 
+    // Task (2026-08-21): grows an interrupt session by one near-due card per rating,
+    // within the user's time budget — no-ops for non-interrupt sessions. See
+    // hooks/useInterruptSessionGrowth.ts.
+    finalQueue = growInterruptQueue(isInterrupt, finalQueue, sessionStartedAtRef.current, sessionTargetSeconds);
+
+    if (finalQueue !== queue) setQueue(finalQueue); // covers both the "again" requeue and growth above
+
     const resultingProgress = commitSession(currentCard.id, grade, {
       unitId: isGlobal ? "global" : unitId,
-      queueIds: newQueue.map((c) => c.id),
+      queueIds: finalQueue.map((c) => c.id),
       position: newPos,
       sessionCorrect: newCorrect,
       sessionTotal: newTotal,

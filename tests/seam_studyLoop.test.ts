@@ -182,6 +182,7 @@ describe("seam: interrupt-session floor-fill — real useStudySession + real srs
         isGlobal: false,
         isInterrupt: true,
         unitId: UNIT.id,
+        sessionTargetSeconds: 60,
         getResumableSession: store.getResumableSession,
         // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
         // migrating resume-decision resolution to the render-safe pair.
@@ -276,6 +277,7 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         isGlobal,
         isInterrupt,
         unitId: "",
+        sessionTargetSeconds: 60,
         getResumableSession: store.getResumableSession,
         // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
         // migrating resume-decision resolution to the render-safe pair.
@@ -358,6 +360,7 @@ describe("seam: app/study/page.tsx wiring (buildQueue -> INTERRUPT_SESSION_CAP s
         isGlobal,
         isInterrupt,
         unitId: "",
+        sessionTargetSeconds: 60,
         getResumableSession: store.getResumableSession,
         // Task #608 (Wave 6, hooks/useStudySession.ts): new required params after
         // migrating resume-decision resolution to the render-safe pair.

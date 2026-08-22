@@ -725,6 +725,31 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("Snooze duration")).toBeNull();
   });
 
+  // Task (2026-08-21 owner request): session-length slider — replaces a fixed interrupt
+  // card count with a user-chosen time budget.
+  it("renders all 5 session-length options and updates sessionTargetSeconds on click", () => {
+    useSettingsStore.setState({ interruptEnabled: true, sessionTargetSeconds: 60 });
+
+    render(<SettingsPage />);
+
+    for (const s of [30, 45, 60, 90, 120]) {
+      expect(screen.getByRole("button", { name: `${s}s` })).toBeInTheDocument();
+    }
+    expect(useSettingsStore.getState().sessionTargetSeconds).toBe(60);
+
+    fireEvent.click(screen.getByRole("button", { name: "90s" }));
+
+    expect(useSettingsStore.getState().sessionTargetSeconds).toBe(90);
+  });
+
+  it("does not render the session-length section when interruptEnabled is false", () => {
+    useSettingsStore.setState({ interruptEnabled: false });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByText("Session length")).toBeNull();
+  });
+
   // Test 23: License activation button shows the loading indicator and is disabled while loading
   it("disables the Activate button and shows a loading indicator while licenseStatus is loading", () => {
     mockActivation.licenseStatus = { type: "loading" };

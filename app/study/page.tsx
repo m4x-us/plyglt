@@ -16,6 +16,7 @@ import StudyResumePrompt from "@/components/StudyResumePrompt";
 import StudyEmptyQueue from "@/components/StudyEmptyQueue";
 import StudyHydrationStuck from "@/components/StudyHydrationStuck";
 import StudyUnitNotFound from "@/components/StudyUnitNotFound";
+import StudyHeader from "@/components/StudyHeader";
 import { exitMandatoryMode } from "@/lib/tauriInterrupt";
 import { findUnitName, INTERRUPT_SESSION_CAP } from "@/lib/queue";
 import { useStudySession } from "@/hooks/useStudySession";
@@ -24,7 +25,6 @@ import { computeStudyDoneScreenProps } from "@/hooks/studyDoneScreenProps";
 import { useSnoozeAndExit } from "@/hooks/useSnoozeAndExit";
 import { useSync } from "@/hooks/useSync";
 import { useHydrationStuck } from "@/hooks/useHydrationStuck";
-import { tierLabel } from "@/lib/cardLabels";
 
 function StudyInner() {
   const searchParams = useSearchParams();
@@ -42,6 +42,7 @@ function StudyInner() {
   // Task #518: nudges a sync soon after every review instead of waiting for the periodic timer.
   const enqueueReviewEvent: typeof enqueueReviewEventRaw = (...args) => { enqueueReviewEventRaw(...args); triggerSyncSoon(); };
   const snoozeMinutes = useSettingsStore((s) => s.snoozeMinutes);
+  const sessionTargetSeconds = useSettingsStore((s) => s.sessionTargetSeconds);
   const handleSnooze = useSnoozeAndExit(snoozeMinutes);
   const { units: ALL_UNITS, unitMap: UNIT_MAP, lang, loading: packLoading } = useLangPack();
 
@@ -51,10 +52,9 @@ function StudyInner() {
     getDueCards, getNewCards, getIntroductionDueCardIds,
   });
 
-  // Task #542/#583/#620: scans+sorts the full allCards catalog once per mount —
-  // see hooks/useStudySession.ts's near-due fill step for the cost analysis.
+  // Task #542/#583/#620: scans+sorts allCards once per mount — see useStudySession.ts.
   const { queue, pos, sessionCorrect, sessionTotal, resumeDecision, setResumeDecision, handleRate, resetToQueue } =
-    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
+    useStudySession({ initialQueue, allCardMap, isGlobal, isInterrupt, unitId, sessionTargetSeconds, getResumableSession, peekResumableSession, clearExpiredResumableSession, clearActiveSession, commitSession, canIntroduceNewCard, introduceCard, getNearDueCards: (limit) => getNearDueCards(allCards, limit), cards, introductions, enqueueReviewEvent });
 
   // Task #628: `hydratedStrict` (never resolves via HYDRATION_FAILSAFE_MS,
   // unlike lenient `hydrated`) gates real writes past this screen.
@@ -119,25 +119,12 @@ function StudyInner() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col px-4 py-8">
-      <div className="flex items-center justify-between max-w-xl mx-auto w-full mb-6">
-        {isInterrupt ? (
-          <button onClick={handleSnooze} className="text-yellow-600 hover:text-yellow-400 text-sm font-medium transition-colors">
-            Snooze {snoozeMinutes} min
-          </button>
-        ) : (
-          <button onClick={() => router.push("/learn")} className="text-gray-500 hover:text-gray-300 text-sm transition-colors">
-            ← {headerTitle}
-          </button>
-        )}
-        <div className="flex items-center gap-3 text-sm">
-          {isInterrupt && <span className="text-xs bg-yellow-900/40 text-yellow-500 px-2 py-0.5 rounded-full font-medium">{pos + 1}/{queue.length}</span>}
-          {(isGlobal || isInterrupt) && unitName && <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">{unitName}</span>}
-          <span className="text-xs bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">
-            Tier {currentCard.tier} · {tierLabel(currentCard.tier)}
-          </span>
-          {sessionTotal > 0 && <span className="text-gray-500">{sessionCorrect}/{sessionTotal} correct</span>}
-        </div>
-      </div>
+      <StudyHeader
+        isInterrupt={isInterrupt} isGlobal={isGlobal} headerTitle={headerTitle}
+        onSnooze={handleSnooze} snoozeMinutes={snoozeMinutes} onHome={() => router.push("/learn")}
+        pos={pos} queueLength={queue.length} unitName={unitName} tier={currentCard.tier}
+        sessionCorrect={sessionCorrect} sessionTotal={sessionTotal}
+      />
       <div className="flex-1 flex items-center justify-center">
         <StudyCard key={`${currentCard.id}-${pos}`} card={currentCard} lang={lang} cardNumber={pos + 1} totalCards={queue.length} onRate={(g) => { handleRate(g); const r = introductions[currentCard.id]; if (r && !r.graduated) recordIntroductionResult(currentCard.id, g !== "again", localDateStr()); }} />
       </div>
@@ -145,15 +132,11 @@ function StudyInner() {
   );
 }
 
-// Task #654: Next.js App Router does not remount a component on a same-pathname,
-// query-string-only navigation (e.g. a push tap's router.push("/study?mode=interrupt")
-// while already on "/study?unit=X"). Without a key, StudyInner's underlying
-// useStudySession() hook instance survives that navigation untouched — its one-shot
-// mountFillStartedRef stays spent and its resume-decision effect (keyed only on
-// [hydrated]) never re-evaluates for the new session identity, so `queue`/`pos` stay
-// frozen at the PRIOR session's values while the header/badge relabel to the new mode.
-// Keying on mode+unitId forces a full unmount/remount of StudyInner (and therefore a
-// fresh useStudySession instance) whenever the session identity actually changes.
+// Task #654: Next.js App Router doesn't remount on a same-pathname, query-string-only
+// navigation (e.g. a push tap routing "/study?unit=X" -> "/study?mode=interrupt"), so
+// without a key StudyInner's useStudySession() instance survives untouched — stale
+// queue/pos from the PRIOR session while the header relabels. Keying on mode+unitId
+// forces a real remount whenever session identity changes.
 function StudyPageKeyed() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get("unit") ?? "";
